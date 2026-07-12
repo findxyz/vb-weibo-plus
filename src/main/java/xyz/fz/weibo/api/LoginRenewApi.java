@@ -48,7 +48,7 @@ public class LoginRenewApi {
         if (updatetgtBody == null || !updatetgtBody.contains("\"retcode\":0")) {
             throw new WeiboException("续期第 1 步 updatetgt 失败：" + updatetgtBody);
         }
-        log.debug("续期第 1 步 updatetgt 成功");
+        log.info("续期第 1 步 updatetgt 成功");
 
         // 第 2 步 crossdomain
         ResponseEntity<String> crossdomainResp = client.getForString(
@@ -68,7 +68,7 @@ public class LoginRenewApi {
         for (JsonNode item : crossdomainNode.get("arrURL")) {
             arrURL.add(item.asText());
         }
-        log.debug("续期第 2 步 crossdomain 成功，arrURL 数量：{}", arrURL.size());
+        log.info("续期第 2 步 crossdomain 成功，arrURL 数量：{}", arrURL.size());
 
         // 第 3 步 遍历 arrURL 跨域刷新
         for (String url : arrURL) {
@@ -87,7 +87,7 @@ public class LoginRenewApi {
                         || node.get("retcode").asInt() != 20000000) {
                     throw new WeiboException("续期第 3 步跨域刷新失败：" + url + "：" + body);
                 }
-                log.debug("续期第 3 步 passport.weibo.cn 跨域刷新成功");
+                log.info("续期第 3 步 passport.weibo.cn 跨域刷新成功");
             } else {
                 throw new WeiboException("续期第 3 步跨域刷新失败：未知 URL：" + url + "：" + body);
             }

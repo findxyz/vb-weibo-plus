@@ -44,4 +44,4 @@ GET {{host}}/weibo/group/media?fid=5319791961442994
 GET {{host}}/weibo/media/image?url=https://wx2.sinaimg.cn/orj960/6b023ab6ly1ieoebpuuwfj20u01tmdjw.jpg
 
 ### 视频直链下载（url 为 f.video.weibocdn.com 视频流地址）
-GET {{host}}/weibo/media/video?url=http://f.video.weibocdn.com/o0/9du3qRaklx08z5gOX4Fi01041208eFvz0E030.mp4
+GET {{host}}/weibo/media/video?url=http://f.video.weibocdn.com/o0/Jy6Kdy1Jlx08z5K1kSg001041200cCse0E010.mp4?label=mp4_hd&template=640x480.25.0&ori=0&ps=1CwnkDw1GXwCQx&Expires=1783876289&ssig=IdLDsDIfb7&KID=unistore,video

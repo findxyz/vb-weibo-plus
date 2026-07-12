@@ -62,8 +62,10 @@ public class WeiboHttpClient {
     private <T> ResponseEntity<T> execute(URI uri, HttpHeaders headers, Class<T> responseType) {
         //noinspection ConstantValue
         for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
+            log.info("微博请求：GET {} headers={}", uri, maskCookie(headers));
             ResponseEntity<T> resp = restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
             int statusCode = resp.getStatusCode().value();
+            log.info("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
 
             if (statusCode == 429) {
                 if (attempt <= WeiboConstants.MAX_RETRY) {
@@ -151,6 +153,43 @@ public class WeiboHttpClient {
         } catch (JsonProcessingException e) {
             // 非 JSON 响应（如 JSONP），忽略
         }
+    }
+
+    /** Cookie 脱敏：只保留 key 和值长度，避免日志泄露完整凭证。 */
+    private String maskCookie(HttpHeaders headers) {
+        String cookie = headers.getFirst(HttpHeaders.COOKIE);
+        if (cookie == null || cookie.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (String pair : cookie.split(";")) {
+            String trimmed = pair.trim();
+            int eq = trimmed.indexOf('=');
+            if (eq <= 0) {
+                continue;
+            }
+            String name = trimmed.substring(0, eq);
+            String value = trimmed.substring(eq + 1);
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(name).append("=").append("*".repeat(Math.min(value.length(), 6))).append("(").append(value.length()).append(")");
+        }
+        return sb.append("}").toString();
+    }
+
+    /** 响应预览：String 截断到 500 字符，byte[] 只显示长度。 */
+    private String previewBody(Object body) {
+        if (body == null) {
+            return "null";
+        }
+        if (body instanceof byte[] bytes) {
+            return "<byte[" + bytes.length + "]>";
+        }
+        String text = body.toString();
+        return text.length() <= 500 ? text : text.substring(0, 500) + "...(" + text.length() + ")";
     }
 
     private void sleep(long millis) {
