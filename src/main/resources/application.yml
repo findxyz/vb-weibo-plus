@@ -1,0 +1,6 @@
+server:
+  port: 8080
+
+weibo:
+  cookie-file: .weibo_cookie.txt
+  qr-timeout-seconds: 300

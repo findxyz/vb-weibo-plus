@@ -1,0 +1,42 @@
+# Java / Maven / Spring Boot
+target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+hs_err_pid*
+replay_pid*
+
+# Spring Boot
+*.original
+*.log
+
+# 敏感（微博登录凭证，不进版本控制）
+.weibo_cookie.txt
+
+# 数据库（本地缓存，不进版本控制）
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Playwright（浏览器二进制缓存）
+.playwright/
+
+# IDE
+.idea/
+.vscode/
+.zcode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
