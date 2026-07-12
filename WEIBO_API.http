@@ -1,0 +1,47 @@
+### 变量
+@host = http://localhost:8080
+
+### 扫码登录（会打开浏览器，需手机微博 App 扫码确认）
+POST {{host}}/weibo/login/qr
+
+### 续期（保活登录态，刷新 SSOLoginState / ALF）
+POST {{host}}/weibo/login/renew
+
+### 博主微博增量翻页 - 第 1 页（不传 sinceId）
+GET {{host}}/weibo/blog/mymblog?uid=1795308214&page=1
+
+### 博主微博增量翻页 - 第 2 页（sinceId 取上一页响应的 data.sinceId）
+GET {{host}}/weibo/blog/mymblog?uid=1795308214&page=2&sinceId=5312356647437845
+
+### 长文补全（id 为 mymblog 响应中 isLongText=true 的微博数字 id）
+GET {{host}}/weibo/blog/longtext?id=5316949752945053
+
+### 博主微博时间范围拉取 - 第 1 页（startTime / endTime 为秒级时间戳）
+GET {{host}}/weibo/blog/searchProfile?uid=1795308214&page=1&startTime=1783622400&endTime=1783708799
+
+### 博主微博时间范围拉取 - 第 2 页
+GET {{host}}/weibo/blog/searchProfile?uid=1795308214&page=2&startTime=1783622400&endTime=1783708799
+
+### 群聊列表
+GET {{host}}/weibo/group/list
+
+### 群聊消息 - 第 1 页（不传 maxMid，拉最新一批）
+GET {{host}}/weibo/group/messages?id=4761715839862414
+
+### 群聊消息 - 第 2 页（maxMid 取上一页响应的 messages[0].id）
+GET {{host}}/weibo/group/messages?id=4761715839862414&maxMid=5319836654896760
+
+### 群聊媒体下载 - 图片原图（fid 来自群消息的 fids 字段）
+GET {{host}}/weibo/group/media?fid=5319791961442994&imageType=origin
+
+### 群聊媒体下载 - 图片压缩图
+GET {{host}}/weibo/group/media?fid=5319791961442994&imageType=compress
+
+### 群聊媒体下载 - 视频（不传 imageType）
+GET {{host}}/weibo/group/media?fid=5319791961442994
+
+### 图床直链下载（url 为 sinaimg.cn 图床地址）
+GET {{host}}/weibo/media/image?url=https://wx2.sinaimg.cn/orj960/6b023ab6ly1ieoebpuuwfj20u01tmdjw.jpg
+
+### 视频直链下载（url 为 f.video.weibocdn.com 视频流地址）
+GET {{host}}/weibo/media/video?url=http://f.video.weibocdn.com/o0/9du3qRaklx08z5gOX4Fi01041208eFvz0E030.mp4

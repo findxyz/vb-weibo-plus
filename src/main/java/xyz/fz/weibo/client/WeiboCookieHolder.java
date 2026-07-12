@@ -63,7 +63,8 @@ public class WeiboCookieHolder {
     /**
      * 续期链合并 Set-Cookie。
      * <p>
-     * 仅接受 domain 为 .weibo.com 且 name 为 SSOLoginState 或 ALF 的条目，
+     * 仅接受 domain 为 .weibo.com 且 name 为 SSOLoginState 的条目，
+     * 更新 SSOLoginState 时同步将 ALF 设为相同值，Set-Cookie 中的 ALF 忽略。
      * 合并到当前 cookie 串并按 SUBP; ALF; SSOLoginState; SUB 顺序回写，保留原有 SUB/SUBP 不变。
      */
     public void mergeRenewal(List<String> setCookies) {
@@ -86,7 +87,7 @@ public class WeiboCookieHolder {
                 }
             }
             if (domain == null || !domain.equalsIgnoreCase(".weibo.com")) {
-                log.debug("mergeRenewal 跳过非 .weibo.com 域 cookie：{}", setCookie);
+                log.info("mergeRenewal 跳过非 .weibo.com 域 cookie：{}", setCookie);
                 continue;
             }
             if (nameValue == null) {
@@ -95,9 +96,12 @@ public class WeiboCookieHolder {
             int eq = nameValue.indexOf('=');
             String name = nameValue.substring(0, eq);
             String value = nameValue.substring(eq + 1);
-            if ("SSOLoginState".equals(name) || "ALF".equals(name)) {
-                map.put(name, value);
-                log.debug("mergeRenewal 更新 {}={}", name, value);
+            if ("SSOLoginState".equals(name)) {
+                map.put("SSOLoginState", value);
+                map.put("ALF", value);
+                log.info("mergeRenewal 更新 SSOLoginState={}，ALF 同步为相同值", value);
+            } else {
+                log.info("mergeRenewal 跳过非 SSOLoginState 的 .weibo.com 域 cookie：{}", setCookie);
             }
         }
         String newCookie = buildCookie(map);

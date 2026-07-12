@@ -77,8 +77,9 @@ public class LoginRenewApi {
             String body = resp.getBody();
             if (url.contains("passport.weibo.com")) {
                 List<String> setCookies = resp.getHeaders().getOrEmpty("Set-Cookie");
+                log.info("passport.weibo.com 原始 Set-Cookie：{}", setCookies);
                 holder.mergeRenewal(setCookies);
-                log.debug("续期第 3 步 passport.weibo.com 跨域刷新成功，合并 Set-Cookie 数量：{}", setCookies.size());
+                log.info("续期第 3 步 passport.weibo.com 跨域刷新成功，合并 Set-Cookie 数量：{}", setCookies.size());
             } else if (url.contains("passport.weibo.cn")) {
                 JsonNode node = parseJsonp(body);
                 if (node == null
