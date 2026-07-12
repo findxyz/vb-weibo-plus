@@ -3,7 +3,7 @@ package xyz.fz.weibo.controller;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.DirectMediaApi;
@@ -27,11 +27,11 @@ class WeiboMediaControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private DirectMediaApi directMediaApi;
 
     @Test
-    void image_正常返回字节流并透传响应头() throws Exception {
+    void image_returns_bytes_with_headers() throws Exception {
         when(directMediaApi.download(anyString()))
                 .thenReturn(ResponseEntity.ok()
                         .header("Content-Type", "image/png")
@@ -44,7 +44,7 @@ class WeiboMediaControllerTest {
     }
 
     @Test
-    void video_正常返回字节流并透传响应头() throws Exception {
+    void video_returns_bytes_with_headers() throws Exception {
         when(directMediaApi.download(anyString()))
                 .thenReturn(ResponseEntity.ok()
                         .header("Content-Type", "video/mp4")
@@ -57,7 +57,7 @@ class WeiboMediaControllerTest {
     }
 
     @Test
-    void image_Cookie_失效时返回_401() throws Exception {
+    void image_returns_401_when_cookie_expired() throws Exception {
         when(directMediaApi.download(anyString()))
                 .thenThrow(new WeiboCookieExpiredException("Cookie 失效"));
 
@@ -67,7 +67,7 @@ class WeiboMediaControllerTest {
     }
 
     @Test
-    void video_异常时返回_500() throws Exception {
+    void video_returns_500_on_error() throws Exception {
         when(directMediaApi.download(anyString()))
                 .thenThrow(new WeiboException("下载失败"));
 

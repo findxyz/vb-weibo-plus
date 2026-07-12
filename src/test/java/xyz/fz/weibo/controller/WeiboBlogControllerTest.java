@@ -3,7 +3,7 @@ package xyz.fz.weibo.controller;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
@@ -35,17 +35,17 @@ class WeiboBlogControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private MyBlogApi myBlogApi;
 
-    @MockBean
+    @MockitoBean
     private LongTextApi longTextApi;
 
-    @MockBean
+    @MockitoBean
     private SearchProfileApi searchProfileApi;
 
     @Test
-    void myblog_正常返回_200_且包含JSON字段() throws Exception {
+    void myblog_returns_200_with_json_fields() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
                 .thenReturn(new MyBlogResponse(
                         new MyBlogResponse.MyBlogData(123L, List.of(), 0), 1));
@@ -57,7 +57,7 @@ class WeiboBlogControllerTest {
     }
 
     @Test
-    void myblog_Cookie失效时返回401() throws Exception {
+    void myblog_returns_401_when_cookie_expired() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
                 .thenThrow(new WeiboCookieExpiredException("Cookie 失效"));
 
@@ -68,7 +68,7 @@ class WeiboBlogControllerTest {
     }
 
     @Test
-    void myblog_限流时返回429() throws Exception {
+    void myblog_returns_429_when_rate_limited() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
                 .thenThrow(new WeiboRateLimitException("限流重试耗尽"));
 
@@ -79,7 +79,7 @@ class WeiboBlogControllerTest {
     }
 
     @Test
-    void myblog_URI过长时返回414() throws Exception {
+    void myblog_returns_414_when_uri_too_long() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
                 .thenThrow(new WeiboUriTooLongException("URI 过长"));
 
@@ -90,7 +90,7 @@ class WeiboBlogControllerTest {
     }
 
     @Test
-    void myblog_带errorCode的业务异常返回502() throws Exception {
+    void myblog_returns_502_when_business_error() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
                 .thenThrow(new WeiboException("业务错误", 10023));
 
@@ -101,7 +101,7 @@ class WeiboBlogControllerTest {
     }
 
     @Test
-    void myblog_无errorCode的异常返回500() throws Exception {
+    void myblog_returns_500_when_internal_error() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
                 .thenThrow(new WeiboException("内部错误"));
 
@@ -112,7 +112,7 @@ class WeiboBlogControllerTest {
     }
 
     @Test
-    void longtext_正常返回200() throws Exception {
+    void longtext_returns_200() throws Exception {
         when(longTextApi.longText(any()))
                 .thenReturn(new LongTextResponse(
                         new LongTextResponse.LongTextData(
@@ -125,7 +125,7 @@ class WeiboBlogControllerTest {
     }
 
     @Test
-    void searchProfile_正常返回200() throws Exception {
+    void search_profile_returns_200() throws Exception {
         when(searchProfileApi.searchProfile(any()))
                 .thenReturn(new SearchProfileResponse(
                         new SearchProfileResponse.SearchProfileData(

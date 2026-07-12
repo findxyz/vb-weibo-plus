@@ -3,7 +3,7 @@ package xyz.fz.weibo.controller;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.GroupListApi;
@@ -35,17 +35,17 @@ class WeiboGroupControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private GroupListApi groupListApi;
 
-    @MockBean
+    @MockitoBean
     private GroupMessagesApi groupMessagesApi;
 
-    @MockBean
+    @MockitoBean
     private GroupMediaApi groupMediaApi;
 
     @Test
-    void list_正常返回_200() throws Exception {
+    void list_returns_200() throws Exception {
         when(groupListApi.list())
                 .thenReturn(new GroupListResponse(0, List.of()));
 
@@ -56,7 +56,7 @@ class WeiboGroupControllerTest {
     }
 
     @Test
-    void list_Cookie_失效时返回_401() throws Exception {
+    void list_returns_401_when_cookie_expired() throws Exception {
         when(groupListApi.list())
                 .thenThrow(new WeiboCookieExpiredException("Cookie 失效"));
 
@@ -66,7 +66,7 @@ class WeiboGroupControllerTest {
     }
 
     @Test
-    void messages_正常返回_200() throws Exception {
+    void messages_returns_200() throws Exception {
         when(groupMessagesApi.messages(any(GroupMessagesRequest.class)))
                 .thenReturn(new GroupMessagesResponse(true, List.of(), 1700000000000L));
 
@@ -77,7 +77,7 @@ class WeiboGroupControllerTest {
     }
 
     @Test
-    void messages_限流时返回_429() throws Exception {
+    void messages_returns_429_when_rate_limited() throws Exception {
         when(groupMessagesApi.messages(any(GroupMessagesRequest.class)))
                 .thenThrow(new WeiboRateLimitException("限流"));
 
@@ -87,7 +87,7 @@ class WeiboGroupControllerTest {
     }
 
     @Test
-    void media_正常返回字节流并透传响应头() throws Exception {
+    void media_returns_bytes_with_headers() throws Exception {
         when(groupMediaApi.download(any()))
                 .thenReturn(ResponseEntity.ok()
                         .header("Content-Type", "image/jpeg")
@@ -102,7 +102,7 @@ class WeiboGroupControllerTest {
     }
 
     @Test
-    void media_异常时返回_500() throws Exception {
+    void media_returns_500_on_error() throws Exception {
         when(groupMediaApi.download(any()))
                 .thenThrow(new WeiboException("下载失败"));
 

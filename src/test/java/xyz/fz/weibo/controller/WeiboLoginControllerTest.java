@@ -3,7 +3,7 @@ package xyz.fz.weibo.controller;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.LoginApi;
 import xyz.fz.weibo.api.LoginRenewApi;
@@ -24,14 +24,14 @@ class WeiboLoginControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private LoginApi loginApi;
 
-    @MockBean
+    @MockitoBean
     private LoginRenewApi loginRenewApi;
 
     @Test
-    void renew_正常返回_200_且包含续期成功标识() throws Exception {
+    void renew_returns_200_with_success() throws Exception {
         when(loginRenewApi.renew())
                 .thenReturn(new LoginRenewResponse(true, "续期成功"));
 
@@ -42,7 +42,7 @@ class WeiboLoginControllerTest {
     }
 
     @Test
-    void renew_抛_WeiboException_时返回_500() throws Exception {
+    void renew_returns_500_on_exception() throws Exception {
         when(loginRenewApi.renew())
                 .thenThrow(new WeiboException("续期失败"));
 
@@ -53,7 +53,7 @@ class WeiboLoginControllerTest {
     }
 
     @Test
-    void renew_抛_带_errorCode_的异常时返回_502() throws Exception {
+    void renew_returns_502_when_business_error() throws Exception {
         when(loginRenewApi.renew())
                 .thenThrow(new WeiboException("续期第 1 步失败", 10023));
 
