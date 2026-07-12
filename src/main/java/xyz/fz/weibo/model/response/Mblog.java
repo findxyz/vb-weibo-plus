@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public record Mblog(
         Long id,
-        String mblogid,
+        @JsonProperty("mblogid") String mblogId,
         @JsonProperty("created_at") String createdAt,
         String text,
         String source,

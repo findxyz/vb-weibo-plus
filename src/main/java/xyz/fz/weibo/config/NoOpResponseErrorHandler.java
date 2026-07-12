@@ -4,7 +4,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResponseErrorHandler;
 
-import java.io.IOException;
 import java.net.URI;
 
 /**
@@ -13,7 +12,7 @@ import java.net.URI;
 public class NoOpResponseErrorHandler implements ResponseErrorHandler {
 
     @Override
-    public boolean hasError(ClientHttpResponse response) throws IOException {
+    public boolean hasError(ClientHttpResponse response) {
         return false;
     }
 

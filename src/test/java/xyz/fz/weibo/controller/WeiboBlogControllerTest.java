@@ -134,8 +134,8 @@ class WeiboBlogControllerTest {
         mockMvc.perform(get("/weibo/blog/searchProfile")
                         .param("uid", "1")
                         .param("page", "1")
-                        .param("starttime", "1000")
-                        .param("endtime", "2000"))
+                        .param("startTime", "1000")
+                        .param("endTime", "2000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(1))
                 .andExpect(content().contentTypeCompatibleWith("application/json"));

@@ -46,8 +46,8 @@ public class WeiboBlogController {
     @GetMapping("/searchProfile")
     public SearchProfileResponse searchProfile(@RequestParam Long uid,
                                                @RequestParam Integer page,
-                                               @RequestParam Long starttime,
-                                               @RequestParam Long endtime) {
-        return searchProfileApi.searchProfile(new SearchProfileRequest(uid, page, starttime, endtime));
+                                               @RequestParam Long startTime,
+                                               @RequestParam Long endTime) {
+        return searchProfileApi.searchProfile(new SearchProfileRequest(uid, page, startTime, endTime));
     }
 }
