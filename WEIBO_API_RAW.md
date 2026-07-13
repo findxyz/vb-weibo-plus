@@ -20,7 +20,7 @@
 
 # 登录
 
-登录流程总览（扫码登录获取凭证 + 续期链保活 + Cookie 失效后重登）：
+登录流程总览（扫码登录获取凭证 + Cookie 失效后重登）：
 
 ```mermaid
 flowchart TD
@@ -29,24 +29,6 @@ flowchart TD
     Scan --> SSO[微博网页自动完成 SSO 登录]
     SSO --> Extract[提取 .weibo.com 域 Cookie<br/>SUB / SUBP / SSOLoginState / ALF]
     Extract --> Ready[[获得登录态<br/>四 Cookie 用于后续所有接口]]
-
-    Ready --> Trig[触发续期]
-    Trig --> R1
-    subgraph Renewal[续期链]
-        direction TB
-        R1["① 续期触发<br/>GET login.sina.com.cn/sso/updatetgt.php<br/>retcode=0 · 无 Set-Cookie · 仅为服务端预热"]
-        R2["② 取跨域 URL<br/>GET login.sina.com.cn/sso/crossdomain.php<br/>返回 JSONP arrURL 列表"]
-        R3["③ 遍历 arrURL 逐个 GET（追加 callback=cb）"]
-        R4a["跨域刷新 passport.weibo.com<br/>Set-Cookie 刷新<br/>SSOLoginState + ALF（.weibo.com 域）<br/>★ 续期核心 · 不下发新 SUB/SUBP"]
-        R4b["跨域刷新 passport.weibo.cn<br/>Set-Cookie 刷新 .weibo.cn 域<br/>并 SUB=deleted / SUBP=deleted"]
-        R1 --> R2 --> R3
-        R3 --> R4a
-        R3 --> R4b
-    end
-    R4a --> Merge[合并续期结果]
-    R4b --> Merge
-    Merge --> Result["SUB / SUBP 保持扫码登录值不变<br/>SSOLoginState + ALF 取 .weibo.com 域新值"]
-    Result --> Ready
 
     Ready -. 业务请求 .-> Fail{Cookie 失效?}
     Fail -->|"error_code=21301 / error=relogin! 或<br/>HTTP 302 跳 login.sina.com.cn /<br/>passport.weibo.com / weibo.com/login"| QR
@@ -78,201 +60,8 @@ SUB=_2A25HVz7MDeRhGedJ4lcS8CbOyjiIHXVkLT4ErDV8PUNbmtAbLVrmkW9NUYY1E2drJMYiuMg6Vm
 ```
 
 说明
-用 Playwright 启动有头 Chromium 打开 https://api.weibo.com/chat 页面，用户用微博 App 扫码确认后，微博网页内部自动完成 SSO 登录流程，浏览器落入 .weibo.com 域 Cookie。提取 SUB、SUBP、SSOLoginState、ALF 四个字段。SUB/SUBP 为微博唯一登录凭证，续期链不刷新，只有扫码登录时获得。SSOLoginState 为登录时间戳（秒级），ALF 为有效期截止时间（秒级）。后续所有微博接口请求都依赖这四个 Cookie。
+用 Playwright 启动有头 Chromium 打开 https://api.weibo.com/chat 页面，用户用微博 App 扫码确认后，微博网页内部自动完成 SSO 登录流程，浏览器落入 .weibo.com 域 Cookie。提取 SUB、SUBP、SSOLoginState、ALF 四个字段。SUB/SUBP 为微博唯一登录凭证，扫码登录时获得，后续不刷新。SSOLoginState 为登录时间戳（秒级），ALF 为有效期截止时间（秒级）。后续所有微博接口请求都依赖这四个 Cookie。
 
-
-## 续期触发
-
-请求
-
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| Method | GET | |
-| URL | https://login.sina.com.cn/sso/updatetgt.php | |
-| entry | account | 固定 |
-| callback | cb | 固定 |
-| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA，规避自动化检测 |
-| Referer | https://weibo.com/ | |
-| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
-
-响应
-
-| 字段 | 说明 | 示例值 |
-|------|------|--------|
-| retcode | 0 表示成功 | 0 |
-| Set-Cookie | 无 | - |
-
-原始响应
-
-```http
-HTTP/1.1 200 OK
-Content-Type: text/html
-Transfer-Encoding: chunked
-Connection: keep-alive
-Date: Sun, 12 Jul 2026 08:22:46 GMT
-Vary: Accept-Encoding
-Pragma: no-cache
-Content-Security-Policy: upgrade-insecure-requests
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-Server: APISIX/3.14.1
-ALB-X-Request-ID: a308fc17-b9a1-4e0a-9ec6-b2d9a366417e
-
-cb({"retcode":0});
-```
-
-说明
-续期链第一步。entry=account、callback=cb 固定。响应体只有 retcode，无 Set-Cookie。作用是触发微博服务端续期，为后续 crossdomain 步骤做准备。retcode=0 表示成功。此接口用的 Cookie 是扫码登录时拿到的 SUB/SUBP。
-
-## 取跨域 URL
-
-请求
-
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| Method | GET | |
-| URL | https://login.sina.com.cn/sso/crossdomain.php | |
-| action | login | 固定 |
-| domain | sina.com.cn | 固定 |
-| callback | cb | 固定 |
-| sr | 1920*1080 | 屏幕分辨率，固定 |
-| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA，规避自动化检测 |
-| Referer | https://weibo.com/ | |
-| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
-
-响应
-
-| 字段 | 说明 | 示例值 |
-|------|------|--------|
-| retcode | 0 表示成功 | 0 |
-| arrURL | 跨域刷新 URL 列表 | ["https://passport.weibo.com/wbsso/...", "https://passport.weibo.cn/sso/..."] |
-
-原始响应
-
-```http
-HTTP/1.1 200 OK
-Content-Type: text/html
-Transfer-Encoding: chunked
-Connection: keep-alive
-Date: Sun, 12 Jul 2026 08:22:46 GMT
-Vary: Accept-Encoding
-Pragma: no-cache
-Content-Security-Policy: upgrade-insecure-requests
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-Server: APISIX/3.14.1
-ALB-X-Request-ID: 3ac6c2d1-44dc-40bc-8d21-50d2181d99ff
-
-cb({"retcode":0,"arrURL":["https:\/\/passport.weibo.com\/wbsso\/crossdomain?action=login&savestate=1786436508","https:\/\/passport.weibo.cn\/sso\/crossdomain?action=login&savestate=1"]});
-```
-
-说明
-续期链第二步。action=login、domain=sina.com.cn、callback=cb、sr=1920*1080 固定。响应为 JSONP 格式 cb({...})，arrURL 为跨域刷新 URL 列表。遍历 arrURL 逐个 GET（追加 callback=cb）完成跨域刷新。
-
-完整 arrURL：
-- https://passport.weibo.com/wbsso/crossdomain?action=login&savestate=1786436508
-- https://passport.weibo.cn/sso/crossdomain?action=login&savestate=1
-
-## 跨域刷新 - passport.weibo.com
-
-请求
-
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| Method | GET | |
-| URL | https://passport.weibo.com/wbsso/crossdomain | |
-| action | login | 固定 |
-| savestate | 1786436508 | 由 crossdomain 响应下发 |
-| callback | cb | 追加 |
-| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA，规避自动化检测 |
-| Referer | https://weibo.com/ | |
-| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
-
-响应
-
-| 字段 | 说明 | 示例值 |
-|------|------|--------|
-| retcode | 0 表示成功 | 0 |
-| Set-Cookie: SSOLoginState | 刷新登录时间戳，domain=.weibo.com | 1783844567 |
-| Set-Cookie: ALF | 刷新有效期，domain=.weibo.com | 1786436508 |
-
-原始响应
-
-```http
-HTTP/1.1 200 OK
-Content-Type: text/html
-Transfer-Encoding: chunked
-Connection: keep-alive
-Date: Sun, 12 Jul 2026 08:22:47 GMT
-Vary: Accept-Encoding
-Cache-Control: no-cache, must-revalidate
-Expires: Sat, 26 Jul 1997 05:00:00 GMT
-Pragma: no-cache
-Set-Cookie: SSOLoginState=1783844567; path=/; domain=.weibo.com
-Set-Cookie: ALF=1786436508; expires=Tue, 11-Aug-2026 08:21:48 GMT; Max-Age=2591941; path=/; domain=.weibo.com
-P3P: CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"
-Content-Security-Policy: upgrade-insecure-requests
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-Server: APISIX/3.14.1
-ALB-X-Request-ID: 2c49c843-7cd3-4f58-a1f7-ac0462abf16a
-
-cb({'retcode':0,'scriptId':''});
-```
-
-说明
-续期链第三步。URL 来自 crossdomain 响应的 arrURL[0]，savestate 值由服务端下发，追加 callback=cb。响应为单引号 JSONP（非合法 JSON），只需关注 Set-Cookie，不解析响应体。Set-Cookie 刷新 .weibo.com 域的 SSOLoginState（登录时间戳）和 ALF（有效期），不下发新 SUB/SUBP。项目业务请求都走 weibo.com 域，此步是续期的核心。
-
-## 跨域刷新 - passport.weibo.cn
-
-请求
-
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| Method | GET | |
-| URL | https://passport.weibo.cn/sso/crossdomain | |
-| action | login | 固定 |
-| savestate | 1 | 由 crossdomain 响应下发 |
-| callback | cb | 追加 |
-| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA，规避自动化检测 |
-| Referer | https://weibo.com/ | |
-| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
-
-响应
-
-| 字段 | 说明 | 示例值 |
-|------|------|--------|
-| retcode | 20000000 表示成功 | 20000000 |
-| Set-Cookie: SSOLoginState | 刷新 .weibo.cn 域登录时间戳 | 1783844567; domain=.weibo.cn |
-| Set-Cookie: ALF | 刷新 .weibo.cn 域有效期 | 1786436567; domain=.weibo.cn |
-| Set-Cookie: SUB=deleted | 清除 .weibo.cn 域登录态 | domain=.weibo.cn |
-| Set-Cookie: SUBP=deleted | 清除 .weibo.cn 域登录态 | domain=.weibo.cn |
-
-原始响应
-
-```http
-HTTP/1.1 200 OK
-Content-Type: text/javascript; charset=utf-8
-Transfer-Encoding: chunked
-Connection: keep-alive
-Date: Sun, 12 Jul 2026 08:22:47 GMT
-Cache-Control: no-cache, must-revalidate
-Expires: Sat, 26 Jul 1997 05:00:00 GMT
-Pragma: no-cache
-P3P: CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"
-Set-Cookie: SSOLoginState=1783844567; path=/; domain=.weibo.cn; secure; SameSite=None
-Set-Cookie: ALF=1786436567; expires=Tuesday, 11-Aug-2026 08:22:47 GMT; path=/; domain=.weibo.cn; secure; SameSite=None
-Set-Cookie: SUB=deleted; expires=Thursday, 01-Jan-1970 00:00:01 GMT; path=/; domain=.weibo.cn; secure; httponly; SameSite=None
-Set-Cookie: SUBP=deleted; expires=Thursday, 01-Jan-1970 00:00:01 GMT; path=/; domain=.weibo.cn; secure; httponly; SameSite=None
-Content-Security-Policy: upgrade-insecure-requests
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-Server: APISIX/3.14.1
-ALB-X-Request-ID: 94c9254d-26cf-403b-ae7a-78b8da962dc2
-
-window.cb && cb({"retcode":20000000,"msg":"","data":null});
-```
-
-说明
-续期链第四步。URL 来自 crossdomain 响应的 arrURL[1]。Set-Cookie 刷新 .weibo.cn 域的 SSOLoginState 和 ALF，同时下发 SUB=deleted、SUBP=deleted（domain=.weibo.cn）清除 weibo.cn 域的登录态。项目业务请求不使用 weibo.cn 域，这些 deleted cookie 不影响 .weibo.com 域的有效 SUB/SUBP。
-
-续期后需要保留的数据：SUB、SUBP 保持扫码登录时的值不变（续期链不刷新），SSOLoginState 和 ALF 取 .weibo.com 域 Set-Cookie 刷新后的新值。四个字段合并为 Cookie 串，后续接口请求使用更新后的 Cookie。
 
 # 微博
 

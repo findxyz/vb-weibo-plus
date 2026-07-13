@@ -5,12 +5,8 @@ A single-user, locally-run tool that drives one Weibo account's web credentials 
 ## Language
 
 **Credential**:
-The four cookies (SUB/SUBP/SSOLoginState/ALF) obtained from QR login. SUB/SUBP are the unique login tokens (never refreshed by renewal); SSOLoginState and ALF are timestamps refreshed by the renewal chain.
+The four cookies (SUB/SUBP/SSOLoginState/ALF) obtained from QR login. SUB/SUBP are the unique login tokens; SSOLoginState and ALF are timestamps obtained at QR login.
 _Avoid_: cookie, token, session
-
-**Renewal**:
-The four-step chain (updatetgt -> crossdomain -> refresh passport.weibo.com -> refresh passport.weibo.cn) that refreshes SSOLoginState/ALF on the .weibo.com domain while keeping SUB/SUBP unchanged.
-_Avoid_: refresh, keepalive
 
 **Blogger Blog**:
 A blogger's Weibo post list identified by uid, fetched via incremental pagination (since_id) or time-range (starttime/endtime).

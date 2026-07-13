@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * 微博接口公共常量与公共 header 组。
  * <p>
- * 五组 header 由 Api 层按接口类型选用，Cookie 由 WeiboHttpClient 按 withCookie 参数追加，不放入 header 组。
+ * 四组 header 由 Api 层按接口类型选用，Cookie 由 WeiboHttpClient 按 withCookie 参数追加，不放入 header 组。
  */
 public final class WeiboConstants {
 
@@ -43,12 +43,6 @@ public final class WeiboConstants {
             HttpHeaders.USER_AGENT, USER_AGENT,
             HttpHeaders.REFERER, REFERER_WEIBO,
             HttpHeaders.ORIGIN, REFERER_WEIBO
-    );
-
-    /** 续期链 4 步 */
-    public static final Map<String, String> HEADERS_RENEW = Map.of(
-            HttpHeaders.USER_AGENT, USER_AGENT,
-            HttpHeaders.REFERER, REFERER_WEIBO
     );
 
     /** 图床 / 视频直链 */

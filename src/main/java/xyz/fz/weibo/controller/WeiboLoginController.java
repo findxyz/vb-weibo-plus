@@ -4,8 +4,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.api.LoginApi;
-import xyz.fz.weibo.api.LoginRenewApi;
-import xyz.fz.weibo.model.response.LoginRenewResponse;
 import xyz.fz.weibo.model.response.LoginResponse;
 
 /**
@@ -16,20 +14,13 @@ import xyz.fz.weibo.model.response.LoginResponse;
 public class WeiboLoginController {
 
     private final LoginApi loginApi;
-    private final LoginRenewApi loginRenewApi;
 
-    public WeiboLoginController(LoginApi loginApi, LoginRenewApi loginRenewApi) {
+    public WeiboLoginController(LoginApi loginApi) {
         this.loginApi = loginApi;
-        this.loginRenewApi = loginRenewApi;
     }
 
     @PostMapping("/qr")
     public LoginResponse qr() {
         return loginApi.qrLogin();
-    }
-
-    @PostMapping("/renew")
-    public LoginRenewResponse renew() {
-        return loginRenewApi.renew();
     }
 }

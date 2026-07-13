@@ -4,9 +4,6 @@
 ### 扫码登录（会打开浏览器，需手机微博 App 扫码确认）
 POST {{host}}/weibo/login/qr
 
-### 续期（保活登录态，刷新 SSOLoginState / ALF）
-POST {{host}}/weibo/login/renew
-
 ### 博主微博增量翻页 - 第 1 页（不传 sinceId）
 GET {{host}}/weibo/blog/mymblog?uid=1795308214&page=1
 
