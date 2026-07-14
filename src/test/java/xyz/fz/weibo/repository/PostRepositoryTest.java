@@ -6,6 +6,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import xyz.fz.weibo.entity.BloggerEntity;
@@ -15,6 +16,7 @@ import javax.sql.DataSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.ResultSet;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -72,6 +74,14 @@ class PostRepositoryTest {
     }
 
     @Test
+    void pageReturningRepositoryMethodsDeclarePageableParameter() {
+        assertThat(Arrays.stream(PostRepository.class.getDeclaredMethods())
+                .filter(method -> method.getReturnType().equals(Page.class)))
+                .allSatisfy(method -> assertThat(method.getParameterTypes())
+                        .anyMatch(Pageable.class::isAssignableFrom));
+    }
+
+    @Test
     void insertIfAbsentPreservesFirstCapturedContent() {
         assertThat(postRepository.insertIfAbsent(post("m1", 10, 1, 100, "首次正文"))).isTrue();
         assertThat(postRepository.insertIfAbsent(post("m1", 10, 1, 100, "修改后的正文"))).isFalse();
@@ -87,8 +97,10 @@ class PostRepositoryTest {
         postRepository.insertIfAbsent(post("m2", 20, 1, 100, "two"));
         postRepository.insertIfAbsent(post("m3", 30, 2, 200, "three"));
 
-        Page<PostEntity> firstPage = postRepository.findPage(List.of(1L), 100L, 100L, 1, 1);
-        Page<PostEntity> secondPage = postRepository.findPage(List.of(1L), 100L, 100L, 2, 1);
+        Page<PostEntity> firstPage = postRepository.findPage(
+                List.of(1L), 100L, 100L, PostRepository.pageRequest(1, 1));
+        Page<PostEntity> secondPage = postRepository.findPage(
+                List.of(1L), 100L, 100L, PostRepository.pageRequest(2, 1));
 
         assertThat(firstPage.getTotalElements()).isEqualTo(2);
         assertThat(firstPage.getContent()).extracting(PostEntity::getMblogId).containsExactly("m2");

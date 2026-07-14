@@ -159,7 +159,8 @@ class PostServiceTest {
         Page<PostEntity> page = new PageImpl<>(List.of(entity));
         when(bloggerRepository.findAllOrdered()).thenReturn(List.of(blogger));
         when(postMapper.toBloggerRecords(List.of(blogger))).thenReturn(List.of(bloggerRecord));
-        when(postRepository.findPage(List.of(1L), 10L, 20L, 1, 100)).thenReturn(page);
+        when(postRepository.findPage(
+                List.of(1L), 10L, 20L, PostRepository.pageRequest(1, 100))).thenReturn(page);
         when(postMapper.toPostViews(List.of(entity), List.of(blogger))).thenReturn(List.of(view));
 
         assertThat(postService.queryBloggers()).containsExactly(bloggerRecord);

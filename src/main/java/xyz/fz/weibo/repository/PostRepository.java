@@ -36,11 +36,15 @@ public interface PostRepository extends JpaRepository<PostEntity, String> {
                                   @Param("end") Long end,
                                   Pageable pageable);
 
-    default Page<PostEntity> findPage(List<Long> uids, Long start, Long end, int page, int size) {
+    default Page<PostEntity> findPage(List<Long> uids, Long start, Long end, Pageable pageable) {
         boolean allUids = uids == null || uids.isEmpty();
         Collection<Long> queryUids = allUids ? List.of(0L) : uids;
+        return findFiltered(allUids, queryUids, start, end, pageable);
+    }
+
+    static Pageable pageRequest(int page, int size) {
         Sort sort = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("postId"));
-        return findFiltered(allUids, queryUids, start, end, PageRequest.of(page - 1, size, sort));
+        return PageRequest.of(page - 1, size, sort);
     }
 
     @Transactional

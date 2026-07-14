@@ -78,7 +78,8 @@ public class PostService {
 
     public PostQueryResult queryPosts(List<Long> uids, Long start, Long end, int page, int size) {
         validateQuery(start, end, page, size);
-        Page<PostEntity> result = postRepository.findPage(uids, start, end, page, size);
+        Page<PostEntity> result = postRepository.findPage(
+                uids, start, end, PostRepository.pageRequest(page, size));
         List<BloggerEntity> bloggers = bloggerRepository.findAllOrdered();
         List<PostView> items = postMapper.toPostViews(result.getContent(), bloggers);
         return new PostQueryResult(items, page, size, result.getTotalElements());
