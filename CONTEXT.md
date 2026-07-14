@@ -19,3 +19,11 @@ _Avoid_: longtextContent
 **Group Message**:
 A message in a Weibo group chat identified by gid, paginated by max_mid (oldest-first). Types include text, image, video, link share, animated emoji.
 _Avoid_: query_messages
+
+**Media Proxy**:
+Media bytes fetched on demand through controlled local proxy endpoints while the Weibo API and current Credential are available. List queries remain local-only and return relative proxy URLs; media bytes are streamed separately, are not archived, and are not guaranteed to be available offline.
+_Avoid_: media enrichment, offline media, media archive, media cache
+
+**Captured Content**:
+The first persisted version of a Blogger Blog entry or Group Message. Fetching the same remote identifier again does not overwrite its content, while Blogger and group metadata may be refreshed.
+_Avoid_: latest state, synchronized copy, revision history
