@@ -10,7 +10,7 @@
 
 ## Solution
 
-引入 SQLite + JdbcTemplate 持久化层，新建四张表（bloggers/posts/groups/messages），新建两个 service：PostService 负责微博内容与媒体的保存/查询，ChatService 负责群组与群消息的保存/查询。微博与群消息采用首次捕获版本：同一远端标识再次抓取时不覆盖已存内容；博主与群组元信息允许更新。两个 service 有自己的领域 record，不直接耦合 API 层的 record，通过 mapper 双向转换。媒体信息只存 URL/fid；列表接口只返回本地内容和媒体定位信息，独立媒体接口根据本地主键解析上游引用并代理返回二进制。最终通过 Controller 接口体现两个 service 的保存、离线查询与按需媒体代理能力。
+引入 SQLite + Spring Data JPA 持久化层，新建四张表（bloggers/posts/groups/messages），新建两个 service：PostService 负责微博内容与媒体的保存/查询，ChatService 负责群组与群消息的保存/查询。微博与群消息采用首次捕获版本：同一远端标识再次抓取时不覆盖已存内容；博主与群组元信息允许更新。两个 service 有自己的领域 record，不直接耦合 API 层的 record；微博域与群聊域分别由 PostMapper、MessageMapper 集中处理 API record、JPA entity 与领域对象之间的转换。媒体信息只存 URL/fid；列表接口只返回本地内容和媒体定位信息，独立媒体接口根据本地主键解析上游引用并代理返回二进制。最终通过 Controller 接口体现两个 service 的保存、离线查询与按需媒体代理能力。
 
 ## User Stories
 
@@ -41,10 +41,11 @@
 
 ### 持久化层
 
-- 引入 `org.xerial:sqlite-jdbc` 依赖与 `spring-boot-starter-jdbc`（提供 JdbcTemplate）。
-- `application.yml` 配置 SQLite datasource（本地文件，路径可配，默认项目根 `weibo.db`）与 `spring.sql.init.mode=always`（启动时执行 schema.sql）。
+- 引入 `org.xerial:sqlite-jdbc`、`spring-boot-starter-data-jpa` 与 `org.hibernate.orm:hibernate-community-dialects`。SQLite 使用 `org.hibernate.community.dialect.SQLiteDialect`。
+- `application.yml` 配置 SQLite datasource（本地文件，路径可配，默认项目根 `weibo.db`）、`spring.jpa.database-platform=org.hibernate.community.dialect.SQLiteDialect`、`spring.jpa.hibernate.ddl-auto=none`、`spring.jpa.open-in-view=false` 与 `spring.sql.init.mode=always`（启动时执行 schema.sql）。
 - 不引入 Flyway/Liquibase。建表脚本 `schema.sql` 放 `src/main/resources`，全部用 `CREATE TABLE IF NOT EXISTS`，幂等。`*.db` 已在 `.gitignore` 排除。
-- DB 访问统一用 `JdbcTemplate` + 手写 SQL + `RowMapper`，不引 ORM。符合项目现有 record 风格与简单优先原则。
+- 新建 `BloggerEntity`、`PostEntity`、`GroupEntity`、`MessageEntity`，字段与下述四张表显式映射；JSON 列在 entity 中保持 `String`，分别由 PostMapper、MessageMapper 编解码。领域 record 不加 JPA 注解。
+- DB 访问统一通过 `BloggerRepository`、`PostRepository`、`GroupRepository`、`MessageRepository` 四个 Spring Data JPA repository。分页、排序、时间过滤、游标聚合与“首次捕获”写入语义封装在 repository 中，service 不直接使用 `EntityManager`、JPQL、原生 SQL 或拼装查询条件。
 
 ### 四张表 schema
 
@@ -63,7 +64,7 @@ CREATE TABLE IF NOT EXISTS bloggers (
 );
 ```
 
-> latest_post_id 不随微博写入逐条更新，由 `refreshBloggerRange(uid)` 在一次拉取结束后用 `SELECT MAX(post_id) FROM posts WHERE uid=?` 重算写回。
+> latest_post_id 不随微博写入逐条更新，由 `refreshBloggerRange(uid)` 在一次拉取结束后通过 PostRepository 查询该博主的最大 post_id 并写回。
 
 posts（微博内容，weibo_posts 改名；图片档位 thumbnail+original；视频拆为封面 URL + 文章页 URL；不存 raw_json；增量游标存 bloggers.latest_post_id，不现算）：
 
@@ -125,7 +126,7 @@ CREATE TABLE IF NOT EXISTS groups (
 );
 ```
 
-> min_mid/max_mid 不随消息写入逐条更新，由 `refreshGroupRange(gid)` 在一次拉取结束后用 `SELECT MIN(mid), MAX(mid) FROM messages WHERE gid=?` 重算写回。
+> min_mid/max_mid 不随消息写入逐条更新，由 `refreshGroupRange(gid)` 在一次拉取结束后通过 MessageRepository 查询该群的最小／最大 mid 并写回。
 
 messages（群消息，源自 weibogroup，删 raw_json/media_local_path 及未用字段；显式建 (gid, created_at) 复合索引）：
 
@@ -187,7 +188,7 @@ Controller 的时间参数使用 `yyyy-MM-dd HH:mm:ss` 字符串，按 `Asia/Sha
 
 ### 前置：补齐 API record 字段
 
-当前 API 层 record 缺媒体字段，落库前必须先补（改 `model/response` 包）。ObjectMapper 已配 `FAIL_ON_UNKNOWN_PROPERTIES=false`，多余字段安全。
+当前 API 层 record 缺媒体字段，落库前必须先补（改 `model/response` 包）。项目已有的 `WeiboConfig.objectMapper()` 单例 Bean 作为统一 JSON 工具实例，并已配置 `FAIL_ON_UNKNOWN_PROPERTIES=false`，多余字段安全。所有新增代码都通过构造器注入复用该 Bean；不得在 service、repository、mapper 或测试辅助代码中自行 `new ObjectMapper()`。
 
 - `LongTextRequest.id` 从 `Long` 改为 `String`，`WeiboBlogController.longtext` 同步接收 String。PostService 对当前微博与转发原微博补全文时都传 mblogId；数字 ID 仍可作为字符串兼容原有 `/weibo/blog/longtext` 调用。
 - `Mblog`：补 `text_raw`、`region_name`、`reposts_count`、`comments_count`、`attitudes_count`、`user`、`pic_infos`、`page_info`、`retweeted_status`。`user` 至少接收 `id`、`screen_name`、头像、主页地址与认证状态，用于 upsert bloggers；`pic_infos` 为 `Map<String, ApiPicInfo>`，接收 thumbnail、large、original、largest 各 `{url, width, height}`，mapper 输出的领域 PicInfo 只保留 thumbnail 与 original，其中 original 按 largest → original → large 回退；`page_info` 含 `page_pic` 封面直链与 `media_info.h5_url` 视频网页地址；`retweeted_status` 递归使用 `Mblog`，接收转发原微博。字段结构以实际 API JSON、`WEIBO_API_RAW.md` 与 weiboblog fixture 为准。
@@ -211,12 +212,14 @@ Controller 的时间参数使用 `yyyy-MM-dd HH:mm:ss` 字符串，按 `Asia/Sha
 - `MediaBinary`：媒体代理 service 的成功结果，只包含 `byte[] content` 与 `String contentType`；不携带其他上游响应头。上游缺少 Content-Type 时使用 `application/octet-stream`。
 - `SaveResult`：四个微博／群消息内容保存入口共用的成功结果，包含 `fetchedCount`、`insertedCount`、`ignoredCount`，不暴露内部游标。`ignoredCount` 包含主键已存在、增量边界内旧内容以及明确过滤的无用户内容事件。`syncGroups()` 直接返回 `List<GroupRecord>`，不使用 SaveResult。中途失败时抛出异常，不返回部分成功结果。
 
-新建 mapper（`xyz.fz.weibo.service.mapper`）：
+新建两个转换组件（`xyz.fz.weibo.service.mapper`，均为 Spring 单例），每个业务域只允许一个转换入口：
 
-- `PostMapper.toRecord(Mblog, LongTextResponse?, LongTextResponse?)`：API record + 当前微博可选长文响应 + 转发原微博可选长文响应 -> PostRecord；mapper 只输出归一化后的完整 `content/content_raw`，不保留截断正文、`isLongText` 或长文响应结构。上游 `source` 可能是 HTML 链接，映射时去除 HTML 标签并只将可直接展示的纯文本写入 `posts.source`，不保存原始 HTML。
-- `PostMapper` 使用格式 `EEE MMM dd HH:mm:ss Z yyyy` 与 `Locale.ENGLISH` 解析 Mblog.createdAt，并按字符串自带的时区偏移转换为 Unix 毫秒；当前微博与转发原微博使用同一规则。缺失或无法解析时视为映射失败，不以本地当前时间或 0 静默兜底。
-- `PostMapper` 实现 `RowMapper<PostRecord>`：DB 行 -> PostRecord（pics_json/retweeted_json 反序列化）。
-- `MessageMapper` 同理。
+- `PostMapper` 统一负责微博域的 API record → JPA entity、JPA entity → 领域 record/view，以及上游媒体响应 → MediaBinary 的转换。`toPostEntity(Mblog, LongTextResponse?, LongTextResponse?)` 只输出归一化后的完整 `content/content_raw`，不保留截断正文、`isLongText` 或长文响应结构。上游 `source` 可能是 HTML 链接，映射时去除 HTML 标签并只将可直接展示的纯文本写入 `posts.source`，不保存原始 HTML。
+- `PostMapper` 使用格式 `EEE MMM dd HH:mm:ss Z yyyy` 与 `Locale.ENGLISH` 解析微博时间，并按字符串自带的时区偏移转换为 Unix 毫秒；当前微博与转发原微博使用同一规则。缺失或无法解析时视为映射失败，不以本地当前时间或 0 静默兜底。
+- `MessageMapper` 统一负责群聊域的 API record → JPA entity、JPA entity → 领域 record/view，以及上游媒体响应 → MediaBinary 的转换，包括群消息字段归一化、`msg_type_name` 派生、JSON 列编解码与本地媒体 URL 生成。
+- PostMapper 与 MessageMapper 均通过构造器注入项目已有的 `ObjectMapper` Bean，不持有自行创建的 Jackson 实例。Controller、service 与 repository 不得复制字段、构造 entity/view 或处理 JSON。
+
+PostService 与 ChatService 只负责参数校验、调用上游 API、分页／游标流程编排、调用本域 mapper 和 repository，以及决定何时提交游标。service 中不做字段复制、entity/view 构造、JSON 编解码或日期／HTML 等格式转换。
 
 ### PostService
 
@@ -232,13 +235,13 @@ queryPostImage(mblogId, pid, variant) // variant=thumbnail|original；从当前�
 queryPostVideoCover(mblogId, retweeted=false) // 定位当前微博或转发原微博的视频封面，代理返回 MediaBinary
 ```
 
-增量停止判定：开始时读取并固定 `bloggers.latest_post_id`（已存最大 post_id）作为本次增量边界。博主记录不存在或 `latest_post_id=0` 时，只请求并保存最新一页，然后刷新游标并结束，不继续向历史翻页。已有游标时，从最新页起翻，完整扫描本页且不依赖 API 页内顺序：保存全部 `post_id > latest_post_id` 的微博，并记录本页是否出现 `post_id <= latest_post_id`。处理完本页后，如果出现过旧边界则停止本次增量抓取；只有整页都比边界新时才继续向前翻页。拉取结束后 `refreshBloggerRange(uid)` 用 `SELECT MAX(post_id) FROM posts WHERE uid=?` 重算写回 bloggers.latest_post_id。这样兼容参考实现记录的“旧到新”与当前 API 文档记录的“新到旧”两种页内顺序。
+增量停止判定：开始时读取并固定 `bloggers.latest_post_id`（已存最大 post_id）作为本次增量边界。博主记录不存在或 `latest_post_id=0` 时，只请求并保存最新一页，然后刷新游标并结束，不继续向历史翻页。已有游标时，从最新页起翻，完整扫描本页且不依赖 API 页内顺序：保存全部 `post_id > latest_post_id` 的微博，并记录本页是否出现 `post_id <= latest_post_id`。处理完本页后，如果出现过旧边界则停止本次增量抓取；只有整页都比边界新时才继续向前翻页。拉取结束后 `refreshBloggerRange(uid)` 通过 PostRepository 查询该博主的最大 post_id，并写回 bloggers.latest_post_id。这样兼容参考实现记录的“旧到新”与当前 API 文档记录的“新到旧”两种页内顺序。
 
 内容归一化注意点（关键）：`Mblog.isLongText=true` 时，列表中的 `text/text_raw` 只是截断内容，必须调用 longtext 接口。普通微博使用 `Mblog.text/text_raw` 填充 `content/content_raw`；长文微博使用 `LongTextResponse.longTextContent/longTextContentRaw` 填充。当前微博与转发原微博分别判断、分别补全。数据库与查询领域模型只保留最终完整的 `content/content_raw`，不保留 `isLongText`、截断正文或单独的 long_text。
 
 视频跳转：posts.video_page_url 取 `page_info.media_info.h5_url`，即 `https://video.weibo.com/show?...` 网页地址。不要使用带 Expires/ssig 的视频流 URL，也不要使用 `page_info.page_url` 的 `sinaweibo://` 深链。
 
-保存入库用 `INSERT OR IGNORE`（靠 mblogid PRIMARY KEY 去重），返回是否新增。同一 mblogid 再次抓取时保留首次捕获的完整内容与媒体引用，不覆盖已存内容。博主信息在抓取时从 `posts[0].user` 提取并 upsert 到 bloggers 表；upsert 只更新昵称、头像、主页地址、认证状态与 updated_at，必须保留已有 latest_post_id。
+PostRepository 提供“主键不存在时才保存”的 JPA 操作并返回是否新增，靠 mblogid 主键去重；不得直接调用会覆盖既有 entity 的 `save`。同一 mblogid 再次抓取时保留首次捕获的完整内容与媒体引用，不覆盖已存内容。博主信息在抓取时从 `posts[0].user` 提取，转换由 PostMapper 完成，再由 BloggerRepository 更新元信息；只更新昵称、头像、主页地址、认证状态与 updated_at，必须保留已有 latest_post_id。
 
 ### ChatService
 
@@ -265,7 +268,7 @@ queryMessageMedia(gid, mid, variant) // variant=preview|original；preview 为�
 
 群聊视频：只通过独立媒体接口代理返回封面二进制，不提供跳转地址（群视频是聊天文件，靠 fid+cookie 通过 mss/msget 取，无公开文章页 URL）。
 
-保存入库用 `INSERT OR IGNORE`（靠 mid PRIMARY KEY 去重）。同一 mid 再次抓取时保留首次捕获的消息内容与媒体引用，不覆盖已存内容。保存群消息不依赖群列表 API；groups 中不存在 gid 时先插入仅含 gid 的默认占位行，用于保存 min_mid/max_mid。`syncGroups()` 调用 `GroupListApi` 后逐条 upsert 群元信息，只更新 name、avatar、member_count、max_member、owner_id、admins、summary、group_type、updated_at，保留已有 min_mid/max_mid 与 created_at；新群设置 created_at/updated_at。同步完成后按 `queryGroups()` 的排序返回全部本地群组。上游响应缺少 contacts 时按必需结构缺失处理为 502，不得清空本地群表。
+MessageRepository 提供“主键不存在时才保存”的 JPA 操作，靠 mid 主键去重。同一 mid 再次抓取时保留首次捕获的消息内容与媒体引用，不覆盖已存内容。保存群消息不依赖群列表 API；groups 中不存在 gid 时先插入仅含 gid 的默认占位行，用于保存 min_mid/max_mid。`syncGroups()` 调用 `GroupListApi` 后逐条更新群元信息，只更新 name、avatar、member_count、max_member、owner_id、admins、summary、group_type、updated_at，保留已有 min_mid/max_mid 与 created_at；新群设置 created_at/updated_at。同步完成后按 `queryGroups()` 的排序返回全部本地群组。上游响应缺少 contacts 时按必需结构缺失处理为 502，不得清空本地群表。
 
 群消息抓取时跳过 `msg_type=332`（协议同步／心跳）与 `msg_type=9999`（态度更新）：两类事件没有需要展示的用户消息内容，且目标 schema 不保存 attitude_data。它们计入 SaveResult 的 fetchedCount 与 ignoredCount，不写入 messages。
 
@@ -289,12 +292,12 @@ queryMessageMedia(gid, mid, variant) // variant=preview|original；preview 为�
 - HTTP 200 不等于抓取成功：微博列表／搜索／长文响应必须满足 `ok == 1` 且所需 data 存在，群消息响应必须满足 `result == true`。业务标记失败或响应结构缺失时抛出上游异常，不能按空页处理。
 - 只有业务成功响应中的空列表才能作为正常停止条件；业务失败不得刷新 latest_post_id、min_mid 或 max_mid。
 - `saveIncremental` 开始时固定读取旧游标，只有正常到达旧边界或 API 空页后才刷新新游标。中途 API、长文补全、映射或写库失败时抛出错误并保留旧游标。
-- 增量失败后使用相同参数重试：从旧游标重新抓取，已保存内容由 `INSERT OR IGNORE` 跳过，直到完整到达停止边界后再提交新游标。
+- 增量失败后使用相同参数重试：从旧游标重新抓取，已保存内容由 repository 的“主键不存在时才保存”语义跳过，直到完整到达停止边界后再提交新游标。
 - `saveByRange`、`saveBySince` 中途失败时同样保留已写入内容，不维护额外进度游标；调用者使用相同参数重试即可。
 
 ### 媒体按需代理
 
-列表查询只读取 SQLite，不下载或编码媒体，只根据本地主键生成以 `/` 开头的本地相对媒体 URL；查询参数必须经过 URL 编码。独立媒体接口在 service 层根据本地主键解析已保存的 URL／fid，再通过现有 `DirectMediaApi.download()`／`GroupMediaApi.download()` 获取上游 bytes。service 只从成功响应中提取 bytes 与 Content-Type 组成 `MediaBinary`；Controller 据此构造新的 `ResponseEntity<byte[]>`，Content-Length 由 Spring 生成。不得转发上游的 Set-Cookie、Location、CORS、Content-Disposition 或其他响应头。客户端不能提交任意上游 URL，避免将接口变成通用开放代理，也不暴露上游 URL 与 Credential。
+列表查询只读取 SQLite，不下载媒体；PostMapper、MessageMapper 分别根据本地主键生成以 `/` 开头且查询参数已编码的本地相对媒体 URL。独立媒体接口在 service 层根据本地主键解析已保存的 URL／fid，再通过现有 `DirectMediaApi.download()`／`GroupMediaApi.download()` 获取上游 bytes；成功响应由本域 mapper 转为只含 bytes 与 Content-Type 的 `MediaBinary`。Controller 据此构造新的 `ResponseEntity<byte[]>`，Content-Length 由 Spring 生成。不得转发上游的 Set-Cookie、Location、CORS、Content-Disposition 或其他响应头。客户端不能提交任意上游 URL，避免将接口变成通用开放代理，也不暴露上游 URL 与 Credential。
 
 - posts 图片：`variant=thumbnail` 使用已存 thumbnail URL，`variant=original` 使用已存 original URL，均走 `DirectMediaApi.download()`（不带 cookie，使用 HEADERS_DIRECT）。pid 可属于当前微博或转发原微博。
 - posts 视频封面：按 `retweeted=false|true` 选择当前微博或转发原微博的 `page_pic` 直链，走 `DirectMediaApi.download()`。
@@ -336,14 +339,15 @@ ChatController（`/chat`）：
 
 ## Testing Decisions
 
-### 测试 seam：两个
+### 测试 seam：三个
 
 1. **Controller 单元测试**：沿用现有 `@WebMvcTest` 风格，mock 对象从 Api 层改为 service 层（`@MockitoBean`），验证 HTTP 状态码与 JSON 字段。参考 `WeiboBlogControllerTest`、`WeiboGroupControllerTest`、`WeiboMediaControllerTest` 的现有写法。
-2. **service 测试**：mock Api 层并直接构造注入 service；DB 使用 `SingleConnectionDataSource` 持有唯一的 `jdbc:sqlite::memory:` 连接，通过同一 DataSource 加载 schema.sql，测真实 SQL 与 RowMapper。媒体代理逻辑用固定 byte[] 与 Content-Type 断言。每个测试类结束后关闭连接，避免内存库跨测试污染。
+2. **service 单元测试**：mock Api、本域 mapper 与 repository，直接构造注入 service，验证分页／游标编排、失败恢复及交互边界。测试不连接数据库，也不在 service 测试中重复验证对象转换。
+3. **JPA 与转换测试**：repository 使用 `@DataJpaTest`、真实 SQLite 临时文件、正式 SQLiteDialect 与 schema.sql，验证实体映射、查询、排序、分页、聚合游标和首次捕获语义；PostMapper、MessageMapper 分别注入项目配置的 ObjectMapper，验证本域所有对象转换与 JSON 编解码。每个 repository 测试结束后删除临时数据库文件。
 
 ### 好测试的标准
 
-- 只测外部行为，不测实现细节（不测 service 内部私有方法、不测 SQL 字符串拼接）。
+- 只测外部行为，不测实现细节（不测 service 内部私有方法、不测 JPQL 或查询方法的具体写法）。
 - Controller 测：给定 service 返回 X，HTTP 响应状态码与 JSON 字段符合预期。
 - 保存接口参数绑定测：验证四个微博／群消息内容保存 POST 接口均从查询参数绑定 uid/gid 与时间参数，不接收 JSON 请求体；同时验证 beforeMid 可省略。
 - 列表接口参数绑定测：验证 `/post/list` 通过重复的 uids 查询参数绑定多个博主、不传 uids 时查询全部且逗号拼接格式返回 400；验证 `/chat/messages` 的 gid 必传。
@@ -359,7 +363,7 @@ ChatController（`/chat`）：
 - 媒体代理失败测：本地记录和媒体引用存在但上游返回 404 或其他非成功状态时统一映射为 502；验证它与本地引用不存在的 404 可区分。
 - 群元信息兼容测：未抓取群列表时可仅凭 gid 保存和查询群消息，返回的 GroupRecord 保留 gid 且其他元信息为默认值；后续 upsert 群元信息时不覆盖 min_mid/max_mid。
 - 博主元信息更新测：重复抓取博主信息时允许更新昵称、头像、主页地址与认证状态，但不覆盖 latest_post_id。
-- service 测：给定 mock Api 返回 X、DB 已存 Y，service 返回 Z 或 DB 状态符合预期（用查询验证写入）；媒体 service 单独断言 `MediaBinary` 的二进制与 Content-Type，缺少 Content-Type 时回退为 `application/octet-stream`。
+- service 测：给定 mock Api、本域 mapper 与 repository 返回 X，service 返回 Z 且调用顺序、游标提交时机符合预期；媒体 service 只验证正确选择本地媒体引用并委托本域 mapper 转换响应。`MediaBinary` 的二进制、Content-Type 与缺失 Content-Type 时回退 `application/octet-stream` 由对应 mapper 测试覆盖。
 - 分页查询测：验证 page 默认 1、size 默认 100、size 超过 100 时拒绝请求，以及微博按 created_at/post_id 倒序、群消息按 created_at/mid 倒序稳定返回；total 使用与 items 完全相同的 uids/gid、start、end 过滤条件，但不受 LIMIT/OFFSET 影响。
 - 时间参数测：验证 `yyyy-MM-dd HH:mm:ss` 按 `Asia/Shanghai` 解析，保存方法的必传参数校验，查询方法的开放时间边界，start/end/sinceTime 包含边界，数据库使用毫秒且上游 API 参数转换为秒；start > end 返回 400、start == end 合法，saveByRange 按日切分时首日/末日保留精确时分秒。
 - 内容归一化测：分别给普通微博与 `isLongText=true` 的微博，验证普通微博直接使用列表内容、长文微博调用 longtext 接口，并最终写入完整 `content/content_raw`；当前微博与转发原微博两处都测，查询结果不暴露截断正文或长文标记。
@@ -377,17 +381,17 @@ ChatController（`/chat`）：
 
 ### 模块
 
-- PostService、ChatService：使用 mock Api 与单连接内存 SQLite 测试。
-- PostMapper、MessageMapper：随 service 测或单独测映射正确性。
+- PostService、ChatService：使用 mock Api、本域 mapper 与 repository 做纯单元测试。
+- PostMapper、MessageMapper：分别覆盖本域 API record、JPA entity、领域 record/view、MediaBinary 和 JSON 字段的双向转换，并验证复用注入的 ObjectMapper。
+- BloggerRepository、PostRepository、GroupRepository、MessageRepository：使用真实 SQLite 临时文件做 `@DataJpaTest`。
 - API record：使用包含微博正文、博主、转发、图片、视频、群消息发送者、模板与撤回信息的代表性 JSON fixture，验证新增字段能够正确反序列化。
 - 微博视频映射测：验证 page_info.page_pic 写入 video_cover_url、page_info.media_info.h5_url 写入 video_page_url，且不会误存带签名的视频流 URL 或 sinaweibo:// 深链。
-- RowMapper：随 service 测（内存库读回验证）。
-- schema.sql：随 service 测隐式验证（内存库加载即验证建表正确性）。
+- JPA entity 与 schema.sql：随 repository 测试验证映射和建表正确性。
 
 ### 现有先例
 
 - `WeiboBlogControllerTest`：`@WebMvcTest` + `@MockitoBean` mock Api 层，验证状态码与 JSON。Controller 测照搬。
-- service 测无现有先例，需新建测试基类，统一创建/关闭 `SingleConnectionDataSource` 并通过该 DataSource 初始化 schema.sql。
+- JPA repository 测无现有先例，需提供最小测试配置，为每个测试类创建 SQLite 临时文件并通过该 DataSource 初始化 schema.sql；不新增通用测试框架。
 
 ## Out of Scope
 
@@ -419,9 +423,9 @@ ChatController（`/chat`）：
 
 实现时可天然切分为独立认领的 issue：
 
-1. 持久化层搭建（依赖 + datasource + schema.sql）。
+1. 持久化层搭建（JPA 依赖 + datasource + SQLiteDialect + schema.sql + entity/repository）。
 2. 补齐 API record 媒体字段（Mblog 的 pic_infos/page_info/retweeted_status，Message 的 fids/annotations）。
-3. domain record + mapper（PostRecord/MessageRecord + PostMapper/MessageMapper）。
+3. domain record + PostMapper/MessageMapper（每个业务域一个集中转换入口）。
 4. PostService（保存 + 离线查询 + 长文补全 + 媒体代理）。
 5. ChatService（保存 + 离线查询 + 翻页方向 + 媒体代理）。
 6. Controller 接口（`/post`、`/chat`）。
