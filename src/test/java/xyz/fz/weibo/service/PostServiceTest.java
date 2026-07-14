@@ -18,9 +18,9 @@ import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
-import xyz.fz.weibo.model.response.ApiUser;
+import xyz.fz.weibo.model.response.ApiUserResponse;
 import xyz.fz.weibo.model.response.LongTextResponse;
-import xyz.fz.weibo.model.response.Mblog;
+import xyz.fz.weibo.model.response.MblogResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
 import xyz.fz.weibo.repository.PostRepository;
@@ -67,8 +67,8 @@ class PostServiceTest {
 
     @Test
     void capturesExactlyLatestPageCompletesLongTextsAndCommitsCursorLast() {
-        Mblog retweeted = post(90, "retweeted-id", true, null);
-        Mblog current = post(100, "current-id", true, retweeted);
+        MblogResponse retweeted = post(90, "retweeted-id", true, null);
+        MblogResponse current = post(100, "current-id", true, retweeted);
         LongTextResponse currentLongText = longText("当前完整正文");
         LongTextResponse retweetedLongText = longText("转发完整正文");
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
@@ -100,7 +100,7 @@ class PostServiceTest {
 
     @Test
     void duplicateOnLatestPageIsIgnoredWithoutOverwritingCapturedContent() {
-        Mblog current = post(100, "current-id", false, null);
+        MblogResponse current = post(100, "current-id", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity entity = entity("current-id", 100);
         when(bloggerRepository.findLatestPostId(1)).thenReturn(0L);
@@ -130,8 +130,8 @@ class PostServiceTest {
 
     @Test
     void mappingFailurePreservesAlreadyCapturedContentAndOldCursor() {
-        Mblog first = post(100, "first", false, null);
-        Mblog second = post(101, "second", false, null);
+        MblogResponse first = post(100, "first", false, null);
+        MblogResponse second = post(101, "second", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 20, 1, 1);
         PostEntity firstEntity = entity("first", 100);
         when(bloggerRepository.findLatestPostId(1)).thenReturn(0L);
@@ -179,7 +179,7 @@ class PostServiceTest {
         verifyNoMoreInteractions(myBlogApi, longTextApi);
     }
 
-    private MyBlogResponse page(List<Mblog> posts) {
+    private MyBlogResponse page(List<MblogResponse> posts) {
         return new MyBlogResponse(new MyBlogResponse.MyBlogData(88L, posts, posts.size()), 1);
     }
 
@@ -188,10 +188,10 @@ class PostServiceTest {
                 new LongTextResponse.LongTextData(content, content + " raw", false, null), 1);
     }
 
-    private Mblog post(long id, String mblogId, boolean longText, Mblog retweeted) {
-        return new Mblog(id, mblogId, "Fri Jul 10 18:18:55 +0800 2026", "正文", "纯文本",
+    private MblogResponse post(long id, String mblogId, boolean longText, MblogResponse retweeted) {
+        return new MblogResponse(id, mblogId, "Fri Jul 10 18:18:55 +0800 2026", "正文", "纯文本",
                 "微博网页版", "", longText, 0, 0, 0, 0,
-                new ApiUser(1L, "博主", "", "", "", "/u/1", false),
+                new ApiUserResponse(1L, "博主", "", "", "", "/u/1", false),
                 null, null, retweeted);
     }
 

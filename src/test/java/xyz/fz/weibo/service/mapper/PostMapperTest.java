@@ -13,7 +13,7 @@ import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
-import xyz.fz.weibo.model.response.Mblog;
+import xyz.fz.weibo.model.response.MblogResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 
 import java.io.InputStream;
@@ -34,7 +34,7 @@ class PostMapperTest {
 
     @Test
     void apiModelAcceptsCompleteBloggerBlogShapeAndStringLongTextId() throws Exception {
-        Mblog post = readPost();
+        MblogResponse post = readPost();
 
         assertThat(post.textRaw()).isEqualTo("截断纯文本");
         assertThat(post.user().avatarLarge()).isEqualTo("https://image/avatar.jpg");
@@ -51,7 +51,7 @@ class PostMapperTest {
         Locale originalLocale = Locale.getDefault();
         Locale.setDefault(Locale.SIMPLIFIED_CHINESE);
         try {
-            Mblog post = readPost();
+            MblogResponse post = readPost();
             PostEntity entity = postMapper.toPostEntity(post,
                     longText("当前完整 HTML", "当前完整纯文本"),
                     longText("转发完整 HTML", "转发完整纯文本"), 2000);
@@ -81,7 +81,7 @@ class PostMapperTest {
 
     @Test
     void mapsBloggerAndLocalQueryViewWithoutExposingCapturedMediaReferences() throws Exception {
-        Mblog post = readPost();
+        MblogResponse post = readPost();
         BloggerEntity blogger = postMapper.toBloggerEntity(post.user(), 2000);
         PostEntity entity = postMapper.toPostEntity(post,
                 longText("当前完整 HTML", "当前完整纯文本"),
@@ -110,8 +110,8 @@ class PostMapperTest {
 
     @Test
     void rejectsInvalidUpstreamDate() throws Exception {
-        Mblog source = readPost();
-        Mblog invalid = new Mblog(source.id(), source.mblogId(), "not-a-date", source.text(),
+        MblogResponse source = readPost();
+        MblogResponse invalid = new MblogResponse(source.id(), source.mblogId(), "not-a-date", source.text(),
                 source.textRaw(), source.source(), source.regionName(), source.isLongText(),
                 source.picNum(), source.repostsCount(), source.commentsCount(), source.attitudesCount(),
                 source.user(), source.picInfos(), source.pageInfo(), source.retweetedStatus());
@@ -121,7 +121,7 @@ class PostMapperTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    private Mblog readPost() throws Exception {
+    private MblogResponse readPost() throws Exception {
         try (InputStream input = getClass().getResourceAsStream("/fixtures/blogger-blog-page.json")) {
             MyBlogResponse response = objectMapper.readValue(input, MyBlogResponse.class);
             return response.data().list().getFirst();

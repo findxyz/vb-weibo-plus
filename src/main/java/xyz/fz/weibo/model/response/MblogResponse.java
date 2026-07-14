@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * 微博条目结构，列表与长文接口共享。
  */
-public record Mblog(
+public record MblogResponse(
         Long id,
         @JsonProperty("mblogid") String mblogId,
         @JsonProperty("created_at") String createdAt,
@@ -20,14 +20,14 @@ public record Mblog(
         @JsonProperty("reposts_count") int repostsCount,
         @JsonProperty("comments_count") int commentsCount,
         @JsonProperty("attitudes_count") int attitudesCount,
-        ApiUser user,
-        @JsonProperty("pic_infos") Map<String, ApiPicInfo> picInfos,
-        @JsonProperty("page_info") ApiPageInfo pageInfo,
-        @JsonProperty("retweeted_status") Mblog retweetedStatus
+        ApiUserResponse user,
+        @JsonProperty("pic_infos") Map<String, ApiPicInfoResponse> picInfos,
+        @JsonProperty("page_info") ApiPageInfoResponse pageInfo,
+        @JsonProperty("retweeted_status") MblogResponse retweetedStatus
 ) {
 
-    public Mblog(Long id, String mblogId, String createdAt, String text, String source,
-                 boolean isLongText, int picNum) {
+    public MblogResponse(Long id, String mblogId, String createdAt, String text, String source,
+                         boolean isLongText, int picNum) {
         this(id, mblogId, createdAt, text, null, source, null, isLongText, picNum,
                 0, 0, 0, null, null, null, null);
     }

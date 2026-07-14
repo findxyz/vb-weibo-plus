@@ -15,7 +15,7 @@ public record SearchProfileResponse(
 ) {
 
     public record SearchProfileData(
-            List<Mblog> list,
+            List<MblogResponse> list,
             Object total,
             @JsonProperty("absstr") String absStr
     ) {

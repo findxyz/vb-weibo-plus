@@ -14,7 +14,7 @@ public record MyBlogResponse(
 
     public record MyBlogData(
             @JsonProperty("since_id") Long sinceId,
-            List<Mblog> list,
+            List<MblogResponse> list,
             int total
     ) {
     }

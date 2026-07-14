@@ -16,11 +16,11 @@ import xyz.fz.weibo.domain.RetweetView;
 import xyz.fz.weibo.domain.VideoInfo;
 import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
-import xyz.fz.weibo.model.response.ApiPageInfo;
-import xyz.fz.weibo.model.response.ApiPicInfo;
-import xyz.fz.weibo.model.response.ApiUser;
+import xyz.fz.weibo.model.response.ApiPageInfoResponse;
+import xyz.fz.weibo.model.response.ApiPicInfoResponse;
+import xyz.fz.weibo.model.response.ApiUserResponse;
 import xyz.fz.weibo.model.response.LongTextResponse;
-import xyz.fz.weibo.model.response.Mblog;
+import xyz.fz.weibo.model.response.MblogResponse;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -46,7 +46,7 @@ public class PostMapper {
         this.objectMapper = objectMapper;
     }
 
-    public BloggerEntity toBloggerEntity(ApiUser user, long capturedAt) {
+    public BloggerEntity toBloggerEntity(ApiUserResponse user, long capturedAt) {
         Objects.requireNonNull(user, "Blogger metadata is required");
         Objects.requireNonNull(user.id(), "Blogger uid is required");
         String avatar = firstNonBlank(user.avatarLarge(), user.profileImageUrl());
@@ -55,7 +55,7 @@ public class PostMapper {
                 user.verified() ? 1 : 0, 0, capturedAt, capturedAt);
     }
 
-    public PostEntity toPostEntity(Mblog post, LongTextResponse longText,
+    public PostEntity toPostEntity(MblogResponse post, LongTextResponse longText,
                                    LongTextResponse retweetedLongText, long capturedAt) {
         Objects.requireNonNull(post, "Blogger Blog entry is required");
         Objects.requireNonNull(post.id(), "Blogger Blog post id is required");
@@ -116,7 +116,7 @@ public class PostMapper {
                 post.commentsCount(), post.attitudesCount(), post.createdAt(), post.savedAt(), blogger);
     }
 
-    private RetweetInfo toRetweetInfo(Mblog post, LongTextResponse longText) {
+    private RetweetInfo toRetweetInfo(MblogResponse post, LongTextResponse longText) {
         if (post == null) {
             return null;
         }
@@ -130,7 +130,7 @@ public class PostMapper {
                 parseCreatedAt(post.createdAt()), toPics(post.picInfos()), video.coverUrl(), video.pageUrl());
     }
 
-    private String content(Mblog post, LongTextResponse longText, boolean raw) {
+    private String content(MblogResponse post, LongTextResponse longText, boolean raw) {
         if (!post.isLongText()) {
             return emptyIfNull(raw ? post.textRaw() : post.text());
         }
@@ -142,7 +142,7 @@ public class PostMapper {
                 : longText.data().longTextContent());
     }
 
-    private List<PicInfo> toPics(Map<String, ApiPicInfo> source) {
+    private List<PicInfo> toPics(Map<String, ApiPicInfoResponse> source) {
         if (source == null || source.isEmpty()) {
             return List.of();
         }
@@ -153,7 +153,7 @@ public class PostMapper {
         return List.copyOf(result);
     }
 
-    private ApiPicInfo.ApiImage originalImage(ApiPicInfo info) {
+    private ApiPicInfoResponse.ApiImage originalImage(ApiPicInfoResponse info) {
         if (info == null) {
             return null;
         }
@@ -166,18 +166,18 @@ public class PostMapper {
         return info.large();
     }
 
-    private boolean hasUrl(ApiPicInfo.ApiImage image) {
+    private boolean hasUrl(ApiPicInfoResponse.ApiImage image) {
         return image != null && image.url() != null && !image.url().isBlank();
     }
 
-    private MediaSize toMediaSize(ApiPicInfo.ApiImage image) {
+    private MediaSize toMediaSize(ApiPicInfoResponse.ApiImage image) {
         if (image == null) {
             return new MediaSize("", 0, 0);
         }
         return new MediaSize(emptyIfNull(image.url()), image.width(), image.height());
     }
 
-    private VideoInfo toVideo(ApiPageInfo pageInfo) {
+    private VideoInfo toVideo(ApiPageInfoResponse pageInfo) {
         if (pageInfo == null) {
             return new VideoInfo("", "");
         }

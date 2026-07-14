@@ -1,6 +1,6 @@
 package xyz.fz.weibo.model.response;
 
-public record ApiPicInfo(
+public record ApiPicInfoResponse(
         ApiImage thumbnail,
         ApiImage large,
         ApiImage original,

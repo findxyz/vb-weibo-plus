@@ -14,7 +14,7 @@ import xyz.fz.weibo.entity.PostEntity;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
-import xyz.fz.weibo.model.response.Mblog;
+import xyz.fz.weibo.model.response.MblogResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
 import xyz.fz.weibo.repository.PostRepository;
@@ -47,7 +47,7 @@ public class PostService {
         }
 
         MyBlogResponse response = myBlogApi.myBlog(new MyBlogRequest(uid, 1, null));
-        List<Mblog> posts = requirePosts(response);
+        List<MblogResponse> posts = requirePosts(response);
         if (posts.isEmpty()) {
             return new SaveResult(0, 0, 0);
         }
@@ -57,7 +57,7 @@ public class PostService {
         bloggerRepository.upsertMetadata(blogger);
 
         int inserted = 0;
-        for (Mblog post : posts) {
+        for (MblogResponse post : posts) {
             LongTextResponse currentLongText = fetchLongText(post);
             LongTextResponse retweetedLongText = fetchLongText(post.retweetedStatus());
             PostEntity entity = postMapper.toPostEntity(
@@ -85,7 +85,7 @@ public class PostService {
         return new PostQueryResult(items, page, size, result.getTotalElements());
     }
 
-    private List<Mblog> requirePosts(MyBlogResponse response) {
+    private List<MblogResponse> requirePosts(MyBlogResponse response) {
         if (response == null || response.ok() != 1) {
             int errorCode = response == null || response.ok() == 0 ? -1 : response.ok();
             throw new WeiboException("微博列表响应失败：ok != 1。", errorCode);
@@ -96,7 +96,7 @@ public class PostService {
         return response.data().list();
     }
 
-    private LongTextResponse fetchLongText(Mblog post) {
+    private LongTextResponse fetchLongText(MblogResponse post) {
         if (post == null || !post.isLongText()) {
             return null;
         }
