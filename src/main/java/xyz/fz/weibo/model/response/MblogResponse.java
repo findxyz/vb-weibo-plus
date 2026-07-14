@@ -20,9 +20,9 @@ public record MblogResponse(
         @JsonProperty("reposts_count") int repostsCount,
         @JsonProperty("comments_count") int commentsCount,
         @JsonProperty("attitudes_count") int attitudesCount,
-        ApiUserResponse user,
-        @JsonProperty("pic_infos") Map<String, ApiPicInfoResponse> picInfos,
-        @JsonProperty("page_info") ApiPageInfoResponse pageInfo,
+        UserResponse user,
+        @JsonProperty("pic_infos") Map<String, PicInfoResponse> picInfos,
+        @JsonProperty("page_info") PageInfoResponse pageInfo,
         @JsonProperty("retweeted_status") MblogResponse retweetedStatus
 ) {
 

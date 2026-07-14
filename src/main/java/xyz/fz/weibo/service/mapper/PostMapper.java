@@ -16,11 +16,11 @@ import xyz.fz.weibo.domain.RetweetView;
 import xyz.fz.weibo.domain.VideoInfo;
 import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
-import xyz.fz.weibo.model.response.ApiPageInfoResponse;
-import xyz.fz.weibo.model.response.ApiPicInfoResponse;
-import xyz.fz.weibo.model.response.ApiUserResponse;
 import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MblogResponse;
+import xyz.fz.weibo.model.response.PageInfoResponse;
+import xyz.fz.weibo.model.response.PicInfoResponse;
+import xyz.fz.weibo.model.response.UserResponse;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -46,7 +46,7 @@ public class PostMapper {
         this.objectMapper = objectMapper;
     }
 
-    public BloggerEntity toBloggerEntity(ApiUserResponse user, long capturedAt) {
+    public BloggerEntity toBloggerEntity(UserResponse user, long capturedAt) {
         Objects.requireNonNull(user, "Blogger metadata is required");
         Objects.requireNonNull(user.id(), "Blogger uid is required");
         String avatar = firstNonBlank(user.avatarLarge(), user.profileImageUrl());
@@ -142,7 +142,7 @@ public class PostMapper {
                 : longText.data().longTextContent());
     }
 
-    private List<PicInfo> toPics(Map<String, ApiPicInfoResponse> source) {
+    private List<PicInfo> toPics(Map<String, PicInfoResponse> source) {
         if (source == null || source.isEmpty()) {
             return List.of();
         }
@@ -153,7 +153,7 @@ public class PostMapper {
         return List.copyOf(result);
     }
 
-    private ApiPicInfoResponse.ApiImage originalImage(ApiPicInfoResponse info) {
+    private PicInfoResponse.ApiImage originalImage(PicInfoResponse info) {
         if (info == null) {
             return null;
         }
@@ -166,18 +166,18 @@ public class PostMapper {
         return info.large();
     }
 
-    private boolean hasUrl(ApiPicInfoResponse.ApiImage image) {
+    private boolean hasUrl(PicInfoResponse.ApiImage image) {
         return image != null && image.url() != null && !image.url().isBlank();
     }
 
-    private MediaSize toMediaSize(ApiPicInfoResponse.ApiImage image) {
+    private MediaSize toMediaSize(PicInfoResponse.ApiImage image) {
         if (image == null) {
             return new MediaSize("", 0, 0);
         }
         return new MediaSize(emptyIfNull(image.url()), image.width(), image.height());
     }
 
-    private VideoInfo toVideo(ApiPageInfoResponse pageInfo) {
+    private VideoInfo toVideo(PageInfoResponse pageInfo) {
         if (pageInfo == null) {
             return new VideoInfo("", "");
         }

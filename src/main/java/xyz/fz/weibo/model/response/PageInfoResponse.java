@@ -2,7 +2,7 @@ package xyz.fz.weibo.model.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public record ApiPageInfoResponse(
+public record PageInfoResponse(
         @JsonProperty("page_pic") String pagePic,
         @JsonProperty("page_url") String pageUrl,
         @JsonProperty("media_info") ApiMediaInfo mediaInfo

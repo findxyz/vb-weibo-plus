@@ -18,10 +18,10 @@ import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
-import xyz.fz.weibo.model.response.ApiUserResponse;
 import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MblogResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
+import xyz.fz.weibo.model.response.UserResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
 import xyz.fz.weibo.repository.PostRepository;
 import xyz.fz.weibo.service.mapper.PostMapper;
@@ -191,7 +191,7 @@ class PostServiceTest {
     private MblogResponse post(long id, String mblogId, boolean longText, MblogResponse retweeted) {
         return new MblogResponse(id, mblogId, "Fri Jul 10 18:18:55 +0800 2026", "正文", "纯文本",
                 "微博网页版", "", longText, 0, 0, 0, 0,
-                new ApiUserResponse(1L, "博主", "", "", "", "/u/1", false),
+                new UserResponse(1L, "博主", "", "", "", "/u/1", false),
                 null, null, retweeted);
     }
 
