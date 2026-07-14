@@ -13,7 +13,7 @@ public record MyBlogResponse(
 ) {
 
     public record MyBlogData(
-            @JsonProperty("since_id") Long sinceId,
+            @JsonProperty("since_id") String sinceId,
             List<MblogResponse> list,
             int total
     ) {

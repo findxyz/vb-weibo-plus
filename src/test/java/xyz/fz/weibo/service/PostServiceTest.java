@@ -180,7 +180,7 @@ class PostServiceTest {
     }
 
     private MyBlogResponse page(List<MblogResponse> posts) {
-        return new MyBlogResponse(new MyBlogResponse.MyBlogData(88L, posts, posts.size()), 1);
+        return new MyBlogResponse(new MyBlogResponse.MyBlogData("88", posts, posts.size()), 1);
     }
 
     private LongTextResponse longText(String content) {

@@ -34,8 +34,10 @@ class PostMapperTest {
 
     @Test
     void apiModelAcceptsCompleteBloggerBlogShapeAndStringLongTextId() throws Exception {
-        MblogResponse post = readPost();
+        MyBlogResponse response = readPage();
+        MblogResponse post = response.data().list().getFirst();
 
+        assertThat(response.data().sinceId()).isEqualTo("5320159715927430kp2");
         assertThat(post.textRaw()).isEqualTo("截断纯文本");
         assertThat(post.user().avatarLarge()).isEqualTo("https://image/avatar.jpg");
         assertThat(post.picInfos()).containsKey("p1");
@@ -43,6 +45,15 @@ class PostMapperTest {
                 .isEqualTo("https://video.weibo.com/show?fid=current");
         assertThat(post.retweetedStatus().mblogId()).isEqualTo("retweeted-id");
         assertThat(new LongTextRequest("R5bs4vcVf").toParams()).containsEntry("id", "R5bs4vcVf");
+    }
+
+    @Test
+    void apiModelNormalizesNumericSinceIdToString() throws Exception {
+        MyBlogResponse response = objectMapper.readValue("""
+                {"data":{"since_id":88,"list":[],"total":0},"ok":1}
+                """, MyBlogResponse.class);
+
+        assertThat(response.data().sinceId()).isEqualTo("88");
     }
 
     @Test
@@ -122,9 +133,12 @@ class PostMapperTest {
     }
 
     private MblogResponse readPost() throws Exception {
+        return readPage().data().list().getFirst();
+    }
+
+    private MyBlogResponse readPage() throws Exception {
         try (InputStream input = getClass().getResourceAsStream("/fixtures/blogger-blog-page.json")) {
-            MyBlogResponse response = objectMapper.readValue(input, MyBlogResponse.class);
-            return response.data().list().getFirst();
+            return objectMapper.readValue(input, MyBlogResponse.class);
         }
     }
 

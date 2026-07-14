@@ -50,12 +50,12 @@ class WeiboBlogControllerTest {
     void myblog_returns_200_with_json_fields() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
                 .thenReturn(new MyBlogResponse(
-                        new MyBlogResponse.MyBlogData(123L, List.of(), 0), 1));
+                        new MyBlogResponse.MyBlogData("5320159715927430kp2", List.of(), 0), 1));
 
         mockMvc.perform(get("/weibo/blog/mymblog").param("uid", "1").param("page", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(1))
-                .andExpect(jsonPath("$.data.since_id").value(123));
+                .andExpect(jsonPath("$.data.since_id").value("5320159715927430kp2"));
     }
 
     @Test
