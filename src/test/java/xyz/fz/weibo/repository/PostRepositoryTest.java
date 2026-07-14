@@ -74,6 +74,34 @@ class PostRepositoryTest {
     }
 
     @Test
+    void schemaCreatesIndexesForFilteredPostTimelines() throws Exception {
+        Set<String> indexes = new HashSet<>();
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("pragma index_list('posts')")) {
+            while (result.next()) {
+                indexes.add(result.getString("name"));
+            }
+        }
+
+        assertThat(indexes).contains("idx_posts_uid_ctime_post", "idx_posts_ctime_post");
+    }
+
+    @Test
+    void sqliteUsesIndexesForFilteredPostTimelines() throws Exception {
+        assertThat(queryPlan("""
+                select * from posts
+                where uid in (1) and created_at >= 100 and created_at <= 200
+                order by created_at desc, post_id desc
+                """)).anyMatch(detail -> detail.contains("idx_posts_uid_ctime_post"));
+        assertThat(queryPlan("""
+                select * from posts
+                where created_at >= 100 and created_at <= 200
+                order by created_at desc, post_id desc
+                """)).anyMatch(detail -> detail.contains("idx_posts_ctime_post"));
+    }
+
+    @Test
     void pageReturningRepositoryMethodsDeclarePageableParameter() {
         assertThat(Arrays.stream(PostRepository.class.getDeclaredMethods())
                 .filter(method -> method.getReturnType().equals(Page.class)))
@@ -133,6 +161,18 @@ class PostRepositoryTest {
     private static PostEntity post(String mblogId, long postId, long uid, long createdAt, String content) {
         return new PostEntity(mblogId, postId, uid, content, "raw", "source", "region",
                 "[]", "", "", "", 1, 2, 3, createdAt, 500);
+    }
+
+    private List<String> queryPlan(String sql) throws Exception {
+        List<String> details = new java.util.ArrayList<>();
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("explain query plan " + sql)) {
+            while (result.next()) {
+                details.add(result.getString("detail"));
+            }
+        }
+        return details;
     }
 
     private static Path createDatabase() {

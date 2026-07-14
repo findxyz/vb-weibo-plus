@@ -1,45 +1,42 @@
 package xyz.fz.weibo.repository;
 
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 import xyz.fz.weibo.entity.PostEntity;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 
-public interface PostRepository extends JpaRepository<PostEntity, String> {
+public interface PostRepository extends JpaRepository<PostEntity, String>,
+        JpaSpecificationExecutor<PostEntity> {
 
     @Query("select coalesce(max(p.postId), 0) from PostEntity p where p.uid = :uid")
     long findMaxPostIdByUid(@Param("uid") long uid);
 
-    @Query(value = """
-            select p from PostEntity p
-            where (:allUids = true or p.uid in :uids)
-              and (:start is null or p.createdAt >= :start)
-              and (:end is null or p.createdAt <= :end)
-            """,
-            countQuery = """
-            select count(p) from PostEntity p
-            where (:allUids = true or p.uid in :uids)
-              and (:start is null or p.createdAt >= :start)
-              and (:end is null or p.createdAt <= :end)
-            """)
-    Page<PostEntity> findFiltered(@Param("allUids") boolean allUids,
-                                  @Param("uids") Collection<Long> uids,
-                                  @Param("start") Long start,
-                                  @Param("end") Long end,
-                                  Pageable pageable);
-
     default Page<PostEntity> findPage(List<Long> uids, Long start, Long end, Pageable pageable) {
-        boolean allUids = uids == null || uids.isEmpty();
-        Collection<Long> queryUids = allUids ? List.of(0L) : uids;
-        return findFiltered(allUids, queryUids, start, end, pageable);
+        Specification<PostEntity> specification = (root, query, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (uids != null && !uids.isEmpty()) {
+                predicates.add(root.get("uid").in(uids));
+            }
+            if (start != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), start));
+            }
+            if (end != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("createdAt"), end));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
+        return findAll(specification, pageable);
     }
 
     static Pageable pageRequest(int page, int size) {
