@@ -39,7 +39,7 @@ public class WeiboBlogController {
     }
 
     @GetMapping("/longtext")
-    public LongTextResponse longtext(@RequestParam Long id) {
+    public LongTextResponse longtext(@RequestParam String id) {
         return longTextApi.longText(new LongTextRequest(id));
     }
 

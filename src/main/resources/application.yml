@@ -4,3 +4,17 @@ server:
 weibo:
   cookie-file: .weibo_cookie.txt
   qr-timeout-seconds: 300
+  database-path: ${WEIBO_DATABASE_PATH:weibo.db}
+
+spring:
+  datasource:
+    url: jdbc:sqlite:${weibo.database-path}
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  sql:
+    init:
+      mode: always

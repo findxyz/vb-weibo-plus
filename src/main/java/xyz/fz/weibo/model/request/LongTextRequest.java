@@ -6,11 +6,11 @@ import java.util.Map;
 /**
  * 长文请求参数。
  */
-public record LongTextRequest(Long id) {
+public record LongTextRequest(String id) {
 
     public Map<String, String> toParams() {
         Map<String, String> params = new LinkedHashMap<>();
-        params.put("id", id == null ? null : id.toString());
+        params.put("id", id);
         return params;
     }
 }

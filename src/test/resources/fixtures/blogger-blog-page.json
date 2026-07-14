@@ -1,0 +1,79 @@
+{
+  "data": {
+    "since_id": 88,
+    "list": [
+      {
+        "id": 100,
+        "mblogid": "current-id",
+        "created_at": "Fri Jul 10 18:18:55 +0800 2026",
+        "text": "截断正文",
+        "text_raw": "截断纯文本",
+        "source": "<a href=\"https://weibo.com/\">微博客户端</a>",
+        "region_name": "发布于 北京",
+        "isLongText": true,
+        "pic_num": 1,
+        "reposts_count": 11,
+        "comments_count": 12,
+        "attitudes_count": 13,
+        "user": {
+          "id": 1,
+          "screen_name": "博主",
+          "profile_image_url": "https://image/small.jpg",
+          "avatar_large": "https://image/avatar.jpg",
+          "avatar_hd": "https://image/avatar-hd.jpg",
+          "profile_url": "/u/1",
+          "verified": true
+        },
+        "pic_infos": {
+          "p1": {
+            "thumbnail": {"url": "https://image/thumbnail.jpg", "width": 80, "height": 90},
+            "large": {"url": "https://image/large.jpg", "width": 800, "height": 900},
+            "original": {"url": "https://image/original.jpg", "width": 1000, "height": 1100},
+            "largest": {"url": "https://image/largest.jpg", "width": 1200, "height": 1300}
+          }
+        },
+        "page_info": {
+          "page_pic": "https://image/cover.jpg",
+          "page_url": "sinaweibo://ignored",
+          "media_info": {
+            "h5_url": "https://video.weibo.com/show?fid=current",
+            "stream_url": "https://video/ignored.mp4"
+          }
+        },
+        "retweeted_status": {
+          "id": 90,
+          "mblogid": "retweeted-id",
+          "created_at": "Thu Jul 09 10:00:00 +0800 2026",
+          "text": "转发截断正文",
+          "text_raw": "转发截断纯文本",
+          "source": "微博网页版",
+          "region_name": "发布于 上海",
+          "isLongText": true,
+          "pic_num": 1,
+          "reposts_count": 1,
+          "comments_count": 2,
+          "attitudes_count": 3,
+          "user": {
+            "id": 2,
+            "screen_name": "原博主",
+            "profile_image_url": "https://image/retweeted-avatar.jpg",
+            "profile_url": "/u/2",
+            "verified": false
+          },
+          "pic_infos": {
+            "p2": {
+              "thumbnail": {"url": "https://image/retweeted-thumbnail.jpg", "width": 40, "height": 50},
+              "large": {"url": "https://image/retweeted-large.jpg", "width": 400, "height": 500}
+            }
+          },
+          "page_info": {
+            "page_pic": "https://image/retweeted-cover.jpg",
+            "media_info": {"h5_url": "https://video.weibo.com/show?fid=retweeted"}
+          }
+        }
+      }
+    ],
+    "total": 1
+  },
+  "ok": 1
+}

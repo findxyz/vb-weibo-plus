@@ -12,6 +12,7 @@ import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
+import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
@@ -21,6 +22,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -118,10 +120,12 @@ class WeiboBlogControllerTest {
                         new LongTextResponse.LongTextData(
                                 "正文内容", "原文", false, null), 1));
 
-        mockMvc.perform(get("/weibo/blog/longtext").param("id", "1"))
+        mockMvc.perform(get("/weibo/blog/longtext").param("id", "R5bs4vcVf"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(1))
                 .andExpect(jsonPath("$.data.longTextContent").value("正文内容"));
+
+        verify(longTextApi).longText(new LongTextRequest("R5bs4vcVf"));
     }
 
     @Test

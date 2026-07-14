@@ -8,6 +8,7 @@ import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
+import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 import java.util.Map;
 
@@ -36,6 +37,11 @@ public class WeiboExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleWeibo(WeiboException e) {
         HttpStatus status = e.getErrorCode() != 0 ? HttpStatus.BAD_GATEWAY : HttpStatus.INTERNAL_SERVER_ERROR;
         return build(status, e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidRequest(InvalidRequestException e) {
+        return build(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String msg) {
