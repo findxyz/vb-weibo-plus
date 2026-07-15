@@ -41,8 +41,8 @@ public final class WeiboConstants {
     /** 群聊媒体下载：msget */
     public static final Map<String, String> HEADERS_MSGET = Map.of(
             HttpHeaders.USER_AGENT, USER_AGENT,
-            HttpHeaders.REFERER, REFERER_WEIBO,
-            HttpHeaders.ORIGIN, REFERER_WEIBO
+            HttpHeaders.REFERER, "https://web.im.weibo.com/",
+            HttpHeaders.ORIGIN, "https://web.im.weibo.com"
     );
 
     /** 图床 / 视频直链 */

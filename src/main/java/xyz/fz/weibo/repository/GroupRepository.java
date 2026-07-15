@@ -12,6 +12,10 @@ public interface GroupRepository extends JpaRepository<GroupEntity, Long> {
     @Query("select g from GroupEntity g order by g.updatedAt desc, g.gid desc")
     List<GroupEntity> findAllOrdered();
 
+    default long findMaxMid(long gid) {
+        return findById(gid).map(GroupEntity::getMaxMid).orElse(0L);
+    }
+
     @Transactional
     default void upsertMetadata(GroupEntity incoming) {
         GroupEntity current = findById(incoming.getGid()).orElse(null);

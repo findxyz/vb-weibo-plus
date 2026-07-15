@@ -42,7 +42,7 @@ public class WeiboGroupController {
     }
 
     @GetMapping("/media")
-    public ResponseEntity<byte[]> media(@RequestParam Long fid,
+    public ResponseEntity<byte[]> media(@RequestParam String fid,
                                         @RequestParam(required = false) String imageType) {
         return groupMediaApi.download(new GroupMediaRequest(fid, imageType));
     }

@@ -6,10 +6,19 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.GroupRecord;
+import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MessageQueryResult;
+import xyz.fz.weibo.domain.MessageView;
+import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.ChatService;
+import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -17,6 +26,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ChatController.class)
@@ -65,6 +76,124 @@ class ChatControllerTest {
         mockMvc.perform(post("/chat/groups/sync"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value(502));
+    }
+
+    @Test
+    void incrementalBindsOnlyTheRequiredGidQueryParameter() throws Exception {
+        when(chatService.saveIncremental(101)).thenReturn(new SaveResult(3, 2, 1));
+
+        mockMvc.perform(post("/chat/incremental").param("gid", "101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fetchedCount").value(3))
+                .andExpect(jsonPath("$.insertedCount").value(2))
+                .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        verify(chatService).saveIncremental(101);
+    }
+
+    @Test
+    void messagesBindsInclusiveShanghaiTimesAndPaginationDefaults() throws Exception {
+        MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "消息",
+                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "");
+        when(chatService.queryMessages(
+                101, 1_783_652_523_000L, 1_783_656_184_000L, 1, 100))
+                .thenReturn(new MessageQueryResult(group(101), List.of(view), 1, 100, 1));
+
+        mockMvc.perform(get("/chat/messages")
+                        .param("gid", "101")
+                        .param("start", "2026-07-10 11:02:03")
+                        .param("end", "2026-07-10 12:03:04"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.group.gid").value(101))
+                .andExpect(jsonPath("$.items[0].mid").value(100))
+                .andExpect(jsonPath("$.items[0].group").doesNotExist())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(100))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void messagesRequiresGid() throws Exception {
+        mockMvc.perform(get("/chat/messages"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void sinceBindsShanghaiTimeAndOptionalStartingMidFromQueryParameters() throws Exception {
+        when(chatService.saveBySince(101, 1_783_652_523_000L, 50L))
+                .thenReturn(new SaveResult(4, 3, 1));
+
+        mockMvc.perform(post("/chat/since")
+                        .param("gid", "101")
+                        .param("sinceTime", "2026-07-10 11:02:03")
+                        .param("beforeMid", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fetchedCount").value(4))
+                .andExpect(jsonPath("$.insertedCount").value(3))
+                .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        verify(chatService).saveBySince(101, 1_783_652_523_000L, 50L);
+    }
+
+    @Test
+    void sinceRequiresGidAndTimeButAllowsOmittingBeforeMid() throws Exception {
+        when(chatService.saveBySince(101, 1_783_652_523_000L, null))
+                .thenReturn(new SaveResult(0, 0, 0));
+
+        mockMvc.perform(post("/chat/since")
+                        .param("gid", "101")
+                        .param("sinceTime", "2026-07-10 11:02:03"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/chat/since").param("gid", "101"))
+                .andExpect(status().isBadRequest());
+
+        verify(chatService).saveBySince(101, 1_783_652_523_000L, null);
+    }
+
+    @Test
+    void mediaReturnsOnlyMappedBytesAndContentType() throws Exception {
+        when(chatService.queryMessageMedia(101, 100, "preview"))
+                .thenReturn(new MediaBinary(new byte[]{1, 2, 3}, "image/jpeg"));
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "preview"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/jpeg"))
+                .andExpect(header().doesNotExist("Content-Disposition"))
+                .andExpect(header().doesNotExist("Set-Cookie"))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}));
+    }
+
+    @Test
+    void mediaMapsLocalAndUpstreamErrors() throws Exception {
+        when(chatService.queryMessageMedia(101, 100, "bad"))
+                .thenThrow(new InvalidRequestException("不支持。"));
+        when(chatService.queryMessageMedia(101, 101, "preview"))
+                .thenThrow(new ResourceNotFoundException("不存在。"));
+        when(chatService.queryMessageMedia(101, 102, "preview"))
+                .thenThrow(new WeiboCookieExpiredException("Credential 失效。"));
+        when(chatService.queryMessageMedia(101, 103, "preview"))
+                .thenThrow(new WeiboRateLimitException("限流。"));
+        when(chatService.queryMessageMedia(101, 104, "preview"))
+                .thenThrow(new WeiboException("下载失败。", -1));
+
+        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "100")
+                        .param("variant", "bad"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "101")
+                        .param("variant", "preview"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "102")
+                        .param("variant", "preview"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "103")
+                        .param("variant", "preview"))
+                .andExpect(status().isTooManyRequests());
+        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "104")
+                        .param("variant", "preview"))
+                .andExpect(status().isBadGateway());
     }
 
     private GroupRecord group(long gid) {

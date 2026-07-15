@@ -19,6 +19,7 @@ import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -109,5 +110,20 @@ class WeiboGroupControllerTest {
         mockMvc.perform(get("/weibo/group/media").param("fid", "1"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value(500));
+    }
+
+    @Test
+    void media_accepts_nonnumeric_string_fid() throws Exception {
+        when(groupMediaApi.download(any()))
+                .thenReturn(ResponseEntity.ok(new byte[]{1}));
+
+        mockMvc.perform(get("/weibo/group/media")
+                        .param("fid", "5302496155143676_file")
+                        .param("imageType", "origin"))
+                .andExpect(status().isOk());
+
+        verify(groupMediaApi).download(
+                new xyz.fz.weibo.model.request.GroupMediaRequest(
+                        "5302496155143676_file", "origin"));
     }
 }

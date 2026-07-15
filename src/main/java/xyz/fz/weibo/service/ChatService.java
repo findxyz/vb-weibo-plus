@@ -1,28 +1,53 @@
 package xyz.fz.weibo.service;
 
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import xyz.fz.weibo.api.GroupListApi;
+import xyz.fz.weibo.api.GroupMediaApi;
+import xyz.fz.weibo.api.GroupMessagesApi;
+import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.GroupRecord;
+import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MessageQueryResult;
+import xyz.fz.weibo.domain.MessageRecord;
+import xyz.fz.weibo.domain.MessageView;
+import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.entity.GroupEntity;
+import xyz.fz.weibo.entity.MessageEntity;
+import xyz.fz.weibo.model.request.GroupMessagesRequest;
+import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
+import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.repository.GroupRepository;
+import xyz.fz.weibo.repository.MessageRepository;
+import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 @Service
 public class ChatService {
 
     private final GroupListApi groupListApi;
+    private final GroupMessagesApi groupMessagesApi;
+    private final GroupMediaApi groupMediaApi;
     private final MessageMapper messageMapper;
     private final GroupRepository groupRepository;
+    private final MessageRepository messageRepository;
 
-    public ChatService(GroupListApi groupListApi, MessageMapper messageMapper,
-                       GroupRepository groupRepository) {
+    public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
+                       GroupMediaApi groupMediaApi, MessageMapper messageMapper,
+                       GroupRepository groupRepository, MessageRepository messageRepository) {
         this.groupListApi = groupListApi;
+        this.groupMessagesApi = groupMessagesApi;
+        this.groupMediaApi = groupMediaApi;
         this.messageMapper = messageMapper;
         this.groupRepository = groupRepository;
+        this.messageRepository = messageRepository;
     }
 
     public List<GroupRecord> syncGroups() {
@@ -38,5 +63,183 @@ public class ChatService {
 
     public List<GroupRecord> queryGroups() {
         return messageMapper.toGroupRecords(groupRepository.findAllOrdered());
+    }
+
+    public SaveResult saveIncremental(long gid) {
+        validateGid(gid);
+        long capturedAt = System.currentTimeMillis();
+        groupRepository.findOrCreatePlaceholder(gid, capturedAt);
+        long boundaryMid = groupRepository.findMaxMid(gid);
+        Long beforeMid = null;
+        int fetched = 0;
+        int inserted = 0;
+        int ignored = 0;
+        while (true) {
+            List<GroupMessagesResponse.Message> messages = requireMessages(
+                    groupMessagesApi.messages(new GroupMessagesRequest(gid, beforeMid)));
+            if (messages.isEmpty()) {
+                break;
+            }
+            fetched += messages.size();
+            PageCapture capture = capturePage(messages, gid, capturedAt,
+                    message -> boundaryMid > 0 && requireMid(message) <= boundaryMid);
+            inserted += capture.inserted();
+            ignored += capture.ignored();
+            if (boundaryMid == 0 || capture.reachedBoundary()) {
+                break;
+            }
+            beforeMid = requireMid(messages.getFirst());
+        }
+        messageRepository.refreshGroupRange(gid);
+        return new SaveResult(fetched, inserted, ignored);
+    }
+
+    public MessageQueryResult queryMessages(long gid, Long start, Long end, int page, int size) {
+        validateGid(gid);
+        validateQuery(start, end, page, size);
+        Page<MessageEntity> result = messageRepository.findPage(
+                gid, start, end, MessageRepository.pageRequest(page, size));
+        GroupRecord group = groupRepository.findById(gid)
+                .map(messageMapper::toGroupRecord)
+                .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
+        List<MessageView> items = messageMapper.toMessageViews(result.getContent());
+        return new MessageQueryResult(group, items, page, size, result.getTotalElements());
+    }
+
+    public SaveResult saveBySince(long gid, long sinceTime, Long beforeMid) {
+        validateGid(gid);
+        long capturedAt = System.currentTimeMillis();
+        groupRepository.findOrCreatePlaceholder(gid, capturedAt);
+        Long cursor = beforeMid;
+        int fetched = 0;
+        int inserted = 0;
+        int ignored = 0;
+        while (true) {
+            List<GroupMessagesResponse.Message> messages = requireMessages(
+                    groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
+            if (messages.isEmpty()) {
+                break;
+            }
+            fetched += messages.size();
+            PageCapture capture = capturePage(messages, gid, capturedAt,
+                    message -> messageMapper.toMessageTimestamp(message) < sinceTime);
+            inserted += capture.inserted();
+            ignored += capture.ignored();
+            if (capture.reachedBoundary()) {
+                break;
+            }
+            cursor = requireMid(messages.getFirst());
+        }
+        messageRepository.refreshGroupRange(gid);
+        return new SaveResult(fetched, inserted, ignored);
+    }
+
+    private PageCapture capturePage(List<GroupMessagesResponse.Message> messages,
+                                    long gid, long capturedAt,
+                                    Predicate<GroupMessagesResponse.Message> reachedBoundary) {
+        int inserted = 0;
+        int ignored = 0;
+        for (int index = messages.size() - 1; index >= 0; index--) {
+            GroupMessagesResponse.Message message = messages.get(index);
+            requireMid(message);
+            if (reachedBoundary.test(message)) {
+                return new PageCapture(inserted, ignored + index + 1, true);
+            }
+            var entity = messageMapper.toMessageEntity(message, gid, capturedAt);
+            if (entity.isPresent() && messageRepository.insertIfAbsent(entity.orElseThrow())) {
+                inserted++;
+            } else {
+                ignored++;
+            }
+        }
+        return new PageCapture(inserted, ignored, false);
+    }
+
+    public MediaBinary queryMessageMedia(long gid, long mid, String variant) {
+        validateGid(gid);
+        if (!"preview".equals(variant) && !"original".equals(variant)) {
+            throw new InvalidRequestException("variant 必须是 preview 或 original。");
+        }
+        MessageRecord message = messageMapper.toMessageRecord(messageRepository.findById(mid)
+                .orElseThrow(() -> new ResourceNotFoundException("本地群消息不存在。")));
+        if (message.gid() != gid) {
+            throw new ResourceNotFoundException("本地群消息不存在。");
+        }
+        GroupMediaRequest request = mediaRequest(message, variant);
+        try {
+            var response = groupMediaApi.download(request);
+            if (response == null || !response.getStatusCode().is2xxSuccessful()) {
+                throw new WeiboException("群消息媒体下载失败。", -1);
+            }
+            return messageMapper.toMediaBinary(response);
+        } catch (WeiboCookieExpiredException | WeiboRateLimitException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new WeiboException("群消息媒体下载失败。", -1, e);
+        }
+    }
+
+    private GroupMediaRequest mediaRequest(MessageRecord message, String variant) {
+        if ("original".equals(variant)) {
+            if (message.mediaType() != 1) {
+                throw new InvalidRequestException("original 仅支持图片消息。");
+            }
+            return new GroupMediaRequest(requireMediaReference(message.fid()), "origin");
+        }
+        if (message.mediaType() == 1) {
+            return new GroupMediaRequest(requireMediaReference(message.fid()), "compress");
+        }
+        if (message.mediaType() == 10) {
+            if (!message.videoCoverFid().isBlank()) {
+                return new GroupMediaRequest(message.videoCoverFid(), null);
+            }
+            throw new ResourceNotFoundException("本地群消息媒体引用不存在。");
+        }
+        throw new InvalidRequestException("该消息类型不支持 preview。");
+    }
+
+    private String requireMediaReference(String reference) {
+        if (reference == null || reference.isBlank()) {
+            throw new ResourceNotFoundException("本地群消息媒体引用不存在。");
+        }
+        return reference;
+    }
+
+    private List<GroupMessagesResponse.Message> requireMessages(GroupMessagesResponse response) {
+        if (response == null || !response.result()) {
+            throw new WeiboException("群消息响应失败：result != true。", -1);
+        }
+        if (response.messages() == null) {
+            throw new WeiboException("群消息响应缺少 messages。", -1);
+        }
+        return response.messages();
+    }
+
+    private long requireMid(GroupMessagesResponse.Message message) {
+        if (message == null || message.id() == null) {
+            throw new WeiboException("群消息响应缺少消息 mid。", -1);
+        }
+        return message.id();
+    }
+
+    private void validateGid(long gid) {
+        if (gid <= 0) {
+            throw new InvalidRequestException("gid 必须大于 0。");
+        }
+    }
+
+    private void validateQuery(Long start, Long end, int page, int size) {
+        if (page < 1) {
+            throw new InvalidRequestException("page 必须大于等于 1。");
+        }
+        if (size < 1 || size > 100) {
+            throw new InvalidRequestException("size 必须介于 1 和 100 之间。");
+        }
+        if (start != null && end != null && start > end) {
+            throw new InvalidRequestException("start 不能晚于 end。");
+        }
+    }
+
+    private record PageCapture(int inserted, int ignored, boolean reachedBoundary) {
     }
 }
