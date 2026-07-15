@@ -175,7 +175,7 @@ public class WeiboHttpClient {
                 sb.append(", ");
             }
             first = false;
-            sb.append(name).append("=").append("*".repeat(Math.min(value.length(), 6))).append("(").append(value.length()).append(")");
+            sb.append(name).append("=").repeat("*", Math.min(value.length(), 6)).append("(").append(value.length()).append(")");
         }
         return sb.append("}").toString();
     }

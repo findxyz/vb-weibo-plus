@@ -20,6 +20,7 @@ import java.util.List;
 public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
         JpaSpecificationExecutor<MessageEntity> {
 
+    @SuppressWarnings("DuplicatedCode")
     default Page<MessageEntity> findPage(long gid, Long start, Long end, Pageable pageable) {
         Specification<MessageEntity> specification = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();

@@ -22,6 +22,7 @@ public interface PostRepository extends JpaRepository<PostEntity, String>,
     @Query("select coalesce(max(p.postId), 0) from PostEntity p where p.uid = :uid")
     long findMaxPostIdByUid(@Param("uid") long uid);
 
+    @SuppressWarnings("DuplicatedCode")
     default Page<PostEntity> findPage(List<Long> uids, Long start, Long end, Pageable pageable) {
         Specification<PostEntity> specification = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();

@@ -282,6 +282,7 @@ public class PostService {
         return response;
     }
 
+    @SuppressWarnings("DuplicatedCode")
     private void validateQuery(Long start, Long end, int page, int size) {
         if (page < 1) {
             throw new InvalidRequestException("page 必须大于等于 1。");
