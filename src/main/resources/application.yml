@@ -7,6 +7,9 @@ springdoc:
     - /chat/**
   swagger-ui:
     path: /swagger-ui.html
+    enabled: false
+  api-docs:
+    enabled: false
 
 weibo:
   cookie-file: .weibo_cookie.txt
