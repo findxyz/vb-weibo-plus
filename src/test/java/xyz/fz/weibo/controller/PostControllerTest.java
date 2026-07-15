@@ -48,6 +48,45 @@ class PostControllerTest {
     }
 
     @Test
+    void rangeBindsRequiredShanghaiTimeBoundsAndReturnsCounts() throws Exception {
+        when(postService.saveByRange(1, 1783652523000L, 1783656184000L))
+                .thenReturn(new SaveResult(3, 2, 1));
+
+        mockMvc.perform(post("/post/range")
+                        .param("uid", "1")
+                        .param("start", "2026-07-10 11:02:03")
+                        .param("end", "2026-07-10 12:03:04"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fetchedCount").value(3))
+                .andExpect(jsonPath("$.insertedCount").value(2))
+                .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        verify(postService).saveByRange(1, 1783652523000L, 1783656184000L);
+    }
+
+    @Test
+    void rangeRequiresUidAndBothTimeBoundsInTheExpectedFormat() throws Exception {
+        mockMvc.perform(post("/post/range")
+                        .param("start", "2026-07-10 11:02:03")
+                        .param("end", "2026-07-10 12:03:04"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/post/range")
+                        .param("uid", "1")
+                        .param("end", "2026-07-10 12:03:04"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/post/range")
+                        .param("uid", "1")
+                        .param("start", "2026/07/10 11:02:03")
+                        .param("end", "2026-07-10 12:03:04"))
+                .andExpect(status().isBadRequest());
+
+        verify(postService, never()).saveByRange(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
     void incrementalReturns401WhenCredentialIsInvalid() throws Exception {
         when(postService.saveIncremental(1))
                 .thenThrow(new WeiboCookieExpiredException("Credential 失效"));

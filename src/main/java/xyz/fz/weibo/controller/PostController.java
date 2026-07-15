@@ -34,6 +34,16 @@ public class PostController {
         return postService.saveIncremental(uid);
     }
 
+    @PostMapping("/range")
+    public SaveResult saveByRange(
+            @RequestParam long uid,
+            @RequestParam
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
+            @RequestParam
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end) {
+        return postService.saveByRange(uid, toEpochMillis(start), toEpochMillis(end));
+    }
+
     @GetMapping("/bloggers")
     public List<BloggerRecord> queryBloggers() {
         return postService.queryBloggers();
