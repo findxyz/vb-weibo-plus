@@ -1,6 +1,13 @@
 server:
   port: 8080
 
+springdoc:
+  paths-to-match:
+    - /post/**
+    - /chat/**
+  swagger-ui:
+    path: /swagger-ui.html
+
 weibo:
   cookie-file: .weibo_cookie.txt
   qr-timeout-seconds: 300
