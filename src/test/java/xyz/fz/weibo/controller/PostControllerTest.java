@@ -38,7 +38,7 @@ class PostControllerTest {
     private PostService postService;
 
     @Test
-    void incrementalBindsUidFromQueryAndReturnsPublicCountsOnly() throws Exception {
+    void incremental_binds_uid_from_query_and_returns_public_counts_only() throws Exception {
         when(postService.saveIncremental(1)).thenReturn(new SaveResult(3, 2, 1));
 
         mockMvc.perform(post("/post/incremental").param("uid", "1"))
@@ -52,7 +52,7 @@ class PostControllerTest {
     }
 
     @Test
-    void rangeBindsRequiredShanghaiTimeBoundsAndReturnsCounts() throws Exception {
+    void range_binds_required_shanghai_time_bounds_and_returns_counts() throws Exception {
         when(postService.saveByRange(1, 1783652523000L, 1783656184000L))
                 .thenReturn(new SaveResult(3, 2, 1));
 
@@ -69,7 +69,7 @@ class PostControllerTest {
     }
 
     @Test
-    void rangeRequiresUidAndBothTimeBoundsInTheExpectedFormat() throws Exception {
+    void range_requires_uid_and_both_time_bounds_in_the_expected_format() throws Exception {
         mockMvc.perform(post("/post/range")
                         .param("start", "2026-07-10 11:02:03")
                         .param("end", "2026-07-10 12:03:04"))
@@ -91,7 +91,7 @@ class PostControllerTest {
     }
 
     @Test
-    void imageReturnsOnlyCapturedMediaBytesAndContentType() throws Exception {
+    void image_returns_only_captured_media_bytes_and_content_type() throws Exception {
         when(postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
                 .thenReturn(new MediaBinary(new byte[]{10, 20, 30}, "image/png"));
 
@@ -110,7 +110,7 @@ class PostControllerTest {
     }
 
     @Test
-    void videoCoverDefaultsToCurrentAndSupportsRetweetedSelector() throws Exception {
+    void video_cover_defaults_to_current_and_supports_retweeted_selector() throws Exception {
         when(postService.queryPostVideoCover("saved-mblog", false))
                 .thenReturn(new MediaBinary(new byte[]{1}, "image/jpeg"));
         when(postService.queryPostVideoCover("saved-mblog", true))
@@ -132,7 +132,7 @@ class PostControllerTest {
     }
 
     @Test
-    void mediaMapsLocalAndUpstreamFailuresToPublicStatuses() throws Exception {
+    void media_maps_local_and_upstream_failures_to_public_statuses() throws Exception {
         when(postService.queryPostImage("saved-mblog", "p1", "large"))
                 .thenThrow(new InvalidRequestException("不支持的 variant。"));
         when(postService.queryPostImage("missing", "p1", "thumbnail"))
@@ -173,7 +173,7 @@ class PostControllerTest {
     }
 
     @Test
-    void incrementalReturns401WhenCredentialIsInvalid() throws Exception {
+    void incremental_returns_401_when_credential_is_invalid() throws Exception {
         when(postService.saveIncremental(1))
                 .thenThrow(new WeiboCookieExpiredException("Credential 失效"));
 
@@ -183,7 +183,7 @@ class PostControllerTest {
     }
 
     @Test
-    void incrementalReturns429WhenUpstreamIsRateLimited() throws Exception {
+    void incremental_returns_429_when_upstream_is_rate_limited() throws Exception {
         when(postService.saveIncremental(1))
                 .thenThrow(new WeiboRateLimitException("上游限流"));
 
@@ -193,7 +193,7 @@ class PostControllerTest {
     }
 
     @Test
-    void incrementalReturns502WhenUpstreamBusinessResponseFails() throws Exception {
+    void incremental_returns_502_when_upstream_business_response_fails() throws Exception {
         when(postService.saveIncremental(1))
                 .thenThrow(new WeiboException("上游业务失败", -1));
 
@@ -203,7 +203,7 @@ class PostControllerTest {
     }
 
     @Test
-    void incrementalReturns500ForInternalFailure() throws Exception {
+    void incremental_returns_500_for_internal_failure() throws Exception {
         when(postService.saveIncremental(1))
                 .thenThrow(new WeiboException("内部错误"));
 
@@ -213,7 +213,7 @@ class PostControllerTest {
     }
 
     @Test
-    void bloggersReturnsOrderedLocalMetadataWithoutCursor() throws Exception {
+    void bloggers_returns_ordered_local_metadata_without_cursor() throws Exception {
         when(postService.queryBloggers()).thenReturn(List.of(
                 new BloggerRecord(2, "第二位", "avatar", "/u/2", true),
                 new BloggerRecord(1, "第一位", "", "/u/1", false)));
@@ -227,7 +227,7 @@ class PostControllerTest {
     }
 
     @Test
-    void listBindsRepeatedUidsTimeBoundsAndPageDefaults() throws Exception {
+    void list_binds_repeated_uids_time_bounds_and_page_defaults() throws Exception {
         when(postService.queryPosts(List.of(1L, 2L),
                 1783612800000L, 1783616523000L, 1, 100))
                 .thenReturn(new PostQueryResult(List.of(), 1, 100, 0));
@@ -248,7 +248,7 @@ class PostControllerTest {
     }
 
     @Test
-    void listWithoutUidsQueriesAllLocalBloggers() throws Exception {
+    void list_without_uids_queries_all_local_bloggers() throws Exception {
         when(postService.queryPosts(null, null, null, 2, 10))
                 .thenReturn(new PostQueryResult(List.of(), 2, 10, 0));
 
@@ -261,7 +261,7 @@ class PostControllerTest {
     }
 
     @Test
-    void listRejectsCommaSeparatedUidsAndInvalidSize() throws Exception {
+    void list_rejects_comma_separated_uids_and_invalid_size() throws Exception {
         mockMvc.perform(get("/post/list").param("uids", "1,2"))
                 .andExpect(status().isBadRequest());
         verify(postService, never()).queryPosts(List.of(1L, 2L), null, null, 1, 100);

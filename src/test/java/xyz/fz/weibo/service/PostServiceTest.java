@@ -88,7 +88,7 @@ class PostServiceTest {
     }
 
     @Test
-    void proxiesCurrentBloggerBlogThumbnailFromCapturedReference() {
+    void proxies_current_blogger_blog_thumbnail_from_captured_reference() {
         PostEntity entity = entity("saved-mblog", 100);
         PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
                 List.of(new PicInfo("p1",
@@ -111,7 +111,7 @@ class PostServiceTest {
     }
 
     @Test
-    void proxiesEveryImageVariantFromCurrentAndRetweetedCapturedReferences() {
+    void proxies_every_image_variant_from_current_and_retweeted_captured_references() {
         PostEntity entity = entity("saved-mblog", 100);
         PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
                 List.of(new PicInfo("p1",
@@ -152,7 +152,7 @@ class PostServiceTest {
     }
 
     @Test
-    void proxiesOnlyCurrentOrRetweetedVideoCoverReferences() {
+    void proxies_only_current_or_retweeted_video_cover_references() {
         PostEntity entity = entity("saved-mblog", 100);
         PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
                 List.of(), new VideoInfo("current-cover", "current-video-page"),
@@ -179,7 +179,7 @@ class PostServiceTest {
     }
 
     @Test
-    void rejectsUnsupportedImageVariantBeforeReadingCapturedContent() {
+    void rejects_unsupported_image_variant_before_reading_captured_content() {
         assertThatThrownBy(() -> postService.queryPostImage("saved-mblog", "p1", "large"))
                 .isInstanceOf(IllegalArgumentException.class);
 
@@ -188,7 +188,7 @@ class PostServiceTest {
     }
 
     @Test
-    void reportsMissingCapturedPostPictureOrReferenceAsLocalNotFound() {
+    void reports_missing_captured_post_picture_or_reference_as_local_not_found() {
         PostEntity noPictureEntity = entity("no-picture", 100);
         PostRecord noPicture = new PostRecord("no-picture", 100, 1, "", "", "", "",
                 List.of(), new VideoInfo("", ""), null, 0, 0, 0, 100, 200);
@@ -214,7 +214,7 @@ class PostServiceTest {
     }
 
     @Test
-    void mapsMediaDownloadFailuresToGatewayErrorsButPreservesCredentialAndRateLimit() {
+    void maps_media_download_failures_to_gateway_errors_but_preserves_credential_and_rate_limit() {
         PostEntity entity = entity("saved-mblog", 100);
         PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
                 List.of(new PicInfo("p1", new MediaSize("captured-reference", 80, 90),
@@ -250,7 +250,7 @@ class PostServiceTest {
     }
 
     @Test
-    void capturesSinglePartialDayUntilSuccessfulEmptyPage() {
+    void captures_single_partial_day_until_successful_empty_page() {
         MblogResponse current = post(100, "current-id", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity entity = entity("current-id", 100);
@@ -278,7 +278,7 @@ class PostServiceTest {
     }
 
     @Test
-    void capturesMultipleDaysWithInclusiveExactBoundsAndAggregatesCounts() {
+    void captures_multiple_days_with_inclusive_exact_bounds_and_aggregates_counts() {
         MblogResponse normal = post(100, "normal", false, null);
         MblogResponse retweeted = post(90, "retweeted-long", true, null);
         MblogResponse longText = post(110, "current-long", true, retweeted);
@@ -333,7 +333,7 @@ class PostServiceTest {
     }
 
     @Test
-    void acceptsEqualInclusiveRangeBounds() {
+    void accepts_equal_inclusive_range_bounds() {
         SearchProfileRequest request = new SearchProfileRequest(
                 1L, 1, 1783652523L, 1783652523L);
         when(searchProfileApi.searchProfile(request)).thenReturn(searchPage(List.of()));
@@ -345,7 +345,7 @@ class PostServiceTest {
     }
 
     @Test
-    void rejectsInvalidRangeWithoutCallingUpstream() {
+    void rejects_invalid_range_without_calling_upstream() {
         assertThatThrownBy(() -> postService.saveByRange(
                 1, 1783652523000L, 1783652522000L))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -354,7 +354,7 @@ class PostServiceTest {
     }
 
     @Test
-    void preservesPartialCaptureAndRetryCompletesMissingRangeIdempotently() {
+    void preserves_partial_capture_and_retry_completes_missing_range_idempotently() {
         MblogResponse first = post(100, "first", false, null);
         MblogResponse second = post(110, "second", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
@@ -397,7 +397,7 @@ class PostServiceTest {
     }
 
     @Test
-    void capturesExactlyLatestPageCompletesLongTextsAndCommitsCursorLast() {
+    void captures_exactly_latest_page_completes_long_texts_and_commits_cursor_last() {
         MblogResponse retweeted = post(90, "retweeted-id", true, null);
         MblogResponse current = post(100, "current-id", true, retweeted);
         LongTextResponse currentLongText = longText("当前完整正文");
@@ -430,7 +430,7 @@ class PostServiceTest {
     }
 
     @Test
-    void capturesAllNewPagesAndScansNewestToOldestBoundaryPageCompletely() {
+    void captures_all_new_pages_and_scans_newest_to_oldest_boundary_page_completely() {
         MblogResponse newest = post(130, "newest", false, null);
         MblogResponse newer = post(120, "newer", false, null);
         MblogResponse newAtBoundaryPage = post(110, "new-at-boundary-page", false, null);
@@ -466,7 +466,7 @@ class PostServiceTest {
     }
 
     @Test
-    void scansOldestToNewestBoundaryPageCompletely() {
+    void scans_oldest_to_newest_boundary_page_completely() {
         MblogResponse older = post(90, "older", false, null);
         MblogResponse boundary = post(100, "boundary", false, null);
         MblogResponse newer = post(110, "newer", false, null);
@@ -493,7 +493,7 @@ class PostServiceTest {
     }
 
     @Test
-    void successfulEmptyPageStopsNormallyAndCommitsExistingCursor() {
+    void successful_empty_page_stops_normally_and_commits_existing_cursor() {
         when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
         when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null))).thenReturn(page(List.of()));
         when(postRepository.findMaxPostIdByUid(1)).thenReturn(100L);
@@ -506,7 +506,7 @@ class PostServiceTest {
     }
 
     @Test
-    void missingRequiredPaginationCursorFailsWithoutCommittingCursor() {
+    void missing_required_pagination_cursor_fails_without_committing_cursor() {
         MblogResponse current = post(110, "current", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
         PostEntity entity = entity("current", 110);
@@ -527,7 +527,7 @@ class PostServiceTest {
     }
 
     @Test
-    void retriesAfterMiddlePageFailureWithoutOverwritingCapturedContent() {
+    void retries_after_middle_page_failure_without_overwriting_captured_content() {
         MblogResponse newest = post(130, "newest", false, null);
         MblogResponse newer = post(120, "newer", false, null);
         MblogResponse remaining = post(110, "remaining", false, null);
@@ -568,7 +568,7 @@ class PostServiceTest {
     }
 
     @Test
-    void repositoryFailurePreservesEarlierCapturedContentAndOldCursor() {
+    void repository_failure_preserves_earlier_captured_content_and_old_cursor() {
         MblogResponse first = post(110, "first", false, null);
         MblogResponse second = post(120, "second", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
@@ -592,7 +592,7 @@ class PostServiceTest {
     }
 
     @Test
-    void longTextFailurePreservesEarlierCapturedContentAndOldCursor() {
+    void long_text_failure_preserves_earlier_captured_content_and_old_cursor() {
         MblogResponse first = post(110, "first", false, null);
         MblogResponse longTextPost = post(120, "long-text", true, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
@@ -614,7 +614,7 @@ class PostServiceTest {
     }
 
     @Test
-    void duplicateOnLatestPageIsIgnoredWithoutOverwritingCapturedContent() {
+    void duplicate_on_latest_page_is_ignored_without_overwriting_captured_content() {
         MblogResponse current = post(100, "current-id", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity entity = entity("current-id", 100);
@@ -630,7 +630,7 @@ class PostServiceTest {
     }
 
     @Test
-    void upstreamBusinessFailureDoesNotMapPersistOrRefreshCursor() {
+    void upstream_business_failure_does_not_map_persist_or_refresh_cursor() {
         when(bloggerRepository.findLatestPostId(1)).thenReturn(0L);
         when(myBlogApi.myBlog(any())).thenReturn(new MyBlogResponse(null, 0));
 
@@ -644,7 +644,7 @@ class PostServiceTest {
     }
 
     @Test
-    void mappingFailurePreservesAlreadyCapturedContentAndOldCursor() {
+    void mapping_failure_preserves_already_captured_content_and_old_cursor() {
         MblogResponse first = post(100, "first", false, null);
         MblogResponse second = post(101, "second", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 20, 1, 1);
@@ -666,7 +666,7 @@ class PostServiceTest {
     }
 
     @Test
-    void queriesLocalRepositoriesWithValidationAndMapperOnly() {
+    void queries_local_repositories_with_validation_and_mapper_only() {
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 2);
         BloggerRecord bloggerRecord = new BloggerRecord(1, "博主", "", "", false);
         PostEntity entity = entity("current-id", 100);

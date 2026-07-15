@@ -61,7 +61,7 @@ class MessageRepositoryTest {
     }
 
     @Test
-    void preservesTheFirstCapturedMessageAndStringMediaIdentifiers() {
+    void preserves_the_first_captured_message_and_string_media_identifiers() {
         MessageEntity original = message(100, 1, 1_000, "首次内容", "5302496155143676_file");
         MessageEntity changed = message(100, 1, 2_000, "修改内容", "numeric-compatible-123");
 
@@ -77,7 +77,7 @@ class MessageRepositoryTest {
     }
 
     @Test
-    void refreshesGroupRangeFromPersistedMessageMids() {
+    void refreshes_group_range_from_persisted_message_mids() {
         groupRepository.ensurePlaceholderExists(1, 100);
         messageRepository.insertIfAbsent(message(90, 1, 1_000, "旧", ""));
         messageRepository.insertIfAbsent(message(120, 1, 2_000, "新", ""));
@@ -92,7 +92,7 @@ class MessageRepositoryTest {
     }
 
     @Test
-    void filtersInclusiveTimesAndPagesInStableDescendingOrder() {
+    void filters_inclusive_times_and_pages_in_stable_descending_order() {
         messageRepository.insertIfAbsent(message(100, 1, 1_000, "早", ""));
         messageRepository.insertIfAbsent(message(101, 1, 2_000, "同刻小", ""));
         messageRepository.insertIfAbsent(message(102, 1, 2_000, "同刻大", ""));
@@ -108,7 +108,7 @@ class MessageRepositoryTest {
     }
 
     @Test
-    void schemaProvidesTheAgreedGroupTimeIndex() throws Exception {
+    void schema_provides_the_agreed_group_time_index() throws Exception {
         boolean found = false;
         try (var connection = dataSource.getConnection();
              var statement = connection.createStatement();

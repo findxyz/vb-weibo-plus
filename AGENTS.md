@@ -102,6 +102,8 @@
   - 价格为6.3元,不便宜.（有中文标点未用中文，且数字与中文间无空格）
   - 当出现error后,抛出异常（中英文间没有空格，且逗号应为中文）
 
+- 所有 `@Test` 方法统一使用 snake_case，例如 `list_returns_200`；测试辅助方法仍使用普通 Java camelCase 命名。
+
 ## Agent skills
 
 ### Issue tracker

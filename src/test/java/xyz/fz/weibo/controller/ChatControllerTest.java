@@ -40,7 +40,7 @@ class ChatControllerTest {
     private ChatService chatService;
 
     @Test
-    void syncHasNoRequestArgumentsAndReturnsTheFullLocalGroupList() throws Exception {
+    void sync_has_no_request_arguments_and_returns_the_full_local_group_list() throws Exception {
         when(chatService.syncGroups()).thenReturn(List.of(group(2), group(1)));
 
         assertThat(ChatController.class.getMethod("syncGroups").getParameterCount()).isZero();
@@ -54,7 +54,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void listsLocalGroupsIncludingGidOnlyPlaceholders() throws Exception {
+    void lists_local_groups_including_gid_only_placeholders() throws Exception {
         when(chatService.queryGroups()).thenReturn(List.of(
                 new GroupRecord(3, "", "", 0, 0, 0, List.of(), "", 0)
         ));
@@ -69,7 +69,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void mapsMissingUpstreamContactsToBadGateway() throws Exception {
+    void maps_missing_upstream_contacts_to_bad_gateway() throws Exception {
         when(chatService.syncGroups())
                 .thenThrow(new WeiboException("群列表响应缺少 contacts。", -1));
 
@@ -79,7 +79,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void incrementalBindsOnlyTheRequiredGidQueryParameter() throws Exception {
+    void incremental_binds_only_the_required_gid_query_parameter() throws Exception {
         when(chatService.saveIncremental(101)).thenReturn(new SaveResult(3, 2, 1));
 
         mockMvc.perform(post("/chat/incremental").param("gid", "101"))
@@ -92,7 +92,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void messagesBindsInclusiveShanghaiTimesAndPaginationDefaults() throws Exception {
+    void messages_binds_inclusive_shanghai_times_and_pagination_defaults() throws Exception {
         MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "消息",
                 List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "");
         when(chatService.queryMessages(
@@ -113,13 +113,13 @@ class ChatControllerTest {
     }
 
     @Test
-    void messagesRequiresGid() throws Exception {
+    void messages_requires_gid() throws Exception {
         mockMvc.perform(get("/chat/messages"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void sinceBindsShanghaiTimeAndOptionalStartingMidFromQueryParameters() throws Exception {
+    void since_binds_shanghai_time_and_optional_starting_mid_from_query_parameters() throws Exception {
         when(chatService.saveBySince(101, 1_783_652_523_000L, 50L))
                 .thenReturn(new SaveResult(4, 3, 1));
 
@@ -136,7 +136,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void sinceRequiresGidAndTimeButAllowsOmittingBeforeMid() throws Exception {
+    void since_requires_gid_and_time_but_allows_omitting_before_mid() throws Exception {
         when(chatService.saveBySince(101, 1_783_652_523_000L, null))
                 .thenReturn(new SaveResult(0, 0, 0));
 
@@ -151,7 +151,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void mediaReturnsOnlyMappedBytesAndContentType() throws Exception {
+    void media_returns_only_mapped_bytes_and_content_type() throws Exception {
         when(chatService.queryMessageMedia(101, 100, "preview"))
                 .thenReturn(new MediaBinary(new byte[]{1, 2, 3}, "image/jpeg"));
 
@@ -167,7 +167,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void mediaMapsLocalAndUpstreamErrors() throws Exception {
+    void media_maps_local_and_upstream_errors() throws Exception {
         when(chatService.queryMessageMedia(101, 100, "bad"))
                 .thenThrow(new InvalidRequestException("不支持。"));
         when(chatService.queryMessageMedia(101, 101, "preview"))

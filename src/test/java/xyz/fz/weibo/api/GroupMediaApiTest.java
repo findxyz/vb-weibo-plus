@@ -23,7 +23,7 @@ class GroupMediaApiTest {
     private WeiboHttpClient client;
 
     @Test
-    void sendsStringFidWithOnlyEndpointSpecificQueryAndHeaders() {
+    void sends_string_fid_with_only_endpoint_specific_query_and_headers() {
         GroupMediaApi api = new GroupMediaApi(client);
         GroupMediaRequest request = new GroupMediaRequest("5302496155143676_file", "compress");
         ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[]{1});
@@ -47,7 +47,7 @@ class GroupMediaApiTest {
     }
 
     @Test
-    void omitsImageTypeForVideoCoverRequests() {
+    void omits_image_type_for_video_cover_requests() {
         assertThat(new GroupMediaRequest("123", null).toParams())
                 .containsExactlyInAnyOrderEntriesOf(Map.of("fid", "123", "source", "209678993"));
     }

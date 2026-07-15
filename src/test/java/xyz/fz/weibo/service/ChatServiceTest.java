@@ -81,7 +81,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void syncsEveryReturnedGroupAndReturnsTheFullOrderedLocalList() {
+    void syncs_every_returned_group_and_returns_the_full_ordered_local_list() {
         List<GroupListResponse.Contact> contacts = List.of(
                 new GroupListResponse.Contact(null),
                 new GroupListResponse.Contact(null)
@@ -105,7 +105,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void queriesGroupsFromSQLiteWithoutCallingTheUpstreamApi() {
+    void queries_groups_from_sqlite_without_calling_the_upstream_api() {
         List<GroupEntity> localGroups = List.of(group(1, 100));
         List<GroupRecord> records = List.of(record(1));
         when(groupRepository.findAllOrdered()).thenReturn(localGroups);
@@ -117,7 +117,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void rejectsMissingContactsBeforeMappingOrWritingAnyGroups() {
+    void rejects_missing_contacts_before_mapping_or_writing_any_groups() {
         when(groupListApi.list()).thenReturn(new GroupListResponse(0, null));
 
         assertThatThrownBy(chatService::syncGroups)
@@ -129,7 +129,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void capturesExactlyTheLatestPageWhenTheGroupHasNoCursor() {
+    void captures_exactly_the_latest_page_when_the_group_has_no_cursor() {
         GroupMessagesResponse.Message inserted = message(100, 321, 1_000);
         GroupMessagesResponse.Message duplicate = message(101, 321, 1_001);
         GroupMessagesResponse.Message filtered = message(102, 332, 1_002);
@@ -158,7 +158,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void rejectsFailedGroupMessageResponseWithoutRefreshingTheCursor() {
+    void rejects_failed_group_message_response_without_refreshing_the_cursor() {
         when(groupRepository.findMaxMid(1)).thenReturn(0L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(new GroupMessagesResponse(false, null, 1_100))
@@ -174,7 +174,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void queriesMessagesFromSQLiteWithGroupMetadataOnlyAtTheTopLevel() {
+    void queries_messages_from_sqlite_with_group_metadata_only_at_the_top_level() {
         GroupEntity group = group(1, 100);
         GroupRecord groupRecord = record(1);
         MessageEntity entity = messageEntity(100, 1_000);
@@ -195,7 +195,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void queryMessagesReturnsGidOnlyMetadataAndValidatesBoundsAndPagination() {
+    void query_messages_returns_gid_only_metadata_and_validates_bounds_and_pagination() {
         GroupRecord placeholder = new GroupRecord(1, "", "", 0, 0, 0, List.of(), "", 0);
         when(messageRepository.findPage(
                 1, null, null, MessageRepository.pageRequest(1, 100)))
@@ -217,7 +217,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void catchesUpMultiplePagesUsingTheOldestMidAndStopsAtTheFixedBoundary() {
+    void catches_up_multiple_pages_using_the_oldest_mid_and_stops_at_the_fixed_boundary() {
         when(groupRepository.findMaxMid(1)).thenReturn(100L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(120, 321, 1_020), message(130, 321, 1_030)));
@@ -239,7 +239,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void successfulEmptyPageStopsIncrementalCatchUpAndRefreshesTheRange() {
+    void successful_empty_page_stops_incremental_catch_up_and_refreshes_the_range() {
         when(groupRepository.findMaxMid(1)).thenReturn(100L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_010), message(120, 321, 1_020)));
@@ -254,7 +254,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void pagingFailurePreservesCapturedMessagesAndTheOldGroupCursor() {
+    void paging_failure_preserves_captured_messages_and_the_old_group_cursor() {
         when(groupRepository.findMaxMid(1)).thenReturn(100L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_010), message(120, 321, 1_020)));
@@ -271,7 +271,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void repositoryFailurePreservesEarlierMessagesAndTheOldGroupCursor() {
+    void repository_failure_preserves_earlier_messages_and_the_old_group_cursor() {
         when(groupRepository.findMaxMid(1)).thenReturn(100L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_010), message(120, 321, 1_020)));
@@ -288,7 +288,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void retryIgnoresEarlierCapturesAndFillsTheRemainingIncrementalGap() {
+    void retry_ignores_earlier_captures_and_fills_the_remaining_incremental_gap() {
         GroupMessagesResponse firstPage = messagePage(
                 message(120, 321, 1_020), message(130, 321, 1_030));
         GroupMessagesResponse boundaryPage = messagePage(
@@ -311,7 +311,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void backfillFromNewestIncludesTheExactTimeBoundaryAcrossPages() {
+    void backfill_from_newest_includes_the_exact_time_boundary_across_pages() {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_001), message(120, 321, 1_002)));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
@@ -330,7 +330,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void backfillUsesTheExplicitStartingMidWithoutChoosingAnotherCursor() {
+    void backfill_uses_the_explicit_starting_mid_without_choosing_another_cursor() {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 50L)))
                 .thenReturn(messagePage());
 
@@ -343,7 +343,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void backfillFailureKeepsEarlierCapturesAndRetryFillsTheGapIdempotently() {
+    void backfill_failure_keeps_earlier_captures_and_retry_fills_the_gap_idempotently() {
         GroupMessagesResponse firstPage = messagePage(
                 message(110, 321, 1_001), message(120, 321, 1_002));
         GroupMessagesResponse secondPage = messagePage(message(100, 321, 1_000));
@@ -368,7 +368,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void backfillBusinessFailureNeverRefreshesTheGroupRange() {
+    void backfill_business_failure_never_refreshes_the_group_range() {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(new GroupMessagesResponse(false, List.of(), 1_100));
 
@@ -380,7 +380,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void proxiesImagePreviewAndOriginalFromTheSavedStringFid() {
+    void proxies_image_preview_and_original_from_the_saved_string_fid() {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 1, "5302496155143676_file", "");
         ResponseEntity<byte[]> previewResponse = ResponseEntity.ok(new byte[]{1});
@@ -401,7 +401,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void proxiesOnlyTheSavedVideoCoverAndRejectsVideoOriginal() {
+    void proxies_only_the_saved_video_cover_and_rejects_video_original() {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 10, "video-file", "video-cover");
         ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[]{1});
@@ -421,7 +421,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void rejectsMissingMismatchedAndUnsupportedLocalMedia() {
+    void rejects_missing_mismatched_and_unsupported_local_media() {
         when(messageRepository.findById(100L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> chatService.queryMessageMedia(1, 100, "preview"))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -445,7 +445,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void mapsUpstreamMediaFailureToBadGatewayAndPreservesCredentialAndRateLimitErrors() {
+    void maps_upstream_media_failure_to_bad_gateway_and_preserves_credential_and_rate_limit_errors() {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 1, "image-fid", "");
         GroupMediaRequest request = new GroupMediaRequest("image-fid", "compress");

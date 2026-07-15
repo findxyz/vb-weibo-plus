@@ -39,7 +39,7 @@ class PostMapperTest {
     private PostMapper postMapper;
 
     @Test
-    void apiModelAcceptsCompleteBloggerBlogShapeAndStringLongTextId() throws Exception {
+    void api_model_accepts_complete_blogger_blog_shape_and_string_long_text_id() throws Exception {
         MyBlogResponse response = readPage();
         MblogResponse post = response.data().list().getFirst();
 
@@ -54,7 +54,7 @@ class PostMapperTest {
     }
 
     @Test
-    void apiModelNormalizesNumericSinceIdToString() throws Exception {
+    void api_model_normalizes_numeric_since_id_to_string() throws Exception {
         MyBlogResponse response = objectMapper.readValue("""
                 {"data":{"since_id":88,"list":[],"total":0},"ok":1}
                 """, MyBlogResponse.class);
@@ -64,7 +64,7 @@ class PostMapperTest {
 
     @Test
     @ResourceLock("default-locale")
-    void mapsCompleteLongTextMediaDatesAndSourceThroughConfiguredObjectMapper() throws Exception {
+    void maps_complete_long_text_media_dates_and_source_through_configured_object_mapper() throws Exception {
         Locale originalLocale = Locale.getDefault();
         Locale.setDefault(Locale.SIMPLIFIED_CHINESE);
         try {
@@ -97,7 +97,7 @@ class PostMapperTest {
     }
 
     @Test
-    void mapsBloggerAndLocalQueryViewToControlledMediaUrls() throws Exception {
+    void maps_blogger_and_local_query_view_to_controlled_media_urls() throws Exception {
         MblogResponse post = readPost();
         BloggerEntity blogger = postMapper.toBloggerEntity(post.user(), 2000);
         PostEntity entity = postMapper.toPostEntity(post,
@@ -138,7 +138,7 @@ class PostMapperTest {
     }
 
     @Test
-    void rejectsInvalidUpstreamDate() throws Exception {
+    void rejects_invalid_upstream_date() throws Exception {
         MblogResponse source = readPost();
         MblogResponse invalid = new MblogResponse(source.id(), source.mblogId(), "not-a-date", source.text(),
                 source.textRaw(), source.source(), source.regionName(), source.isLongText(),
@@ -151,7 +151,7 @@ class PostMapperTest {
     }
 
     @Test
-    void mapsOnlyMediaBytesAndContentTypeWithBinaryFallback() {
+    void maps_only_media_bytes_and_content_type_with_binary_fallback() {
         MediaBinary image = postMapper.toMediaBinary(ResponseEntity.ok()
                 .header("Content-Type", "image/png")
                 .header("Content-Disposition", "attachment; filename=secret.png")
@@ -166,8 +166,9 @@ class PostMapperTest {
         assertThat(fallback.contentType()).isEqualTo("application/octet-stream");
     }
 
+    @SuppressWarnings("ExtractMethodRecommender")
     @Test
-    void choosesCapturedOriginalReferenceByLargestOriginalThenLargeFallback() throws Exception {
+    void chooses_captured_original_reference_by_largest_original_then_large_fallback() throws Exception {
         MblogResponse source = readPost();
         PicInfoResponse.ApiImage thumbnail = new PicInfoResponse.ApiImage("thumbnail", 1, 2);
         PicInfoResponse.ApiImage large = new PicInfoResponse.ApiImage("large", 3, 4);
@@ -198,7 +199,7 @@ class PostMapperTest {
     }
 
     @Test
-    void encodesControlledMediaUrlQueryParameters() throws Exception {
+    void encodes_controlled_media_url_query_parameters() throws Exception {
         String pictures = objectMapper.writeValueAsString(List.of(
                 new PicInfo("p 1&?", new MediaSize("thumbnail", 1, 2),
                         new MediaSize("original", 3, 4))));

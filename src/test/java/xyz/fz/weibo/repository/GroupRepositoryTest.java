@@ -55,7 +55,7 @@ class GroupRepositoryTest {
     }
 
     @Test
-    void upsertsMetadataWhilePreservingCreationTimeAndMessageCursors() {
+    void upserts_metadata_while_preserving_creation_time_and_message_cursors() {
         groupRepository.upsertMetadata(group(1, "旧群名", 10, 20, 100, 100));
 
         groupRepository.upsertMetadata(new GroupEntity(
@@ -81,7 +81,7 @@ class GroupRepositoryTest {
     }
 
     @Test
-    void createsGidOnlyPlaceholderAndReturnsStableOrder() {
+    void creates_gid_only_placeholder_and_returns_stable_order() {
         groupRepository.ensurePlaceholderExists(2, 150);
         groupRepository.upsertMetadata(group(1, "第一群", 0, 0, 100, 300));
         groupRepository.upsertMetadata(group(3, "第三群", 0, 0, 100, 300));

@@ -61,7 +61,7 @@ class PostRepositoryTest {
     }
 
     @Test
-    void schemaCreatesAllCapturedContentTables() throws Exception {
+    void schema_creates_all_captured_content_tables() throws Exception {
         Set<String> tables = new HashSet<>();
         try (var connection = dataSource.getConnection();
              ResultSet result = connection.getMetaData().getTables(null, null, null, new String[]{"TABLE"})) {
@@ -74,7 +74,7 @@ class PostRepositoryTest {
     }
 
     @Test
-    void schemaCreatesIndexesForFilteredPostTimelines() throws Exception {
+    void schema_creates_indexes_for_filtered_post_timelines() throws Exception {
         Set<String> indexes = new HashSet<>();
         try (var connection = dataSource.getConnection();
              var statement = connection.createStatement();
@@ -88,7 +88,7 @@ class PostRepositoryTest {
     }
 
     @Test
-    void sqliteUsesIndexesForFilteredPostTimelines() throws Exception {
+    void sqlite_uses_indexes_for_filtered_post_timelines() throws Exception {
         assertThat(queryPlan("""
                 select * from posts
                 where uid in (1) and created_at >= 100 and created_at <= 200
@@ -102,7 +102,7 @@ class PostRepositoryTest {
     }
 
     @Test
-    void pageReturningRepositoryMethodsDeclarePageableParameter() {
+    void page_returning_repository_methods_declare_pageable_parameter() {
         assertThat(Arrays.stream(PostRepository.class.getDeclaredMethods())
                 .filter(method -> method.getReturnType().equals(Page.class)))
                 .allSatisfy(method -> assertThat(method.getParameterTypes())
@@ -110,7 +110,7 @@ class PostRepositoryTest {
     }
 
     @Test
-    void insertIfAbsentPreservesFirstCapturedContent() {
+    void insert_if_absent_preserves_first_captured_content() {
         assertThat(postRepository.insertIfAbsent(post("m1", 10, 1, 100, "首次正文"))).isTrue();
         assertThat(postRepository.insertIfAbsent(post("m1", 10, 1, 100, "修改后的正文"))).isFalse();
 
@@ -120,7 +120,7 @@ class PostRepositoryTest {
     }
 
     @Test
-    void findPageUsesInclusiveFiltersStableOrderAndMatchingTotal() {
+    void find_page_uses_inclusive_filters_stable_order_and_matching_total() {
         postRepository.insertIfAbsent(post("m1", 10, 1, 100, "one"));
         postRepository.insertIfAbsent(post("m2", 20, 1, 100, "two"));
         postRepository.insertIfAbsent(post("m3", 30, 2, 200, "three"));
@@ -137,7 +137,7 @@ class PostRepositoryTest {
     }
 
     @Test
-    void repositoriesAggregateCursorAndRefreshMetadataWithoutOverwritingIt() {
+    void repositories_aggregate_cursor_and_refresh_metadata_without_overwriting_it() {
         bloggerRepository.upsertMetadata(blogger(1, "旧昵称", 20, 100, 100));
         postRepository.insertIfAbsent(post("m1", 10, 1, 100, "one"));
         postRepository.insertIfAbsent(post("m2", 30, 1, 200, "two"));

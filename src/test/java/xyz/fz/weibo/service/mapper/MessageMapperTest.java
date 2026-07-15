@@ -30,7 +30,7 @@ class MessageMapperTest {
     private MessageMapper messageMapper;
 
     @Test
-    void convertsOnlyGroupContactsAndRoundTripsAdminsWithConfiguredObjectMapper() throws Exception {
+    void converts_only_group_contacts_and_round_trips_admins_with_configured_object_mapper() throws Exception {
         GroupListResponse response = objectMapper.readValue("""
                 {
                   "totalNumber": 2,
@@ -84,7 +84,7 @@ class MessageMapperTest {
     }
 
     @Test
-    void convertsGidOnlyPlaceholderToACompleteRecord() {
+    void converts_gid_only_placeholder_to_a_complete_record() {
         GroupEntity placeholder = new GroupEntity(
                 101L, "", "", 0, 0, 0, "[]", "", 0,
                 0, 0, 1_000, 1_000
@@ -98,7 +98,7 @@ class MessageMapperTest {
     }
 
     @Test
-    void convertsCompleteUpstreamMessageAndRoundTripsStructuredJson() throws Exception {
+    void converts_complete_upstream_message_and_round_trips_structured_json() throws Exception {
         GroupMessagesResponse response = objectMapper.readValue("""
                 {
                   "result": true,
@@ -147,7 +147,7 @@ class MessageMapperTest {
     }
 
     @Test
-    void filtersProtocolEventsAndNamesUnknownMessageTypes() throws Exception {
+    void filters_protocol_events_and_names_unknown_message_types() throws Exception {
         GroupMessagesResponse response = objectMapper.readValue("""
                 {
                   "result": true,
@@ -166,7 +166,7 @@ class MessageMapperTest {
     }
 
     @Test
-    void createsLocalMediaPlaceholdersWithoutExposingSavedReferences() {
+    void creates_local_media_placeholders_without_exposing_saved_references() {
         MessageEntity image = new MessageEntity(100L, 101, 321, "普通消息", 1,
                 9, "发送者", "图片", "image-fid", "", "upstream", "[]", "[]", "", "{}",
                 "[]", "", 1_000, 2_000);
@@ -193,7 +193,7 @@ class MessageMapperTest {
     }
 
     @Test
-    void convertsMediaBytesAndDefaultsMissingContentType() {
+    void converts_media_bytes_and_defaults_missing_content_type() {
         MediaBinary typed = messageMapper.toMediaBinary(ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, "image/jpeg")
                 .body(new byte[]{1, 2}));
