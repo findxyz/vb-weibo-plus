@@ -2,12 +2,15 @@ package xyz.fz.weibo.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.PostService;
@@ -42,6 +45,21 @@ public class PostController {
             @RequestParam
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end) {
         return postService.saveByRange(uid, toEpochMillis(start), toEpochMillis(end));
+    }
+
+    @GetMapping("/image")
+    public ResponseEntity<byte[]> queryPostImage(
+            @RequestParam String mblogId,
+            @RequestParam String pid,
+            @RequestParam String variant) {
+        return mediaResponse(postService.queryPostImage(mblogId, pid, variant));
+    }
+
+    @GetMapping("/video-cover")
+    public ResponseEntity<byte[]> queryPostVideoCover(
+            @RequestParam String mblogId,
+            @RequestParam(defaultValue = "false") boolean retweeted) {
+        return mediaResponse(postService.queryPostVideoCover(mblogId, retweeted));
     }
 
     @GetMapping("/bloggers")
@@ -80,5 +98,11 @@ public class PostController {
             return null;
         }
         return value.atZone(REQUEST_TIME_ZONE).toInstant().toEpochMilli();
+    }
+
+    private ResponseEntity<byte[]> mediaResponse(MediaBinary media) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, media.contentType())
+                .body(media.content());
     }
 }

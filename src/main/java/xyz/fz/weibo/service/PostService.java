@@ -1,13 +1,20 @@
 package xyz.fz.weibo.service;
 
 import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.PicInfo;
 import xyz.fz.weibo.domain.PostQueryResult;
+import xyz.fz.weibo.domain.PostRecord;
 import xyz.fz.weibo.domain.PostView;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.entity.BloggerEntity;
@@ -22,12 +29,14 @@ import xyz.fz.weibo.model.response.SearchProfileResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
 import xyz.fz.weibo.repository.PostRepository;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.PostMapper;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Service
 public class PostService {
@@ -37,16 +46,19 @@ public class PostService {
     private final MyBlogApi myBlogApi;
     private final SearchProfileApi searchProfileApi;
     private final LongTextApi longTextApi;
+    private final DirectMediaApi directMediaApi;
     private final PostMapper postMapper;
     private final BloggerRepository bloggerRepository;
     private final PostRepository postRepository;
 
     public PostService(MyBlogApi myBlogApi, SearchProfileApi searchProfileApi,
-                       LongTextApi longTextApi, PostMapper postMapper,
+                       LongTextApi longTextApi, DirectMediaApi directMediaApi,
+                       PostMapper postMapper,
                        BloggerRepository bloggerRepository, PostRepository postRepository) {
         this.myBlogApi = myBlogApi;
         this.searchProfileApi = searchProfileApi;
         this.longTextApi = longTextApi;
+        this.directMediaApi = directMediaApi;
         this.postMapper = postMapper;
         this.bloggerRepository = bloggerRepository;
         this.postRepository = postRepository;
@@ -169,6 +181,40 @@ public class PostService {
         return new PostQueryResult(items, page, size, result.getTotalElements());
     }
 
+    public MediaBinary queryPostImage(String mblogId, String pid, String variant) {
+        if (!"thumbnail".equals(variant) && !"original".equals(variant)) {
+            throw new InvalidRequestException("variant 必须是 thumbnail 或 original。");
+        }
+        PostRecord post = findPost(mblogId);
+        Stream<PicInfo> retweetedPictures = post.retweeted() == null
+                ? Stream.empty()
+                : post.retweeted().pics().stream();
+        PicInfo picture = Stream.concat(post.pics().stream(), retweetedPictures)
+                .filter(pic -> pic.pid().equals(pid))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("本地微博图片不存在。"));
+        String reference = "thumbnail".equals(variant)
+                ? picture.thumbnail().url()
+                : picture.original().url();
+        requireMediaReference(reference);
+        return downloadMedia(reference);
+    }
+
+    public MediaBinary queryPostVideoCover(String mblogId, boolean retweeted) {
+        PostRecord post = findPost(mblogId);
+        String reference;
+        if (retweeted) {
+            if (post.retweeted() == null) {
+                throw new ResourceNotFoundException("本地转发微博不存在。");
+            }
+            reference = post.retweeted().videoCoverUrl();
+        } else {
+            reference = post.video().coverUrl();
+        }
+        requireMediaReference(reference);
+        return downloadMedia(reference);
+    }
+
     private List<MblogResponse> requirePosts(MyBlogResponse response) {
         if (response == null || response.ok() != 1) {
             int errorCode = response == null || response.ok() == 0 ? -1 : response.ok();
@@ -197,6 +243,31 @@ public class PostService {
         PostEntity entity = postMapper.toPostEntity(
                 post, currentLongText, retweetedLongText, capturedAt);
         return postRepository.insertIfAbsent(entity);
+    }
+
+    private MediaBinary downloadMedia(String reference) {
+        try {
+            ResponseEntity<byte[]> response = directMediaApi.download(reference);
+            if (response == null || !response.getStatusCode().is2xxSuccessful()) {
+                throw new WeiboException("微博媒体下载失败。", -1);
+            }
+            return postMapper.toMediaBinary(response);
+        } catch (WeiboCookieExpiredException | WeiboRateLimitException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new WeiboException("微博媒体下载失败。", -1, e);
+        }
+    }
+
+    private PostRecord findPost(String mblogId) {
+        return postMapper.toPostRecord(postRepository.findById(mblogId)
+                .orElseThrow(() -> new ResourceNotFoundException("本地微博不存在。")));
+    }
+
+    private void requireMediaReference(String reference) {
+        if (reference == null || reference.isBlank()) {
+            throw new ResourceNotFoundException("本地微博媒体引用不存在。");
+        }
     }
 
     private LongTextResponse fetchLongText(MblogResponse post) {

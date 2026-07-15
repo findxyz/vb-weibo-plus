@@ -3,8 +3,12 @@ package xyz.fz.weibo.service.mapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MediaSize;
 import xyz.fz.weibo.domain.PicInfo;
 import xyz.fz.weibo.domain.PostImageView;
@@ -109,10 +113,21 @@ public class PostMapper {
         return List.copyOf(views);
     }
 
+    public MediaBinary toMediaBinary(ResponseEntity<byte[]> response) {
+        byte[] content = Objects.requireNonNull(response.getBody(), "Media response body is required");
+        String contentType = response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+        if (contentType == null || contentType.isBlank()) {
+            contentType = "application/octet-stream";
+        }
+        return new MediaBinary(content, contentType);
+    }
+
     private PostView toPostView(PostRecord post, BloggerRecord blogger) {
         return new PostView(post.mblogId(), post.postId(), post.uid(), post.content(),
-                post.contentRaw(), post.source(), post.region(), toImageViews(post.pics()),
-                toVideoView(post.video()), toRetweetView(post.retweeted()), post.repostsCount(),
+                post.contentRaw(), post.source(), post.region(),
+                toImageViews(post.mblogId(), post.pics()),
+                toVideoView(post.mblogId(), post.video(), false),
+                toRetweetView(post.mblogId(), post.retweeted()), post.repostsCount(),
                 post.commentsCount(), post.attitudesCount(), post.createdAt(), post.savedAt(), blogger);
     }
 
@@ -187,23 +202,49 @@ public class PostMapper {
         return new VideoInfo(emptyIfNull(pageInfo.pagePic()), pageUrl);
     }
 
-    private List<PostImageView> toImageViews(List<PicInfo> pics) {
+    private List<PostImageView> toImageViews(String mblogId, List<PicInfo> pics) {
         return pics.stream().map(pic -> new PostImageView(pic.pid(), pic.thumbnail().width(),
-                pic.thumbnail().height(), pic.original().width(), pic.original().height(), "", ""))
+                pic.thumbnail().height(), pic.original().width(), pic.original().height(),
+                imageUrl(pic.thumbnail().url(), mblogId, pic.pid(), "thumbnail"),
+                imageUrl(pic.original().url(), mblogId, pic.pid(), "original")))
                 .toList();
     }
 
-    private PostVideoView toVideoView(VideoInfo video) {
-        return new PostVideoView("", video.pageUrl());
+    private PostVideoView toVideoView(String mblogId, VideoInfo video, boolean retweeted) {
+        if (video.coverUrl().isBlank()) {
+            return new PostVideoView("", video.pageUrl());
+        }
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/post/video-cover")
+                .queryParam("mblogId", "{mblogId}");
+        if (retweeted) {
+            builder.queryParam("retweeted", "true");
+        }
+        String coverUrl = builder.encode().buildAndExpand(Map.of("mblogId", mblogId)).toUriString();
+        return new PostVideoView(coverUrl, video.pageUrl());
     }
 
-    private RetweetView toRetweetView(RetweetInfo retweeted) {
+    private RetweetView toRetweetView(String mblogId, RetweetInfo retweeted) {
         if (retweeted == null) {
             return null;
         }
         return new RetweetView(retweeted.postId(), retweeted.mblogId(), retweeted.content(),
                 retweeted.contentRaw(), retweeted.uid(), retweeted.screenName(), retweeted.createdAt(),
-                toImageViews(retweeted.pics()), new PostVideoView("", retweeted.videoPageUrl()));
+                toImageViews(mblogId, retweeted.pics()),
+                toVideoView(mblogId,
+                        new VideoInfo(retweeted.videoCoverUrl(), retweeted.videoPageUrl()), true));
+    }
+
+    private String imageUrl(String reference, String mblogId, String pid, String variant) {
+        if (reference == null || reference.isBlank()) {
+            return "";
+        }
+        return UriComponentsBuilder.fromPath("/post/image")
+                .queryParam("mblogId", "{mblogId}")
+                .queryParam("pid", "{pid}")
+                .queryParam("variant", "{variant}")
+                .encode()
+                .buildAndExpand(Map.of("mblogId", mblogId, "pid", pid, "variant", variant))
+                .toUriString();
     }
 
     private long parseCreatedAt(String value) {

@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import xyz.fz.weibo.config.WeiboConfig;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MediaSize;
+import xyz.fz.weibo.domain.PicInfo;
 import xyz.fz.weibo.domain.PostRecord;
 import xyz.fz.weibo.domain.PostView;
 import xyz.fz.weibo.entity.BloggerEntity;
@@ -15,10 +19,12 @@ import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MblogResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
+import xyz.fz.weibo.model.response.PicInfoResponse;
 
 import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -91,7 +97,7 @@ class PostMapperTest {
     }
 
     @Test
-    void mapsBloggerAndLocalQueryViewWithoutExposingCapturedMediaReferences() throws Exception {
+    void mapsBloggerAndLocalQueryViewToControlledMediaUrls() throws Exception {
         MblogResponse post = readPost();
         BloggerEntity blogger = postMapper.toBloggerEntity(post.user(), 2000);
         PostEntity entity = postMapper.toPostEntity(post,
@@ -109,13 +115,25 @@ class PostMapperTest {
             assertThat(view.blogger()).isEqualTo(bloggerRecord);
             assertThat(view.pics()).singleElement().satisfies(image -> {
                 assertThat(image.pid()).isEqualTo("p1");
-                assertThat(image.thumbnailUrl()).isEmpty();
-                assertThat(image.originalUrl()).isEmpty();
+                assertThat(image.thumbnailWidth()).isEqualTo(80);
+                assertThat(image.originalWidth()).isEqualTo(1200);
+                assertThat(image.thumbnailUrl()).isEqualTo(
+                        "/post/image?mblogId=current-id&pid=p1&variant=thumbnail");
+                assertThat(image.originalUrl()).isEqualTo(
+                        "/post/image?mblogId=current-id&pid=p1&variant=original");
             });
-            assertThat(view.video().coverUrl()).isEmpty();
+            assertThat(view.video().coverUrl()).isEqualTo(
+                    "/post/video-cover?mblogId=current-id");
             assertThat(view.video().pageUrl()).isEqualTo("https://video.weibo.com/show?fid=current");
             assertThat(view.retweeted().contentRaw()).isEqualTo("转发完整纯文本");
-            assertThat(view.retweeted().video().coverUrl()).isEmpty();
+            assertThat(view.retweeted().pics()).singleElement().satisfies(image -> {
+                assertThat(image.thumbnailUrl()).isEqualTo(
+                        "/post/image?mblogId=current-id&pid=p2&variant=thumbnail");
+                assertThat(image.originalUrl()).isEqualTo(
+                        "/post/image?mblogId=current-id&pid=p2&variant=original");
+            });
+            assertThat(view.retweeted().video().coverUrl()).isEqualTo(
+                    "/post/video-cover?mblogId=current-id&retweeted=true");
         });
     }
 
@@ -130,6 +148,70 @@ class PostMapperTest {
         assertThatThrownBy(() -> postMapper.toPostEntity(invalid,
                 longText("全文", "纯文本"), longText("转发全文", "转发纯文本"), 2000))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void mapsOnlyMediaBytesAndContentTypeWithBinaryFallback() {
+        MediaBinary image = postMapper.toMediaBinary(ResponseEntity.ok()
+                .header("Content-Type", "image/png")
+                .header("Content-Disposition", "attachment; filename=secret.png")
+                .header("Set-Cookie", "secret=value")
+                .body(new byte[]{10, 20, 30}));
+        MediaBinary fallback = postMapper.toMediaBinary(
+                ResponseEntity.ok(new byte[]{40, 50}));
+
+        assertThat(image.content()).containsExactly(10, 20, 30);
+        assertThat(image.contentType()).isEqualTo("image/png");
+        assertThat(fallback.content()).containsExactly(40, 50);
+        assertThat(fallback.contentType()).isEqualTo("application/octet-stream");
+    }
+
+    @Test
+    void choosesCapturedOriginalReferenceByLargestOriginalThenLargeFallback() throws Exception {
+        MblogResponse source = readPost();
+        PicInfoResponse.ApiImage thumbnail = new PicInfoResponse.ApiImage("thumbnail", 1, 2);
+        PicInfoResponse.ApiImage large = new PicInfoResponse.ApiImage("large", 3, 4);
+        PicInfoResponse.ApiImage original = new PicInfoResponse.ApiImage("original", 5, 6);
+        PicInfoResponse.ApiImage largest = new PicInfoResponse.ApiImage("largest", 7, 8);
+        MblogResponse post = new MblogResponse(source.id(), source.mblogId(), source.createdAt(),
+                source.text(), source.textRaw(), source.source(), source.regionName(), false,
+                3, source.repostsCount(), source.commentsCount(), source.attitudesCount(),
+                source.user(), Map.of(
+                        "largest", new PicInfoResponse(thumbnail, large, original, largest),
+                        "original", new PicInfoResponse(thumbnail, large, original, null),
+                        "large", new PicInfoResponse(thumbnail, large, null, null)),
+                source.pageInfo(), null);
+
+        PostRecord record = postMapper.toPostRecord(
+                postMapper.toPostEntity(post, null, null, 2000));
+
+        assertThat(record.pics()).anySatisfy(pic -> {
+            assertThat(pic.pid()).isEqualTo("largest");
+            assertThat(pic.original().url()).isEqualTo("largest");
+        }).anySatisfy(pic -> {
+            assertThat(pic.pid()).isEqualTo("original");
+            assertThat(pic.original().url()).isEqualTo("original");
+        }).anySatisfy(pic -> {
+            assertThat(pic.pid()).isEqualTo("large");
+            assertThat(pic.original().url()).isEqualTo("large");
+        });
+    }
+
+    @Test
+    void encodesControlledMediaUrlQueryParameters() throws Exception {
+        String pictures = objectMapper.writeValueAsString(List.of(
+                new PicInfo("p 1&?", new MediaSize("thumbnail", 1, 2),
+                        new MediaSize("original", 3, 4))));
+        PostEntity entity = new PostEntity("m blog&?", 100, 1, "", "", "", "",
+                pictures, "cover", "video-page", "", 0, 0, 0, 100, 200);
+        BloggerEntity blogger = new BloggerEntity(1L, "", "", "", 0, 0, 100, 200);
+
+        PostView view = postMapper.toPostViews(List.of(entity), List.of(blogger)).getFirst();
+
+        assertThat(view.pics().getFirst().thumbnailUrl()).isEqualTo(
+                "/post/image?mblogId=m%20blog%26%3F&pid=p%201%26%3F&variant=thumbnail");
+        assertThat(view.video().coverUrl()).isEqualTo(
+                "/post/video-cover?mblogId=m%20blog%26%3F");
     }
 
     private MblogResponse readPost() throws Exception {

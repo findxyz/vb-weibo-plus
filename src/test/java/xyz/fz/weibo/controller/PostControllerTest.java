@@ -9,10 +9,12 @@ import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.PostService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 import java.util.List;
 
@@ -22,6 +24,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PostController.class)
@@ -84,6 +88,88 @@ class PostControllerTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void imageReturnsOnlyCapturedMediaBytesAndContentType() throws Exception {
+        when(postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
+                .thenReturn(new MediaBinary(new byte[]{10, 20, 30}, "image/png"));
+
+        mockMvc.perform(get("/post/image")
+                        .param("mblogId", "saved-mblog")
+                        .param("pid", "p1")
+                        .param("variant", "thumbnail")
+                        .param("url", "https://evil.example/arbitrary.png"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/png"))
+                .andExpect(header().doesNotExist("Content-Disposition"))
+                .andExpect(header().doesNotExist("Set-Cookie"))
+                .andExpect(content().bytes(new byte[]{10, 20, 30}));
+
+        verify(postService).queryPostImage("saved-mblog", "p1", "thumbnail");
+    }
+
+    @Test
+    void videoCoverDefaultsToCurrentAndSupportsRetweetedSelector() throws Exception {
+        when(postService.queryPostVideoCover("saved-mblog", false))
+                .thenReturn(new MediaBinary(new byte[]{1}, "image/jpeg"));
+        when(postService.queryPostVideoCover("saved-mblog", true))
+                .thenReturn(new MediaBinary(new byte[]{2}, "image/webp"));
+
+        mockMvc.perform(get("/post/video-cover").param("mblogId", "saved-mblog"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/jpeg"))
+                .andExpect(content().bytes(new byte[]{1}));
+        mockMvc.perform(get("/post/video-cover")
+                        .param("mblogId", "saved-mblog")
+                        .param("retweeted", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/webp"))
+                .andExpect(content().bytes(new byte[]{2}));
+
+        verify(postService).queryPostVideoCover("saved-mblog", false);
+        verify(postService).queryPostVideoCover("saved-mblog", true);
+    }
+
+    @Test
+    void mediaMapsLocalAndUpstreamFailuresToPublicStatuses() throws Exception {
+        when(postService.queryPostImage("saved-mblog", "p1", "large"))
+                .thenThrow(new InvalidRequestException("不支持的 variant。"));
+        when(postService.queryPostImage("missing", "p1", "thumbnail"))
+                .thenThrow(new ResourceNotFoundException("本地微博不存在。"));
+        when(postService.queryPostVideoCover("saved-mblog", false))
+                .thenThrow(new WeiboCookieExpiredException("Credential 失效"));
+        when(postService.queryPostVideoCover("saved-mblog", true))
+                .thenThrow(new WeiboRateLimitException("上游限流"));
+        when(postService.queryPostImage("saved-mblog", "p1", "original"))
+                .thenThrow(new WeiboException("媒体下载失败。", -1));
+
+        mockMvc.perform(get("/post/image")
+                        .param("mblogId", "saved-mblog")
+                        .param("pid", "p1")
+                        .param("variant", "large"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        mockMvc.perform(get("/post/image")
+                        .param("mblogId", "missing")
+                        .param("pid", "p1")
+                        .param("variant", "thumbnail"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+        mockMvc.perform(get("/post/video-cover").param("mblogId", "saved-mblog"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+        mockMvc.perform(get("/post/video-cover")
+                        .param("mblogId", "saved-mblog")
+                        .param("retweeted", "true"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value(429));
+        mockMvc.perform(get("/post/image")
+                        .param("mblogId", "saved-mblog")
+                        .param("pid", "p1")
+                        .param("variant", "original"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value(502));
     }
 
     @Test

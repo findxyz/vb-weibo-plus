@@ -9,6 +9,7 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 import java.util.Map;
 
@@ -42,6 +43,11 @@ public class WeiboExceptionHandler {
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidRequest(InvalidRequestException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException e) {
+        return build(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String msg) {

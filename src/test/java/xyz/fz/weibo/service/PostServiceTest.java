@@ -5,16 +5,26 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MediaSize;
+import xyz.fz.weibo.domain.PicInfo;
 import xyz.fz.weibo.domain.PostQueryResult;
+import xyz.fz.weibo.domain.PostRecord;
 import xyz.fz.weibo.domain.PostView;
+import xyz.fz.weibo.domain.RetweetInfo;
 import xyz.fz.weibo.domain.SaveResult;
+import xyz.fz.weibo.domain.VideoInfo;
 import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
 import xyz.fz.weibo.model.request.LongTextRequest;
@@ -28,8 +38,10 @@ import xyz.fz.weibo.model.response.UserResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
 import xyz.fz.weibo.repository.PostRepository;
 import xyz.fz.weibo.service.mapper.PostMapper;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,6 +63,9 @@ class PostServiceTest {
     private SearchProfileApi searchProfileApi;
 
     @Mock
+    private DirectMediaApi directMediaApi;
+
+    @Mock
     private LongTextApi longTextApi;
 
     @Mock
@@ -67,8 +82,171 @@ class PostServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        postService = new PostService(myBlogApi, searchProfileApi, longTextApi, postMapper,
+        postService = new PostService(myBlogApi, searchProfileApi, longTextApi, directMediaApi,
+                postMapper,
                 bloggerRepository, postRepository);
+    }
+
+    @Test
+    void proxiesCurrentBloggerBlogThumbnailFromCapturedReference() {
+        PostEntity entity = entity("saved-mblog", 100);
+        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
+                List.of(new PicInfo("p1",
+                        new MediaSize("https://image/thumbnail.jpg", 80, 90),
+                        new MediaSize("https://image/original.jpg", 1200, 1300))),
+                new VideoInfo("https://image/cover.jpg", "https://video.weibo.com/show?id=1"),
+                null, 0, 0, 0, 100, 200);
+        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[]{10, 20});
+        MediaBinary media = new MediaBinary(new byte[]{10, 20}, "image/jpeg");
+        when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
+        when(postMapper.toPostRecord(entity)).thenReturn(record);
+        when(directMediaApi.download("https://image/thumbnail.jpg")).thenReturn(response);
+        when(postMapper.toMediaBinary(response)).thenReturn(media);
+
+        assertThat(postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
+                .isEqualTo(media);
+
+        verify(directMediaApi).download("https://image/thumbnail.jpg");
+        verify(postMapper).toMediaBinary(response);
+    }
+
+    @Test
+    void proxiesEveryImageVariantFromCurrentAndRetweetedCapturedReferences() {
+        PostEntity entity = entity("saved-mblog", 100);
+        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
+                List.of(new PicInfo("p1",
+                        new MediaSize("current-thumbnail", 80, 90),
+                        new MediaSize("current-original", 1200, 1300))),
+                new VideoInfo("current-cover", "current-page"),
+                new RetweetInfo(90, "retweeted-id", "", "", 2, "", 100,
+                        List.of(new PicInfo("p2",
+                                new MediaSize("retweeted-thumbnail", 40, 50),
+                                new MediaSize("retweeted-original", 400, 500))),
+                        "retweeted-cover", "retweeted-page"),
+                0, 0, 0, 100, 200);
+        ResponseEntity<byte[]> currentOriginal = ResponseEntity.ok(new byte[]{1});
+        ResponseEntity<byte[]> retweetedThumbnail = ResponseEntity.ok(new byte[]{2});
+        ResponseEntity<byte[]> retweetedOriginal = ResponseEntity.ok(new byte[]{3});
+        MediaBinary currentMedia = new MediaBinary(new byte[]{1}, "image/jpeg");
+        MediaBinary retweetedThumbnailMedia = new MediaBinary(new byte[]{2}, "image/jpeg");
+        MediaBinary retweetedOriginalMedia = new MediaBinary(new byte[]{3}, "image/jpeg");
+        when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
+        when(postMapper.toPostRecord(entity)).thenReturn(record);
+        when(directMediaApi.download("current-original")).thenReturn(currentOriginal);
+        when(directMediaApi.download("retweeted-thumbnail")).thenReturn(retweetedThumbnail);
+        when(directMediaApi.download("retweeted-original")).thenReturn(retweetedOriginal);
+        when(postMapper.toMediaBinary(currentOriginal)).thenReturn(currentMedia);
+        when(postMapper.toMediaBinary(retweetedThumbnail)).thenReturn(retweetedThumbnailMedia);
+        when(postMapper.toMediaBinary(retweetedOriginal)).thenReturn(retweetedOriginalMedia);
+
+        assertThat(postService.queryPostImage("saved-mblog", "p1", "original"))
+                .isEqualTo(currentMedia);
+        assertThat(postService.queryPostImage("saved-mblog", "p2", "thumbnail"))
+                .isEqualTo(retweetedThumbnailMedia);
+        assertThat(postService.queryPostImage("saved-mblog", "p2", "original"))
+                .isEqualTo(retweetedOriginalMedia);
+
+        verify(directMediaApi).download("current-original");
+        verify(directMediaApi).download("retweeted-thumbnail");
+        verify(directMediaApi).download("retweeted-original");
+    }
+
+    @Test
+    void proxiesOnlyCurrentOrRetweetedVideoCoverReferences() {
+        PostEntity entity = entity("saved-mblog", 100);
+        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
+                List.of(), new VideoInfo("current-cover", "current-video-page"),
+                new RetweetInfo(90, "retweeted-id", "", "", 2, "", 100,
+                        List.of(), "retweeted-cover", "retweeted-video-page"),
+                0, 0, 0, 100, 200);
+        ResponseEntity<byte[]> currentResponse = ResponseEntity.ok(new byte[]{1});
+        ResponseEntity<byte[]> retweetedResponse = ResponseEntity.ok(new byte[]{2});
+        MediaBinary currentMedia = new MediaBinary(new byte[]{1}, "image/jpeg");
+        MediaBinary retweetedMedia = new MediaBinary(new byte[]{2}, "image/jpeg");
+        when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
+        when(postMapper.toPostRecord(entity)).thenReturn(record);
+        when(directMediaApi.download("current-cover")).thenReturn(currentResponse);
+        when(directMediaApi.download("retweeted-cover")).thenReturn(retweetedResponse);
+        when(postMapper.toMediaBinary(currentResponse)).thenReturn(currentMedia);
+        when(postMapper.toMediaBinary(retweetedResponse)).thenReturn(retweetedMedia);
+
+        assertThat(postService.queryPostVideoCover("saved-mblog", false)).isEqualTo(currentMedia);
+        assertThat(postService.queryPostVideoCover("saved-mblog", true)).isEqualTo(retweetedMedia);
+
+        verify(directMediaApi).download("current-cover");
+        verify(directMediaApi).download("retweeted-cover");
+        verifyNoMoreInteractions(directMediaApi);
+    }
+
+    @Test
+    void rejectsUnsupportedImageVariantBeforeReadingCapturedContent() {
+        assertThatThrownBy(() -> postService.queryPostImage("saved-mblog", "p1", "large"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(postRepository, never()).findById(any());
+        verifyNoMoreInteractions(directMediaApi);
+    }
+
+    @Test
+    void reportsMissingCapturedPostPictureOrReferenceAsLocalNotFound() {
+        PostEntity noPictureEntity = entity("no-picture", 100);
+        PostRecord noPicture = new PostRecord("no-picture", 100, 1, "", "", "", "",
+                List.of(), new VideoInfo("", ""), null, 0, 0, 0, 100, 200);
+        PostEntity noReferenceEntity = entity("no-reference", 101);
+        PostRecord noReference = new PostRecord("no-reference", 101, 1, "", "", "", "",
+                List.of(new PicInfo("p1", new MediaSize("", 0, 0),
+                        new MediaSize("", 0, 0))),
+                new VideoInfo("", ""), null, 0, 0, 0, 100, 200);
+        when(postRepository.findById("missing")).thenReturn(Optional.empty());
+        when(postRepository.findById("no-picture")).thenReturn(Optional.of(noPictureEntity));
+        when(postRepository.findById("no-reference")).thenReturn(Optional.of(noReferenceEntity));
+        when(postMapper.toPostRecord(noPictureEntity)).thenReturn(noPicture);
+        when(postMapper.toPostRecord(noReferenceEntity)).thenReturn(noReference);
+
+        assertThatThrownBy(() -> postService.queryPostImage("missing", "p1", "thumbnail"))
+                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> postService.queryPostImage("no-picture", "p1", "thumbnail"))
+                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> postService.queryPostImage("no-reference", "p1", "thumbnail"))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verifyNoMoreInteractions(directMediaApi);
+    }
+
+    @Test
+    void mapsMediaDownloadFailuresToGatewayErrorsButPreservesCredentialAndRateLimit() {
+        PostEntity entity = entity("saved-mblog", 100);
+        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
+                List.of(new PicInfo("p1", new MediaSize("captured-reference", 80, 90),
+                        new MediaSize("", 0, 0))),
+                new VideoInfo("", ""), null, 0, 0, 0, 100, 200);
+        when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
+        when(postMapper.toPostRecord(entity)).thenReturn(record);
+        when(directMediaApi.download("captured-reference"))
+                .thenReturn(ResponseEntity.status(404).body(new byte[0]))
+                .thenThrow(new IllegalStateException("Connection failed"))
+                .thenThrow(new WeiboException("Download failed"))
+                .thenThrow(new WeiboCookieExpiredException("Credential 失效"))
+                .thenThrow(new WeiboRateLimitException("上游限流"));
+
+        assertThatThrownBy(() -> postService.queryPostImage(
+                "saved-mblog", "p1", "thumbnail"))
+                .isInstanceOfSatisfying(WeiboException.class,
+                        error -> assertThat(error.getErrorCode()).isNotZero());
+        assertThatThrownBy(() -> postService.queryPostImage(
+                "saved-mblog", "p1", "thumbnail"))
+                .isInstanceOfSatisfying(WeiboException.class,
+                        error -> assertThat(error.getErrorCode()).isNotZero());
+        assertThatThrownBy(() -> postService.queryPostImage(
+                "saved-mblog", "p1", "thumbnail"))
+                .isInstanceOfSatisfying(WeiboException.class,
+                        error -> assertThat(error.getErrorCode()).isNotZero());
+        assertThatThrownBy(() -> postService.queryPostImage(
+                "saved-mblog", "p1", "thumbnail"))
+                .isInstanceOf(WeiboCookieExpiredException.class);
+        assertThatThrownBy(() -> postService.queryPostImage(
+                "saved-mblog", "p1", "thumbnail"))
+                .isInstanceOf(WeiboRateLimitException.class);
     }
 
     @Test
