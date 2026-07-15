@@ -1,6 +1,7 @@
 package xyz.fz.weibo.model.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonAlias;
 
 import java.util.List;
 
@@ -23,6 +24,8 @@ public record GroupListResponse(
             @JsonProperty("max_member_count") int maxMemberCount,
             @JsonProperty("avatar_large") String avatarLarge,
             Long creator,
+            List<Long> admins,
+            @JsonAlias("description") String summary,
             @JsonProperty("group_type") int groupType
     ) {
     }
