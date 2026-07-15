@@ -17,13 +17,13 @@ GET {{host}}/post/list?page=1&size=100
 GET {{host}}/post/list?uids=1795308214&uids=1642351362&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&page=1&size=100
 
 ### 微博图片缩略图（mblogId、pid 来自 /post/list 响应）
-GET {{host}}/post/image?mblogId=current-id&pid=p1&variant=thumbnail
+GET {{host}}/post/image?mblogId=R8070kHp4&pid=006DIRV7gy1ieyoskujmqj311d0omdvy&variant=thumbnail
 
 ### 微博图片原图
-GET {{host}}/post/image?mblogId=current-id&pid=p1&variant=original
+GET {{host}}/post/image?mblogId=R6cPi4tfV&pid=006DIRV7gy1ieku1in004j31480u64qp&variant=original
 
 ### 微博视频封面（mblogId 来自 /post/list 响应）
-GET {{host}}/post/video-cover?mblogId=current-id
+GET {{host}}/post/video-cover?mblogId=R6yVCj1kg
 
 ### 转发微博视频封面
-GET {{host}}/post/video-cover?mblogId=current-id&retweeted=true
+GET {{host}}/post/video-cover?mblogId=R7Z6IgXO5&retweeted=true

@@ -23,10 +23,10 @@ GET {{host}}/chat/messages?gid=4761715839862414&page=1&size=100
 GET {{host}}/chat/messages?gid=4761715839862414&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&page=1&size=100
 
 ### 图片消息预览（gid、mid 来自 /chat/messages 响应）
-GET {{host}}/chat/media?gid=101&mid=100&variant=preview
+GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=preview
 
 ### 图片消息原图
-GET {{host}}/chat/media?gid=101&mid=100&variant=original
+GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=original
 
 ### 视频消息封面预览（视频消息不支持 original）
-GET {{host}}/chat/media?gid=101&mid=200&variant=preview
+GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=preview
