@@ -1,0 +1,32 @@
+### 变量
+@host = http://localhost:8080
+
+### 从微博同步群聊列表到本地
+POST {{host}}/chat/groups/sync
+
+### 查询本地群聊列表
+GET {{host}}/chat/groups
+
+### 增量保存群聊消息（gid 为群聊 ID）
+POST {{host}}/chat/incremental?gid=4761715839862414
+
+### 保存指定时间以来的群聊消息（时间使用 Asia/Shanghai 时区）
+POST {{host}}/chat/since?gid=4761715839862414&sinceTime=2026-07-10%2000:00:00
+
+### 从指定消息之前继续保存指定时间以来的群聊消息（beforeMid 为起始消息 ID）
+POST {{host}}/chat/since?gid=4761715839862414&sinceTime=2026-07-10%2000:00:00&beforeMid=5319836654896760
+
+### 查询群聊的全部本地消息：第 1 页
+GET {{host}}/chat/messages?gid=4761715839862414&page=1&size=100
+
+### 按时间范围查询群聊的本地消息
+GET {{host}}/chat/messages?gid=4761715839862414&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&page=1&size=100
+
+### 图片消息预览（gid、mid 来自 /chat/messages 响应）
+GET {{host}}/chat/media?gid=101&mid=100&variant=preview
+
+### 图片消息原图
+GET {{host}}/chat/media?gid=101&mid=100&variant=original
+
+### 视频消息封面预览（视频消息不支持 original）
+GET {{host}}/chat/media?gid=101&mid=200&variant=preview

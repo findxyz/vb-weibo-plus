@@ -1,0 +1,29 @@
+### 变量
+@host = http://localhost:8080
+
+### 增量保存博主微博（uid 为博主用户 ID）
+POST {{host}}/post/incremental?uid=1795308214
+
+### 按时间范围保存博主微博（时间使用 Asia/Shanghai 时区）
+POST {{host}}/post/range?uid=1795308214&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59
+
+### 查询本地博主列表
+GET {{host}}/post/bloggers
+
+### 查询全部本地微博：第 1 页
+GET {{host}}/post/list?page=1&size=100
+
+### 按博主和时间范围查询本地微博（多个 uids 使用重复查询参数）
+GET {{host}}/post/list?uids=1795308214&uids=1642351362&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&page=1&size=100
+
+### 微博图片缩略图（mblogId、pid 来自 /post/list 响应）
+GET {{host}}/post/image?mblogId=current-id&pid=p1&variant=thumbnail
+
+### 微博图片原图
+GET {{host}}/post/image?mblogId=current-id&pid=p1&variant=original
+
+### 微博视频封面（mblogId 来自 /post/list 响应）
+GET {{host}}/post/video-cover?mblogId=current-id
+
+### 转发微博视频封面
+GET {{host}}/post/video-cover?mblogId=current-id&retweeted=true
