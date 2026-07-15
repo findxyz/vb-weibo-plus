@@ -78,7 +78,7 @@ class MessageRepositoryTest {
 
     @Test
     void refreshesGroupRangeFromPersistedMessageMids() {
-        groupRepository.findOrCreatePlaceholder(1, 100);
+        groupRepository.ensurePlaceholderExists(1, 100);
         messageRepository.insertIfAbsent(message(90, 1, 1_000, "旧", ""));
         messageRepository.insertIfAbsent(message(120, 1, 2_000, "新", ""));
 

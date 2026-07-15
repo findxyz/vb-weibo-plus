@@ -82,7 +82,7 @@ class GroupRepositoryTest {
 
     @Test
     void createsGidOnlyPlaceholderAndReturnsStableOrder() {
-        GroupEntity placeholder = groupRepository.findOrCreatePlaceholder(2, 150);
+        groupRepository.ensurePlaceholderExists(2, 150);
         groupRepository.upsertMetadata(group(1, "第一群", 0, 0, 100, 300));
         groupRepository.upsertMetadata(group(3, "第三群", 0, 0, 100, 300));
         entityManager.flush();

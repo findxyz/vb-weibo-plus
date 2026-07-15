@@ -68,7 +68,7 @@ public class ChatService {
     public SaveResult saveIncremental(long gid) {
         validateGid(gid);
         long capturedAt = System.currentTimeMillis();
-        groupRepository.findOrCreatePlaceholder(gid, capturedAt);
+        groupRepository.ensurePlaceholderExists(gid, capturedAt);
         long boundaryMid = groupRepository.findMaxMid(gid);
         Long beforeMid = null;
         int fetched = 0;
@@ -109,7 +109,7 @@ public class ChatService {
     public SaveResult saveBySince(long gid, long sinceTime, Long beforeMid) {
         validateGid(gid);
         long capturedAt = System.currentTimeMillis();
-        groupRepository.findOrCreatePlaceholder(gid, capturedAt);
+        groupRepository.ensurePlaceholderExists(gid, capturedAt);
         Long cursor = beforeMid;
         int fetched = 0;
         int inserted = 0;

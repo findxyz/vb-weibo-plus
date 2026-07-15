@@ -28,11 +28,13 @@ public interface GroupRepository extends JpaRepository<GroupEntity, Long> {
     }
 
     @Transactional
-    default GroupEntity findOrCreatePlaceholder(long gid, long capturedAt) {
-        return findById(gid)
-                .orElseGet(() -> save(new GroupEntity(
-                        gid, "", "", 0, 0, 0, "[]", "", 0,
-                        0, 0, capturedAt, capturedAt
-                )));
+    default void ensurePlaceholderExists(long gid, long capturedAt) {
+        if (findById(gid).isPresent()) {
+            return;
+        }
+        save(new GroupEntity(
+                gid, "", "", 0, 0, 0, "[]", "", 0,
+                0, 0, capturedAt, capturedAt
+        ));
     }
 }

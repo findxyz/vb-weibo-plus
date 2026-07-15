@@ -150,7 +150,7 @@ class ChatServiceTest {
 
         assertThat(chatService.saveIncremental(1)).isEqualTo(new SaveResult(3, 1, 2));
 
-        verify(groupRepository).findOrCreatePlaceholder(eq(1L), anyLong());
+        verify(groupRepository).ensurePlaceholderExists(eq(1L), anyLong());
         verify(messageRepository).refreshGroupRange(1);
         verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, null));
         verifyNoMoreInteractions(groupMessagesApi);

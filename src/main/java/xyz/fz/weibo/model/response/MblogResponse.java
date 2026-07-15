@@ -25,10 +25,4 @@ public record MblogResponse(
         @JsonProperty("page_info") PageInfoResponse pageInfo,
         @JsonProperty("retweeted_status") MblogResponse retweetedStatus
 ) {
-
-    public MblogResponse(Long id, String mblogId, String createdAt, String text, String source,
-                         boolean isLongText, int picNum) {
-        this(id, mblogId, createdAt, text, null, source, null, isLongText, picNum,
-                0, 0, 0, null, null, null, null);
-    }
 }
