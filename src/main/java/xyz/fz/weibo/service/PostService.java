@@ -46,30 +46,59 @@ public class PostService {
             throw new InvalidRequestException("uid 必须大于 0。");
         }
 
-        MyBlogResponse response = myBlogApi.myBlog(new MyBlogRequest(uid, 1, null));
-        List<MblogResponse> posts = requirePosts(response);
-        if (posts.isEmpty()) {
-            return new SaveResult(0, 0, 0);
-        }
-
-        long capturedAt = System.currentTimeMillis();
-        BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
-        bloggerRepository.upsertMetadata(blogger);
-
+        long latestPostId = bloggerRepository.findLatestPostId(uid);
+        int page = 1;
+        String sinceId = null;
+        int fetched = 0;
         int inserted = 0;
-        for (MblogResponse post : posts) {
-            LongTextResponse currentLongText = fetchLongText(post);
-            LongTextResponse retweetedLongText = fetchLongText(post.retweetedStatus());
-            PostEntity entity = postMapper.toPostEntity(
-                    post, currentLongText, retweetedLongText, capturedAt);
-            if (postRepository.insertIfAbsent(entity)) {
-                inserted++;
+        int ignored = 0;
+        boolean capturedPage = false;
+        while (true) {
+            MyBlogResponse response = myBlogApi.myBlog(new MyBlogRequest(uid, page, sinceId));
+            List<MblogResponse> posts = requirePosts(response);
+            if (posts.isEmpty()) {
+                break;
             }
+            capturedPage = true;
+
+            long capturedAt = System.currentTimeMillis();
+            BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
+            bloggerRepository.upsertMetadata(blogger);
+
+            boolean reachedBoundary = false;
+            for (MblogResponse post : posts) {
+                fetched++;
+                if (latestPostId > 0 && post.id() <= latestPostId) {
+                    ignored++;
+                    reachedBoundary = true;
+                    continue;
+                }
+                LongTextResponse currentLongText = fetchLongText(post);
+                LongTextResponse retweetedLongText = fetchLongText(post.retweetedStatus());
+                PostEntity entity = postMapper.toPostEntity(
+                        post, currentLongText, retweetedLongText, capturedAt);
+                if (postRepository.insertIfAbsent(entity)) {
+                    inserted++;
+                } else {
+                    ignored++;
+                }
+            }
+
+            if (latestPostId == 0 || reachedBoundary) {
+                break;
+            }
+            if (response.data().sinceId() == null || response.data().sinceId().isBlank()) {
+                throw new WeiboException("微博列表响应缺少 data.since_id。", -1);
+            }
+            page++;
+            sinceId = response.data().sinceId();
         }
 
-        long latestPostId = postRepository.findMaxPostIdByUid(uid);
-        bloggerRepository.refreshLatestPostId(uid, latestPostId);
-        return new SaveResult(posts.size(), inserted, posts.size() - inserted);
+        if (capturedPage || latestPostId > 0) {
+            long currentLatestPostId = postRepository.findMaxPostIdByUid(uid);
+            bloggerRepository.refreshLatestPostId(uid, currentLatestPostId);
+        }
+        return new SaveResult(fetched, inserted, ignored);
     }
 
     public List<BloggerRecord> queryBloggers() {

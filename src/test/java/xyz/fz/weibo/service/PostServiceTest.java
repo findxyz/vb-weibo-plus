@@ -99,6 +99,190 @@ class PostServiceTest {
     }
 
     @Test
+    void capturesAllNewPagesAndScansNewestToOldestBoundaryPageCompletely() {
+        MblogResponse newest = post(130, "newest", false, null);
+        MblogResponse newer = post(120, "newer", false, null);
+        MblogResponse newAtBoundaryPage = post(110, "new-at-boundary-page", false, null);
+        MblogResponse boundary = post(100, "boundary", false, null);
+        MblogResponse older = post(90, "older", false, null);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
+        PostEntity newestEntity = entity("newest", 130);
+        PostEntity newerEntity = entity("newer", 120);
+        PostEntity boundaryPageEntity = entity("new-at-boundary-page", 110);
+
+        when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null)))
+                .thenReturn(page("next-page", List.of(newest, newer)));
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 2, "next-page")))
+                .thenReturn(page("unused", List.of(newAtBoundaryPage, boundary, older)));
+        when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
+        when(postMapper.toPostEntity(eq(newest), any(), any(), anyLong())).thenReturn(newestEntity);
+        when(postMapper.toPostEntity(eq(newer), any(), any(), anyLong())).thenReturn(newerEntity);
+        when(postMapper.toPostEntity(eq(newAtBoundaryPage), any(), any(), anyLong()))
+                .thenReturn(boundaryPageEntity);
+        when(postRepository.insertIfAbsent(any())).thenReturn(true);
+        when(postRepository.findMaxPostIdByUid(1)).thenReturn(130L);
+
+        assertThat(postService.saveIncremental(1)).isEqualTo(new SaveResult(5, 3, 2));
+
+        verify(myBlogApi).myBlog(new MyBlogRequest(1L, 1, null));
+        verify(myBlogApi).myBlog(new MyBlogRequest(1L, 2, "next-page"));
+        verifyNoMoreInteractions(myBlogApi);
+        verify(bloggerRepository).findLatestPostId(1);
+        verify(postMapper, never()).toPostEntity(eq(boundary), any(), any(), anyLong());
+        verify(postMapper, never()).toPostEntity(eq(older), any(), any(), anyLong());
+        verify(bloggerRepository).refreshLatestPostId(1, 130);
+    }
+
+    @Test
+    void scansOldestToNewestBoundaryPageCompletely() {
+        MblogResponse older = post(90, "older", false, null);
+        MblogResponse boundary = post(100, "boundary", false, null);
+        MblogResponse newer = post(110, "newer", false, null);
+        MblogResponse newest = post(120, "newest", false, null);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
+        PostEntity newerEntity = entity("newer", 110);
+        PostEntity newestEntity = entity("newest", 120);
+
+        when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null)))
+                .thenReturn(page("unused", List.of(older, boundary, newer, newest)));
+        when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
+        when(postMapper.toPostEntity(eq(newer), any(), any(), anyLong())).thenReturn(newerEntity);
+        when(postMapper.toPostEntity(eq(newest), any(), any(), anyLong())).thenReturn(newestEntity);
+        when(postRepository.insertIfAbsent(any())).thenReturn(true);
+        when(postRepository.findMaxPostIdByUid(1)).thenReturn(120L);
+
+        assertThat(postService.saveIncremental(1)).isEqualTo(new SaveResult(4, 2, 2));
+
+        verify(postRepository).insertIfAbsent(newerEntity);
+        verify(postRepository).insertIfAbsent(newestEntity);
+        verify(myBlogApi).myBlog(new MyBlogRequest(1L, 1, null));
+        verifyNoMoreInteractions(myBlogApi);
+    }
+
+    @Test
+    void successfulEmptyPageStopsNormallyAndCommitsExistingCursor() {
+        when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null))).thenReturn(page(List.of()));
+        when(postRepository.findMaxPostIdByUid(1)).thenReturn(100L);
+
+        assertThat(postService.saveIncremental(1)).isEqualTo(new SaveResult(0, 0, 0));
+
+        verify(postRepository).findMaxPostIdByUid(1);
+        verify(bloggerRepository).refreshLatestPostId(1, 100);
+        verifyNoMoreInteractions(postMapper);
+    }
+
+    @Test
+    void missingRequiredPaginationCursorFailsWithoutCommittingCursor() {
+        MblogResponse current = post(110, "current", false, null);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
+        PostEntity entity = entity("current", 110);
+        when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null)))
+                .thenReturn(page(null, List.of(current)));
+        when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
+        when(postMapper.toPostEntity(eq(current), any(), any(), anyLong())).thenReturn(entity);
+        when(postRepository.insertIfAbsent(entity)).thenReturn(true);
+
+        assertThatThrownBy(() -> postService.saveIncremental(1))
+                .isInstanceOf(WeiboException.class);
+
+        verify(postRepository).insertIfAbsent(entity);
+        verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
+        verify(myBlogApi).myBlog(new MyBlogRequest(1L, 1, null));
+        verifyNoMoreInteractions(myBlogApi);
+    }
+
+    @Test
+    void retriesAfterMiddlePageFailureWithoutOverwritingCapturedContent() {
+        MblogResponse newest = post(130, "newest", false, null);
+        MblogResponse newer = post(120, "newer", false, null);
+        MblogResponse remaining = post(110, "remaining", false, null);
+        MblogResponse boundary = post(100, "boundary", false, null);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
+        PostEntity newestEntity = entity("newest", 130);
+        PostEntity newerEntity = entity("newer", 120);
+        PostEntity remainingEntity = entity("remaining", 110);
+
+        when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null)))
+                .thenReturn(page("next-page", List.of(newest, newer)));
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 2, "next-page")))
+                .thenThrow(new WeiboException("上游分页失败", -1))
+                .thenReturn(page("unused", List.of(remaining, boundary)));
+        when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
+        when(postMapper.toPostEntity(eq(newest), any(), any(), anyLong())).thenReturn(newestEntity);
+        when(postMapper.toPostEntity(eq(newer), any(), any(), anyLong())).thenReturn(newerEntity);
+        when(postMapper.toPostEntity(eq(remaining), any(), any(), anyLong()))
+                .thenReturn(remainingEntity);
+        when(postRepository.insertIfAbsent(newestEntity)).thenReturn(true, false);
+        when(postRepository.insertIfAbsent(newerEntity)).thenReturn(true, false);
+        when(postRepository.insertIfAbsent(remainingEntity)).thenReturn(true);
+        when(postRepository.findMaxPostIdByUid(1)).thenReturn(130L);
+
+        assertThatThrownBy(() -> postService.saveIncremental(1))
+                .isInstanceOf(WeiboException.class);
+        verify(postRepository).insertIfAbsent(newestEntity);
+        verify(postRepository).insertIfAbsent(newerEntity);
+        verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
+
+        assertThat(postService.saveIncremental(1)).isEqualTo(new SaveResult(4, 1, 3));
+
+        verify(postRepository, org.mockito.Mockito.times(2)).insertIfAbsent(newestEntity);
+        verify(postRepository, org.mockito.Mockito.times(2)).insertIfAbsent(newerEntity);
+        verify(postRepository).insertIfAbsent(remainingEntity);
+        verify(bloggerRepository).refreshLatestPostId(1, 130);
+    }
+
+    @Test
+    void repositoryFailurePreservesEarlierCapturedContentAndOldCursor() {
+        MblogResponse first = post(110, "first", false, null);
+        MblogResponse second = post(120, "second", false, null);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
+        PostEntity firstEntity = entity("first", 110);
+        PostEntity secondEntity = entity("second", 120);
+        when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
+        when(myBlogApi.myBlog(any())).thenReturn(page("next-page", List.of(first, second)));
+        when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
+        when(postMapper.toPostEntity(eq(first), any(), any(), anyLong())).thenReturn(firstEntity);
+        when(postMapper.toPostEntity(eq(second), any(), any(), anyLong())).thenReturn(secondEntity);
+        when(postRepository.insertIfAbsent(firstEntity)).thenReturn(true);
+        when(postRepository.insertIfAbsent(secondEntity))
+                .thenThrow(new IllegalStateException("Database write failed"));
+
+        assertThatThrownBy(() -> postService.saveIncremental(1))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(postRepository).insertIfAbsent(firstEntity);
+        verify(postRepository).insertIfAbsent(secondEntity);
+        verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
+    }
+
+    @Test
+    void longTextFailurePreservesEarlierCapturedContentAndOldCursor() {
+        MblogResponse first = post(110, "first", false, null);
+        MblogResponse longTextPost = post(120, "long-text", true, null);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 1);
+        PostEntity firstEntity = entity("first", 110);
+        when(bloggerRepository.findLatestPostId(1)).thenReturn(100L);
+        when(myBlogApi.myBlog(any())).thenReturn(page("next-page", List.of(first, longTextPost)));
+        when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
+        when(postMapper.toPostEntity(eq(first), any(), any(), anyLong())).thenReturn(firstEntity);
+        when(postRepository.insertIfAbsent(firstEntity)).thenReturn(true);
+        when(longTextApi.longText(new LongTextRequest("long-text")))
+                .thenThrow(new WeiboException("长文响应失败", -1));
+
+        assertThatThrownBy(() -> postService.saveIncremental(1))
+                .isInstanceOf(WeiboException.class);
+
+        verify(postRepository).insertIfAbsent(firstEntity);
+        verify(postMapper, never()).toPostEntity(eq(longTextPost), any(), any(), anyLong());
+        verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
+    }
+
+    @Test
     void duplicateOnLatestPageIsIgnoredWithoutOverwritingCapturedContent() {
         MblogResponse current = post(100, "current-id", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
@@ -180,7 +364,11 @@ class PostServiceTest {
     }
 
     private MyBlogResponse page(List<MblogResponse> posts) {
-        return new MyBlogResponse(new MyBlogResponse.MyBlogData("88", posts, posts.size()), 1);
+        return page("88", posts);
+    }
+
+    private MyBlogResponse page(String sinceId, List<MblogResponse> posts) {
+        return new MyBlogResponse(new MyBlogResponse.MyBlogData(sinceId, posts, posts.size()), 1);
     }
 
     private LongTextResponse longText(String content) {
