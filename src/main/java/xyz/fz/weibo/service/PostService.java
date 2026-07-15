@@ -52,14 +52,12 @@ public class PostService {
         int fetched = 0;
         int inserted = 0;
         int ignored = 0;
-        boolean capturedPage = false;
         while (true) {
             MyBlogResponse response = myBlogApi.myBlog(new MyBlogRequest(uid, page, sinceId));
             List<MblogResponse> posts = requirePosts(response);
             if (posts.isEmpty()) {
                 break;
             }
-            capturedPage = true;
 
             long capturedAt = System.currentTimeMillis();
             BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
@@ -94,7 +92,7 @@ public class PostService {
             sinceId = response.data().sinceId();
         }
 
-        if (capturedPage || latestPostId > 0) {
+        if (fetched > 0 || latestPostId > 0) {
             long currentLatestPostId = postRepository.findMaxPostIdByUid(uid);
             bloggerRepository.refreshLatestPostId(uid, currentLatestPostId);
         }
