@@ -4,8 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
@@ -15,6 +18,7 @@ import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.MessageView;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.ChatService;
+import xyz.fz.weibo.service.ImageProxyService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
@@ -42,6 +46,9 @@ class ChatControllerTest {
 
     @MockitoBean
     private ChatService chatService;
+
+    @MockitoBean
+    private ImageProxyService imageProxyService;
 
     @Test
     void sync_has_no_request_arguments_and_returns_the_full_local_group_list() throws Exception {
@@ -182,6 +189,30 @@ class ChatControllerTest {
                 .andExpect(header().doesNotExist("Content-Disposition"))
                 .andExpect(header().doesNotExist("Set-Cookie"))
                 .andExpect(content().bytes(new byte[]{1, 2, 3}));
+    }
+
+    @Test
+    void image_proxies_bytes_and_content_type() throws Exception {
+        when(imageProxyService.fetch("https://example.test/avatar.jpg"))
+                .thenReturn(new MediaBinary(new byte[]{4, 5, 6}, "image/jpeg"));
+
+        mockMvc.perform(get("/chat/image")
+                        .param("url", "https://example.test/avatar.jpg"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/jpeg"))
+                .andExpect(content().bytes(new byte[]{4, 5, 6}));
+
+        verify(imageProxyService).fetch("https://example.test/avatar.jpg");
+    }
+
+    @Test
+    void image_maps_upstream_failure_to_bad_gateway() throws Exception {
+        when(imageProxyService.fetch("https://example.test/avatar.jpg"))
+                .thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY));
+
+        mockMvc.perform(get("/chat/image")
+                        .param("url", "https://example.test/avatar.jpg"))
+                .andExpect(status().isBadGateway());
     }
 
     @Test

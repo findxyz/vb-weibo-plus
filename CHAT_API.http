@@ -31,5 +31,5 @@ GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=origin
 ### 视频消息封面预览（视频消息不支持 original）
 GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=preview
 
-### 群友头像直链测试（已移除签名查询参数）
-GET https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg
+### 图片反代
+GET http://localhost:8080/chat/image?url=https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg

@@ -13,6 +13,7 @@ import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.ChatService;
+import xyz.fz.weibo.service.ImageProxyService;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -25,9 +26,11 @@ public class ChatController {
     private static final ZoneId REQUEST_TIME_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final ChatService chatService;
+    private final ImageProxyService imageProxyService;
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService, ImageProxyService imageProxyService) {
         this.chatService = chatService;
+        this.imageProxyService = imageProxyService;
     }
 
     @PostMapping("/groups/sync")
@@ -76,6 +79,14 @@ public class ChatController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, media.contentType())
                 .body(media.content());
+    }
+
+    @GetMapping("/image")
+    public ResponseEntity<byte[]> proxyImage(@RequestParam String url) {
+        MediaBinary image = imageProxyService.fetch(url);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, image.contentType())
+                .body(image.content());
     }
 
     private Long toEpochMillis(LocalDateTime value) {
