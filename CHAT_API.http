@@ -32,4 +32,4 @@ GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=origin
 GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=preview
 
 ### 图片反代
-GET http://localhost:8080/chat/image?url=https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg
+GET {{host}}/chat/image?url=https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg
