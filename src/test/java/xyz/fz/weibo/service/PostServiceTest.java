@@ -40,8 +40,12 @@ import xyz.fz.weibo.repository.PostRepository;
 import xyz.fz.weibo.service.mapper.PostMapper;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,6 +54,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -250,7 +255,8 @@ class PostServiceTest {
     }
 
     @Test
-    void captures_single_partial_day_until_successful_empty_page() {
+    void captures_single_partial_day_and_waits_between_pages() {
+        List<Long> requestTimes = new ArrayList<>();
         MblogResponse current = post(100, "current-id", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity entity = entity("current-id", 100);
@@ -259,10 +265,14 @@ class PostServiceTest {
         SearchProfileRequest emptyPage = new SearchProfileRequest(
                 1L, 2, 1783652523L, 1783656184L);
 
-        when(searchProfileApi.searchProfile(firstPage))
-                .thenReturn(searchPage(List.of(current)));
-        when(searchProfileApi.searchProfile(emptyPage))
-                .thenReturn(searchPage(List.of()));
+        when(searchProfileApi.searchProfile(firstPage)).thenAnswer(invocation -> {
+            requestTimes.add(System.nanoTime());
+            return searchPage(List.of(current));
+        });
+        when(searchProfileApi.searchProfile(emptyPage)).thenAnswer(invocation -> {
+            requestTimes.add(System.nanoTime());
+            return searchPage(List.of());
+        });
         when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
         when(postMapper.toPostEntity(any(), any(), any(), anyLong())).thenReturn(entity);
         when(postRepository.insertIfAbsent(entity)).thenReturn(true);
@@ -275,6 +285,8 @@ class PostServiceTest {
         verifyNoMoreInteractions(searchProfileApi);
         verify(postRepository).insertIfAbsent(entity);
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
+        assertThat(requestTimes.get(1) - requestTimes.get(0)).isBetween(
+                TimeUnit.MILLISECONDS.toNanos(200), TimeUnit.MILLISECONDS.toNanos(2_500));
     }
 
     @Test
@@ -330,6 +342,35 @@ class PostServiceTest {
                 eq(longText), eq(currentLongText), eq(retweetedLongText),
                 org.mockito.ArgumentMatchers.longThat(value -> value > 0));
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
+    }
+
+    @Test
+    void ignores_concurrent_range_save_and_accepts_another_after_unlock() throws Exception {
+        CountDownLatch requestStarted = new CountDownLatch(1);
+        CountDownLatch releaseRequest = new CountDownLatch(1);
+        when(searchProfileApi.searchProfile(any())).thenAnswer(invocation -> {
+            requestStarted.countDown();
+            if (!releaseRequest.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("等待测试释放微博请求超时。");
+            }
+            return searchPage(List.of());
+        });
+
+        CompletableFuture<SaveResult> firstRequest = CompletableFuture.supplyAsync(
+                () -> postService.saveByRange(1, 1783652523000L, 1783656184000L));
+        assertThat(requestStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+        try {
+            assertThat(postService.saveByRange(1, 1783652523000L, 1783656184000L))
+                    .isEqualTo(new SaveResult(0, 0, 0));
+        } finally {
+            releaseRequest.countDown();
+        }
+
+        assertThat(firstRequest.get(5, TimeUnit.SECONDS)).isEqualTo(new SaveResult(0, 0, 0));
+        assertThat(postService.saveByRange(1, 1783652523000L, 1783656184000L))
+                .isEqualTo(new SaveResult(0, 0, 0));
+        verify(searchProfileApi, times(2)).searchProfile(any());
     }
 
     @Test

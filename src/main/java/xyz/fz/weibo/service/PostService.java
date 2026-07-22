@@ -36,6 +36,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 @Service
@@ -50,6 +52,7 @@ public class PostService {
     private final PostMapper postMapper;
     private final BloggerRepository bloggerRepository;
     private final PostRepository postRepository;
+    private final ReentrantLock saveByRangeLock = new ReentrantLock();
 
     public PostService(MyBlogApi myBlogApi, SearchProfileApi searchProfileApi,
                        LongTextApi longTextApi, DirectMediaApi directMediaApi,
@@ -119,53 +122,65 @@ public class PostService {
     }
 
     public SaveResult saveByRange(long uid, long startMillis, long endMillis) {
-        if (uid <= 0) {
-            throw new InvalidRequestException("uid 必须大于 0。");
+        if (!saveByRangeLock.tryLock()) {
+            return new SaveResult(0, 0, 0);
         }
-        if (startMillis > endMillis) {
-            throw new InvalidRequestException("start 不能晚于 end。");
-        }
-
-        int fetched = 0;
-        int inserted = 0;
-        int ignored = 0;
-        LocalDate firstDate = Instant.ofEpochMilli(startMillis)
-                .atZone(REQUEST_TIME_ZONE).toLocalDate();
-        LocalDate lastDate = Instant.ofEpochMilli(endMillis)
-                .atZone(REQUEST_TIME_ZONE).toLocalDate();
-        for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
-            long dayStartMillis = date.equals(firstDate)
-                    ? startMillis
-                    : date.atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli();
-            long dayEndMillis = date.equals(lastDate)
-                    ? endMillis
-                    : date.plusDays(1).atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli() - 1;
-            int page = 1;
-            while (true) {
-                SearchProfileResponse response = searchProfileApi.searchProfile(
-                        new SearchProfileRequest(uid, page,
-                                Math.floorDiv(dayStartMillis, 1000),
-                                Math.floorDiv(dayEndMillis, 1000)));
-                List<MblogResponse> posts = requirePosts(response);
-                if (posts.isEmpty()) {
-                    break;
-                }
-
-                long capturedAt = System.currentTimeMillis();
-                BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
-                bloggerRepository.upsertMetadata(blogger);
-                for (MblogResponse post : posts) {
-                    fetched++;
-                    if (capturePost(post, capturedAt)) {
-                        inserted++;
-                    } else {
-                        ignored++;
-                    }
-                }
-                page++;
+        try {
+            if (uid <= 0) {
+                throw new InvalidRequestException("uid 必须大于 0。");
             }
+            if (startMillis > endMillis) {
+                throw new InvalidRequestException("start 不能晚于 end。");
+            }
+
+            int fetched = 0;
+            int inserted = 0;
+            int ignored = 0;
+            boolean firstRequest = true;
+            LocalDate firstDate = Instant.ofEpochMilli(startMillis)
+                    .atZone(REQUEST_TIME_ZONE).toLocalDate();
+            LocalDate lastDate = Instant.ofEpochMilli(endMillis)
+                    .atZone(REQUEST_TIME_ZONE).toLocalDate();
+            for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
+                long dayStartMillis = date.equals(firstDate)
+                        ? startMillis
+                        : date.atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli();
+                long dayEndMillis = date.equals(lastDate)
+                        ? endMillis
+                        : date.plusDays(1).atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli() - 1;
+                int page = 1;
+                while (true) {
+                    if (!firstRequest) {
+                        sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
+                    }
+                    firstRequest = false;
+                    SearchProfileResponse response = searchProfileApi.searchProfile(
+                            new SearchProfileRequest(uid, page,
+                                    Math.floorDiv(dayStartMillis, 1000),
+                                    Math.floorDiv(dayEndMillis, 1000)));
+                    List<MblogResponse> posts = requirePosts(response);
+                    if (posts.isEmpty()) {
+                        break;
+                    }
+
+                    long capturedAt = System.currentTimeMillis();
+                    BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
+                    bloggerRepository.upsertMetadata(blogger);
+                    for (MblogResponse post : posts) {
+                        fetched++;
+                        if (capturePost(post, capturedAt)) {
+                            inserted++;
+                        } else {
+                            ignored++;
+                        }
+                    }
+                    page++;
+                }
+            }
+            return new SaveResult(fetched, inserted, ignored);
+        } finally {
+            saveByRangeLock.unlock();
         }
-        return new SaveResult(fetched, inserted, ignored);
     }
 
     public List<BloggerRecord> queryBloggers() {
@@ -280,6 +295,15 @@ public class PostService {
             throw new WeiboException("长文响应失败：mblogId = " + post.mblogId() + "。", errorCode);
         }
         return response;
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new WeiboException("微博范围保存等待被中断。", -1, e);
+        }
     }
 
     @SuppressWarnings("DuplicatedCode")
