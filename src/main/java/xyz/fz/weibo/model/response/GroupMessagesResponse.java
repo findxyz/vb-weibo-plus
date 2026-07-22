@@ -39,7 +39,11 @@ public record GroupMessagesResponse(
     ) {
     }
 
-    public record Sender(Long id, @JsonProperty("screen_name") String screenName) {
+    public record Sender(
+            Long id,
+            @JsonProperty("screen_name") String screenName,
+            @JsonProperty("avatar_large") String avatarLarge
+    ) {
     }
 
     public record Annotations(@JsonProperty("video_pic_fid") String videoPicFid) {

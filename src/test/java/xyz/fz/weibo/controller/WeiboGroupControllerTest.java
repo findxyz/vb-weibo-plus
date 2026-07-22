@@ -1,5 +1,6 @@
 package xyz.fz.weibo.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -35,6 +36,9 @@ class WeiboGroupControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockitoBean
     private GroupListApi groupListApi;
@@ -75,6 +79,30 @@ class WeiboGroupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result").value(true))
                 .andExpect(jsonPath("$.ts").value(1700000000000L));
+    }
+
+    @Test
+    void messages_returns_sender_avatar() throws Exception {
+        GroupMessagesResponse response = objectMapper.readValue("""
+                {
+                  "result": true,
+                  "messages": [{
+                    "id": 100,
+                    "from_user": {
+                      "id": 9,
+                      "screen_name": "发送者",
+                      "avatar_large": "https://example.test/avatar.jpg"
+                    }
+                  }],
+                  "ts": 1700000000000
+                }
+                """, GroupMessagesResponse.class);
+        when(groupMessagesApi.messages(any(GroupMessagesRequest.class))).thenReturn(response);
+
+        mockMvc.perform(get("/weibo/group/messages").param("id", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messages[0].from_user.avatar_large")
+                        .value("https://example.test/avatar.jpg"));
     }
 
     @Test
