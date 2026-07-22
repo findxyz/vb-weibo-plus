@@ -33,6 +33,13 @@ import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
@@ -327,6 +334,69 @@ class ChatServiceTest {
         assertThat(saved.getAllValues()).extracting(MessageEntity::getMid)
                 .containsExactly(120L, 110L, 100L);
         verify(messageRepository).refreshGroupRange(1);
+    }
+
+    @Test
+    void backfill_waits_between_page_fetches() {
+        AtomicLong firstFetch = new AtomicLong();
+        AtomicLong secondFetch = new AtomicLong();
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenAnswer(invocation -> {
+                    firstFetch.set(System.nanoTime());
+                    return messagePage(message(110, 321, 1_100));
+                });
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
+                .thenAnswer(invocation -> {
+                    secondFetch.set(System.nanoTime());
+                    return messagePage();
+                });
+        mapEveryMessageWithTime();
+        when(messageRepository.insertIfAbsent(any())).thenReturn(true);
+
+        chatService.saveBySince(1, 900, null);
+
+        long delayMillis = TimeUnit.NANOSECONDS.toMillis(secondFetch.get() - firstFetch.get());
+        assertThat(delayMillis).isBetween(200L, 3_000L);
+    }
+
+    @Test
+    void concurrent_backfill_returns_immediately_and_failure_releases_the_lock() throws Exception {
+        CountDownLatch firstFetchStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstFetch = new CountDownLatch(1);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenAnswer(invocation -> {
+                    firstFetchStarted.countDown();
+                    releaseFirstFetch.await(5, TimeUnit.SECONDS);
+                    throw new WeiboException("上游分页失败。", -1);
+                })
+                .thenReturn(messagePage());
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            Future<SaveResult> firstRequest = executor.submit(
+                    () -> chatService.saveBySince(1, 900, null));
+            assertThat(firstFetchStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+            long startedAt = System.nanoTime();
+            assertThat(chatService.saveBySince(1, 900, null))
+                    .isEqualTo(new SaveResult(0, 0, 0));
+            assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt))
+                    .isLessThan(200);
+            verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, null));
+
+            releaseFirstFetch.countDown();
+            assertThatThrownBy(() -> firstRequest.get(5, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .hasCauseInstanceOf(WeiboException.class);
+
+            assertThat(chatService.saveBySince(1, 900, null))
+                    .isEqualTo(new SaveResult(0, 0, 0));
+            verify(groupMessagesApi, times(2))
+                    .messages(new GroupMessagesRequest(1L, null));
+        } finally {
+            releaseFirstFetch.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test

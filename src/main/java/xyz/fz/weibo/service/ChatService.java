@@ -27,6 +27,8 @@ import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
 @Service
@@ -38,6 +40,7 @@ public class ChatService {
     private final MessageMapper messageMapper;
     private final GroupRepository groupRepository;
     private final MessageRepository messageRepository;
+    private final ReentrantLock saveBySinceLock = new ReentrantLock();
 
     public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
                        GroupMediaApi groupMediaApi, MessageMapper messageMapper,
@@ -107,31 +110,39 @@ public class ChatService {
     }
 
     public SaveResult saveBySince(long gid, long sinceTime, Long beforeMid) {
-        validateGid(gid);
-        long capturedAt = System.currentTimeMillis();
-        groupRepository.ensurePlaceholderExists(gid, capturedAt);
-        Long cursor = beforeMid;
-        int fetched = 0;
-        int inserted = 0;
-        int ignored = 0;
-        while (true) {
-            List<GroupMessagesResponse.Message> messages = requireMessages(
-                    groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
-            if (messages.isEmpty()) {
-                break;
-            }
-            fetched += messages.size();
-            PageCapture capture = capturePage(messages, gid, capturedAt,
-                    message -> messageMapper.toMessageTimestamp(message) < sinceTime);
-            inserted += capture.inserted();
-            ignored += capture.ignored();
-            if (capture.reachedBoundary()) {
-                break;
-            }
-            cursor = requireMid(messages.getFirst());
+        if (!saveBySinceLock.tryLock()) {
+            return new SaveResult(0, 0, 0);
         }
-        messageRepository.refreshGroupRange(gid);
-        return new SaveResult(fetched, inserted, ignored);
+        try {
+            validateGid(gid);
+            long capturedAt = System.currentTimeMillis();
+            groupRepository.ensurePlaceholderExists(gid, capturedAt);
+            Long cursor = beforeMid;
+            int fetched = 0;
+            int inserted = 0;
+            int ignored = 0;
+            while (true) {
+                List<GroupMessagesResponse.Message> messages = requireMessages(
+                        groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
+                if (messages.isEmpty()) {
+                    break;
+                }
+                fetched += messages.size();
+                PageCapture capture = capturePage(messages, gid, capturedAt,
+                        message -> messageMapper.toMessageTimestamp(message) < sinceTime);
+                inserted += capture.inserted();
+                ignored += capture.ignored();
+                if (capture.reachedBoundary()) {
+                    break;
+                }
+                cursor = requireMid(messages.getFirst());
+                sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
+            }
+            messageRepository.refreshGroupRange(gid);
+            return new SaveResult(fetched, inserted, ignored);
+        } finally {
+            saveBySinceLock.unlock();
+        }
     }
 
     private PageCapture capturePage(List<GroupMessagesResponse.Message> messages,
@@ -242,5 +253,14 @@ public class ChatService {
     }
 
     private record PageCapture(int inserted, int ignored, boolean reachedBoundary) {
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new WeiboException("群消息拉取等待被中断。", -1, e);
+        }
     }
 }
