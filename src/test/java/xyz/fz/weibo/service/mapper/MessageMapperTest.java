@@ -112,7 +112,7 @@ class MessageMapperTest {
                     "from_user": {
                       "id": 9,
                       "screen_name": "发送者",
-                      "avatar_large": "https://example.test/avatar.jpg"
+                      "avatar_large": "https://tvax1.sinaimg.cn/avatar.jpg?KID=imgbed,tva&Expires=1784743846&ssig=signature"
                     },
                     "fids": ["5302496155143676_file"],
                     "annotations": {"video_pic_fid": "5302496155143676_cover"},
@@ -136,6 +136,8 @@ class MessageMapperTest {
         assertThat(entity.getMsgTypeName()).isEqualTo("普通消息");
         assertThat(entity.getSenderId()).isEqualTo(9);
         assertThat(entity.getSenderName()).isEqualTo("发送者");
+        assertThat(entity.getSenderAvatar())
+                .isEqualTo("https://tvax1.sinaimg.cn/avatar.jpg");
         assertThat(entity.getFid()).isEqualTo("5302496155143676_file");
         assertThat(entity.getVideoCoverFid()).isEqualTo("5302496155143676_cover");
         assertThat(entity.getCreatedAt()).isEqualTo(1_718_000_000_000L);
@@ -149,7 +151,7 @@ class MessageMapperTest {
         assertThat(record.recallMids()).containsExactly("10", "11");
         assertThat(record.mediaOrigUrl()).isEqualTo("https://upstream.example/media");
         assertThat(messageMapper.toMessageViews(List.of(entity)).getFirst().senderAvatar())
-                .isEqualTo("https://example.test/avatar.jpg");
+                .isEqualTo("https://tvax1.sinaimg.cn/avatar.jpg");
     }
 
     @Test

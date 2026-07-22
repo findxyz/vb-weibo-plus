@@ -98,6 +98,10 @@ public class MessageMapper {
                 : message.fromUid() == null ? 0 : message.fromUid();
         String senderName = sender == null ? "" : emptyIfNull(sender.screenName());
         String senderAvatar = sender == null ? "" : emptyIfNull(sender.avatarLarge());
+        int senderAvatarQuery = senderAvatar.indexOf('?');
+        if (senderAvatarQuery >= 0) {
+            senderAvatar = senderAvatar.substring(0, senderAvatarQuery);
+        }
         String fid = firstFid(message);
         String videoCoverFid = message.annotations() == null
                 ? ""
