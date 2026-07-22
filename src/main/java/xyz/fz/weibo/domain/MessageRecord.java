@@ -11,6 +11,7 @@ public record MessageRecord(
         int mediaType,
         long senderId,
         String senderName,
+        String senderAvatar,
         String text,
         String fid,
         String videoCoverFid,

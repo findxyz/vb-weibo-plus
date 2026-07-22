@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS messages (
     media_type       INT DEFAULT 0,
     sender_id        BIGINT DEFAULT 0,
     sender_name      VARCHAR DEFAULT '',
+    sender_avatar    VARCHAR DEFAULT '',
     text             TEXT DEFAULT '',
     fid              VARCHAR DEFAULT '',
     video_cover_fid  VARCHAR DEFAULT '',

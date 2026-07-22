@@ -11,6 +11,7 @@ public record MessageView(
         int mediaType,
         long senderId,
         String senderName,
+        String senderAvatar,
         String text,
         List<Map<String, Object>> urlObjects,
         List<Map<String, Object>> picInfos,

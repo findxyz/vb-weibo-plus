@@ -109,7 +109,11 @@ class MessageMapperTest {
                     "media_type": 1,
                     "time": 1718000000,
                     "from_uid": 8,
-                    "from_user": {"id": 9, "screen_name": "发送者"},
+                    "from_user": {
+                      "id": 9,
+                      "screen_name": "发送者",
+                      "avatar_large": "https://example.test/avatar.jpg"
+                    },
                     "fids": ["5302496155143676_file"],
                     "annotations": {"video_pic_fid": "5302496155143676_cover"},
                     "media_orig_url": "https://upstream.example/media",
@@ -144,6 +148,8 @@ class MessageMapperTest {
         assertThat(record.templateData()).containsKey("name");
         assertThat(record.recallMids()).containsExactly("10", "11");
         assertThat(record.mediaOrigUrl()).isEqualTo("https://upstream.example/media");
+        assertThat(messageMapper.toMessageViews(List.of(entity)).getFirst().senderAvatar())
+                .isEqualTo("https://example.test/avatar.jpg");
     }
 
     @Test
@@ -168,13 +174,13 @@ class MessageMapperTest {
     @Test
     void creates_local_media_placeholders_without_exposing_saved_references() {
         MessageEntity image = new MessageEntity(100L, 101, 321, "普通消息", 1,
-                9, "发送者", "图片", "image-fid", "", "upstream", "[]", "[]", "", "{}",
+                9, "发送者", "", "图片", "image-fid", "", "upstream", "[]", "[]", "", "{}",
                 "[]", "", 1_000, 2_000);
         MessageEntity video = new MessageEntity(200L, 101, 321, "普通消息", 10,
-                9, "发送者", "视频", "video-fid", "cover-fid", "upstream", "[]", "[]", "", "{}",
+                9, "发送者", "", "视频", "video-fid", "cover-fid", "upstream", "[]", "[]", "", "{}",
                 "[]", "", 1_000, 2_000);
         MessageEntity unsupported = new MessageEntity(300L, 101, 321, "普通消息", 0,
-                9, "发送者", "文本", "", "stray-cover", "", "[]", "[]", "", "{}",
+                9, "发送者", "", "文本", "", "stray-cover", "", "[]", "[]", "", "{}",
                 "[]", "", 1_000, 2_000);
 
         List<MessageView> views = messageMapper.toMessageViews(List.of(image, video, unsupported));

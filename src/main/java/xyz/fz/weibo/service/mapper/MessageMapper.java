@@ -97,6 +97,7 @@ public class MessageMapper {
                 ? sender.id()
                 : message.fromUid() == null ? 0 : message.fromUid();
         String senderName = sender == null ? "" : emptyIfNull(sender.screenName());
+        String senderAvatar = sender == null ? "" : emptyIfNull(sender.avatarLarge());
         String fid = firstFid(message);
         String videoCoverFid = message.annotations() == null
                 ? ""
@@ -107,7 +108,7 @@ public class MessageMapper {
         long createdAt = toMessageTimestamp(message);
         return Optional.of(new MessageEntity(message.id(), gid, message.type(),
                 messageTypeName(message.type()), message.mediaType(), senderId, senderName,
-                emptyIfNull(message.content()), fid, videoCoverFid,
+                senderAvatar, emptyIfNull(message.content()), fid, videoCoverFid,
                 emptyIfNull(message.mediaOrigUrl()), writeJson(arrayNode(message.urlObjects())),
                 writeJson(arrayNode(message.picInfos())), emptyIfNull(message.template()),
                 writeJson(templateData), writeJson(recallMids), recallBy, createdAt, capturedAt));
@@ -123,7 +124,7 @@ public class MessageMapper {
     public MessageRecord toMessageRecord(MessageEntity entity) {
         return new MessageRecord(entity.getMid(), entity.getGid(), entity.getMsgType(),
                 entity.getMsgTypeName(), entity.getMediaType(), entity.getSenderId(),
-                entity.getSenderName(), entity.getText(), entity.getFid(),
+                entity.getSenderName(), entity.getSenderAvatar(), entity.getText(), entity.getFid(),
                 entity.getVideoCoverFid(), entity.getMediaOrigUrl(),
                 readJson(entity.getUrlObjectsJson(), OBJECT_LIST_TYPE, List.of()),
                 readJson(entity.getPicInfosJson(), OBJECT_LIST_TYPE, List.of()),
@@ -157,7 +158,7 @@ public class MessageMapper {
             previewUrl = mediaUrl(record.gid(), record.mid(), "preview");
         }
         return new MessageView(record.mid(), record.gid(), record.msgType(), record.msgTypeName(),
-                record.mediaType(), record.senderId(), record.senderName(), record.text(),
+                record.mediaType(), record.senderId(), record.senderName(), record.senderAvatar(), record.text(),
                 record.urlObjects(), record.picInfos(), record.template(), record.templateData(),
                 record.recallMids(), record.recallBy(), record.createdAt(), record.savedAt(),
                 previewUrl, originalUrl);

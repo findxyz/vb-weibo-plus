@@ -1,5 +1,6 @@
 package xyz.fz.weibo.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -35,6 +36,9 @@ class ChatControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockitoBean
     private ChatService chatService;
@@ -93,7 +97,7 @@ class ChatControllerTest {
 
     @Test
     void messages_binds_inclusive_shanghai_times_and_pagination_defaults() throws Exception {
-        MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "消息",
+        MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "", "消息",
                 List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "");
         when(chatService.queryMessages(
                 101, 1_783_652_523_000L, 1_783_656_184_000L, 1, 100))
@@ -110,6 +114,20 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(100))
                 .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void messages_returns_sender_avatar() throws Exception {
+        MessageView view = objectMapper.readValue("""
+                {"mid": 100, "gid": 101, "senderAvatar": "https://example.test/avatar.jpg"}
+                """, MessageView.class);
+        when(chatService.queryMessages(101, null, null, 1, 100))
+                .thenReturn(new MessageQueryResult(group(101), List.of(view), 1, 100, 1));
+
+        mockMvc.perform(get("/chat/messages").param("gid", "101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].senderAvatar")
+                        .value("https://example.test/avatar.jpg"));
     }
 
     @Test

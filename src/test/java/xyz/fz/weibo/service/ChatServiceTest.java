@@ -550,17 +550,17 @@ class ChatServiceTest {
     }
 
     private MessageEntity messageEntity(long mid, long createdAt) {
-        return new MessageEntity(mid, 1, 321, "普通消息", 0, 9, "发送者", "消息",
+        return new MessageEntity(mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息",
                 "", "", "", "[]", "[]", "", "{}", "[]", "", createdAt, 2_000);
     }
 
     private MessageView view(long mid) {
-        return new MessageView(mid, 1, 321, "普通消息", 0, 9, "发送者", "消息",
+        return new MessageView(mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息",
                 List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "");
     }
 
     private MessageRecord messageRecord(long mid, int mediaType, String fid, String coverFid) {
-        return new MessageRecord(mid, 1, 321, "普通消息", mediaType, 9, "发送者", "消息",
+        return new MessageRecord(mid, 1, 321, "普通消息", mediaType, 9, "发送者", "", "消息",
                 fid, coverFid, "", List.of(), List.of(), "", Map.of(), List.of(), "",
                 1_000, 2_000);
     }

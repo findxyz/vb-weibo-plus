@@ -122,7 +122,7 @@ class MessageRepositoryTest {
 
     private MessageEntity message(long mid, long gid, long createdAt, String text, String fid) {
         return new MessageEntity(mid, gid, 321, "普通消息", fid.isEmpty() ? 0 : 1,
-                9, "发送者", text, fid, "", "", "[]", "[]", "", "{}", "[]", "",
+                9, "发送者", "", text, fid, "", "", "[]", "[]", "", "{}", "[]", "",
                 createdAt, 500);
     }
 

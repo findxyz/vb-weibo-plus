@@ -31,6 +31,9 @@ public class MessageEntity {
     @Column(name = "sender_name")
     private String senderName;
 
+    @Column(name = "sender_avatar")
+    private String senderAvatar;
+
     @Column(name = "text")
     private String text;
 
@@ -71,7 +74,7 @@ public class MessageEntity {
     }
 
     public MessageEntity(Long mid, long gid, int msgType, String msgTypeName, int mediaType,
-                         long senderId, String senderName, String text, String fid,
+                         long senderId, String senderName, String senderAvatar, String text, String fid,
                          String videoCoverFid, String mediaOrigUrl, String urlObjectsJson,
                          String picInfosJson, String template, String templateDataJson,
                          String recallMidsJson, String recallBy, long createdAt, long savedAt) {
@@ -82,6 +85,7 @@ public class MessageEntity {
         this.mediaType = mediaType;
         this.senderId = senderId;
         this.senderName = senderName;
+        this.senderAvatar = senderAvatar;
         this.text = text;
         this.fid = fid;
         this.videoCoverFid = videoCoverFid;
@@ -122,6 +126,10 @@ public class MessageEntity {
 
     public String getSenderName() {
         return senderName;
+    }
+
+    public String getSenderAvatar() {
+        return senderAvatar;
     }
 
     public String getText() {
