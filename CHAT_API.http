@@ -23,25 +23,25 @@ GET {{host}}/chat/messages?gid=4761715839862414&page=1&size=100
 GET {{host}}/chat/messages?gid=4761715839862414&page=2&size=100
 
 ### 按时间范围查询群聊的本地消息
-GET {{host}}/chat/messages?gid=4761715839862414&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&page=1&size=100
+GET {{host}}/chat/messages?gid=4761715839862414&start=2026-07-10%2000:00:00&end=2026-07-23%2023:59:59&page=1&size=100
 
 ### 按发言人姓名精确查询群聊的本地消息
-GET {{host}}/chat/messages?gid=4761715839862414&senderName=%E5%BC%A0%E4%B8%89&page=1&size=100
+GET {{host}}/chat/messages?gid=4761715839862414&senderName=小大饼&page=1&size=100
 
 ### 按正文关键词查询群聊的本地消息
-GET {{host}}/chat/messages?gid=4761715839862414&keyword=%E8%A7%86%E9%A2%91&page=1&size=100
+GET {{host}}/chat/messages?gid=4761715839862414&keyword=女同事&page=1&size=100
 
 ### 按时间、发言人和正文关键词组合查询群聊的本地消息
-GET {{host}}/chat/messages?gid=4761715839862414&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&senderName=%E5%BC%A0%E4%B8%89&keyword=%E8%A7%86%E9%A2%91&page=1&size=100
+GET {{host}}/chat/messages?gid=4761715839862414&start=2026-07-10%2000:00:00&end=2026-07-23%2023:59:59&senderName=小大饼&keyword=女同事&page=1&size=100
 
 ### 图片消息预览（gid、mid 来自 /chat/messages 响应）
-GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=preview
+GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=preview
 
 ### 图片消息原图
-GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=original
+GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=original
 
 ### 视频消息封面预览（视频消息不支持 original）
-GET {{host}}/chat/media?gid=4761715839862414&mid=5319236845047533&variant=preview
+GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=preview
 
 ### 图片反代
 GET {{host}}/chat/image?url=https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg
