@@ -187,13 +187,14 @@ class ChatServiceTest {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageView view = view(100);
         when(messageRepository.findPage(
-                1, 500L, 1_500L, MessageRepository.pageRequest(1, 100)))
+                1, 500L, 1_500L, "发送者", "消息", MessageRepository.pageRequest(1, 100)))
                 .thenReturn(new PageImpl<>(List.of(entity), MessageRepository.pageRequest(1, 100), 1));
         when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
         when(messageMapper.toGroupRecord(group)).thenReturn(groupRecord);
         when(messageMapper.toMessageViews(List.of(entity))).thenReturn(List.of(view));
 
-        MessageQueryResult result = chatService.queryMessages(1, 500L, 1_500L, 1, 100);
+        MessageQueryResult result = chatService.queryMessages(
+                1, 500L, 1_500L, "发送者", "消息", 1, 100);
 
         assertThat(result.group()).isEqualTo(groupRecord);
         assertThat(result.items()).containsExactly(view);
@@ -205,19 +206,22 @@ class ChatServiceTest {
     void query_messages_returns_gid_only_metadata_and_validates_bounds_and_pagination() {
         GroupRecord placeholder = new GroupRecord(1, "", "", 0, 0, 0, List.of(), "", 0);
         when(messageRepository.findPage(
-                1, null, null, MessageRepository.pageRequest(1, 100)))
+                1, null, null, null, null, MessageRepository.pageRequest(1, 100)))
                 .thenReturn(new PageImpl<>(List.of(), MessageRepository.pageRequest(1, 100), 0));
         when(groupRepository.findById(1L)).thenReturn(Optional.empty());
         when(messageMapper.toEmptyGroupRecord(1)).thenReturn(placeholder);
         when(messageMapper.toMessageViews(List.of())).thenReturn(List.of());
 
-        assertThat(chatService.queryMessages(1, null, null, 1, 100).group())
+        assertThat(chatService.queryMessages(1, null, null, null, null, 1, 100).group())
                 .isEqualTo(placeholder);
-        assertThatThrownBy(() -> chatService.queryMessages(1, 2_000L, 1_000L, 1, 100))
+        assertThatThrownBy(() -> chatService.queryMessages(
+                1, 2_000L, 1_000L, null, null, 1, 100))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessages(1, null, null, 0, 100))
+        assertThatThrownBy(() -> chatService.queryMessages(
+                1, null, null, null, null, 0, 100))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessages(1, null, null, 1, 101))
+        assertThatThrownBy(() -> chatService.queryMessages(
+                1, null, null, null, null, 1, 101))
                 .isInstanceOf(InvalidRequestException.class);
 
         verifyNoInteractions(groupMessagesApi, groupMediaApi);
