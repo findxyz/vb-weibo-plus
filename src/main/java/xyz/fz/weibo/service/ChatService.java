@@ -2,6 +2,7 @@ package xyz.fz.weibo.service;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResponseExtractor;
 import xyz.fz.weibo.api.GroupListApi;
@@ -191,6 +192,11 @@ public class ChatService {
     }
 
     public <T> T streamMessageVideo(long gid, long mid, ResponseExtractor<T> responseExtractor) {
+        return streamMessageVideo(gid, mid, new HttpHeaders(), responseExtractor);
+    }
+
+    public <T> T streamMessageVideo(long gid, long mid, HttpHeaders requestHeaders,
+                                    ResponseExtractor<T> responseExtractor) {
         validateGid(gid);
         MessageRecord message = requireLocalMessage(gid, mid);
         if (!messageMapper.isVideo(message)) {
@@ -199,8 +205,9 @@ public class ChatService {
         GroupMediaRequest request = new GroupMediaRequest(
                 requireMediaReference(message.fid()), null);
         try {
-            return groupMediaApi.stream(request, new HttpHeaders(), response -> {
-                if (!response.getStatusCode().is2xxSuccessful()) {
+            return groupMediaApi.stream(request, requestHeaders, response -> {
+                if (!response.getStatusCode().is2xxSuccessful()
+                        && response.getStatusCode() != HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE) {
                     throw new WeiboException("群消息媒体下载失败。", -1);
                 }
                 return responseExtractor.extractData(response);

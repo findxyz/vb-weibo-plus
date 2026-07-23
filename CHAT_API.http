@@ -51,5 +51,9 @@ GET {{host}}/chat/messages?gid={{videoGid}}&page=1&size=100
 ### 打开完整视频（gid、mid 来自同一视频项，或直接请求该项的 videoUrl）
 GET {{host}}/chat/media?gid={{videoGid}}&mid={{videoMid}}&variant=video
 
+### 按字节范围打开视频（用于测试 HTTP Range、206 和拖动播放）
+GET {{host}}/chat/media?gid={{videoGid}}&mid={{videoMid}}&variant=video
+Range: bytes=0-1048575
+
 ### 图片反代
 GET {{host}}/chat/image?url=https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg

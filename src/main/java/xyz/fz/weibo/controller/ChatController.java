@@ -3,9 +3,12 @@ package xyz.fz.weibo.controller;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpRange;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,17 +19,24 @@ import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.ImageProxyService;
+import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/chat")
 public class ChatController {
 
     private static final ZoneId REQUEST_TIME_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final Pattern CONTENT_RANGE_PATTERN =
+            Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)");
+    private static final Pattern UNSATISFIED_CONTENT_RANGE_PATTERN =
+            Pattern.compile("bytes \\*/(\\d+)");
 
     private final ChatService chatService;
     private final ImageProxyService imageProxyService;
@@ -80,8 +90,13 @@ public class ChatController {
             @RequestParam long gid,
             @RequestParam long mid,
             @RequestParam String variant,
+            @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
             HttpServletResponse response) throws IOException {
         if ("video".equals(variant)) {
+            if (rangeHeader != null) {
+                streamMessageVideoRange(gid, mid, rangeHeader, response);
+                return;
+            }
             chatService.streamMessageVideo(gid, mid, upstream -> {
                 String contentType = upstream.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
                 long contentLength = upstream.getHeaders().getContentLength();
@@ -92,6 +107,7 @@ public class ChatController {
                 response.setContentType(contentType == null || contentType.isBlank()
                         ? "application/octet-stream" : contentType);
                 response.setContentLengthLong(contentLength);
+                response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
                 upstream.getBody().transferTo(response.getOutputStream());
                 return null;
             });
@@ -102,6 +118,94 @@ public class ChatController {
         response.setContentType(media.contentType());
         response.setContentLength(media.content().length);
         response.getOutputStream().write(media.content());
+    }
+
+    private void streamMessageVideoRange(long gid, long mid, String rangeHeader,
+                                         HttpServletResponse response) {
+        List<HttpRange> ranges;
+        try {
+            ranges = HttpRange.parseRanges(rangeHeader);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRequestException("Range 请求格式不正确。");
+        }
+        if (ranges.size() != 1) {
+            throw new InvalidRequestException("仅支持单个 Range 请求。");
+        }
+        HttpRange requestedRange = ranges.getFirst();
+        if (rangeHeader.trim().matches("bytes=-\\d+")) {
+            long completeLength = probeVideoLength(gid, mid);
+            requestedRange = HttpRange.createByteRange(
+                    requestedRange.getRangeStart(completeLength),
+                    requestedRange.getRangeEnd(completeLength));
+            ranges = List.of(requestedRange);
+        }
+        HttpRange effectiveRange = requestedRange;
+        HttpHeaders upstreamHeaders = new HttpHeaders();
+        upstreamHeaders.setRange(ranges);
+        chatService.streamMessageVideo(gid, mid, upstreamHeaders, upstream -> {
+            String contentRange = upstream.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE);
+            if (upstream.getStatusCode() == HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE) {
+                Matcher unsatisfied = UNSATISFIED_CONTENT_RANGE_PATTERN.matcher(
+                        contentRange == null ? "" : contentRange);
+                if (!unsatisfied.matches()) {
+                    throw new WeiboException("群消息视频范围错误响应缺少完整长度。", -1);
+                }
+                response.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+                response.setHeader(HttpHeaders.CONTENT_RANGE,
+                        "bytes */" + unsatisfied.group(1));
+                response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+                return null;
+            }
+            Matcher matcher = CONTENT_RANGE_PATTERN.matcher(contentRange == null ? "" : contentRange);
+            if (!matcher.matches()) {
+                long completeLength = upstream.getHeaders().getContentLength();
+                if (completeLength >= 0
+                        && effectiveRange.getRangeStart(completeLength) >= completeLength) {
+                    response.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+                    response.setHeader(HttpHeaders.CONTENT_RANGE, "bytes */" + completeLength);
+                    response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+                    return null;
+                }
+                throw new WeiboException("群消息视频分片响应缺少有效的 Content-Range。", -1);
+            }
+            long start = Long.parseLong(matcher.group(1));
+            long end = Long.parseLong(matcher.group(2));
+            long total = Long.parseLong(matcher.group(3));
+            if (start != effectiveRange.getRangeStart(total)
+                    || end != effectiveRange.getRangeEnd(total)) {
+                throw new WeiboException("群消息视频分片响应与请求范围不一致。", -1);
+            }
+            long contentLength = end - start + 1;
+            if (upstream.getHeaders().getContentLength() != contentLength) {
+                throw new WeiboException("群消息视频分片响应长度不正确。", -1);
+            }
+            String contentType = upstream.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+            response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
+            response.setContentType(contentType == null || contentType.isBlank()
+                    ? "application/octet-stream" : contentType);
+            response.setContentLengthLong(contentLength);
+            response.setHeader(HttpHeaders.CONTENT_RANGE,
+                    "bytes " + start + "-" + end + "/" + total);
+            response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+            upstream.getBody().transferTo(response.getOutputStream());
+            return null;
+        });
+    }
+
+    private long probeVideoLength(long gid, long mid) {
+        HttpHeaders probeHeaders = new HttpHeaders();
+        probeHeaders.setRange(List.of(HttpRange.createByteRange(0, 0)));
+        return chatService.streamMessageVideo(gid, mid, probeHeaders, upstream -> {
+            String contentRange = upstream.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE);
+            Matcher matcher = CONTENT_RANGE_PATTERN.matcher(contentRange == null ? "" : contentRange);
+            if (!matcher.matches()
+                    || Long.parseLong(matcher.group(1)) != 0
+                    || Long.parseLong(matcher.group(2)) != 0
+                    || upstream.getHeaders().getContentLength() != 1) {
+                throw new WeiboException("群消息视频长度探测响应不正确。", -1);
+            }
+            return Long.parseLong(matcher.group(3));
+        });
     }
 
     @GetMapping("/image")

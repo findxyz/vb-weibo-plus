@@ -30,9 +30,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -254,7 +256,175 @@ class ChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "video/mp4"))
                 .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 3))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
                 .andExpect(content().bytes(new byte[]{4, 5, 6}));
+    }
+
+    @Test
+    void video_normalizes_a_valid_upstream_range_to_partial_content() throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{5, 6}, HttpStatus.OK);
+        upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        upstream.getHeaders().setContentLength(2);
+        upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 1-2/4");
+        upstream.getHeaders().set(HttpHeaders.ACCEPT_RANGES, "bytes");
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
+                argThat(headers -> "bytes=1-2".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=1-2"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "video/mp4"))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 2))
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 1-2/4"))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
+                .andExpect(content().bytes(new byte[]{5, 6}));
+    }
+
+    @Test
+    void video_supports_an_open_ended_range() throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{3, 4}, HttpStatus.OK);
+        upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        upstream.getHeaders().setContentLength(2);
+        upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4");
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
+                argThat(headers -> "bytes=2-".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=2-"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4"))
+                .andExpect(content().bytes(new byte[]{3, 4}));
+    }
+
+    @Test
+    void video_rejects_an_upstream_range_that_does_not_match_the_request() throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{1, 2}, HttpStatus.OK);
+        upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        upstream.getHeaders().setContentLength(2);
+        upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 0-1/4");
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=1-2"))
+                .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void video_returns_range_not_satisfiable_when_upstream_ignores_an_out_of_bounds_range()
+            throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{1, 2, 3, 4}, HttpStatus.OK);
+        upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        upstream.getHeaders().setContentLength(4);
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
+                argThat(headers -> "bytes=10-".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=10-"))
+                .andExpect(status().isRequestedRangeNotSatisfiable())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
+                .andExpect(content().bytes(new byte[0]));
+    }
+
+    @Test
+    void video_preserves_a_standard_upstream_range_not_satisfiable_response() throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[0], HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes */4");
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=10-"))
+                .andExpect(status().isRequestedRangeNotSatisfiable())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
+                .andExpect(content().bytes(new byte[0]));
+    }
+
+    @Test
+    void video_rejects_malformed_and_multiple_ranges_before_requesting_upstream() throws Exception {
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=bad"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=0-1,2-3"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(chatService);
+    }
+
+    @Test
+    void video_translates_a_suffix_range_after_probing_the_complete_length() throws Exception {
+        MockClientHttpResponse probe = new MockClientHttpResponse(
+                new byte[]{1}, HttpStatus.OK);
+        probe.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        probe.getHeaders().setContentLength(1);
+        probe.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 0-0/4");
+        MockClientHttpResponse suffix = new MockClientHttpResponse(
+                new byte[]{3, 4}, HttpStatus.OK);
+        suffix.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        suffix.getHeaders().setContentLength(2);
+        suffix.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4");
+        doAnswer(invocation -> {
+            ResponseExtractor<Long> extractor = invocation.getArgument(3);
+            return extractor.extractData(probe);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
+                argThat(headers -> "bytes=0-0".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(suffix);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
+                argThat(headers -> "bytes=2-3".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video")
+                        .header(HttpHeaders.RANGE, "bytes=-2"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4"))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 2))
+                .andExpect(content().bytes(new byte[]{3, 4}));
     }
 
     @Test

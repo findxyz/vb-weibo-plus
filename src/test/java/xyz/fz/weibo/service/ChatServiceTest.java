@@ -537,6 +537,29 @@ class ChatServiceTest {
     }
 
     @Test
+    void video_stream_exposes_an_upstream_range_not_satisfiable_response() {
+        MessageEntity entity = messageEntity(100, 1_000);
+        MessageRecord record = messageRecord(100, 10, "video-file", "");
+        GroupMediaRequest request = new GroupMediaRequest("video-file", null);
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[0], HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes */4");
+        when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
+        when(messageMapper.toMessageRecord(entity)).thenReturn(record);
+        when(messageMapper.isVideo(record)).thenReturn(true);
+        when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
+                .thenAnswer(invocation -> {
+                    ResponseExtractor<Integer> extractor = invocation.getArgument(2);
+                    return extractor.extractData(upstream);
+                });
+
+        int status = chatService.streamMessageVideo(
+                1, 100, new HttpHeaders(), response -> response.getStatusCode().value());
+
+        assertThat(status).isEqualTo(416);
+    }
+
+    @Test
     void video_stream_rejects_invalid_local_messages_before_calling_upstream() {
         when(messageRepository.findById(100L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> chatService.streamMessageVideo(
