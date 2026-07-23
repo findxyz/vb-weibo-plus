@@ -16,6 +16,25 @@ GET {{host}}/post/list?page=1&size=100
 ### 按博主和时间范围查询本地微博（多个 uids 使用重复查询参数）
 GET {{host}}/post/list?uids=1795308214&uids=1642351362&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&page=1&size=100
 
+### 按当前微博正文搜索
+GET {{host}}/post/list?keyword=本地搜索&page=1&size=100
+
+### 按转发微博正文搜索
+GET {{host}}/post/list?keyword=转发内容&page=1&size=100
+
+### 按博主、时间和当前或转发正文组合搜索
+GET {{host}}/post/list?uids=1795308214&uids=1642351362&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&keyword=本地搜索&page=1&size=100
+
+# 当前微博响应中的原微博链接示例：
+# {
+#   "items": [
+#     {
+#       "mblogId": "R8070kHp4",
+#       "postUrl": "https://weibo.com/1795308214/R8070kHp4"
+#     }
+#   ]
+# }
+
 ### 微博图片缩略图（mblogId、pid 来自 /post/list 响应）
 GET {{host}}/post/image?mblogId=R8070kHp4&pid=006DIRV7gy1ieyoskujmqj311d0omdvy&variant=thumbnail
 

@@ -123,7 +123,8 @@ public class PostMapper {
     }
 
     private PostView toPostView(PostRecord post, BloggerRecord blogger) {
-        return new PostView(post.mblogId(), post.postId(), post.uid(), post.content(),
+        return new PostView(post.mblogId(), post.postId(), post.uid(),
+                "https://weibo.com/" + post.uid() + "/" + post.mblogId(), post.content(),
                 post.contentRaw(), post.source(), post.region(),
                 toImageViews(post.mblogId(), post.pics()),
                 toVideoView(post.mblogId(), post.video(), false),

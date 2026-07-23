@@ -112,6 +112,7 @@ class PostMapperTest {
         assertThat(bloggerRecord.verified()).isTrue();
         assertThat(views).singleElement().satisfies(view -> {
             assertThat(view.content()).isEqualTo("当前完整 HTML");
+            assertThat(view.postUrl()).isEqualTo("https://weibo.com/1/current-id");
             assertThat(view.blogger()).isEqualTo(bloggerRecord);
             assertThat(view.pics()).singleElement().satisfies(image -> {
                 assertThat(image.pid()).isEqualTo("p1");

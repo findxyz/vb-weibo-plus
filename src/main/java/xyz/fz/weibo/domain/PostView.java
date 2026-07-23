@@ -6,6 +6,7 @@ public record PostView(
         String mblogId,
         long postId,
         long uid,
+        String postUrl,
         String content,
         String contentRaw,
         String source,
