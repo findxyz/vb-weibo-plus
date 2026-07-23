@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>群视频播放测试</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f3f5f4;
+      --surface: #ffffff;
+      --text: #17201d;
+      --muted: #5d6b66;
+      --border: #d8dfdc;
+      --accent: #0b6b57;
+      --accent-hover: #075644;
+      --danger: #a53a32;
+      --focus: #f0a202;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(56rem, calc(100% - 2rem));
+      margin: 2rem auto;
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      background: var(--surface);
+    }
+
+    h1 { margin: 0 0 0.25rem; font-size: clamp(1.5rem, 4vw, 2rem); }
+    p { margin-top: 0; }
+    .description, .status, .address, .hint { color: var(--muted); }
+
+    form {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+      align-items: end;
+    }
+
+    .field { display: grid; gap: 0.25rem; }
+    label { font-size: 0.875rem; font-weight: 700; }
+
+    input {
+      width: 100%;
+      min-height: 2.5rem;
+      padding: 0.5rem 0.625rem;
+      border: 1px solid var(--border);
+      border-radius: 0.375rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+
+    button {
+      min-height: 2.5rem;
+      padding: 0.5rem 0.875rem;
+      border: 1px solid var(--accent);
+      border-radius: 0.375rem;
+      background: var(--accent);
+      color: #ffffff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover { background: var(--accent-hover); }
+    input:focus-visible, button:focus-visible, video:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    video {
+      width: 100%;
+      margin-top: 1rem;
+      aspect-ratio: 16 / 9;
+      border-radius: 0.375rem;
+      background: #101412;
+    }
+
+    .status { min-height: 1.5rem; margin: 0.5rem 0; }
+    .status[data-state="error"] { color: var(--danger); }
+    .address { margin-bottom: 0; overflow-wrap: anywhere; font-family: ui-monospace, "Cascadia Code", monospace; font-size: 0.8125rem; }
+
+    section {
+      margin-top: 1.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    h2 { margin: 0; font-size: 1.125rem; }
+    .hint { margin: 0.25rem 0 0.75rem; font-size: 0.875rem; }
+    .check-form { grid-template-columns: minmax(12rem, 1fr) auto; margin-top: 0; }
+    .button-form { display: block; margin-top: 0; }
+
+    pre {
+      min-height: 8rem;
+      margin: 0.75rem 0 0;
+      padding: 0.75rem;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 0.375rem;
+      background: #f7f9f8;
+      color: var(--text);
+      font: 0.8125rem/1.6 ui-monospace, "Cascadia Code", monospace;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 640px) {
+      main { width: min(100% - 1rem, 56rem); margin: 0.5rem auto; padding: 0.875rem; }
+      form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>群视频播放测试</h1>
+    <p class="description">填写本地视频消息对应的群 ID 和消息 ID，然后加载视频。</p>
+
+    <form id="player-form">
+      <div class="field">
+        <label for="gid">群 ID</label>
+        <input id="gid" name="gid" inputmode="numeric" value="5046020575330655" required>
+      </div>
+      <div class="field">
+        <label for="mid">消息 ID</label>
+        <input id="mid" name="mid" inputmode="numeric" value="5137543554664280" required>
+      </div>
+      <button type="submit">加载视频</button>
+    </form>
+
+    <video id="player" controls preload="metadata" tabindex="0">
+      当前浏览器不支持 HTML 视频播放。
+    </video>
+    <p id="status" class="status" role="status" aria-live="polite">尚未加载视频。</p>
+    <p id="address" class="address" aria-label="当前视频地址"></p>
+
+    <section aria-labelledby="range-title">
+      <h2 id="range-title">Range 响应检查</h2>
+      <p class="hint">单独请求一段视频字节，检查状态码和响应头是否满足拖动播放要求。</p>
+      <form id="range-form" class="check-form">
+        <div class="field">
+          <label for="range-value">Range 请求头</label>
+          <input id="range-value" name="range" value="bytes=0-1048575" required>
+        </div>
+        <button id="range-button" type="submit">执行检查</button>
+      </form>
+      <pre id="range-result" role="status" aria-live="polite">尚未执行 Range 检查。</pre>
+    </section>
+
+    <section aria-labelledby="full-title">
+      <h2 id="full-title">非 Range 响应检查</h2>
+      <p class="hint">不发送 Range 请求头并下载完整视频，检查普通下载是否返回完整响应。视频较大时需要等待。</p>
+      <form id="full-form" class="button-form">
+        <button id="full-button" type="submit">执行完整下载检查</button>
+      </form>
+      <pre id="full-result" role="status" aria-live="polite">尚未执行非 Range 检查。</pre>
+    </section>
+  </main>
+
+  <script>
+    const form = document.querySelector("#player-form");
+    const player = document.querySelector("#player");
+    const status = document.querySelector("#status");
+    const address = document.querySelector("#address");
+    const rangeForm = document.querySelector("#range-form");
+    const rangeButton = document.querySelector("#range-button");
+    const rangeResult = document.querySelector("#range-result");
+    const fullForm = document.querySelector("#full-form");
+    const fullButton = document.querySelector("#full-button");
+    const fullResult = document.querySelector("#full-result");
+
+    function videoUrl() {
+      const params = new URLSearchParams({
+        gid: document.querySelector("#gid").value.trim(),
+        mid: document.querySelector("#mid").value.trim(),
+        variant: "video"
+      });
+      return `/chat/media?${params}`;
+    }
+
+    function setStatus(message, isError = false) {
+      status.textContent = message;
+      status.dataset.state = isError ? "error" : "ok";
+    }
+
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const url = videoUrl();
+      player.src = url;
+      player.load();
+      address.textContent = url;
+      setStatus("视频地址已加载，点击播放器中的播放按钮开始测试。");
+      player.focus();
+    });
+
+    player.addEventListener("loadedmetadata", () => {
+      setStatus(`视频元数据加载成功，时长 ${player.duration.toFixed(1)} 秒。`);
+    });
+
+    player.addEventListener("seeking", () => {
+      setStatus(`正在跳转到 ${player.currentTime.toFixed(1)} 秒，浏览器应发起新的 Range 请求。`);
+    });
+
+    player.addEventListener("seeked", () => {
+      setStatus(`跳转完成，当前位于 ${player.currentTime.toFixed(1)} 秒。`);
+    });
+
+    player.addEventListener("error", () => {
+      setStatus("视频加载失败，请检查应用日志以及 gid／mid 是否对应本地视频消息。", true);
+    });
+
+    rangeForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      rangeButton.disabled = true;
+      rangeResult.textContent = "正在请求视频分片……";
+      try {
+        const requestedRange = document.querySelector("#range-value").value.trim();
+        const response = await fetch(videoUrl(), {
+          headers: { Range: requestedRange },
+          cache: "no-store"
+        });
+        const bytes = await response.arrayBuffer();
+        const contentLength = response.headers.get("Content-Length");
+        const contentRange = response.headers.get("Content-Range");
+        const acceptRanges = response.headers.get("Accept-Ranges");
+        const passed = response.status === 206
+          && Boolean(contentRange)
+          && acceptRanges === "bytes"
+          && Number(contentLength) === bytes.byteLength;
+        rangeResult.textContent = [
+          passed ? "检查结果：通过" : "检查结果：失败",
+          `请求 Range：${requestedRange}`,
+          `HTTP 状态：${response.status}`,
+          `Content-Range：${contentRange ?? "缺失"}`,
+          `Accept-Ranges：${acceptRanges ?? "缺失"}`,
+          `Content-Length：${contentLength ?? "缺失"}`,
+          `实际接收字节：${bytes.byteLength}`
+        ].join("\n");
+      } catch (error) {
+        rangeResult.textContent = `检查结果：请求失败\n${error.message}`;
+      } finally {
+        rangeButton.disabled = false;
+      }
+    });
+
+    fullForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      fullButton.disabled = true;
+      fullResult.textContent = "正在下载完整视频……";
+      try {
+        const response = await fetch(videoUrl(), { cache: "no-store" });
+        const bytes = await response.arrayBuffer();
+        const contentLength = response.headers.get("Content-Length");
+        const contentRange = response.headers.get("Content-Range");
+        const acceptRanges = response.headers.get("Accept-Ranges");
+        const passed = response.status === 200
+          && !contentRange
+          && acceptRanges === "bytes"
+          && Number(contentLength) === bytes.byteLength;
+        fullResult.textContent = [
+          passed ? "检查结果：通过" : "检查结果：失败",
+          "请求 Range：未发送",
+          `HTTP 状态：${response.status}`,
+          `Content-Range：${contentRange ?? "缺失（符合预期）"}`,
+          `Accept-Ranges：${acceptRanges ?? "缺失"}`,
+          `Content-Length：${contentLength ?? "缺失"}`,
+          `实际接收字节：${bytes.byteLength}`
+        ].join("\n");
+      } catch (error) {
+        fullResult.textContent = `检查结果：请求失败\n${error.message}`;
+      } finally {
+        fullButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
