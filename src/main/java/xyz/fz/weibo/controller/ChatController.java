@@ -64,10 +64,12 @@ public class ChatController {
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
             @RequestParam(required = false)
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "100") int size) {
+            @RequestParam(required = false) String senderName,
+            @RequestParam(required = false) String keyword,
+            @RequestParam int page,
+            @RequestParam int size) {
         return chatService.queryMessages(
-                gid, toEpochMillis(start), toEpochMillis(end), page, size);
+                gid, toEpochMillis(start), toEpochMillis(end), senderName, keyword, page, size);
     }
 
     @GetMapping("/media")

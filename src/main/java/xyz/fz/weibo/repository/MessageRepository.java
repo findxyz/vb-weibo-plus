@@ -21,7 +21,8 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
         JpaSpecificationExecutor<MessageEntity> {
 
     @SuppressWarnings("DuplicatedCode")
-    default Page<MessageEntity> findPage(long gid, Long start, Long end, Pageable pageable) {
+    default Page<MessageEntity> findPage(long gid, Long start, Long end,
+                                         String senderName, String keyword, Pageable pageable) {
         Specification<MessageEntity> specification = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.equal(root.get("gid"), gid));
@@ -31,6 +32,13 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
             if (end != null) {
                 predicates.add(builder.lessThanOrEqualTo(root.get("createdAt"), end));
             }
+            if (senderName != null && !senderName.isBlank()) {
+                predicates.add(builder.equal(root.get("senderName"), senderName));
+            }
+            if (keyword != null && !keyword.isBlank()) {
+                predicates.add(builder.like(
+                        root.get("text"), "%" + escapeLikePattern(keyword) + "%", '\\'));
+            }
             return builder.and(predicates.toArray(Predicate[]::new));
         };
         return findAll(specification, pageable);
@@ -39,6 +47,12 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
     static Pageable pageRequest(int page, int size) {
         Sort sort = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("mid"));
         return PageRequest.of(page - 1, size, sort);
+    }
+
+    private static String escapeLikePattern(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 
     @Transactional

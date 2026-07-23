@@ -103,23 +103,27 @@ class ChatControllerTest {
     }
 
     @Test
-    void messages_binds_inclusive_shanghai_times_and_pagination_defaults() throws Exception {
+    void messages_binds_inclusive_shanghai_times_filters_and_pagination() throws Exception {
         MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "", "消息",
                 List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "");
         when(chatService.queryMessages(
-                101, 1_783_652_523_000L, 1_783_656_184_000L, 1, 100))
-                .thenReturn(new MessageQueryResult(group(101), List.of(view), 1, 100, 1));
+                101, 1_783_652_523_000L, 1_783_656_184_000L, "发送者", "消息", 2, 20))
+                .thenReturn(new MessageQueryResult(group(101), List.of(view), 2, 20, 1));
 
         mockMvc.perform(get("/chat/messages")
                         .param("gid", "101")
                         .param("start", "2026-07-10 11:02:03")
-                        .param("end", "2026-07-10 12:03:04"))
+                        .param("end", "2026-07-10 12:03:04")
+                        .param("senderName", "发送者")
+                        .param("keyword", "消息")
+                        .param("page", "2")
+                        .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.group.gid").value(101))
                 .andExpect(jsonPath("$.items[0].mid").value(100))
                 .andExpect(jsonPath("$.items[0].group").doesNotExist())
-                .andExpect(jsonPath("$.page").value(1))
-                .andExpect(jsonPath("$.size").value(100))
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.total").value(1));
     }
 
@@ -128,10 +132,13 @@ class ChatControllerTest {
         MessageView view = objectMapper.readValue("""
                 {"mid": 100, "gid": 101, "senderAvatar": "https://example.test/avatar.jpg"}
                 """, MessageView.class);
-        when(chatService.queryMessages(101, null, null, 1, 100))
+        when(chatService.queryMessages(101, null, null, null, null, 1, 100))
                 .thenReturn(new MessageQueryResult(group(101), List.of(view), 1, 100, 1));
 
-        mockMvc.perform(get("/chat/messages").param("gid", "101"))
+        mockMvc.perform(get("/chat/messages")
+                        .param("gid", "101")
+                        .param("page", "1")
+                        .param("size", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].senderAvatar")
                         .value("https://example.test/avatar.jpg"));
@@ -141,6 +148,35 @@ class ChatControllerTest {
     void messages_requires_gid() throws Exception {
         mockMvc.perform(get("/chat/messages"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void messages_requires_explicit_page_and_size() throws Exception {
+        mockMvc.perform(get("/chat/messages")
+                        .param("gid", "101")
+                        .param("size", "100"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/chat/messages")
+                        .param("gid", "101")
+                        .param("page", "1"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void messages_treats_blank_optional_filters_as_absent() throws Exception {
+        when(chatService.queryMessages(101, null, null, " ", "\t", 1, 100))
+                .thenReturn(new MessageQueryResult(group(101), List.of(), 1, 100, 0));
+
+        mockMvc.perform(get("/chat/messages")
+                        .param("gid", "101")
+                        .param("start", " ")
+                        .param("end", "\t")
+                        .param("senderName", " ")
+                        .param("keyword", "\t")
+                        .param("page", "1")
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0));
     }
 
     @Test

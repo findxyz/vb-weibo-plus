@@ -97,11 +97,13 @@ public class ChatService {
         return new SaveResult(fetched, inserted, ignored);
     }
 
-    public MessageQueryResult queryMessages(long gid, Long start, Long end, int page, int size) {
+    public MessageQueryResult queryMessages(long gid, Long start, Long end,
+                                            String senderName, String keyword,
+                                            int page, int size) {
         validateGid(gid);
         validateQuery(start, end, page, size);
         Page<MessageEntity> result = messageRepository.findPage(
-                gid, start, end, MessageRepository.pageRequest(page, size));
+                gid, start, end, senderName, keyword, MessageRepository.pageRequest(page, size));
         GroupRecord group = groupRepository.findById(gid)
                 .map(messageMapper::toGroupRecord)
                 .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));

@@ -100,11 +100,78 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(200, 2, 2_000, "其他群", ""));
 
         Page<MessageEntity> page = messageRepository.findPage(
-                1, 1_000L, 2_000L, MessageRepository.pageRequest(1, 2));
+                1, 1_000L, 2_000L, null, null, MessageRepository.pageRequest(1, 2));
 
         assertThat(page.getTotalElements()).isEqualTo(3);
         assertThat(page.getContent()).extracting(MessageEntity::getMid)
                 .containsExactly(102L, 101L);
+    }
+
+    @Test
+    void filters_sender_name_by_exact_match() {
+        messageRepository.insertIfAbsent(message(100, 1, 1_000, "甲的消息", "", "甲"));
+        messageRepository.insertIfAbsent(message(101, 1, 2_000, "同名前缀", "", "甲乙"));
+        messageRepository.insertIfAbsent(message(102, 1, 3_000, "甲的新消息", "", "甲"));
+
+        Page<MessageEntity> page = messageRepository.findPage(
+                1, null, null, "甲", null, MessageRepository.pageRequest(1, 100));
+
+        assertThat(page.getTotalElements()).isEqualTo(2);
+        assertThat(page.getContent()).extracting(MessageEntity::getMid)
+                .containsExactly(102L, 100L);
+    }
+
+    @Test
+    void combines_group_time_sender_and_text_filters_before_counting_and_paging() {
+        messageRepository.insertIfAbsent(message(100, 1, 1_000, "早期命中", "", "甲"));
+        messageRepository.insertIfAbsent(message(101, 1, 2_000, "同刻命中一", "", "甲"));
+        messageRepository.insertIfAbsent(message(102, 1, 2_000, "同刻命中二", "", "甲"));
+        messageRepository.insertIfAbsent(message(103, 1, 2_000, "错误发言人命中", "", "乙"));
+        messageRepository.insertIfAbsent(message(104, 1, 2_000, "正文不符", "命中-file", "甲"));
+        messageRepository.insertIfAbsent(message(105, 1, 3_000, "时间外命中", "", "甲"));
+        messageRepository.insertIfAbsent(message(200, 2, 2_000, "其他群命中", "", "甲"));
+
+        Page<MessageEntity> page = messageRepository.findPage(
+                1, 1_000L, 2_000L, "甲", "命中", MessageRepository.pageRequest(1, 2));
+
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent()).extracting(MessageEntity::getMid)
+                .containsExactly(102L, 101L);
+    }
+
+    @Test
+    void treats_like_wildcards_and_escape_character_as_literal_keyword_text() {
+        messageRepository.insertIfAbsent(message(100, 1, 1_000, "进度 100%", ""));
+        messageRepository.insertIfAbsent(message(101, 1, 1_000, "进度 1000", ""));
+        messageRepository.insertIfAbsent(message(102, 1, 1_000, "编号 a_b", ""));
+        messageRepository.insertIfAbsent(message(103, 1, 1_000, "编号 acb", ""));
+        messageRepository.insertIfAbsent(message(104, 1, 1_000, "路径 C:\\temp", ""));
+
+        assertThat(messageRepository.findPage(
+                1, null, null, null, "%", MessageRepository.pageRequest(1, 100))
+                .getContent()).extracting(MessageEntity::getMid).containsExactly(100L);
+        assertThat(messageRepository.findPage(
+                1, null, null, null, "_", MessageRepository.pageRequest(1, 100))
+                .getContent()).extracting(MessageEntity::getMid).containsExactly(102L);
+        assertThat(messageRepository.findPage(
+                1, null, null, null, "\\", MessageRepository.pageRequest(1, 100))
+                .getContent()).extracting(MessageEntity::getMid).containsExactly(104L);
+    }
+
+    @Test
+    void supports_single_time_boundaries_and_ignores_blank_optional_filters() {
+        messageRepository.insertIfAbsent(message(100, 1, 1_000, "早", ""));
+        messageRepository.insertIfAbsent(message(101, 1, 2_000, "晚", ""));
+
+        assertThat(messageRepository.findPage(
+                1, 2_000L, null, null, null, MessageRepository.pageRequest(1, 100))
+                .getContent()).extracting(MessageEntity::getMid).containsExactly(101L);
+        assertThat(messageRepository.findPage(
+                1, null, 1_000L, null, null, MessageRepository.pageRequest(1, 100))
+                .getContent()).extracting(MessageEntity::getMid).containsExactly(100L);
+        assertThat(messageRepository.findPage(
+                1, null, null, "  ", "\t", MessageRepository.pageRequest(1, 100))
+                .getContent()).extracting(MessageEntity::getMid).containsExactly(101L, 100L);
     }
 
     @Test
@@ -121,8 +188,13 @@ class MessageRepositoryTest {
     }
 
     private MessageEntity message(long mid, long gid, long createdAt, String text, String fid) {
+        return message(mid, gid, createdAt, text, fid, "发送者");
+    }
+
+    private MessageEntity message(long mid, long gid, long createdAt, String text, String fid,
+                                  String senderName) {
         return new MessageEntity(mid, gid, 321, "普通消息", fid.isEmpty() ? 0 : 1,
-                9, "发送者", "", text, fid, "", "", "[]", "[]", "", "{}", "[]", "",
+                9, senderName, "", text, fid, "", "", "[]", "[]", "", "{}", "[]", "",
                 createdAt, 500);
     }
 
