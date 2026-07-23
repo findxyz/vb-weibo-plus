@@ -17,13 +17,13 @@ GET {{host}}/post/list?page=1&size=100
 GET {{host}}/post/list?uids=1795308214&uids=1642351362&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&page=1&size=100
 
 ### 按当前微博正文搜索
-GET {{host}}/post/list?keyword=本地搜索&page=1&size=100
+GET {{host}}/post/list?keyword=转发&page=1&size=100
 
 ### 按转发微博正文搜索
-GET {{host}}/post/list?keyword=转发内容&page=1&size=100
+GET {{host}}/post/list?keyword=转发&page=1&size=100
 
 ### 按博主、时间和当前或转发正文组合搜索
-GET {{host}}/post/list?uids=1795308214&uids=1642351362&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&keyword=本地搜索&page=1&size=100
+GET {{host}}/post/list?uids=1795308214&uids=1642351362&start=2026-07-10%2000:00:00&end=2026-07-10%2023:59:59&keyword=今天一口气发布了&page=1&size=100
 
 # 当前微博响应中的原微博链接示例：
 # {
