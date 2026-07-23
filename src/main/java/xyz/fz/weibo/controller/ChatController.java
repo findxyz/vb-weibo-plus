@@ -92,7 +92,6 @@ public class ChatController {
                 response.setContentType(contentType == null || contentType.isBlank()
                         ? "application/octet-stream" : contentType);
                 response.setContentLengthLong(contentLength);
-                response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
                 upstream.getBody().transferTo(response.getOutputStream());
                 return null;
             });

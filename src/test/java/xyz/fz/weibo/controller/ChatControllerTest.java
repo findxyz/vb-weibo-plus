@@ -254,7 +254,6 @@ class ChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "video/mp4"))
                 .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 3))
-                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
                 .andExpect(content().bytes(new byte[]{4, 5, 6}));
     }
 
