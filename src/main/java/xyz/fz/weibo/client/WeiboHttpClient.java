@@ -62,10 +62,10 @@ public class WeiboHttpClient {
     private <T> ResponseEntity<T> execute(URI uri, HttpHeaders headers, Class<T> responseType) {
         //noinspection ConstantValue
         for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
-            log.info("微博请求：GET {} headers={}", uri, maskCookie(headers));
+            log.debug("微博请求：GET {} headers={}", uri, maskCookie(headers));
             ResponseEntity<T> resp = restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
             int statusCode = resp.getStatusCode().value();
-            log.info("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
+            log.debug("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
 
             if (statusCode == 429) {
                 if (attempt <= WeiboConstants.MAX_RETRY) {
