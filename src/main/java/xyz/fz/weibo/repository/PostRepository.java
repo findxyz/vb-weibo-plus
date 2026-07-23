@@ -23,7 +23,8 @@ public interface PostRepository extends JpaRepository<PostEntity, String>,
     long findMaxPostIdByUid(@Param("uid") long uid);
 
     @SuppressWarnings("DuplicatedCode")
-    default Page<PostEntity> findPage(List<Long> uids, Long start, Long end, Pageable pageable) {
+    default Page<PostEntity> findPage(
+            List<Long> uids, Long start, Long end, String keyword, Pageable pageable) {
         Specification<PostEntity> specification = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (uids != null && !uids.isEmpty()) {
@@ -35,9 +36,25 @@ public interface PostRepository extends JpaRepository<PostEntity, String>,
             if (end != null) {
                 predicates.add(builder.lessThanOrEqualTo(root.get("createdAt"), end));
             }
+            if (keyword != null && !keyword.isBlank()) {
+                String pattern = "%" + escapeLike(keyword) + "%";
+                var retweetedJson = builder.function(
+                        "nullif", String.class, root.get("retweetedJson"), builder.literal(""));
+                var retweetedContent = builder.function(
+                        "json_extract", String.class, retweetedJson, builder.literal("$.content"));
+                predicates.add(builder.or(
+                        builder.like(root.get("content"), pattern, '\\'),
+                        builder.like(retweetedContent, pattern, '\\')));
+            }
             return builder.and(predicates.toArray(Predicate[]::new));
         };
         return findAll(specification, pageable);
+    }
+
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 
     static Pageable pageRequest(int page, int size) {

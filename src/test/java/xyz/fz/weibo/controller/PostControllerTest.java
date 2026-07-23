@@ -229,14 +229,15 @@ class PostControllerTest {
     @Test
     void list_binds_repeated_uids_time_bounds_and_page_defaults() throws Exception {
         when(postService.queryPosts(List.of(1L, 2L),
-                1783612800000L, 1783616523000L, 1, 100))
+                1783612800000L, 1783616523000L, "本地搜索", 1, 100))
                 .thenReturn(new PostQueryResult(List.of(), 1, 100, 0));
 
         mockMvc.perform(get("/post/list")
                         .param("uids", "1")
                         .param("uids", "2")
                         .param("start", "2026-07-10 00:00:00")
-                        .param("end", "2026-07-10 01:02:03"))
+                        .param("end", "2026-07-10 01:02:03")
+                        .param("keyword", "本地搜索"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isArray())
                 .andExpect(jsonPath("$.page").value(1))
@@ -244,12 +245,12 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.total").value(0));
 
         verify(postService).queryPosts(List.of(1L, 2L),
-                1783612800000L, 1783616523000L, 1, 100);
+                1783612800000L, 1783616523000L, "本地搜索", 1, 100);
     }
 
     @Test
     void list_without_uids_queries_all_local_bloggers() throws Exception {
-        when(postService.queryPosts(null, null, null, 2, 10))
+        when(postService.queryPosts(null, null, null, null, 2, 10))
                 .thenReturn(new PostQueryResult(List.of(), 2, 10, 0));
 
         mockMvc.perform(get("/post/list").param("page", "2").param("size", "10"))
@@ -257,16 +258,16 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(10));
 
-        verify(postService).queryPosts(null, null, null, 2, 10);
+        verify(postService).queryPosts(null, null, null, null, 2, 10);
     }
 
     @Test
     void list_rejects_comma_separated_uids_and_invalid_size() throws Exception {
         mockMvc.perform(get("/post/list").param("uids", "1,2"))
                 .andExpect(status().isBadRequest());
-        verify(postService, never()).queryPosts(List.of(1L, 2L), null, null, 1, 100);
+        verify(postService, never()).queryPosts(List.of(1L, 2L), null, null, null, 1, 100);
 
-        when(postService.queryPosts(null, null, null, 1, 101))
+        when(postService.queryPosts(null, null, null, null, 1, 101))
                 .thenThrow(new InvalidRequestException("size 必须介于 1 和 100 之间。"));
         mockMvc.perform(get("/post/list").param("size", "101"))
                 .andExpect(status().isBadRequest())

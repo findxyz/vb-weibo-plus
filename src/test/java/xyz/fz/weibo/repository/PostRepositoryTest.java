@@ -126,14 +126,79 @@ class PostRepositoryTest {
         postRepository.insertIfAbsent(post("m3", 30, 2, 200, "three"));
 
         Page<PostEntity> firstPage = postRepository.findPage(
-                List.of(1L), 100L, 100L, PostRepository.pageRequest(1, 1));
+                List.of(1L), 100L, 100L, null, PostRepository.pageRequest(1, 1));
         Page<PostEntity> secondPage = postRepository.findPage(
-                List.of(1L), 100L, 100L, PostRepository.pageRequest(2, 1));
+                List.of(1L), 100L, 100L, null, PostRepository.pageRequest(2, 1));
 
         assertThat(firstPage.getTotalElements()).isEqualTo(2);
         assertThat(firstPage.getContent()).extracting(PostEntity::getMblogId).containsExactly("m2");
         assertThat(secondPage.getTotalElements()).isEqualTo(2);
         assertThat(secondPage.getContent()).extracting(PostEntity::getMblogId).containsExactly("m1");
+    }
+
+    @Test
+    void find_page_matches_current_visible_content() {
+        postRepository.insertIfAbsent(post("matching", 10, 1, 100, "当前正文包含本地搜索"));
+        postRepository.insertIfAbsent(post("other", 20, 1, 200, "其他正文"));
+
+        Page<PostEntity> page = postRepository.findPage(
+                null, null, null, "本地搜索", PostRepository.pageRequest(1, 100));
+
+        assertThat(page.getContent()).extracting(PostEntity::getMblogId)
+                .containsExactly("matching");
+    }
+
+    @Test
+    void find_page_matches_only_retweeted_visible_content() {
+        postRepository.insertIfAbsent(post("retweeted-match", 10, 1, 100, "其他正文", """
+                {"content":"转发正文包含目标文字","screen_name":"其他博主"}
+                """));
+        postRepository.insertIfAbsent(post("metadata-only", 20, 1, 200, "其他正文", """
+                {"content":"仍是其他正文","screen_name":"目标文字"}
+                """));
+
+        Page<PostEntity> page = postRepository.findPage(
+                null, null, null, "目标文字", PostRepository.pageRequest(1, 100));
+
+        assertThat(page.getContent()).extracting(PostEntity::getMblogId)
+                .containsExactly("retweeted-match");
+    }
+
+    @Test
+    void find_page_treats_like_wildcards_and_escape_as_literal_text() {
+        postRepository.insertIfAbsent(post("literal", 10, 1, 100, "其他正文", """
+                {"content":"进度 100%_\\\\完成"}
+                """));
+        postRepository.insertIfAbsent(post(
+                "wildcard-decoy", 20, 1, 200, "进度 100任意X\\完成"));
+
+        Page<PostEntity> page = postRepository.findPage(
+                null, null, null, "100%_\\完成", PostRepository.pageRequest(1, 100));
+
+        assertThat(page.getContent()).extracting(PostEntity::getMblogId)
+                .containsExactly("literal");
+    }
+
+    @Test
+    void find_page_combines_keyword_uid_time_order_and_total_before_pagination() {
+        postRepository.insertIfAbsent(post("old-boundary", 10, 1, 100, "命中正文"));
+        postRepository.insertIfAbsent(post("same-time-larger-id", 20, 1, 100, "命中正文"));
+        postRepository.insertIfAbsent(post("new-boundary", 30, 1, 200, "命中正文"));
+        postRepository.insertIfAbsent(post("wrong-uid", 40, 2, 150, "命中正文"));
+        postRepository.insertIfAbsent(post("too-old", 50, 1, 99, "命中正文"));
+        postRepository.insertIfAbsent(post("wrong-content", 60, 1, 150, "其他正文"));
+
+        Page<PostEntity> firstPage = postRepository.findPage(
+                List.of(1L), 100L, 200L, "命中", PostRepository.pageRequest(1, 2));
+        Page<PostEntity> secondPage = postRepository.findPage(
+                List.of(1L), 100L, 200L, "命中", PostRepository.pageRequest(2, 2));
+
+        assertThat(firstPage.getTotalElements()).isEqualTo(3);
+        assertThat(firstPage.getContent()).extracting(PostEntity::getMblogId)
+                .containsExactly("new-boundary", "same-time-larger-id");
+        assertThat(secondPage.getTotalElements()).isEqualTo(3);
+        assertThat(secondPage.getContent()).extracting(PostEntity::getMblogId)
+                .containsExactly("old-boundary");
     }
 
     @Test
@@ -159,8 +224,14 @@ class PostRepositoryTest {
     }
 
     private static PostEntity post(String mblogId, long postId, long uid, long createdAt, String content) {
+        return post(mblogId, postId, uid, createdAt, content, "");
+    }
+
+    private static PostEntity post(
+            String mblogId, long postId, long uid, long createdAt, String content,
+            String retweetedJson) {
         return new PostEntity(mblogId, postId, uid, content, "raw", "source", "region",
-                "[]", "", "", "", 1, 2, 3, createdAt, 500);
+                "[]", "", "", retweetedJson, 1, 2, 3, createdAt, 500);
     }
 
     private List<String> queryPlan(String sql) throws Exception {

@@ -716,21 +716,23 @@ class PostServiceTest {
         when(bloggerRepository.findAllOrdered()).thenReturn(List.of(blogger));
         when(postMapper.toBloggerRecords(List.of(blogger))).thenReturn(List.of(bloggerRecord));
         when(postRepository.findPage(
-                List.of(1L), 10L, 20L, PostRepository.pageRequest(1, 100))).thenReturn(page);
+                List.of(1L), 10L, 20L, "本地搜索", PostRepository.pageRequest(1, 100)))
+                .thenReturn(page);
         when(postMapper.toPostViews(List.of(entity), List.of(blogger))).thenReturn(List.of(view));
 
         assertThat(postService.queryBloggers()).containsExactly(bloggerRecord);
-        PostQueryResult result = postService.queryPosts(List.of(1L), 10L, 20L, 1, 100);
+        PostQueryResult result = postService.queryPosts(
+                List.of(1L), 10L, 20L, "本地搜索", 1, 100);
 
         assertThat(result.items()).containsExactly(view);
         assertThat(result.page()).isEqualTo(1);
         assertThat(result.size()).isEqualTo(100);
         assertThat(result.total()).isEqualTo(1);
-        assertThatThrownBy(() -> postService.queryPosts(null, null, null, 0, 100))
+        assertThatThrownBy(() -> postService.queryPosts(null, null, null, null, 0, 100))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> postService.queryPosts(null, null, null, 1, 101))
+        assertThatThrownBy(() -> postService.queryPosts(null, null, null, null, 1, 101))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> postService.queryPosts(null, 20L, 10L, 1, 100))
+        assertThatThrownBy(() -> postService.queryPosts(null, 20L, 10L, null, 1, 100))
                 .isInstanceOf(IllegalArgumentException.class);
         verifyNoMoreInteractions(myBlogApi, longTextApi);
     }

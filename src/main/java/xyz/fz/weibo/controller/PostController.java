@@ -75,10 +75,12 @@ public class PostController {
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
             @RequestParam(required = false)
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "100") int size) {
         rejectCommaSeparatedUids(request);
-        return postService.queryPosts(uids, toEpochMillis(start), toEpochMillis(end), page, size);
+        return postService.queryPosts(
+                uids, toEpochMillis(start), toEpochMillis(end), keyword, page, size);
     }
 
     private void rejectCommaSeparatedUids(HttpServletRequest request) {
