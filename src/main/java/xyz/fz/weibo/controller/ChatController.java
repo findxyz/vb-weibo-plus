@@ -1,5 +1,6 @@
 package xyz.fz.weibo.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageQueryResult;
@@ -15,6 +17,7 @@ import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.ImageProxyService;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -71,14 +74,33 @@ public class ChatController {
     }
 
     @GetMapping("/media")
-    public ResponseEntity<byte[]> queryMessageMedia(
+    public void queryMessageMedia(
             @RequestParam long gid,
             @RequestParam long mid,
-            @RequestParam String variant) {
+            @RequestParam String variant,
+            HttpServletResponse response) throws IOException {
+        if ("video".equals(variant)) {
+            chatService.streamMessageVideo(gid, mid, upstream -> {
+                String contentType = upstream.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+                long contentLength = upstream.getHeaders().getContentLength();
+                if (contentLength < 0) {
+                    throw new WeiboException("群消息视频响应缺少 Content-Length。", -1);
+                }
+                response.setStatus(HttpServletResponse.SC_OK);
+                response.setContentType(contentType == null || contentType.isBlank()
+                        ? "application/octet-stream" : contentType);
+                response.setContentLengthLong(contentLength);
+                response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+                upstream.getBody().transferTo(response.getOutputStream());
+                return null;
+            });
+            return;
+        }
         MediaBinary media = chatService.queryMessageMedia(gid, mid, variant);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_TYPE, media.contentType())
-                .body(media.content());
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.setContentType(media.contentType());
+        response.setContentLength(media.content().length);
+        response.getOutputStream().write(media.content());
     }
 
     @GetMapping("/image")

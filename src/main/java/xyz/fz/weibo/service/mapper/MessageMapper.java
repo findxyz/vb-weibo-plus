@@ -142,6 +142,14 @@ public class MessageMapper {
         return entities.stream().map(this::toMessageRecord).map(this::toMessageView).toList();
     }
 
+    public boolean isVideo(MessageRecord record) {
+        if (record.mediaType() == 10) {
+            return true;
+        }
+        return record.mediaType() == 13
+                && (record.text() == null || !record.text().contains("收到红包消息"));
+    }
+
     public MediaBinary toMediaBinary(ResponseEntity<byte[]> response) {
         byte[] content = Objects.requireNonNull(
                 response.getBody(), "Group Message media response body is required");
@@ -155,17 +163,21 @@ public class MessageMapper {
     private MessageView toMessageView(MessageRecord record) {
         String previewUrl = "";
         String originalUrl = "";
+        String videoUrl = "";
         if (record.mediaType() == 1 && !record.fid().isBlank()) {
             previewUrl = mediaUrl(record.gid(), record.mid(), "preview");
             originalUrl = mediaUrl(record.gid(), record.mid(), "original");
-        } else if (record.mediaType() == 10 && !record.videoCoverFid().isBlank()) {
+        } else if (isVideo(record) && !record.videoCoverFid().isBlank()) {
             previewUrl = mediaUrl(record.gid(), record.mid(), "preview");
+        }
+        if (isVideo(record)) {
+            videoUrl = mediaUrl(record.gid(), record.mid(), "video");
         }
         return new MessageView(record.mid(), record.gid(), record.msgType(), record.msgTypeName(),
                 record.mediaType(), record.senderId(), record.senderName(), record.senderAvatar(), record.text(),
                 record.urlObjects(), record.picInfos(), record.template(), record.templateData(),
                 record.recallMids(), record.recallBy(), record.createdAt(), record.savedAt(),
-                previewUrl, originalUrl);
+                previewUrl, originalUrl, videoUrl);
     }
 
     private String mediaUrl(long gid, long mid, String variant) {

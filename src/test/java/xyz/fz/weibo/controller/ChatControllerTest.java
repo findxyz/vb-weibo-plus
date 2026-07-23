@@ -6,8 +6,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.server.ResponseStatusException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
@@ -26,6 +29,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -105,7 +111,8 @@ class ChatControllerTest {
     @Test
     void messages_binds_inclusive_shanghai_times_and_pagination_defaults() throws Exception {
         MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "", "消息",
-                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "");
+                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "",
+                "/chat/media?gid=101&mid=100&variant=video");
         when(chatService.queryMessages(
                 101, 1_783_652_523_000L, 1_783_656_184_000L, 1, 100))
                 .thenReturn(new MessageQueryResult(group(101), List.of(view), 1, 100, 1));
@@ -117,6 +124,8 @@ class ChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.group.gid").value(101))
                 .andExpect(jsonPath("$.items[0].mid").value(100))
+                .andExpect(jsonPath("$.items[0].videoUrl")
+                        .value("/chat/media?gid=101&mid=100&variant=video"))
                 .andExpect(jsonPath("$.items[0].group").doesNotExist())
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(100))
@@ -189,6 +198,45 @@ class ChatControllerTest {
                 .andExpect(header().doesNotExist("Content-Disposition"))
                 .andExpect(header().doesNotExist("Set-Cookie"))
                 .andExpect(content().bytes(new byte[]{1, 2, 3}));
+    }
+
+    @Test
+    void video_streams_the_full_response_with_playback_headers() throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{4, 5, 6}, HttpStatus.OK);
+        upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        upstream.getHeaders().setContentLength(3);
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(2);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "100")
+                        .param("variant", "video"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "video/mp4"))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 3))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
+                .andExpect(content().bytes(new byte[]{4, 5, 6}));
+    }
+
+    @Test
+    void video_rejects_an_upstream_response_without_content_length() throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{4, 5, 6}, HttpStatus.OK);
+        upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(2);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(101L), any());
+
+        mockMvc.perform(get("/chat/media")
+                        .param("gid", "101")
+                        .param("mid", "101")
+                        .param("variant", "video"))
+                .andExpect(status().isBadGateway());
     }
 
     @Test
