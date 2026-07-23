@@ -1,5 +1,7 @@
 ### 变量
 @host = http://localhost:8080
+@videoGid = 5046020575330655
+@videoMid = 5137543554664280
 
 ### 从微博同步群聊列表到本地
 POST {{host}}/chat/groups/sync
@@ -42,6 +44,12 @@ GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=origin
 
 ### 视频消息封面预览（视频消息不支持 original）
 GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=preview
+
+### 查询含视频消息（视频项返回 previewUrl 和 videoUrl）
+GET {{host}}/chat/messages?gid={{videoGid}}&page=1&size=100
+
+### 打开完整视频（gid、mid 来自同一视频项，或直接请求该项的 videoUrl）
+GET {{host}}/chat/media?gid={{videoGid}}&mid={{videoMid}}&variant=video
 
 ### 图片反代
 GET {{host}}/chat/image?url=https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg

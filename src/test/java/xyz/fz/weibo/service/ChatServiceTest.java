@@ -42,8 +42,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.web.client.ResponseExtractor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -482,6 +485,7 @@ class ChatServiceTest {
         MediaBinary cover = new MediaBinary(new byte[]{1}, "image/jpeg");
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
+        when(messageMapper.isVideo(record)).thenReturn(true);
         when(groupMediaApi.download(new GroupMediaRequest("video-cover", null)))
                 .thenReturn(response);
         when(messageMapper.toMediaBinary(response)).thenReturn(cover);
@@ -492,6 +496,110 @@ class ChatServiceTest {
 
         verify(groupMediaApi).download(new GroupMediaRequest("video-cover", null));
         verify(groupMediaApi, never()).download(new GroupMediaRequest("video-file", null));
+    }
+
+    @Test
+    void proxies_the_saved_cover_for_non_red_packet_media_type_13() {
+        MessageEntity entity = messageEntity(100, 1_000);
+        MessageRecord record = messageRecord(100, 13, "video-file", "video-cover");
+        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[]{1});
+        MediaBinary cover = new MediaBinary(new byte[]{1}, "image/jpeg");
+        when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
+        when(messageMapper.toMessageRecord(entity)).thenReturn(record);
+        when(messageMapper.isVideo(record)).thenReturn(true);
+        when(groupMediaApi.download(new GroupMediaRequest("video-cover", null)))
+                .thenReturn(response);
+        when(messageMapper.toMediaBinary(response)).thenReturn(cover);
+
+        assertThat(chatService.queryMessageMedia(1, 100, "preview")).isEqualTo(cover);
+    }
+
+    @Test
+    void streams_the_full_video_from_the_saved_message_reference() {
+        MessageEntity entity = messageEntity(100, 1_000);
+        MessageRecord record = messageRecord(100, 10, "video-file", "video-cover");
+        GroupMediaRequest request = new GroupMediaRequest("video-file", null);
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{1, 2, 3}, HttpStatus.OK);
+        when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
+        when(messageMapper.toMessageRecord(entity)).thenReturn(record);
+        when(messageMapper.isVideo(record)).thenReturn(true);
+        when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
+                .thenAnswer(invocation -> {
+                    ResponseExtractor<String> extractor = invocation.getArgument(2);
+                    return extractor.extractData(upstream);
+                });
+
+        String result = chatService.streamMessageVideo(
+                1, 100, response -> new String(response.getBody().readAllBytes()));
+
+        assertThat(result).isEqualTo("\u0001\u0002\u0003");
+    }
+
+    @Test
+    void video_stream_rejects_invalid_local_messages_before_calling_upstream() {
+        when(messageRepository.findById(100L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> chatService.streamMessageVideo(
+                1, 100, response -> null))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        MessageEntity mismatched = messageEntity(101, 1_000);
+        MessageRecord mismatchedRecord = messageRecord(101, 10, "video-file", "");
+        when(messageRepository.findById(101L)).thenReturn(Optional.of(mismatched));
+        when(messageMapper.toMessageRecord(mismatched)).thenReturn(mismatchedRecord);
+        assertThatThrownBy(() -> chatService.streamMessageVideo(
+                2, 101, response -> null))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        MessageEntity nonVideo = messageEntity(102, 1_000);
+        MessageRecord nonVideoRecord = messageRecord(102, 1, "image-file", "");
+        when(messageRepository.findById(102L)).thenReturn(Optional.of(nonVideo));
+        when(messageMapper.toMessageRecord(nonVideo)).thenReturn(nonVideoRecord);
+        when(messageMapper.isVideo(nonVideoRecord)).thenReturn(false);
+        assertThatThrownBy(() -> chatService.streamMessageVideo(
+                1, 102, response -> null))
+                .isInstanceOf(InvalidRequestException.class);
+
+        MessageEntity missingReference = messageEntity(103, 1_000);
+        MessageRecord missingReferenceRecord = messageRecord(103, 10, "", "");
+        when(messageRepository.findById(103L)).thenReturn(Optional.of(missingReference));
+        when(messageMapper.toMessageRecord(missingReference)).thenReturn(missingReferenceRecord);
+        when(messageMapper.isVideo(missingReferenceRecord)).thenReturn(true);
+        assertThatThrownBy(() -> chatService.streamMessageVideo(
+                1, 103, response -> null))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verifyNoInteractions(groupMediaApi);
+    }
+
+    @Test
+    void video_stream_maps_upstream_failure_and_preserves_credential_errors() {
+        MessageEntity entity = messageEntity(100, 1_000);
+        MessageRecord record = messageRecord(100, 10, "video-file", "");
+        GroupMediaRequest request = new GroupMediaRequest("video-file", null);
+        MockClientHttpResponse notFound = new MockClientHttpResponse(
+                new byte[0], HttpStatus.NOT_FOUND);
+        when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
+        when(messageMapper.toMessageRecord(entity)).thenReturn(record);
+        when(messageMapper.isVideo(record)).thenReturn(true);
+        when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
+                .thenAnswer(invocation -> {
+                    ResponseExtractor<Void> extractor = invocation.getArgument(2);
+                    return extractor.extractData(notFound);
+                })
+                .thenThrow(new WeiboCookieExpiredException("Credential 失效。"))
+                .thenThrow(new WeiboRateLimitException("限流。"));
+
+        assertThatThrownBy(() -> chatService.streamMessageVideo(
+                1, 100, response -> null))
+                .isInstanceOfSatisfying(WeiboException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(-1));
+        assertThatThrownBy(() -> chatService.streamMessageVideo(
+                1, 100, response -> null))
+                .isInstanceOf(WeiboCookieExpiredException.class);
+        assertThatThrownBy(() -> chatService.streamMessageVideo(
+                1, 100, response -> null))
+                .isInstanceOf(WeiboRateLimitException.class);
     }
 
     @Test
@@ -560,7 +668,7 @@ class ChatServiceTest {
 
     private MessageView view(long mid) {
         return new MessageView(mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息",
-                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "");
+                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "", "");
     }
 
     private MessageRecord messageRecord(long mid, int mediaType, String fid, String coverFid) {

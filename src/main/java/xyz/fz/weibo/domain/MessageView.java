@@ -22,6 +22,7 @@ public record MessageView(
         long createdAt,
         long savedAt,
         String previewUrl,
-        String originalUrl
+        String originalUrl,
+        String videoUrl
 ) {
 }

@@ -1,7 +1,9 @@
 package xyz.fz.weibo.service;
 
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResponseExtractor;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
@@ -173,11 +175,7 @@ public class ChatService {
         if (!"preview".equals(variant) && !"original".equals(variant)) {
             throw new InvalidRequestException("variant 必须是 preview 或 original。");
         }
-        MessageRecord message = messageMapper.toMessageRecord(messageRepository.findById(mid)
-                .orElseThrow(() -> new ResourceNotFoundException("本地群消息不存在。")));
-        if (message.gid() != gid) {
-            throw new ResourceNotFoundException("本地群消息不存在。");
-        }
+        MessageRecord message = requireLocalMessage(gid, mid);
         GroupMediaRequest request = mediaRequest(message, variant);
         try {
             var response = groupMediaApi.download(request);
@@ -185,6 +183,28 @@ public class ChatService {
                 throw new WeiboException("群消息媒体下载失败。", -1);
             }
             return messageMapper.toMediaBinary(response);
+        } catch (WeiboCookieExpiredException | WeiboRateLimitException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new WeiboException("群消息媒体下载失败。", -1, e);
+        }
+    }
+
+    public <T> T streamMessageVideo(long gid, long mid, ResponseExtractor<T> responseExtractor) {
+        validateGid(gid);
+        MessageRecord message = requireLocalMessage(gid, mid);
+        if (!messageMapper.isVideo(message)) {
+            throw new InvalidRequestException("该消息不是视频消息。");
+        }
+        GroupMediaRequest request = new GroupMediaRequest(
+                requireMediaReference(message.fid()), null);
+        try {
+            return groupMediaApi.stream(request, new HttpHeaders(), response -> {
+                if (!response.getStatusCode().is2xxSuccessful()) {
+                    throw new WeiboException("群消息媒体下载失败。", -1);
+                }
+                return responseExtractor.extractData(response);
+            });
         } catch (WeiboCookieExpiredException | WeiboRateLimitException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -202,13 +222,22 @@ public class ChatService {
         if (message.mediaType() == 1) {
             return new GroupMediaRequest(requireMediaReference(message.fid()), "compress");
         }
-        if (message.mediaType() == 10) {
+        if (messageMapper.isVideo(message)) {
             if (!message.videoCoverFid().isBlank()) {
                 return new GroupMediaRequest(message.videoCoverFid(), null);
             }
             throw new ResourceNotFoundException("本地群消息媒体引用不存在。");
         }
         throw new InvalidRequestException("该消息类型不支持 preview。");
+    }
+
+    private MessageRecord requireLocalMessage(long gid, long mid) {
+        MessageRecord message = messageMapper.toMessageRecord(messageRepository.findById(mid)
+                .orElseThrow(() -> new ResourceNotFoundException("本地群消息不存在。")));
+        if (message.gid() != gid) {
+            throw new ResourceNotFoundException("本地群消息不存在。");
+        }
+        return message;
     }
 
     private String requireMediaReference(String reference) {

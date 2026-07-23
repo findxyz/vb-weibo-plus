@@ -181,11 +181,15 @@ class MessageMapperTest {
         MessageEntity video = new MessageEntity(200L, 101, 321, "普通消息", 10,
                 9, "发送者", "", "视频", "video-fid", "cover-fid", "upstream", "[]", "[]", "", "{}",
                 "[]", "", 1_000, 2_000);
+        MessageEntity videoWithoutCover = new MessageEntity(201L, 101, 321, "普通消息", 10,
+                9, "发送者", "", "视频", "video-fid", "", "upstream", "[]", "[]", "", "{}",
+                "[]", "", 1_000, 2_000);
         MessageEntity unsupported = new MessageEntity(300L, 101, 321, "普通消息", 0,
                 9, "发送者", "", "文本", "", "stray-cover", "", "[]", "[]", "", "{}",
                 "[]", "", 1_000, 2_000);
 
-        List<MessageView> views = messageMapper.toMessageViews(List.of(image, video, unsupported));
+        List<MessageView> views = messageMapper.toMessageViews(
+                List.of(image, video, videoWithoutCover, unsupported));
 
         assertThat(views.get(0).previewUrl())
                 .isEqualTo("/chat/media?gid=101&mid=100&variant=preview");
@@ -194,10 +198,54 @@ class MessageMapperTest {
         assertThat(views.get(1).previewUrl())
                 .isEqualTo("/chat/media?gid=101&mid=200&variant=preview");
         assertThat(views.get(1).originalUrl()).isEmpty();
+        assertThat(views.get(1).videoUrl())
+                .isEqualTo("/chat/media?gid=101&mid=200&variant=video");
         assertThat(views.get(2).previewUrl()).isEmpty();
         assertThat(views.get(2).originalUrl()).isEmpty();
+        assertThat(views.get(2).videoUrl())
+                .isEqualTo("/chat/media?gid=101&mid=201&variant=video");
+        assertThat(views.get(3).previewUrl()).isEmpty();
+        assertThat(views.get(3).originalUrl()).isEmpty();
+        assertThat(views.get(3).videoUrl()).isEmpty();
         assertThat(objectMapper.valueToTree(views).toString())
                 .doesNotContain("image-fid", "video-fid", "cover-fid", "stray-cover", "upstream");
+    }
+
+    @Test
+    void media_type_10_returns_the_local_video_proxy_url() {
+        MessageEntity video = new MessageEntity(200L, 101, 321, "普通消息", 10,
+                9, "发送者", "", "视频", "video-fid", "cover-fid", "upstream", "[]", "[]", "", "{}",
+                "[]", "", 1_000, 2_000);
+
+        MessageView view = messageMapper.toMessageViews(List.of(video)).getFirst();
+
+        assertThat(view.videoUrl())
+                .isEqualTo("/chat/media?gid=101&mid=200&variant=video");
+    }
+
+    @Test
+    void non_red_packet_media_type_13_returns_video_cover_and_proxy_urls() {
+        MessageEntity video = new MessageEntity(201L, 101, 321, "普通消息", 13,
+                9, "发送者", "", "红包消息", "video-fid", "cover-fid", "upstream", "[]", "[]", "", "{}",
+                "[]", "", 1_000, 2_000);
+
+        MessageView view = messageMapper.toMessageViews(List.of(video)).getFirst();
+
+        assertThat(List.of(view.previewUrl(), view.videoUrl())).containsExactly(
+                "/chat/media?gid=101&mid=201&variant=preview",
+                "/chat/media?gid=101&mid=201&variant=video");
+    }
+
+    @Test
+    void media_type_13_with_the_exact_red_packet_phrase_has_no_media_urls() {
+        MessageEntity redPacket = new MessageEntity(202L, 101, 321, "普通消息", 13,
+                9, "发送者", "", "您收到红包消息，请查收", "video-fid", "cover-fid", "upstream", "[]", "[]", "", "{}",
+                "[]", "", 1_000, 2_000);
+
+        MessageView view = messageMapper.toMessageViews(List.of(redPacket)).getFirst();
+
+        assertThat(List.of(view.previewUrl(), view.originalUrl(), view.videoUrl()))
+                .containsExactly("", "", "");
     }
 
     @Test
