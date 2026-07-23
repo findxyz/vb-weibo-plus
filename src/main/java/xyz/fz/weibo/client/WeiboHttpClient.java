@@ -46,20 +46,20 @@ public class WeiboHttpClient {
                                                Map<String, String> headers, boolean withCookie) {
         URI uri = buildUri(url, params);
         HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
-        return execute(uri, httpHeaders, String.class);
+        return get0(uri, httpHeaders, String.class);
     }
 
     public ResponseEntity<byte[]> getForBytes(String url, Map<String, String> params,
                                               Map<String, String> headers, boolean withCookie) {
         URI uri = buildUri(url, params);
         HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
-        return execute(uri, httpHeaders, byte[].class);
+        return get0(uri, httpHeaders, byte[].class);
     }
 
     /**
      * 重试循环：attempt 从 1 到 MAX_RETRY+1，即 1 次初始加最多 3 次重试，合计 4 次请求。
      */
-    private <T> ResponseEntity<T> execute(URI uri, HttpHeaders headers, Class<T> responseType) {
+    private <T> ResponseEntity<T> get0(URI uri, HttpHeaders headers, Class<T> responseType) {
         //noinspection ConstantValue
         for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
             log.debug("微博请求：GET {} headers={}", uri, maskCookie(headers));
