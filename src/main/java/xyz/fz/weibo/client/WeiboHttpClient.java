@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
@@ -19,6 +20,7 @@ import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
 
 import java.net.URI;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -56,47 +58,84 @@ public class WeiboHttpClient {
         return get0(uri, httpHeaders, byte[].class);
     }
 
+    public <T> T getForStream(String url, Map<String, String> params,
+                              Map<String, String> headers, boolean withCredential,
+                              ResponseExtractor<T> responseExtractor) {
+        URI uri = buildUri(url, params);
+        HttpHeaders httpHeaders = buildHeaders(headers, withCredential);
+        return get0(uri, httpHeaders,
+                () -> restTemplate.execute(uri, HttpMethod.GET,
+                        request -> request.getHeaders().putAll(httpHeaders),
+                        response -> {
+                            int statusCode = response.getStatusCode().value();
+                            log.debug("微博响应：{} status={}", uri, statusCode);
+                            checkRateLimit(statusCode);
+                            checkResponseStatus(statusCode, response.getHeaders(), uri);
+                            return responseExtractor.extractData(response);
+                        }));
+    }
+
     /**
      * 重试循环：attempt 从 1 到 MAX_RETRY+1，即 1 次初始加最多 3 次重试，合计 4 次请求。
      */
     private <T> ResponseEntity<T> get0(URI uri, HttpHeaders headers, Class<T> responseType) {
-        //noinspection ConstantValue
-        for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
-            log.debug("微博请求：GET {} headers={}", uri, maskCookie(headers));
+        return get0(uri, headers, () -> {
             ResponseEntity<T> resp = restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
             int statusCode = resp.getStatusCode().value();
             log.debug("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
+            checkRateLimit(statusCode);
+            checkResponseStatus(statusCode, resp.getHeaders(), uri);
+            if (statusCode == 200 && responseType == String.class) {
+                checkCookieExpiredByBody((String) resp.getBody());
+            }
+            return resp;
+        });
+    }
 
-            if (statusCode == 429) {
+    private <T> T get0(URI uri, HttpHeaders headers, Supplier<T> request) {
+        //noinspection ConstantValue
+        for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
+            try {
+                log.debug("微博请求：GET {} headers={}", uri, maskCookie(headers));
+                return request.get();
+            } catch (RateLimitedResponseException e) {
                 if (attempt <= WeiboConstants.MAX_RETRY) {
                     long backoff = (long) Math.pow(4, attempt) * 1000L;
                     log.warn("微博接口限流（429），第 {} 次重试前等待 {} ms：{}", attempt, backoff, uri);
                     sleep(backoff);
                     continue;
                 }
-                throw new WeiboRateLimitException("微博接口限流，重试 " + WeiboConstants.MAX_RETRY + " 次仍失败：" + uri);
+                throw new WeiboRateLimitException(
+                        "微博接口限流，重试 " + WeiboConstants.MAX_RETRY + " 次仍失败：" + uri);
             }
-
-            if (statusCode == 414) {
-                throw new WeiboUriTooLongException("URI 过长（414）：" + uri);
-            }
-
-            if (statusCode == 302) {
-                String location = resp.getHeaders().getFirst(HttpHeaders.LOCATION);
-                if (location != null
-                        && Pattern.compile(WeiboConstants.LOGIN_DOMAIN_REGEX).matcher(location).find()) {
-                    throw new WeiboCookieExpiredException("Cookie 失效，302 跳转登录：" + location);
-                }
-                throw new WeiboException("非预期的 302 重定向：" + location);
-            }
-
-            if (statusCode == 200 && responseType == String.class) {
-                checkCookieExpiredByBody((String) resp.getBody());
-            }
-
-            return resp;
         }
         throw new WeiboException("请求重试循环异常退出：" + uri);
+    }
+
+    private void checkRateLimit(int statusCode) {
+        if (statusCode == 429) {
+            throw new RateLimitedResponseException();
+        }
+    }
+
+    private void checkResponseStatus(int statusCode, HttpHeaders responseHeaders, URI uri) {
+        if (statusCode == 414) {
+            throw new WeiboUriTooLongException("URI 过长（414）：" + uri);
+        }
+        if (statusCode == 302) {
+            String location = responseHeaders.getFirst(HttpHeaders.LOCATION);
+            if (location != null
+                    && Pattern.compile(WeiboConstants.LOGIN_DOMAIN_REGEX).matcher(location).find()) {
+                throw new WeiboCookieExpiredException("Credential 失效，302 跳转登录：" + location);
+            }
+            throw new WeiboException("非预期的 302 重定向：" + location);
+        }
+    }
+
+    private static final class RateLimitedResponseException extends RuntimeException {
+        private RateLimitedResponseException() {
+            super(null, null, false, false);
+        }
     }
 
     private URI buildUri(String url, Map<String, String> params) {
