@@ -1,6 +1,8 @@
 package xyz.fz.weibo.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -25,14 +27,19 @@ import xyz.fz.weibo.service.ImageProxyService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -51,6 +58,9 @@ class ChatControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ChatController chatController;
 
     @MockitoBean
     private ChatService chatService;
@@ -373,6 +383,28 @@ class ChatControllerTest {
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"))
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
                 .andExpect(content().bytes(new byte[0]));
+    }
+
+    @Test
+    void video_stops_normally_when_the_client_disconnects_during_streaming() throws Exception {
+        MockClientHttpResponse upstream = new MockClientHttpResponse(
+                new byte[]{1, 2}, HttpStatus.OK);
+        upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
+        upstream.getHeaders().setContentLength(2);
+        upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 0-1/4");
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+        ServletOutputStream output = mock(ServletOutputStream.class);
+        doThrow(new IOException("客户端已断开。"))
+                .when(output).write(any(byte[].class), anyInt(), anyInt());
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(response.getOutputStream()).thenReturn(output);
+
+        assertThatCode(() -> chatController.queryMessageMedia(
+                101, 100, "video", "bytes=0-1", response))
+                .doesNotThrowAnyException();
     }
 
     @Test

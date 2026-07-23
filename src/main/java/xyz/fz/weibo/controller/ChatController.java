@@ -22,6 +22,8 @@ import xyz.fz.weibo.service.ImageProxyService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -108,7 +110,7 @@ public class ChatController {
                         ? "application/octet-stream" : contentType);
                 response.setContentLengthLong(contentLength);
                 response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
-                upstream.getBody().transferTo(response.getOutputStream());
+                streamUntilClientDisconnects(upstream.getBody(), response.getOutputStream());
                 return null;
             });
             return;
@@ -187,9 +189,22 @@ public class ChatController {
             response.setHeader(HttpHeaders.CONTENT_RANGE,
                     "bytes " + start + "-" + end + "/" + total);
             response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
-            upstream.getBody().transferTo(response.getOutputStream());
+            streamUntilClientDisconnects(upstream.getBody(), response.getOutputStream());
             return null;
         });
+    }
+
+    private void streamUntilClientDisconnects(InputStream input, OutputStream output)
+            throws IOException {
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            try {
+                output.write(buffer, 0, read);
+            } catch (IOException e) {
+                return;
+            }
+        }
     }
 
     private long probeVideoLength(long gid, long mid) {
