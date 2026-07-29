@@ -70,10 +70,10 @@ class GroupChatPageTest {
                     return;
                 }
                 sendJson(exchange, messagesJson(1, 4,
-                        mediaMessageJson(4, 1, "图片消息",
+                        mediaMessageJson(4, 1, "分享图片",
                                 "/chat/media?gid=202&mid=4&variant=preview",
                                 "/chat/media?gid=202&mid=4&variant=original", "") + ","
-                                + mediaMessageJson(5, 13, "视频消息",
+                                + mediaMessageJson(5, 13, "分享视频",
                                 "/chat/media?gid=202&mid=5&variant=preview", "",
                                 "/chat/media?gid=202&mid=5&variant=video") + ","
                                 + systemMessageJson(6, "涉及资金问题请务必提高警惕，谨防诈骗。查看案例") + ","
@@ -250,6 +250,21 @@ class GroupChatPageTest {
         assertThat(page.locator("#new-messages")).isVisible();
         page.locator("#new-messages").click();
         assertThat(page.locator("#new-messages")).isHidden();
+
+        page.close();
+    }
+
+    @Test
+    void hides_default_media_labels_but_keeps_real_captions() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("[data-mid='4'] .bubble")).hasCount(0);
+        assertThat(page.locator("[data-mid='4'] .image-preview")).isVisible();
+        assertThat(page.locator("[data-mid='5'] .bubble")).hasCount(0);
+        assertThat(page.locator("[data-mid='5'] .video-preview")).isVisible();
+        assertThat(page.locator("[data-mid='7'] .bubble")).hasText("第二张图片");
 
         page.close();
     }

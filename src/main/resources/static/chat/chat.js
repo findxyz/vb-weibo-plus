@@ -122,8 +122,11 @@
       const meta = document.createElement("div");
       meta.className = "message-meta";
       meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
-      content.append(meta, bubble);
       const media = messageMedia(message);
+      const hidesMediaLabel = media
+        && ["分享图片", "分享视频"].includes(message.text?.trim());
+      content.append(meta);
+      if (!hidesMediaLabel) content.append(bubble);
       if (media) content.append(media);
       article.append(content);
       return article;
