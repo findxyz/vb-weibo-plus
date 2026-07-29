@@ -680,7 +680,8 @@ h1 {
 
 .history-titlebar button {
   width: 42px;
-  min-height: 40px;
+  height: 100%;
+  min-height: 0;
   margin-left: auto;
   padding: 0;
   border: 0;

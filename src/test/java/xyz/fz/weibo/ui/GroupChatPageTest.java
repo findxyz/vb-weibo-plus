@@ -514,6 +514,25 @@ class GroupChatPageTest {
     }
 
     @Test
+    void close_button_fills_the_history_titlebar_without_a_gap() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+
+        Object edgeOffsets = page.locator("#history-close").evaluate("""
+                button => {
+                  const buttonRect = button.getBoundingClientRect();
+                  const titlebarRect = button.parentElement.getBoundingClientRect();
+                  return [buttonRect.top - titlebarRect.top, titlebarRect.bottom - buttonRect.bottom];
+                }
+                """);
+        org.assertj.core.api.Assertions.assertThat(edgeOffsets)
+                .isEqualTo(java.util.List.of(0, 0));
+
+        page.close();
+    }
+
+    @Test
     void preserves_history_state_until_the_selected_group_changes() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
