@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -31,8 +32,14 @@ class GroupChatPageTest {
     private static final AtomicInteger groupListRequests = new AtomicInteger();
     private static final AtomicInteger latestPageRequests = new AtomicInteger();
     private static final AtomicInteger earlierPageRequests = new AtomicInteger();
+    private static final AtomicInteger historyPageRequests = new AtomicInteger();
+    private static final AtomicInteger historyBeforeRequests = new AtomicInteger();
+    private static final AtomicInteger historyAfterRequests = new AtomicInteger();
+    private static final AtomicInteger mediaRequests = new AtomicInteger();
+    private static final AtomicReference<String> lastHistoryQuery = new AtomicReference<>();
     private static final AtomicBoolean failGroups = new AtomicBoolean();
     private static final AtomicBoolean failMessages = new AtomicBoolean();
+    private static final AtomicBoolean delayEarlierHistory = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -94,6 +101,66 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
+            if (query.contains("beforeCreatedAt=5000") && query.contains("beforeMid=5")) {
+                historyBeforeRequests.incrementAndGet();
+                sendJson(exchange, cursorMessagesJson(true, 3_000L, 3L,
+                        messageJson(4, "小凯", "准备登山鞋", 4000) + ","
+                                + messageJson(3, "飞飞", "确认集合地点", 3000)));
+                return;
+            }
+            if (query.contains("afterCreatedAt=5000") && query.contains("afterMid=5")) {
+                historyAfterRequests.incrementAndGet();
+                sendJson(exchange, afterCursorMessagesJson(true, 7_000L, 7L,
+                        messageJson(7, "路路", "山顶见", 7000) + ","
+                                + messageJson(6, "阿呆", "我也参加", 6000)));
+                return;
+            }
+            if (query.contains("beforeCreatedAt=3000") && query.contains("beforeMid=3")) {
+                historyBeforeRequests.incrementAndGet();
+                if (delayEarlierHistory.getAndSet(false)) {
+                    try {
+                        Thread.sleep(300);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                sendJson(exchange, cursorMessagesJson(false, null, null,
+                        messageJson(2, "小凯", "更早的上下文", 2000)));
+                return;
+            }
+            if (query.contains("afterCreatedAt=7000") && query.contains("afterMid=7")) {
+                historyAfterRequests.incrementAndGet();
+                sendJson(exchange, afterCursorMessagesJson(false, null, null,
+                        messageJson(8, "飞飞", "更新的上下文", 8000)));
+                return;
+            }
+            if (query.contains("beforeCreatedAt=9000") && query.contains("beforeMid=9")) {
+                sendJson(exchange, cursorMessagesJson(false, null, null,
+                        messageJson(8, "飞飞", "上一条消息", 8000)));
+                return;
+            }
+            if (query.contains("afterCreatedAt=9000") && query.contains("afterMid=9")) {
+                sendJson(exchange, afterCursorMessagesJson(false, null, null, ""));
+                return;
+            }
+            if (query.contains("beforeCreatedAt=15000") && query.contains("beforeMid=15")) {
+                historyBeforeRequests.incrementAndGet();
+                sendJson(exchange, cursorMessagesJson(false, null, null,
+                        messageJson(14, "飞飞", "前一条消息", 14000)));
+                return;
+            }
+            if (query.contains("afterCreatedAt=15000") && query.contains("afterMid=15")) {
+                historyAfterRequests.incrementAndGet();
+                sendJson(exchange, afterCursorMessagesJson(true, 17_000L, 17L,
+                        messageJson(17, "路路", "稍新的消息", 17000)));
+                return;
+            }
+            if (query.contains("afterCreatedAt=17000") && query.contains("afterMid=17")) {
+                historyAfterRequests.incrementAndGet();
+                sendJson(exchange, afterCursorMessagesJson(true, 17_000L, 17L,
+                        messageJson(18, "阿呆", "游标未推进", 18000)));
+                return;
+            }
             if (query.contains("beforeCreatedAt=1000") && query.contains("beforeMid=1")) {
                 earlierPageRequests.incrementAndGet();
                 sendJson(exchange, cursorMessagesJson(false, null, null,
@@ -117,7 +184,47 @@ class GroupChatPageTest {
                             + messageJson(2, "飞飞", "较新消息", 2000) + ","
                             + messageJson(1, "小凯", "较早消息", 1000)));
         });
+        server.createContext("/chat/messages", exchange -> {
+            historyPageRequests.incrementAndGet();
+            String query = exchange.getRequestURI().getRawQuery();
+            lastHistoryQuery.set(query);
+            boolean secondPage = query != null && query.contains("page=2");
+            boolean latestTarget = query != null && query.contains("keyword=latest");
+            boolean mediaResults = query != null && query.contains("keyword=media");
+            boolean stagnantTarget = query != null && query.contains("keyword=stagnant");
+            if (query != null && query.contains("keyword=slow")) {
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            sendJson(exchange, """
+                    {
+                      "group":{"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
+                        "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
+                      "items":[%s],"page":%d,"size":50,"total":%d
+                    }
+                    """.formatted(
+                    stagnantTarget
+                            ? messageJson(15, "小凯", "游标测试消息", 15000)
+                            : mediaResults
+                            ? historyMediaMessageJson(10, 1, "分享图片", "/chat/media?preview=10", "")
+                                    + "," + historyMediaMessageJson(
+                                    11, 13, "分享视频", "/chat/media?preview=11", "/chat/media?video=11")
+                                    + "," + historyMediaMessageJson(12, 1, "图片地址失效", "", "")
+                                    + "," + historyMediaMessageJson(13, 13, "视频地址失效", "", "")
+                            : latestTarget
+                            ? messageJson(9, "小凯", "最新目标消息", 9000)
+                            : secondPage
+                            ? messageJson(3, "小凯", "第二页消息", 3000)
+                            : messageJson(5, "小凯", "周末一起爬山", 5000) + ","
+                                    + messageJson(4, "小凯", "准备登山鞋", 4000),
+                    secondPage ? 2 : 1,
+                    stagnantTarget ? 1 : mediaResults ? 4 : latestTarget ? 1 : 51));
+        });
         server.createContext("/chat/media", exchange -> {
+            mediaRequests.incrementAndGet();
             String query = exchange.getRequestURI().getRawQuery();
             if (query != null && query.contains("variant=video")) {
                 byte[] body = new byte[0];
@@ -177,8 +284,14 @@ class GroupChatPageTest {
         groupListRequests.set(0);
         latestPageRequests.set(0);
         earlierPageRequests.set(0);
+        historyPageRequests.set(0);
+        historyBeforeRequests.set(0);
+        historyAfterRequests.set(0);
+        mediaRequests.set(0);
+        lastHistoryQuery.set(null);
         failGroups.set(false);
         failMessages.set(false);
+        delayEarlierHistory.set(false);
     }
 
     @Test
@@ -215,6 +328,339 @@ class GroupChatPageTest {
         page.navigate(baseUrl + "/chat/index.html");
 
         assertThat(page.locator("#current-size")).hasText("500 人群");
+
+        page.close();
+    }
+
+    @Test
+    void opens_empty_history_and_queries_the_current_group_with_filters() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                const RealDate = Date;
+                const fixedNow = RealDate.parse("2026-05-31T12:00:00+08:00");
+                window.Date = class extends RealDate {
+                  constructor(...args) {
+                    super(...(args.length ? args : [fixedNow]));
+                  }
+                  static now() {
+                    return fixedNow;
+                  }
+                };
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("聊天记录")).click();
+
+        assertThat(page.locator("#history-dialog")).isVisible();
+        assertThat(page.locator("#history-empty")).hasText("设置筛选条件后点击查询");
+        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isZero();
+        assertThat(page.locator("#history-start")).hasValue("2026-02-28");
+        assertThat(page.locator("#history-end")).hasValue("2026-05-31");
+        org.assertj.core.api.Assertions.assertThat(page.locator("#history-sender").getAttribute("type"))
+                .isEqualTo("search");
+
+        page.locator("#history-start").fill("2026-04-01");
+        page.locator("#history-end").fill("2026-07-29");
+        page.locator("#history-sender").fill("小凯");
+        page.locator("#history-keyword").fill("爬山");
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+
+        assertThat(page.locator(".history-result")).hasCount(2);
+        assertThat(page.locator(".history-result-summary"))
+                .hasText(new String[]{"周末一起爬山", "准备登山鞋"});
+        assertThat(page.locator("#history-page-state")).hasText("第 1 / 3 页，共 51 条");
+        assertThat(page.locator(".history-result-summary mark")).hasText("爬山");
+        org.assertj.core.api.Assertions.assertThat(lastHistoryQuery.get())
+                .contains("gid=101", "start=2026-04-01+00%3A00%3A00",
+                        "end=2026-07-29+23%3A59%3A59", "senderName=%E5%B0%8F%E5%87%AF",
+                        "keyword=%E7%88%AC%E5%B1%B1", "page=1", "size=20");
+
+        page.locator("#history-next").click();
+        assertThat(page.locator(".history-result-summary")).hasText("第二页消息");
+        assertThat(page.locator("#history-page-state")).hasText("第 2 / 3 页，共 51 条");
+        org.assertj.core.api.Assertions.assertThat(lastHistoryQuery.get())
+                .contains("senderName=%E5%B0%8F%E5%87%AF", "keyword=%E7%88%AC%E5%B1%B1", "page=2");
+
+        page.locator("#history-previous").click();
+        assertThat(page.locator(".history-result-summary"))
+                .hasText(new String[]{"周末一起爬山", "准备登山鞋"});
+
+        page.close();
+    }
+
+    @Test
+    void opens_a_search_result_in_an_isolated_history_context() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+
+        page.locator(".history-result[data-mid='5']").click();
+
+        assertThat(page.locator("#history-context")).isVisible();
+        assertThat(page.locator("#history-results")).isHidden();
+        assertThat(page.getByText("消息上下文", new Page.GetByTextOptions().setExact(true))).hasCount(0);
+        assertThat(page.locator("#history-back")).hasText("返回搜索结果");
+        assertThat(page.locator("#history-messages .bubble")).hasText(new String[]{
+                "确认集合地点", "准备登山鞋", "周末一起爬山", "我也参加", "山顶见"});
+        assertThat(page.locator("#history-messages [data-mid='5']"))
+                .hasClass(java.util.regex.Pattern.compile("target-message"));
+        org.assertj.core.api.Assertions.assertThat(historyBeforeRequests.get()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(1);
+
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("返回搜索结果")).click();
+        assertThat(page.locator("#history-results")).isVisible();
+        assertThat(page.locator(".history-result-summary"))
+                .hasText(new String[]{"周末一起爬山", "准备登山鞋"});
+
+        page.close();
+    }
+
+    @Test
+    void loads_earlier_and_newer_history_while_preserving_the_scroll_anchor() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+        page.locator(".history-result[data-mid='5']").click();
+        assertThat(page.locator("#history-messages [data-mid='3']")).isVisible();
+
+        Object targetTopBefore = page.locator("#history-messages").evaluate("""
+                element => {
+                  element.style.height = "120px";
+                  element.scrollTop = 0;
+                  const top = element.querySelector("[data-mid='5']").getBoundingClientRect().top;
+                  element.dispatchEvent(new Event("scroll"));
+                  return top;
+                }
+                """);
+
+        assertThat(page.locator("#history-messages [data-mid='2']")).isVisible();
+        Object targetTopAfter = page.locator("#history-messages [data-mid='5']")
+                .evaluate("element => element.getBoundingClientRect().top");
+        org.assertj.core.api.Assertions.assertThat(((Number) targetTopAfter).doubleValue())
+                .isCloseTo(((Number) targetTopBefore).doubleValue(),
+                        org.assertj.core.data.Offset.offset(0.5));
+        assertThat(page.locator("#history-earlier-state")).hasText("没有更早消息");
+
+        page.locator("#history-messages").evaluate("""
+                element => {
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#history-messages [data-mid='8']")).isVisible();
+        assertThat(page.locator("#history-newer-state")).hasText("没有更新消息");
+        org.assertj.core.api.Assertions.assertThat(historyBeforeRequests.get()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(2);
+
+        page.close();
+    }
+
+    @Test
+    void stops_loading_newer_history_when_the_cursor_does_not_advance() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.locator("#history-keyword").fill("stagnant");
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+        page.locator(".history-result[data-mid='15']").click();
+        assertThat(page.locator("#history-messages [data-mid='17']")).isVisible();
+
+        page.locator("#history-messages").evaluate("""
+                element => {
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#history-messages [data-mid='18']")).isVisible();
+        page.locator("#history-messages").evaluate("""
+                element => {
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        page.waitForTimeout(400);
+
+        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(2);
+        assertThat(page.locator("#history-newer-state")).hasText("没有更新消息");
+        page.close();
+    }
+
+    @Test
+    void history_result_rows_do_not_inherit_dialog_control_button_styles() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+
+        Object styles = page.locator(".history-result").first().evaluate("""
+                element => {
+                  const style = getComputedStyle(element);
+                  return [style.borderTopWidth, style.borderRadius, style.backgroundImage];
+                }
+                """);
+        org.assertj.core.api.Assertions.assertThat(styles)
+                .isEqualTo(java.util.List.of("0px", "0px", "none"));
+        page.close();
+    }
+
+    @Test
+    void preserves_history_state_until_the_selected_group_changes() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.locator("#history-sender").fill("小凯");
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+        page.locator("#history-next").click();
+        assertThat(page.locator(".history-result-summary")).hasText("第二页消息");
+
+        page.locator("#history-close").click();
+        page.locator("#history-open").click();
+        assertThat(page.locator("#history-sender")).hasValue("小凯");
+        assertThat(page.locator("#history-page-state")).hasText("第 2 / 3 页，共 51 条");
+        assertThat(page.locator(".history-result-summary")).hasText("第二页消息");
+
+        page.locator("#history-close").click();
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        page.locator("#history-open").click();
+        assertThat(page.locator("#history-empty")).hasText("设置筛选条件后点击查询");
+        assertThat(page.locator("#history-results")).isHidden();
+        assertThat(page.locator("#history-sender")).hasValue("");
+        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isEqualTo(2);
+
+        page.close();
+    }
+
+    @Test
+    void centers_a_target_even_when_it_is_the_latest_history_message() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.locator("#history-keyword").fill("latest");
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+        page.locator(".history-result[data-mid='9']").click();
+        assertThat(page.locator("#history-messages [data-mid='9']")).isVisible();
+
+        Object distanceFromCenter = page.locator("#history-messages").evaluate("""
+                element => {
+                  const list = element.getBoundingClientRect();
+                  const target = element.querySelector("[data-mid='9']").getBoundingClientRect();
+                  return Math.abs((list.top + list.height / 2) - (target.top + target.height / 2));
+                }
+                """);
+        org.assertj.core.api.Assertions.assertThat(((Number) distanceFromCenter).doubleValue())
+                .isLessThan(2.0);
+
+        page.close();
+    }
+
+    @Test
+    void shows_media_types_in_search_results_without_loading_media() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.locator("#history-keyword").fill("media");
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+
+        assertThat(page.locator(".history-result-summary"))
+                .hasText(new String[]{"[图片]", "[视频]", "[图片]", "[视频]"});
+        org.assertj.core.api.Assertions.assertThat(mediaRequests.get()).isZero();
+
+        page.close();
+    }
+
+    @Test
+    void ignores_a_history_response_that_arrives_after_switching_groups() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.locator("#history-keyword").fill("slow");
+
+        Response response = page.waitForResponse(
+                item -> item.url().contains("/chat/messages?") && item.url().contains("keyword=slow"),
+                () -> {
+                    page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                            new Page.GetByRoleOptions().setName("查询")).click();
+                    page.locator("#history-close").click();
+                    page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+                });
+        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
+
+        page.locator("#history-open").click();
+        assertThat(page.locator("#history-empty")).hasText("设置筛选条件后点击查询");
+        assertThat(page.locator("#history-results")).isHidden();
+        assertThat(page.locator("#history-keyword")).hasValue("");
+
+        page.close();
+    }
+
+    @Test
+    void latest_history_query_wins_when_an_earlier_query_is_still_loading() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.locator("#history-keyword").fill("slow");
+
+        page.waitForRequest(
+                request -> request.url().contains("/chat/messages?") && request.url().contains("keyword=slow"),
+                () -> page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                        new Page.GetByRoleOptions().setName("查询")).click());
+        page.locator("#history-keyword").fill("latest");
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+
+        assertThat(page.locator(".history-result[data-mid='9']")).isVisible();
+        assertThat(page.locator(".history-result[data-mid='5']")).hasCount(0);
+        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isEqualTo(2);
+
+        page.close();
+    }
+
+    @Test
+    void can_load_earlier_after_returning_during_an_obsolete_cursor_request() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#history-open").click();
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+        page.locator(".history-result[data-mid='5']").click();
+        assertThat(page.locator("#history-messages [data-mid='3']")).isVisible();
+        delayEarlierHistory.set(true);
+
+        page.waitForRequest(
+                request -> request.url().contains("beforeCreatedAt=3000"),
+                () -> page.locator("#history-messages").evaluate("""
+                        element => {
+                          element.style.height = "120px";
+                          element.scrollTop = 0;
+                          element.dispatchEvent(new Event("scroll"));
+                        }
+                        """));
+        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("返回搜索结果")).click();
+        page.locator(".history-result[data-mid='5']").click();
+        assertThat(page.locator("#history-feedback")).hasText("");
+
+        page.locator("#history-messages").evaluate("""
+                element => {
+                  element.style.height = "120px";
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#history-messages [data-mid='2']")).isVisible();
 
         page.close();
     }
@@ -641,6 +1087,18 @@ class GroupChatPageTest {
                 """.formatted(messages, hasMore, nextBeforeCreatedAt, nextBeforeMid);
     }
 
+    private static String afterCursorMessagesJson(boolean hasMore, Long nextAfterCreatedAt,
+                                                  Long nextAfterMid, String messages) {
+        return """
+                {
+                  "group":{"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
+                    "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
+                  "items":[%s],"size":50,"hasMore":%s,
+                  "nextAfterCreatedAt":%s,"nextAfterMid":%s
+                }
+                """.formatted(messages, hasMore, nextAfterCreatedAt, nextAfterMid);
+    }
+
     private static String messageJson(long mid, String sender, String text, long createdAt) {
         return """
                 {"mid":%d,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
@@ -661,6 +1119,17 @@ class GroupChatPageTest {
                  "previewUrl":"%s","originalUrl":"%s","videoUrl":"%s"}
                 """.formatted(mid, mediaType, text, mid * 1000, mid * 1000,
                 previewUrl, originalUrl, videoUrl);
+    }
+
+    private static String historyMediaMessageJson(long mid, int mediaType, String text,
+                                                  String previewUrl, String videoUrl) {
+        return """
+                {"mid":%d,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":%d,
+                 "senderId":1,"senderName":"小凯","senderAvatar":"","text":"%s",
+                 "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":%d,"savedAt":%d,
+                 "previewUrl":"%s","originalUrl":"","videoUrl":"%s"}
+                """.formatted(mid, mediaType, text, mid * 1000, mid * 1000, previewUrl, videoUrl);
     }
 
     private static String systemMessageJson(long mid, String text) {

@@ -48,6 +48,10 @@
           </div>
         </header>
 
+        <div class="conversation-toolbar">
+          <button id="history-open" type="button" disabled>📜 聊天记录</button>
+        </div>
+
         <div class="messages-shell">
           <button class="load-earlier-button" id="load-earlier" type="button"
                   disabled hidden>加载更早消息</button>
@@ -80,6 +84,51 @@
   <dialog class="image-viewer" id="image-viewer" aria-label="查看原图">
     <img alt="消息原图">
     <p id="image-viewer-state" role="status"></p>
+  </dialog>
+
+  <dialog class="history-dialog" id="history-dialog" aria-labelledby="history-title">
+    <div class="history-window">
+      <header class="history-titlebar">
+        <h2 id="history-title">聊天记录</h2>
+        <button id="history-close" type="button" aria-label="关闭聊天记录">×</button>
+      </header>
+      <div class="history-layout">
+        <form class="history-filters" id="history-form">
+          <h3>筛选条件</h3>
+          <label for="history-start">开始日期</label>
+          <input id="history-start" type="date">
+          <label for="history-end">结束日期</label>
+          <input id="history-end" type="date">
+          <label for="history-sender">用户</label>
+          <input id="history-sender" type="search" placeholder="精确昵称">
+          <label for="history-keyword">内容</label>
+          <input id="history-keyword" type="search" placeholder="包含关键词">
+          <button class="primary-button" type="submit">查询</button>
+        </form>
+        <section class="history-content" aria-label="聊天记录查询结果">
+          <div class="history-empty" id="history-empty">设置筛选条件后点击查询</div>
+          <div class="history-results" id="history-results" hidden>
+            <div class="history-results-list" id="history-results-list"></div>
+            <footer class="history-pagination">
+              <button id="history-previous" type="button">上一页</button>
+              <span id="history-page-state"></span>
+              <button id="history-next" type="button">下一页</button>
+            </footer>
+          </div>
+          <div class="history-context" id="history-context" hidden>
+            <header class="history-context-toolbar">
+              <button id="history-back" type="button">返回搜索结果</button>
+            </header>
+            <div class="history-messages-shell">
+              <div class="history-edge-state" id="history-earlier-state" role="status"></div>
+              <div class="history-messages" id="history-messages"></div>
+              <div class="history-edge-state" id="history-newer-state" role="status"></div>
+            </div>
+          </div>
+          <div class="history-feedback" id="history-feedback" role="status"></div>
+        </section>
+      </div>
+    </div>
   </dialog>
 </body>
 </html>
