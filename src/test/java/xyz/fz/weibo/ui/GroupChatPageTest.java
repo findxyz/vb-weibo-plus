@@ -182,7 +182,8 @@ class GroupChatPageTest {
         assertThat(page.locator("#refresh-state")).hasCount(0);
         assertThat(page.locator(".composer-tools > span")).hasCount(0);
         assertThat(page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-                new Page.GetByRoleOptions().setName("图片")).locator("svg")).hasCount(1);
+                new Page.GetByRoleOptions().setName("图片")).locator(".composer-tool-emoji"))
+                .hasText("🖼️");
         Object avatarFitsContainer = page.locator(".group-avatar img").first().evaluate("""
                 image => image.offsetWidth === image.parentElement.clientWidth
                   && image.offsetHeight === image.parentElement.clientHeight
