@@ -18,7 +18,13 @@
     messagesState: document.querySelector("#messages-state"),
     loadEarlier: document.querySelector("#load-earlier")
   };
-  const state = { groups: [], currentGid: null, total: 0 };
+  const state = {
+    groups: [],
+    currentGid: null,
+    messages: new Map(),
+    nextPage: 0,
+    total: 0
+  };
 
   function initials(value, fallback) {
     return value?.trim().slice(0, 1) || fallback;
@@ -62,8 +68,8 @@
     elements.groupsCount.textContent = `${state.groups.length} 个群聊`;
   }
 
-  function renderMessages(items) {
-    const ordered = [...items].sort((left, right) =>
+  function renderMessages() {
+    const ordered = [...state.messages.values()].sort((left, right) =>
       left.createdAt - right.createdAt || left.mid - right.mid);
     elements.messages.replaceChildren(...ordered.map(message => {
       const article = document.createElement("article");
@@ -98,6 +104,9 @@
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
     state.currentGid = gid;
+    state.messages.clear();
+    state.nextPage = 0;
+    state.total = 0;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     elements.currentSize.textContent = `${group.memberCount} 人群`;
@@ -113,23 +122,32 @@
       if (active) row.setAttribute("aria-current", "true");
       else row.removeAttribute("aria-current");
     });
-    await loadMessages();
+    await loadMessages(0);
   }
 
-  async function loadMessages() {
+  async function loadMessages(page) {
+    const previousHeight = elements.messages.scrollHeight;
+    const previousTop = elements.messages.scrollTop;
     elements.messagesState.textContent = "正在加载消息…";
     const query = new URLSearchParams({
-      gid: String(state.currentGid), page: "0", size: String(PAGE_SIZE)
+      gid: String(state.currentGid), page: String(page), size: String(PAGE_SIZE)
     });
     try {
       const response = await fetch(`/chat/messages?${query}`, {cache: "no-store"});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       state.total = result.total;
-      renderMessages(result.items);
-      elements.messagesState.textContent = result.items.length ? "" : "暂无消息";
-      elements.loadEarlier.disabled = result.items.length >= result.total;
-      elements.messages.scrollTop = elements.messages.scrollHeight;
+      result.items.forEach(message => state.messages.set(message.mid, message));
+      state.nextPage = page + 1;
+      renderMessages();
+      elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
+      elements.loadEarlier.disabled = state.messages.size >= result.total || !result.items.length;
+      if (page === 0) {
+        elements.messages.scrollTop = elements.messages.scrollHeight;
+      } else {
+        elements.messages.scrollTop =
+          previousTop + elements.messages.scrollHeight - previousHeight;
+      }
     } catch {
       elements.messagesState.textContent = "消息加载失败，请稍后重试。";
     }
@@ -160,6 +178,7 @@
       row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword);
     });
   });
+  elements.loadEarlier.addEventListener("click", () => loadMessages(state.nextPage));
 
   initialize();
 })();

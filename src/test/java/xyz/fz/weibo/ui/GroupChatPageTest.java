@@ -37,8 +37,29 @@ class GroupChatPageTest {
                 """));
         server.createContext("/chat/messages", exchange -> {
             String query = exchange.getRequestURI().getRawQuery();
-            if (query == null || !query.contains("gid=101")
-                    || !query.contains("page=0") || !query.contains("size=50")) {
+            if (query == null || !query.contains("gid=101") || !query.contains("size=50")) {
+                exchange.sendResponseHeaders(400, -1);
+                exchange.close();
+                return;
+            }
+            if (query.contains("page=1")) {
+                sendJson(exchange, """
+                        {
+                          "group":{"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
+                            "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
+                          "items":[
+                            {"mid":0,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
+                             "senderId":3,"senderName":"路路","senderAvatar":"","text":"最早消息",
+                             "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                             "recallBy":"","createdAt":500,"savedAt":500,
+                             "previewUrl":"","originalUrl":"","videoUrl":""}
+                          ],
+                          "page":1,"size":50,"total":3
+                        }
+                        """);
+                return;
+            }
+            if (!query.contains("page=0")) {
                 exchange.sendResponseHeaders(400, -1);
                 exchange.close();
                 return;
@@ -59,7 +80,7 @@ class GroupChatPageTest {
                          "recallBy":"","createdAt":1000,"savedAt":1000,
                          "previewUrl":"","originalUrl":"","videoUrl":""}
                       ],
-                      "page":0,"size":50,"total":2
+                      "page":0,"size":50,"total":3
                     }
                     """);
         });
@@ -94,6 +115,21 @@ class GroupChatPageTest {
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"较早消息", "较新消息"});
         assertThat(page.locator("#send-button")).isDisabled();
+
+        page.close();
+    }
+
+    @Test
+    void loads_earlier_messages_at_the_top_without_replacing_the_latest_page() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator("#load-earlier")).isEnabled();
+        page.locator("#load-earlier").click();
+
+        assertThat(page.locator(".message .bubble"))
+                .hasText(new String[]{"最早消息", "较早消息", "较新消息"});
+        assertThat(page.locator("#load-earlier")).isDisabled();
 
         page.close();
     }
