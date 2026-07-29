@@ -27,3 +27,11 @@ _Avoid_: media enrichment, offline media, media archive, media cache
 **Captured Content**:
 The first persisted version of a Blogger Blog entry or Group Message. Fetching the same remote identifier again does not overwrite its content, while Blogger and group metadata may be refreshed.
 _Avoid_: latest state, synchronized copy, revision history
+
+**Background Capture**:
+The scheduled process that pulls new Weibo content into the local database without being initiated by the browser UI.
+_Avoid_: page refresh, UI sync, polling
+
+**View Refresh**:
+Re-reading local data so the browser UI reflects newly captured content. It never calls Weibo or starts Background Capture.
+_Avoid_: sync, capture, remote refresh
