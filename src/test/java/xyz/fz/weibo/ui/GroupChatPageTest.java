@@ -143,22 +143,28 @@ class GroupChatPageTest {
                 sendJson(exchange, afterCursorMessagesJson(false, null, null, ""));
                 return;
             }
-            if (query.contains("beforeCreatedAt=15000") && query.contains("beforeMid=15")) {
+            if (query.contains("beforeCreatedAt=91000") && query.contains("beforeMid=91")) {
                 historyBeforeRequests.incrementAndGet();
                 sendJson(exchange, cursorMessagesJson(false, null, null,
-                        messageJson(14, "飞飞", "前一条消息", 14000)));
+                        messageRangeJson(41, 90)));
                 return;
             }
-            if (query.contains("afterCreatedAt=15000") && query.contains("afterMid=15")) {
+            if (query.contains("afterCreatedAt=91000") && query.contains("afterMid=91")) {
                 historyAfterRequests.incrementAndGet();
-                sendJson(exchange, afterCursorMessagesJson(true, 17_000L, 17L,
-                        messageJson(17, "路路", "稍新的消息", 17000)));
+                sendJson(exchange, afterCursorMessagesJson(true, 141_000L, 141L,
+                        messageRangeJson(92, 141)));
                 return;
             }
-            if (query.contains("afterCreatedAt=17000") && query.contains("afterMid=17")) {
+            if (query.contains("afterCreatedAt=141000") && query.contains("afterMid=141")) {
                 historyAfterRequests.incrementAndGet();
-                sendJson(exchange, afterCursorMessagesJson(true, 17_000L, 17L,
-                        messageJson(18, "阿呆", "游标未推进", 18000)));
+                sendJson(exchange, afterCursorMessagesJson(true, 191_000L, 191L,
+                        messageRangeJson(142, 191)));
+                return;
+            }
+            if (query.contains("afterCreatedAt=191000") && query.contains("afterMid=191")) {
+                historyAfterRequests.incrementAndGet();
+                sendJson(exchange, afterCursorMessagesJson(false, null, null,
+                        messageRangeJson(192, 211)));
                 return;
             }
             if (query.contains("beforeCreatedAt=1000") && query.contains("beforeMid=1")) {
@@ -191,7 +197,7 @@ class GroupChatPageTest {
             boolean secondPage = query != null && query.contains("page=2");
             boolean latestTarget = query != null && query.contains("keyword=latest");
             boolean mediaResults = query != null && query.contains("keyword=media");
-            boolean stagnantTarget = query != null && query.contains("keyword=stagnant");
+            boolean chainedTarget = query != null && query.contains("keyword=chain");
             if (query != null && query.contains("keyword=slow")) {
                 try {
                     Thread.sleep(300);
@@ -206,8 +212,8 @@ class GroupChatPageTest {
                       "items":[%s],"page":%d,"size":50,"total":%d
                     }
                     """.formatted(
-                    stagnantTarget
-                            ? messageJson(15, "小凯", "游标测试消息", 15000)
+                    chainedTarget
+                            ? messageJson(91, "小凯", "连续加载目标", 91000)
                             : mediaResults
                             ? historyMediaMessageJson(10, 1, "分享图片", "/chat/media?preview=10", "")
                                     + "," + historyMediaMessageJson(
@@ -221,7 +227,7 @@ class GroupChatPageTest {
                             : messageJson(5, "小凯", "周末一起爬山", 5000) + ","
                                     + messageJson(4, "小凯", "准备登山鞋", 4000),
                     secondPage ? 2 : 1,
-                    stagnantTarget ? 1 : mediaResults ? 4 : latestTarget ? 1 : 51));
+                    chainedTarget ? 1 : mediaResults ? 4 : latestTarget ? 1 : 51));
         });
         server.createContext("/chat/media", exchange -> {
             mediaRequests.incrementAndGet();
@@ -303,8 +309,10 @@ class GroupChatPageTest {
         assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"较早消息", "较新消息"});
-        assertThat(page.locator("#send-button")).isDisabled();
+        assertThat(page.locator("#send-button")).hasCount(0);
         assertThat(page.locator("#composer")).isDisabled();
+        assertThat(page.locator(".composer-hint"))
+                .hasText("按下 Enter 发送内容 / Ctrl+Enter 换行");
         assertThat(page.locator(".composer button:enabled")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
         assertThat(page.locator(".read-only-badge")).hasCount(0);
@@ -463,34 +471,52 @@ class GroupChatPageTest {
     }
 
     @Test
-    void stops_loading_newer_history_when_the_cursor_does_not_advance() {
+    void one_downward_scroll_loads_only_one_newer_history_page() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
         page.locator("#history-open").click();
-        page.locator("#history-keyword").fill("stagnant");
+        page.locator("#history-keyword").fill("chain");
         page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
-        page.locator(".history-result[data-mid='15']").click();
-        assertThat(page.locator("#history-messages [data-mid='17']")).isVisible();
+        page.locator(".history-result[data-mid='91']").click();
+        assertThat(page.locator("#history-messages [data-mid='141']")).isVisible();
 
-        page.locator("#history-messages").evaluate("""
-                element => {
-                  element.scrollTop = element.scrollHeight;
-                  element.dispatchEvent(new Event("scroll"));
+        Response response = page.waitForResponse(
+                item -> item.url().contains("afterCreatedAt=141000"),
+                () -> page.locator("#history-messages").evaluate("""
+                        element => {
+                          element.scrollTop = element.scrollHeight;
+                          element.dispatchEvent(new Event("scroll"));
+                        }
+                        """));
+        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
+        assertThat(page.locator("#history-messages [data-mid='191']")).isVisible();
+        Object oldestNewerOffset = page.locator("#history-messages [data-mid='142']").evaluate("""
+                message => {
+                  const container = message.parentElement;
+                  const paddingTop = Number.parseFloat(getComputedStyle(container).paddingTop);
+                  return message.getBoundingClientRect().top
+                    - container.getBoundingClientRect().top - paddingTop;
                 }
                 """);
-        assertThat(page.locator("#history-messages [data-mid='18']")).isVisible();
-        page.locator("#history-messages").evaluate("""
-                element => {
-                  element.scrollTop = element.scrollHeight;
-                  element.dispatchEvent(new Event("scroll"));
-                  element.dispatchEvent(new Event("scroll"));
-                }
-                """);
+        org.assertj.core.api.Assertions.assertThat(((Number) oldestNewerOffset).doubleValue())
+                .isCloseTo(0, org.assertj.core.data.Offset.offset(0.5));
         page.waitForTimeout(400);
 
         org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(2);
-        assertThat(page.locator("#history-newer-state")).hasText("没有更新消息");
+        assertThat(page.locator("#history-messages [data-mid='192']")).hasCount(0);
+
+        Response nextResponse = page.waitForResponse(
+                item -> item.url().contains("afterCreatedAt=191000"),
+                () -> page.locator("#history-messages").evaluate("""
+                        element => {
+                          element.scrollTop = element.scrollHeight;
+                          element.dispatchEvent(new Event("scroll"));
+                        }
+                        """));
+        org.assertj.core.api.Assertions.assertThat(nextResponse.ok()).isTrue();
+        assertThat(page.locator("#history-messages [data-mid='192']")).isVisible();
+        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(3);
         page.close();
     }
 
@@ -533,29 +559,43 @@ class GroupChatPageTest {
     }
 
     @Test
-    void preserves_history_state_until_the_selected_group_changes() {
+    void clears_history_content_and_filters_every_time_the_dialog_opens() {
         Page page = browser.newPage();
+        page.addInitScript("""
+                const RealDate = Date;
+                const fixedNow = RealDate.parse("2026-05-31T12:00:00+08:00");
+                window.Date = class extends RealDate {
+                  constructor(...args) {
+                    super(...(args.length ? args : [fixedNow]));
+                  }
+                  static now() {
+                    return fixedNow;
+                  }
+                };
+                """);
         page.navigate(baseUrl + "/chat/index.html");
         page.locator("#history-open").click();
+        page.locator("#history-start").fill("2026-04-01");
+        page.locator("#history-end").fill("2026-07-29");
         page.locator("#history-sender").fill("小凯");
+        page.locator("#history-keyword").fill("爬山");
         page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
-        page.locator("#history-next").click();
-        assertThat(page.locator(".history-result-summary")).hasText("第二页消息");
+        page.locator(".history-result[data-mid='5']").click();
+        assertThat(page.locator("#history-messages .bubble")).hasCount(5);
 
         page.locator("#history-close").click();
-        page.locator("#history-open").click();
-        assertThat(page.locator("#history-sender")).hasValue("小凯");
-        assertThat(page.locator("#history-page-state")).hasText("第 2 / 3 页，共 51 条");
-        assertThat(page.locator(".history-result-summary")).hasText("第二页消息");
-
-        page.locator("#history-close").click();
-        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
         page.locator("#history-open").click();
         assertThat(page.locator("#history-empty")).hasText("设置筛选条件后点击查询");
         assertThat(page.locator("#history-results")).isHidden();
+        assertThat(page.locator("#history-context")).isHidden();
+        assertThat(page.locator("#history-results-list")).isEmpty();
+        assertThat(page.locator("#history-messages")).isEmpty();
+        assertThat(page.locator("#history-start")).hasValue("2026-02-28");
+        assertThat(page.locator("#history-end")).hasValue("2026-05-31");
         assertThat(page.locator("#history-sender")).hasValue("");
-        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isEqualTo(2);
+        assertThat(page.locator("#history-keyword")).hasValue("");
+        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isEqualTo(1);
 
         page.close();
     }
@@ -931,6 +971,20 @@ class GroupChatPageTest {
     }
 
     @Test
+    void links_group_member_avatars_to_their_weibo_profiles() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        var avatar = page.locator("[data-mid='1'] .message-avatar");
+
+        assertThat(avatar).hasAttribute("href", "https://weibo.com/u/1");
+        assertThat(avatar).hasAttribute("aria-label", "查看小凯的微博主页");
+        assertThat(avatar).hasAttribute("target", "_blank");
+        assertThat(avatar).hasAttribute("rel", "noopener noreferrer");
+
+        page.close();
+    }
+
+    @Test
     void uses_a_full_screen_transparent_overlay_and_closes_outside_the_image() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -1116,6 +1170,17 @@ class GroupChatPageTest {
                   "nextAfterCreatedAt":%s,"nextAfterMid":%s
                 }
                 """.formatted(messages, hasMore, nextAfterCreatedAt, nextAfterMid);
+    }
+
+    private static String messageRangeJson(long firstMid, long lastMid) {
+        StringBuilder messages = new StringBuilder();
+        for (long mid = lastMid; mid >= firstMid; mid--) {
+            if (!messages.isEmpty()) {
+                messages.append(',');
+            }
+            messages.append(messageJson(mid, "群友", "消息 " + mid, mid * 1000));
+        }
+        return messages.toString();
     }
 
     private static String messageJson(long mid, String sender, String text, long createdAt) {

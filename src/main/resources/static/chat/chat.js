@@ -67,19 +67,10 @@
     page: 1,
     total: 0,
     query: null,
-    loading: false,
-    results: [],
-    resultsScrollTop: 0,
-    messages: new Map(),
     targetMid: null,
-    hasEarlier: false,
-    hasNewer: false,
-    nextBeforeCreatedAt: null,
-    nextBeforeMid: null,
-    nextAfterCreatedAt: null,
-    nextAfterMid: null,
-    loadingEarlier: false,
-    loadingNewer: false,
+    beforeCursor: null,
+    afterCursor: null,
+    loadingMore: false,
     requestVersion: 0
   };
 
@@ -107,17 +98,19 @@
     historyState.page = 1;
     historyState.total = 0;
     historyState.query = null;
-    historyState.loading = false;
-    historyState.results = [];
-    historyState.messages.clear();
     historyState.targetMid = null;
-    historyState.loadingEarlier = false;
-    historyState.loadingNewer = false;
+    historyState.beforeCursor = null;
+    historyState.afterCursor = null;
+    historyState.loadingMore = false;
     elements.historyStart.value = localDateValue(start);
     elements.historyEnd.value = localDateValue(new Date());
     elements.historySender.value = "";
     elements.historyKeyword.value = "";
     elements.historyResultsList.replaceChildren();
+    elements.historyMessages.replaceChildren();
+    elements.historyEarlierState.textContent = "";
+    elements.historyNewerState.textContent = "";
+    elements.historyPageState.textContent = "";
     elements.historyResults.hidden = true;
     elements.historyContext.hidden = true;
     elements.historyEmpty.hidden = false;
@@ -129,10 +122,17 @@
     return value?.trim().slice(0, 1) || fallback;
   }
 
-  function avatar(group, className) {
-    const container = document.createElement("span");
+  function avatar(group, className, profileUrl) {
+    const container = document.createElement(profileUrl ? "a" : "span");
     container.className = className;
-    container.setAttribute("aria-hidden", "true");
+    if (profileUrl) {
+      container.href = profileUrl;
+      container.target = "_blank";
+      container.rel = "noopener noreferrer";
+      container.setAttribute("aria-label", `查看${group.name || "群友"}的微博主页`);
+    } else {
+      container.setAttribute("aria-hidden", "true");
+    }
     if (group.avatar) {
       const image = document.createElement("img");
       image.src = `/chat/image?${new URLSearchParams({url: group.avatar})}`;
@@ -223,7 +223,9 @@
       article.append(avatar({
         name: message.senderName,
         avatar: message.senderAvatar
-      }, "message-avatar"));
+      }, "message-avatar", Number.isSafeInteger(message.senderId) && message.senderId > 0
+        ? `https://weibo.com/u/${message.senderId}`
+        : ""));
       const content = document.createElement("div");
       content.className = "message-content";
       const meta = document.createElement("div");
@@ -342,7 +344,6 @@
   }
 
   function renderHistoryResults(items) {
-    historyState.results = items;
     elements.historyResultsList.replaceChildren(...items.map(message => {
       const button = document.createElement("button");
       button.className = "history-result";
@@ -371,18 +372,31 @@
     elements.historyResults.hidden = false;
   }
 
-  function renderHistoryMessages() {
-    const ordered = [...historyState.messages.values()].sort((left, right) =>
-      left.createdAt - right.createdAt || left.mid - right.mid);
-    elements.historyMessages.replaceChildren(...ordered.map(message =>
-      messageElement(message, historyState.targetMid)));
+  function compareMessages(left, right) {
+    return left.createdAt - right.createdAt || left.mid - right.mid;
+  }
+
+  function historyMessageElements(messages) {
+    return [...messages].sort(compareMessages)
+      .map(message => messageElement(message, historyState.targetMid));
+  }
+
+  function renderHistoryMessages(messages) {
+    elements.historyMessages.replaceChildren(...historyMessageElements(messages));
   }
 
   function updateHistoryEdges() {
-    elements.historyEarlierState.textContent = historyState.hasEarlier
+    elements.historyEarlierState.textContent = historyState.beforeCursor
       ? "向上滚动加载更早消息" : "没有更早消息";
-    elements.historyNewerState.textContent = historyState.hasNewer
+    elements.historyNewerState.textContent = historyState.afterCursor
       ? "向下滚动加载更新消息" : "没有更新消息";
+  }
+
+  function scrollHistoryMessageToStart(message) {
+    const containerTop = elements.historyMessages.getBoundingClientRect().top;
+    const paddingTop = Number.parseFloat(getComputedStyle(elements.historyMessages).paddingTop) || 0;
+    elements.historyMessages.scrollTop += message.getBoundingClientRect().top
+      - containerTop - paddingTop;
   }
 
   async function fetchHistoryCursor(direction, message, gid = historyState.gid) {
@@ -399,89 +413,77 @@
   async function openHistoryContext(target) {
     const requestVersion = ++historyState.requestVersion;
     const gid = historyState.gid;
-    historyState.loadingEarlier = false;
-    historyState.loadingNewer = false;
-    historyState.resultsScrollTop = elements.historyResultsList.scrollTop;
-    historyState.messages.clear();
-    historyState.messages.set(target.mid, target);
+    historyState.loadingMore = false;
     historyState.targetMid = target.mid;
-    historyState.hasEarlier = false;
-    historyState.hasNewer = false;
+    historyState.beforeCursor = null;
+    historyState.afterCursor = null;
     elements.historyResults.hidden = true;
     elements.historyContext.hidden = false;
+    elements.historyEarlierState.textContent = "";
+    elements.historyNewerState.textContent = "";
+    renderHistoryMessages([target]);
     elements.historyFeedback.textContent = "正在定位消息…";
     try {
       const [before, after] = await Promise.all([
         fetchHistoryCursor("before", target, gid),
         fetchHistoryCursor("after", target, gid)
       ]);
-      if (requestVersion !== historyState.requestVersion || gid !== historyState.gid) return;
-      before.items.forEach(message => historyState.messages.set(message.mid, message));
-      after.items.forEach(message => historyState.messages.set(message.mid, message));
-      historyState.hasEarlier = before.hasMore;
-      historyState.hasNewer = after.hasMore;
-      historyState.nextBeforeCreatedAt = before.nextBeforeCreatedAt;
-      historyState.nextBeforeMid = before.nextBeforeMid;
-      historyState.nextAfterCreatedAt = after.nextAfterCreatedAt;
-      historyState.nextAfterMid = after.nextAfterMid;
-      renderHistoryMessages();
+      if (requestVersion !== historyState.requestVersion) return;
+      historyState.beforeCursor = before.hasMore ? {
+        createdAt: before.nextBeforeCreatedAt,
+        mid: before.nextBeforeMid
+      } : null;
+      historyState.afterCursor = after.hasMore ? {
+        createdAt: after.nextAfterCreatedAt,
+        mid: after.nextAfterMid
+      } : null;
+      renderHistoryMessages([...before.items, target, ...after.items]);
       updateHistoryEdges();
       elements.historyFeedback.textContent = "";
       elements.historyMessages.querySelector(`[data-mid="${target.mid}"]`)
         ?.scrollIntoView({block: "center"});
     } catch {
-      if (requestVersion !== historyState.requestVersion || gid !== historyState.gid) return;
+      if (requestVersion !== historyState.requestVersion) return;
       elements.historyFeedback.textContent = "消息上下文加载失败，请返回后重试。";
     }
   }
 
   async function loadMoreHistory(direction) {
     const earlier = direction === "before";
-    const hasMore = earlier ? historyState.hasEarlier : historyState.hasNewer;
-    const loadingKey = earlier ? "loadingEarlier" : "loadingNewer";
-    if (!hasMore || historyState[loadingKey]) return;
-    const cursor = {
-      createdAt: earlier ? historyState.nextBeforeCreatedAt : historyState.nextAfterCreatedAt,
-      mid: earlier ? historyState.nextBeforeMid : historyState.nextAfterMid
-    };
-    if (cursor.createdAt === null || cursor.mid === null) return;
-    historyState[loadingKey] = true;
+    const cursor = earlier ? historyState.beforeCursor : historyState.afterCursor;
+    if (!cursor || historyState.loadingMore) return;
+    historyState.loadingMore = true;
     const requestVersion = historyState.requestVersion;
     const gid = historyState.gid;
     const anchor = earlier ? captureScrollAnchor(elements.historyMessages) : null;
     try {
       const result = await fetchHistoryCursor(direction, cursor, gid);
-      if (requestVersion !== historyState.requestVersion || gid !== historyState.gid) return;
-      const messageCount = historyState.messages.size;
-      result.items.forEach(message => historyState.messages.set(message.mid, message));
-      const nextCreatedAt = earlier ? result.nextBeforeCreatedAt : result.nextAfterCreatedAt;
-      const nextMid = earlier ? result.nextBeforeMid : result.nextAfterMid;
-      const canContinue = result.hasMore
-        && historyState.messages.size > messageCount
-        && (nextCreatedAt !== cursor.createdAt || nextMid !== cursor.mid);
+      if (requestVersion !== historyState.requestVersion) return;
+      const loaded = historyMessageElements(result.items);
+      const nextCursor = result.hasMore ? {
+        createdAt: earlier ? result.nextBeforeCreatedAt : result.nextAfterCreatedAt,
+        mid: earlier ? result.nextBeforeMid : result.nextAfterMid
+      } : null;
       if (earlier) {
-        historyState.hasEarlier = canContinue;
-        historyState.nextBeforeCreatedAt = result.nextBeforeCreatedAt;
-        historyState.nextBeforeMid = result.nextBeforeMid;
+        historyState.beforeCursor = nextCursor;
+        elements.historyMessages.prepend(...loaded);
+        restoreScrollAnchor(anchor, elements.historyMessages);
       } else {
-        historyState.hasNewer = canContinue;
-        historyState.nextAfterCreatedAt = result.nextAfterCreatedAt;
-        historyState.nextAfterMid = result.nextAfterMid;
+        historyState.afterCursor = nextCursor;
+        elements.historyMessages.append(...loaded);
+        if (loaded[0]) scrollHistoryMessageToStart(loaded[0]);
       }
-      renderHistoryMessages();
-      if (earlier) restoreScrollAnchor(anchor, elements.historyMessages);
       updateHistoryEdges();
     } catch {
-      if (requestVersion !== historyState.requestVersion || gid !== historyState.gid) return;
+      if (requestVersion !== historyState.requestVersion) return;
       const edge = earlier ? elements.historyEarlierState : elements.historyNewerState;
       edge.textContent = earlier ? "更早消息加载失败" : "更新消息加载失败";
     } finally {
-      if (requestVersion === historyState.requestVersion) historyState[loadingKey] = false;
+      if (requestVersion === historyState.requestVersion) historyState.loadingMore = false;
     }
   }
 
   async function queryHistory(page) {
-    historyState.loading = true;
     const requestVersion = ++historyState.requestVersion;
     const gid = historyState.gid;
     elements.historyFeedback.textContent = "正在查询聊天记录…";
@@ -501,17 +503,15 @@
       const response = await fetch(`/chat/messages?${query}`, {cache: "no-store"});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
-      if (requestVersion !== historyState.requestVersion || gid !== historyState.gid) return;
+      if (requestVersion !== historyState.requestVersion) return;
       historyState.page = result.page;
       historyState.total = result.total;
       renderHistoryResults(result.items);
       elements.historyFeedback.textContent = result.items.length ? "" : "没有符合条件的聊天记录";
     } catch {
-      if (requestVersion !== historyState.requestVersion || gid !== historyState.gid) return;
+      if (requestVersion !== historyState.requestVersion) return;
       elements.historyResults.hidden = true;
       elements.historyFeedback.textContent = "聊天记录查询失败，请稍后重试。";
-    } finally {
-      if (requestVersion === historyState.requestVersion) historyState.loading = false;
     }
   }
 
@@ -713,7 +713,10 @@
     elements.messages.scrollTop = elements.messages.scrollHeight;
     elements.newMessages.hidden = true;
   });
-  elements.historyOpen.addEventListener("click", () => elements.historyDialog.showModal());
+  elements.historyOpen.addEventListener("click", () => {
+    resetHistory(state.currentGid);
+    elements.historyDialog.showModal();
+  });
   elements.historyClose.addEventListener("click", () => elements.historyDialog.close());
   elements.historyForm.addEventListener("submit", event => {
     event.preventDefault();
@@ -731,10 +734,7 @@
     historyState.requestVersion += 1;
     elements.historyContext.hidden = true;
     elements.historyFeedback.textContent = "";
-    renderHistoryResults(historyState.results);
-    requestAnimationFrame(() => {
-      elements.historyResultsList.scrollTop = historyState.resultsScrollTop;
-    });
+    elements.historyResults.hidden = false;
   });
   elements.historyMessages.addEventListener("scroll", () => {
     if (elements.historyMessages.scrollHeight <= elements.historyMessages.clientHeight) return;

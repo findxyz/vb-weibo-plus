@@ -408,6 +408,7 @@ h1 {
   border: 1px solid #789bb8;
   border-radius: 5px;
   font-size: 15px;
+  text-decoration: none;
 }
 
 .message-content {
@@ -568,9 +569,10 @@ h1 {
 }
 
 .composer {
+  position: relative;
   min-width: 0;
   display: grid;
-  grid-template-rows: 42px minmax(0, 1fr) 42px;
+  grid-template-rows: 42px minmax(0, 1fr);
   border-top: 1px solid #7ea7ca;
   background: #ffffff;
 }
@@ -607,7 +609,6 @@ h1 {
   resize: none;
   padding: 9px 12px;
   border: 0;
-  border-bottom: 1px solid #a1b8ca;
   outline: none;
   color: #74818b;
   background: #f8fafb;
@@ -615,20 +616,13 @@ h1 {
   line-height: 1.5;
 }
 
-.send-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 4px 10px;
-}
-
-.send-button {
-  width: 112px;
-  height: 32px;
-  border: 1px solid #8ea1b0;
-  border-radius: 3px;
-  color: #6f7d87;
-  background: linear-gradient(#f6f8f9, #dfe5e9);
+.composer-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  color: #a3afbd;
+  font-size: 14px;
+  pointer-events: none;
 }
 
 .image-viewer {
