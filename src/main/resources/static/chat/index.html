@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>微博群聊</title>
+  <link rel="stylesheet" href="chat.css">
+  <script src="chat.js" defer></script>
+</head>
+<body>
+  <main class="app" aria-labelledby="app-title">
+    <header class="titlebar">
+      <span class="title-logo" aria-hidden="true">聊</span>
+      <h1 id="app-title">微博群聊</h1>
+      <span class="read-only-badge">本地只读</span>
+    </header>
+
+    <div class="workspace">
+      <aside class="groups-panel" aria-label="群聊列表">
+        <header class="groups-heading">
+          <h2>群聊列表</h2>
+          <span id="groups-count">正在加载…</span>
+        </header>
+        <label class="search-box">
+          <span class="visually-hidden">搜索群聊</span>
+          <input id="group-search" type="search" placeholder="搜索群聊">
+        </label>
+        <div class="groups-list" id="groups-list" aria-live="polite"></div>
+        <div class="panel-state" id="groups-state" role="status"></div>
+      </aside>
+
+      <section class="conversation" aria-label="聊天内容">
+        <header class="group-header">
+          <span class="main-group-avatar" id="current-group-avatar" aria-hidden="true">群</span>
+          <div class="group-summary">
+            <div class="group-title-line">
+              <h2 id="current-group">请选择群聊</h2>
+              <span id="current-size"></span>
+            </div>
+            <div class="group-number">群号：<span id="current-id">—</span></div>
+            <div class="group-notice">
+              <span>简介：</span><span id="current-notice">—</span>
+            </div>
+          </div>
+        </header>
+
+        <div class="chat-strip">
+          <button id="load-earlier" type="button" disabled>加载更早消息</button>
+          <span id="refresh-state" role="status" aria-live="polite"></span>
+        </div>
+
+        <div class="messages-shell">
+          <div class="messages" id="messages" aria-live="polite"></div>
+          <div class="messages-state" id="messages-state" role="status">请选择群聊</div>
+          <button class="new-messages-button" id="new-messages" type="button" hidden>有新消息</button>
+        </div>
+
+        <div class="composer" aria-label="只读消息编辑器">
+          <div class="composer-tools">
+            <button type="button" disabled>😊 表情</button>
+            <button type="button" disabled>🖼 图片</button>
+            <button type="button" disabled>🎬 视频</button>
+            <span>当前为只读模式，发送功能后续开放</span>
+          </div>
+          <textarea id="composer" aria-label="输入消息" placeholder="当前为只读模式" disabled></textarea>
+          <div class="send-row">
+            <button class="send-button" id="send-button" type="button" disabled>发送</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
