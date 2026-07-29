@@ -186,6 +186,11 @@
     }).format(new Date(timestamp));
   }
 
+  function updateLoadEarlierVisibility() {
+    elements.loadEarlier.hidden = elements.loadEarlier.disabled
+      || elements.messages.scrollTop > 0;
+  }
+
   async function selectGroup(gid) {
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
@@ -194,6 +199,8 @@
     state.nextPage = FIRST_PAGE;
     state.total = 0;
     elements.newMessages.hidden = true;
+    elements.loadEarlier.disabled = true;
+    elements.loadEarlier.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     elements.currentSize.textContent = `${group.maxMember || group.memberCount} 人群`;
@@ -237,6 +244,7 @@
         elements.messages.scrollTop =
           previousTop + elements.messages.scrollHeight - previousHeight;
       }
+      updateLoadEarlierVisibility();
     } catch {
       elements.messagesState.textContent = "消息加载失败，请稍后重试。";
       elements.retryMessages.hidden = false;
@@ -273,6 +281,7 @@
         }
       }
       elements.loadEarlier.disabled = state.messages.size >= state.total;
+      updateLoadEarlierVisibility();
     } catch {
     } finally {
       state.refreshing = false;
@@ -308,6 +317,7 @@
     });
   });
   elements.loadEarlier.addEventListener("click", () => loadMessages(state.nextPage));
+  elements.messages.addEventListener("scroll", updateLoadEarlierVisibility);
   elements.retryGroups.addEventListener("click", initialize);
   elements.retryMessages.addEventListener("click", () => loadMessages(state.failedPage));
   elements.newMessages.addEventListener("click", () => {

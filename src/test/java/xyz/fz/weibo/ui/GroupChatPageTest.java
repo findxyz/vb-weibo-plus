@@ -218,13 +218,43 @@ class GroupChatPageTest {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#load-earlier")).isHidden();
+
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
         assertThat(page.locator(".messages-shell > #load-earlier")).isVisible();
         assertThat(page.locator("#load-earlier")).isEnabled();
+
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.scrollTop = 10;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#load-earlier")).isHidden();
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
         page.locator("#load-earlier").click();
 
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"最早消息", "较早消息", "较新消息"});
         assertThat(page.locator("#load-earlier")).isDisabled();
+        assertThat(page.locator("#load-earlier")).isHidden();
 
         page.close();
     }

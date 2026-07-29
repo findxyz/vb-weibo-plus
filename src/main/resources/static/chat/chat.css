@@ -352,7 +352,7 @@ h1 {
   scrollbar-gutter: stable;
 }
 
-.messages-shell:has(.load-earlier-button:not(:disabled)) .messages {
+.messages-shell:has(.load-earlier-button:not(:disabled):not([hidden])) .messages {
   padding-top: 58px;
 }
 
