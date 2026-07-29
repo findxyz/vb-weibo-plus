@@ -2,6 +2,7 @@
   "use strict";
 
   const PAGE_SIZE = 50;
+  const EARLIER_LOAD_THRESHOLD = 120;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
   const elements = {
@@ -33,6 +34,7 @@
     nextBeforeMid: null,
     hasMore: false,
     refreshing: false,
+    loadingEarlier: false,
     followingLatest: true,
     failedBeforeCreatedAt: null,
     failedBeforeMid: null
@@ -202,9 +204,23 @@
     }).format(new Date(timestamp));
   }
 
-  function updateLoadEarlierVisibility() {
-    elements.loadEarlier.hidden = elements.loadEarlier.disabled
-      || elements.messages.scrollTop > 0;
+  function captureScrollAnchor() {
+    const containerTop = elements.messages.getBoundingClientRect().top;
+    const anchor = [...elements.messages.children].find(element =>
+      element.getBoundingClientRect().bottom > containerTop);
+    if (!anchor) return null;
+    return {
+      mid: anchor.dataset.mid,
+      top: anchor.getBoundingClientRect().top
+    };
+  }
+
+  function restoreScrollAnchor(anchor) {
+    if (!anchor) return;
+    const renderedAnchor = elements.messages.querySelector(`[data-mid="${anchor.mid}"]`);
+    if (renderedAnchor) {
+      elements.messages.scrollTop += renderedAnchor.getBoundingClientRect().top - anchor.top;
+    }
   }
 
   async function selectGroup(gid) {
@@ -238,10 +254,11 @@
 
   async function loadMessages(beforeCreatedAt = null, beforeMid = null) {
     const isLatestPage = beforeCreatedAt === null && beforeMid === null;
+    const anchor = isLatestPage ? null : captureScrollAnchor();
     state.failedBeforeCreatedAt = beforeCreatedAt;
     state.failedBeforeMid = beforeMid;
     elements.retryMessages.hidden = true;
-    elements.messagesState.textContent = "正在加载消息…";
+    if (isLatestPage) elements.messagesState.textContent = "正在加载消息…";
     const query = new URLSearchParams({
       gid: String(state.currentGid), size: String(PAGE_SIZE)
     });
@@ -263,8 +280,9 @@
       elements.loadEarlier.disabled = !state.hasMore;
       if (isLatestPage) {
         elements.messages.scrollTop = elements.messages.scrollHeight;
+      } else {
+        restoreScrollAnchor(anchor);
       }
-      updateLoadEarlierVisibility();
     } catch {
       elements.messagesState.textContent = "消息加载失败，请稍后重试。";
       elements.retryMessages.hidden = false;
@@ -277,8 +295,21 @@
       - elements.messages.clientHeight < 80;
   }
 
+  async function maybeLoadEarlierMessages() {
+    if (!state.currentGid || !state.hasMore || state.loadingEarlier || state.refreshing) return;
+    if (elements.messages.scrollTop > EARLIER_LOAD_THRESHOLD
+      || elements.messages.scrollHeight <= elements.messages.clientHeight) return;
+    if (state.nextBeforeCreatedAt === null || state.nextBeforeMid === null) return;
+    state.loadingEarlier = true;
+    try {
+      await loadMessages(state.nextBeforeCreatedAt, state.nextBeforeMid);
+    } finally {
+      state.loadingEarlier = false;
+    }
+  }
+
   async function refreshMessages() {
-    if (!state.currentGid || state.refreshing || document.hidden) return;
+    if (!state.currentGid || state.refreshing || state.loadingEarlier || document.hidden) return;
     state.refreshing = true;
     const followedLatest = isNearBottom();
     const knownMids = new Set(state.messages.keys());
@@ -301,10 +332,10 @@
         }
       }
       elements.loadEarlier.disabled = !state.hasMore;
-      updateLoadEarlierVisibility();
     } catch {
     } finally {
       state.refreshing = false;
+      maybeLoadEarlierMessages();
     }
   }
 
@@ -336,11 +367,9 @@
       row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword);
     });
   });
-  elements.loadEarlier.addEventListener("click", () =>
-    loadMessages(state.nextBeforeCreatedAt, state.nextBeforeMid));
   elements.messages.addEventListener("scroll", () => {
-    updateLoadEarlierVisibility();
     state.followingLatest = isNearBottom();
+    maybeLoadEarlierMessages();
   });
   elements.retryGroups.addEventListener("click", initialize);
   elements.retryMessages.addEventListener("click", () =>

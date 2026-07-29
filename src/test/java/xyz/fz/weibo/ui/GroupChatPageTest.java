@@ -29,6 +29,7 @@ class GroupChatPageTest {
     private static Browser browser;
     private static String baseUrl;
     private static final AtomicInteger latestPageRequests = new AtomicInteger();
+    private static final AtomicInteger earlierPageRequests = new AtomicInteger();
     private static final AtomicBoolean failGroups = new AtomicBoolean();
     private static final AtomicBoolean failMessages = new AtomicBoolean();
 
@@ -91,6 +92,7 @@ class GroupChatPageTest {
                 return;
             }
             if (query.contains("beforeCreatedAt=1000") && query.contains("beforeMid=1")) {
+                earlierPageRequests.incrementAndGet();
                 sendJson(exchange, cursorMessagesJson(false, null, null,
                         messageJson(0, "路路", "最早消息", 500)));
                 return;
@@ -170,6 +172,7 @@ class GroupChatPageTest {
     @BeforeEach
     void resetServerState() {
         latestPageRequests.set(0);
+        earlierPageRequests.set(0);
         failGroups.set(false);
         failMessages.set(false);
     }
@@ -233,45 +236,23 @@ class GroupChatPageTest {
     }
 
     @Test
-    void loads_earlier_messages_at_the_top_without_replacing_the_latest_page() {
+    void automatically_loads_earlier_messages_near_the_top() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
         page.locator("#messages").evaluate("""
                 element => {
                   element.style.height = "40px";
-                  element.scrollTop = element.scrollHeight;
-                  element.dispatchEvent(new Event("scroll"));
-                }
-                """);
-        assertThat(page.locator("#load-earlier")).isHidden();
-
-        page.locator("#messages").evaluate("""
-                element => {
-                  element.scrollTop = 0;
-                  element.dispatchEvent(new Event("scroll"));
-                }
-                """);
-        assertThat(page.locator(".messages-shell > #load-earlier")).isVisible();
-        assertThat(page.locator("#load-earlier")).isEnabled();
-
-        page.locator("#messages").evaluate("""
-                element => {
                   element.scrollTop = 10;
                   element.dispatchEvent(new Event("scroll"));
-                }
-                """);
-        assertThat(page.locator("#load-earlier")).isHidden();
-        page.locator("#messages").evaluate("""
-                element => {
-                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
                   element.dispatchEvent(new Event("scroll"));
                 }
                 """);
-        page.locator("#load-earlier").click();
 
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"最早消息", "较早消息", "较新消息"});
+        org.assertj.core.api.Assertions.assertThat(earlierPageRequests.get()).isEqualTo(1);
         assertThat(page.locator("#load-earlier")).isDisabled();
         assertThat(page.locator("#load-earlier")).isHidden();
 
@@ -279,25 +260,26 @@ class GroupChatPageTest {
     }
 
     @Test
-    void does_not_scroll_after_loading_earlier_messages() {
+    void keeps_current_message_in_place_after_loading_earlier_messages() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
-        page.locator("#messages").evaluate("""
+        Object currentMessageTopBefore = page.locator("#messages").evaluate("""
                 element => {
                   element.style.height = "80px";
-                  element.scrollTop = 0;
+                  element.scrollTop = 10;
+                  const currentMessageTop = element.querySelector("[data-mid='1']")
+                    .getBoundingClientRect().top;
                   element.dispatchEvent(new Event("scroll"));
+                  return currentMessageTop;
                 }
                 """);
-        assertThat(page.locator("#load-earlier")).isVisible();
-
-        page.locator("#load-earlier").click();
         assertThat(page.locator("[data-mid='0']")).isVisible();
 
-        Object scrollTop = page.locator("#messages")
-                .evaluate("element => element.scrollTop");
-        org.assertj.core.api.Assertions.assertThat(((Number) scrollTop).doubleValue())
-                .isZero();
+        Object currentMessageTopAfter = page.locator("[data-mid='1']")
+                .evaluate("element => element.getBoundingClientRect().top");
+        org.assertj.core.api.Assertions.assertThat(((Number) currentMessageTopAfter).doubleValue())
+                .isCloseTo(((Number) currentMessageTopBefore).doubleValue(),
+                        org.assertj.core.data.Offset.offset(0.5));
 
         page.close();
     }
@@ -351,7 +333,6 @@ class GroupChatPageTest {
                   element.dispatchEvent(new Event("scroll"));
                 }
                 """);
-        page.locator("#load-earlier").click();
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{
                         "最早消息", "较早消息", "较新消息", "刷新后消息", "点击后消息"});
