@@ -18,7 +18,11 @@
     messagesState: document.querySelector("#messages-state"),
     loadEarlier: document.querySelector("#load-earlier"),
     refreshState: document.querySelector("#refresh-state"),
-    newMessages: document.querySelector("#new-messages")
+    newMessages: document.querySelector("#new-messages"),
+    imageViewer: document.querySelector("#image-viewer"),
+    imageViewerImage: document.querySelector("#image-viewer img"),
+    imageViewerState: document.querySelector("#image-viewer-state"),
+    closeImageViewer: document.querySelector("#close-image-viewer")
   };
   const state = {
     groups: [],
@@ -91,9 +95,58 @@
       bubble.className = "bubble";
       bubble.textContent = message.text || `[${message.msgTypeName || "消息"}]`;
       content.append(meta, bubble);
+      const media = messageMedia(message);
+      if (media) content.append(media);
       article.append(content);
       return article;
     }));
+  }
+
+  function messageMedia(message) {
+    if (!message.previewUrl) return null;
+    const button = document.createElement("button");
+    button.type = "button";
+    const image = document.createElement("img");
+    image.src = message.previewUrl;
+    image.loading = "lazy";
+    image.alt = "";
+    button.append(image);
+    const label = document.createElement("span");
+    if (message.videoUrl) {
+      button.className = "media-preview video-preview";
+      button.setAttribute("aria-label", "播放视频");
+      label.textContent = "▶";
+      button.append(label);
+      button.addEventListener("click", () => {
+        const video = document.createElement("video");
+        video.src = message.videoUrl;
+        video.controls = true;
+        video.preload = "metadata";
+        video.setAttribute("aria-label", "群聊视频");
+        button.replaceWith(video);
+        video.play().catch(() => {
+          video.controls = true;
+        });
+      }, {once: true});
+    } else {
+      button.className = "media-preview image-preview";
+      button.setAttribute("aria-label", "查看原图");
+      button.addEventListener("click", () => openImage(message.originalUrl || message.previewUrl));
+    }
+    image.addEventListener("error", () => {
+      image.hidden = true;
+      label.textContent = "媒体加载失败，点击重试";
+      button.append(label);
+      button.classList.add("media-failed");
+    }, {once: true});
+    return button;
+  }
+
+  function openImage(url) {
+    elements.imageViewerState.textContent = "";
+    elements.imageViewerImage.src = url;
+    elements.imageViewer.showModal();
+    elements.closeImageViewer.focus();
   }
 
   function formatTime(timestamp) {
@@ -225,6 +278,13 @@
   elements.newMessages.addEventListener("click", () => {
     elements.messages.scrollTop = elements.messages.scrollHeight;
     elements.newMessages.hidden = true;
+  });
+  elements.closeImageViewer.addEventListener("click", () => elements.imageViewer.close());
+  elements.imageViewer.addEventListener("click", event => {
+    if (event.target === elements.imageViewer) elements.imageViewer.close();
+  });
+  elements.imageViewerImage.addEventListener("error", () => {
+    elements.imageViewerState.textContent = "原图加载失败，请关闭后重试。";
   });
   window.addEventListener("focus", refreshMessages);
   document.addEventListener("visibilitychange", () => {

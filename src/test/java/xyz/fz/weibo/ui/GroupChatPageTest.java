@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
@@ -39,7 +40,22 @@ class GroupChatPageTest {
                 """));
         server.createContext("/chat/messages", exchange -> {
             String query = exchange.getRequestURI().getRawQuery();
-            if (query == null || !query.contains("gid=101") || !query.contains("size=50")) {
+            if (query == null || !query.contains("size=50")) {
+                exchange.sendResponseHeaders(400, -1);
+                exchange.close();
+                return;
+            }
+            if (query.contains("gid=202")) {
+                sendJson(exchange, messagesJson(0, 2,
+                        mediaMessageJson(4, 1, "图片消息",
+                                "/chat/media?gid=202&mid=4&variant=preview",
+                                "/chat/media?gid=202&mid=4&variant=original", "") + ","
+                                + mediaMessageJson(5, 13, "视频消息",
+                                "/chat/media?gid=202&mid=5&variant=preview", "",
+                                "/chat/media?gid=202&mid=5&variant=video")));
+                return;
+            }
+            if (!query.contains("gid=101")) {
                 exchange.sendResponseHeaders(400, -1);
                 exchange.close();
                 return;
@@ -59,6 +75,22 @@ class GroupChatPageTest {
                     newMessage
                             + messageJson(2, "飞飞", "较新消息", 2000) + ","
                             + messageJson(1, "小凯", "较早消息", 1000)));
+        });
+        server.createContext("/chat/media", exchange -> {
+            String query = exchange.getRequestURI().getRawQuery();
+            if (query != null && query.contains("variant=video")) {
+                byte[] body = new byte[0];
+                exchange.getResponseHeaders().set("Content-Type", "video/mp4");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.close();
+                return;
+            }
+            byte[] body = Base64.getDecoder().decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
         });
         server.createContext("/chat/", GroupChatPageTest::sendStaticResource);
         server.start();
@@ -118,11 +150,43 @@ class GroupChatPageTest {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
+        assertThat(page.locator(".message .bubble"))
+                .hasText(new String[]{"较早消息", "较新消息"});
         page.evaluate("window.dispatchEvent(new Event('focus'))");
 
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"较早消息", "较新消息", "刷新后消息"});
         assertThat(page.locator("[data-mid='1']")).hasCount(1);
+
+        page.close();
+    }
+
+    @Test
+    void previews_original_images_and_starts_video_after_clicking_its_cover() {
+        latestPageRequests.set(0);
+        Page page = browser.newPage();
+        page.addInitScript("""
+                window.__playCalls = 0;
+                HTMLMediaElement.prototype.play = function () {
+                  window.__playCalls += 1;
+                  return Promise.resolve();
+                };
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        page.locator("[data-mid='4'] .image-preview").click();
+        assertThat(page.locator("#image-viewer")).isVisible();
+        assertThat(page.locator("#image-viewer img"))
+                .hasAttribute("src", "/chat/media?gid=202&mid=4&variant=original");
+        page.locator("#close-image-viewer").click();
+
+        page.locator("[data-mid='5'] .video-preview").click();
+        assertThat(page.locator("[data-mid='5'] video"))
+                .hasAttribute("src", "/chat/media?gid=202&mid=5&variant=video");
+        org.assertj.core.api.Assertions
+                .assertThat(((Number) page.evaluate("window.__playCalls")).intValue())
+                .isEqualTo(1);
 
         page.close();
     }
@@ -175,5 +239,17 @@ class GroupChatPageTest {
                  "recallBy":"","createdAt":%d,"savedAt":%d,
                  "previewUrl":"","originalUrl":"","videoUrl":""}
                 """.formatted(mid, mid, sender, text, createdAt, createdAt);
+    }
+
+    private static String mediaMessageJson(long mid, int mediaType, String text,
+                                           String previewUrl, String originalUrl, String videoUrl) {
+        return """
+                {"mid":%d,"gid":202,"msgType":321,"msgTypeName":"普通消息","mediaType":%d,
+                 "senderId":9,"senderName":"媒体用户","senderAvatar":"","text":"%s",
+                 "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":%d,"savedAt":%d,
+                 "previewUrl":"%s","originalUrl":"%s","videoUrl":"%s"}
+                """.formatted(mid, mediaType, text, mid * 1000, mid * 1000,
+                previewUrl, originalUrl, videoUrl);
     }
 }
