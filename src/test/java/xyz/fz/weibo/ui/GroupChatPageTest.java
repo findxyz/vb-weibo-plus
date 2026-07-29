@@ -69,7 +69,7 @@ class GroupChatPageTest {
                     exchange.close();
                     return;
                 }
-                sendJson(exchange, messagesJson(1, 4,
+                sendJson(exchange, messagesJson(1, 5,
                         mediaMessageJson(4, 1, "分享图片",
                                 "/chat/media?gid=202&mid=4&variant=preview",
                                 "/chat/media?gid=202&mid=4&variant=original", "") + ","
@@ -79,7 +79,9 @@ class GroupChatPageTest {
                                 + systemMessageJson(6, "涉及资金问题请务必提高警惕，谨防诈骗。查看案例") + ","
                                 + mediaMessageJson(7, 1, "第二张图片",
                                 "/chat/media?gid=202&mid=7&variant=preview",
-                                "/chat/media?gid=202&mid=7&variant=original", "")));
+                                "/chat/media?gid=202&mid=7&variant=original", "") + ","
+                                + mediaMessageJson(8, 0,
+                                "微博链接 http://weibo.com/1560906700/RaX1Tdqh7", "", "", "")));
                 return;
             }
             if (!query.contains("gid=101")) {
@@ -296,6 +298,26 @@ class GroupChatPageTest {
         assertThat(page.locator("[data-mid='5'] .bubble")).hasCount(0);
         assertThat(page.locator("[data-mid='5'] .video-preview")).isVisible();
         assertThat(page.locator("[data-mid='7'] .bubble")).hasText("第二张图片");
+
+        page.close();
+    }
+
+    @Test
+    void opens_message_links_in_a_new_tab_without_exposing_the_opener() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("[data-mid='8'] .bubble"))
+                .hasText("微博链接 http://weibo.com/1560906700/RaX1Tdqh7");
+        assertThat(page.locator("[data-mid='8'] .bubble a"))
+                .hasText("http://weibo.com/1560906700/RaX1Tdqh7");
+        assertThat(page.locator("[data-mid='8'] .bubble a"))
+                .hasAttribute("href", "http://weibo.com/1560906700/RaX1Tdqh7");
+        assertThat(page.locator("[data-mid='8'] .bubble a"))
+                .hasAttribute("target", "_blank");
+        assertThat(page.locator("[data-mid='8'] .bubble a"))
+                .hasAttribute("rel", "noopener noreferrer");
 
         page.close();
     }

@@ -4,6 +4,7 @@
   const PAGE_SIZE = 50;
   const FIRST_PAGE = 1;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
+  const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
   const elements = {
     appTitle: document.querySelector("#app-title"),
     groupsCount: document.querySelector("#groups-count"),
@@ -61,6 +62,21 @@
       : value;
   }
 
+  function appendMessageText(container, text) {
+    let offset = 0;
+    for (const match of text.matchAll(MESSAGE_URL_PATTERN)) {
+      container.append(document.createTextNode(text.slice(offset, match.index)));
+      const link = document.createElement("a");
+      link.href = match[0];
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = match[0];
+      container.append(link);
+      offset = match.index + match[0].length;
+    }
+    container.append(document.createTextNode(text.slice(offset)));
+  }
+
   function groupPreview(group) {
     const sender = group.latestSenderName?.trim() || "";
     const message = group.latestMessage?.trim() || "";
@@ -106,7 +122,7 @@
       article.dataset.mid = String(message.mid);
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      bubble.textContent = message.text || `[${message.msgTypeName || "消息"}]`;
+      appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
       if (message.senderName?.trim() === "粉丝群") {
         article.classList.add("system-message");
         article.append(bubble);
