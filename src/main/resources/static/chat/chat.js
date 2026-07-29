@@ -55,6 +55,22 @@
     return container;
   }
 
+  function truncate(value, maxLength) {
+    const characters = Array.from(value);
+    return characters.length > maxLength
+      ? `${characters.slice(0, maxLength).join("")}...`
+      : value;
+  }
+
+  function groupPreview(group) {
+    const sender = group.latestSenderName?.trim() || "";
+    const message = group.latestMessage?.trim() || "";
+    if (sender || message) {
+      return truncate(sender ? `${sender}：${message}` : message, 10);
+    }
+    return `${group.maxMember || group.memberCount} 人群`;
+  }
+
   function renderGroups() {
     elements.groupsList.replaceChildren();
     state.groups.forEach(group => {
@@ -62,8 +78,9 @@
       button.className = "group-row";
       button.type = "button";
       button.dataset.gid = String(group.gid);
+      const previewText = groupPreview(group);
       button.setAttribute("aria-label",
-        `${group.name || `群聊 ${group.gid}`}，${group.memberCount} 位成员`);
+        `${group.name || `群聊 ${group.gid}`}，${previewText}`);
       button.append(avatar(group, "group-avatar"));
       const copy = document.createElement("span");
       copy.className = "group-copy";
@@ -72,7 +89,7 @@
       name.textContent = group.name || `群聊 ${group.gid}`;
       const size = document.createElement("span");
       size.className = "group-preview";
-      size.textContent = `${group.memberCount} 位成员`;
+      size.textContent = previewText;
       copy.append(name, size);
       button.append(copy);
       button.addEventListener("click", () => selectGroup(group.gid));
@@ -178,7 +195,7 @@
     elements.newMessages.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
-    elements.currentSize.textContent = `${group.memberCount} 人群`;
+    elements.currentSize.textContent = `${group.maxMember || group.memberCount} 人群`;
     elements.currentId.textContent = String(group.gid);
     elements.currentNotice.textContent = group.summary || "暂无简介";
     elements.currentAvatar.replaceWith(avatar(group, "main-group-avatar"));

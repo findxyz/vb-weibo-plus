@@ -43,9 +43,11 @@ class GroupChatPageTest {
             sendJson(exchange, """
                 [
                   {"gid":101,"name":"周末活动讨论组","avatar":"https://example.test/group.png","memberCount":12,
-                   "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
+                   "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1,
+                   "latestSenderName":"小凯","latestMessage":"大家周末有空吗？"},
                   {"gid":202,"name":"LinkNow","avatar":"","memberCount":3,
-                   "maxMember":200,"ownerId":2,"admins":[],"summary":"测试群","groupType":1}
+                   "maxMember":200,"ownerId":2,"admins":[],"summary":"测试群","groupType":1,
+                   "latestSenderName":"阿呆","latestMessage":"收到"}
                 ]
                 """);
         });
@@ -186,6 +188,27 @@ class GroupChatPageTest {
                   && image.offsetHeight === image.parentElement.clientHeight
                 """);
         org.assertj.core.api.Assertions.assertThat(avatarFitsContainer).isEqualTo(true);
+
+        page.close();
+    }
+
+    @Test
+    void shows_group_capacity_in_the_conversation_header() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator("#current-size")).hasText("500 人群");
+
+        page.close();
+    }
+
+    @Test
+    void shows_the_latest_message_summary_truncated_to_ten_characters() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator(".group-preview"))
+                .hasText(new String[]{"小凯：大家周末有空吗...", "阿呆：收到"});
 
         page.close();
     }
