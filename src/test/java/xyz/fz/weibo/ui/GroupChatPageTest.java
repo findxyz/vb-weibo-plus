@@ -270,6 +270,37 @@ class GroupChatPageTest {
     }
 
     @Test
+    void uses_a_full_screen_transparent_overlay_and_closes_outside_the_image() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        page.locator("[data-mid='4'] .image-preview").click();
+
+        assertThat(page.locator("#image-viewer")).isVisible();
+        assertThat(page.locator("#close-image-viewer")).hasCount(0);
+        Object viewerIsAFullScreenOverlay = page.locator("#image-viewer").evaluate("""
+                viewer => {
+                  const box = viewer.getBoundingClientRect();
+                  const style = getComputedStyle(viewer);
+                  return box.left === 0
+                    && box.top === 0
+                    && box.width === innerWidth
+                    && box.height === innerHeight
+                    && style.borderTopWidth === "0px"
+                    && style.backgroundColor === "rgba(0, 0, 0, 0.76)";
+                }
+                """);
+        org.assertj.core.api.Assertions.assertThat(viewerIsAFullScreenOverlay).isEqualTo(true);
+
+        page.locator("#image-viewer img").click();
+        assertThat(page.locator("#image-viewer")).isVisible();
+        page.mouse().click(4, 4);
+        assertThat(page.locator("#image-viewer")).isHidden();
+
+        page.close();
+    }
+
+    @Test
     void previews_original_images_and_starts_video_after_clicking_its_cover() {
         Page page = browser.newPage();
         page.addInitScript("""
@@ -303,7 +334,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#image-viewer img"))
                 .hasAttribute("src", "/chat/media?gid=202&mid=4&variant=original");
         assertThat(page.locator("#image-viewer img")).isVisible();
-        page.locator("#close-image-viewer").click();
+        page.mouse().click(4, 4);
 
         page.locator("[data-mid='7'] .image-preview").click();
         Object newImageIsHiddenWhileLoading = page.locator("#image-viewer img")
@@ -312,7 +343,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#image-viewer-state")).hasText("正在加载原图…");
         assertThat(page.locator("#image-viewer img")).isVisible();
         assertThat(page.locator("#image-viewer-state")).isEmpty();
-        page.locator("#close-image-viewer").click();
+        page.mouse().click(4, 4);
 
         page.locator("[data-mid='5'] .video-preview").click();
         assertThat(page.locator("[data-mid='5'] video"))

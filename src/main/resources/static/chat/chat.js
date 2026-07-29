@@ -23,8 +23,7 @@
     newMessages: document.querySelector("#new-messages"),
     imageViewer: document.querySelector("#image-viewer"),
     imageViewerImage: document.querySelector("#image-viewer img"),
-    imageViewerState: document.querySelector("#image-viewer-state"),
-    closeImageViewer: document.querySelector("#close-image-viewer")
+    imageViewerState: document.querySelector("#image-viewer-state")
   };
   const state = {
     groups: [],
@@ -178,7 +177,6 @@
     elements.imageViewerState.textContent = "正在加载原图…";
     elements.imageViewerImage.src = url;
     elements.imageViewer.showModal();
-    elements.closeImageViewer.focus();
   }
 
   function formatTime(timestamp) {
@@ -316,7 +314,6 @@
     elements.messages.scrollTop = elements.messages.scrollHeight;
     elements.newMessages.hidden = true;
   });
-  elements.closeImageViewer.addEventListener("click", () => elements.imageViewer.close());
   elements.imageViewer.addEventListener("click", event => {
     if (event.target === elements.imageViewer) elements.imageViewer.close();
   });
