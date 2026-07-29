@@ -8,6 +8,7 @@
     groupsCount: document.querySelector("#groups-count"),
     groupsList: document.querySelector("#groups-list"),
     groupsState: document.querySelector("#groups-state"),
+    retryGroups: document.querySelector("#retry-groups"),
     groupSearch: document.querySelector("#group-search"),
     currentGroup: document.querySelector("#current-group"),
     currentSize: document.querySelector("#current-size"),
@@ -16,6 +17,7 @@
     currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"),
     messagesState: document.querySelector("#messages-state"),
+    retryMessages: document.querySelector("#retry-messages"),
     loadEarlier: document.querySelector("#load-earlier"),
     refreshState: document.querySelector("#refresh-state"),
     newMessages: document.querySelector("#new-messages"),
@@ -30,7 +32,8 @@
     messages: new Map(),
     nextPage: 0,
     total: 0,
-    refreshing: false
+    refreshing: false,
+    failedPage: 0
   };
 
   function initials(value, fallback) {
@@ -40,6 +43,7 @@
   function avatar(group, className) {
     const container = document.createElement("span");
     container.className = className;
+    container.setAttribute("aria-hidden", "true");
     if (group.avatar) {
       const image = document.createElement("img");
       image.src = `/chat/image?${new URLSearchParams({url: group.avatar})}`;
@@ -58,6 +62,8 @@
       button.className = "group-row";
       button.type = "button";
       button.dataset.gid = String(group.gid);
+      button.setAttribute("aria-label",
+        `${group.name || `群聊 ${group.gid}`}，${group.memberCount} 位成员`);
       button.append(avatar(group, "group-avatar"));
       const copy = document.createElement("span");
       copy.className = "group-copy";
@@ -185,6 +191,8 @@
   async function loadMessages(page) {
     const previousHeight = elements.messages.scrollHeight;
     const previousTop = elements.messages.scrollTop;
+    state.failedPage = page;
+    elements.retryMessages.hidden = true;
     elements.messagesState.textContent = "正在加载消息…";
     const query = new URLSearchParams({
       gid: String(state.currentGid), page: String(page), size: String(PAGE_SIZE)
@@ -207,6 +215,7 @@
       }
     } catch {
       elements.messagesState.textContent = "消息加载失败，请稍后重试。";
+      elements.retryMessages.hidden = false;
     }
   }
 
@@ -241,14 +250,18 @@
       }
       elements.loadEarlier.disabled = state.messages.size >= state.total;
       elements.refreshState.textContent = "刚刚更新";
+      elements.refreshState.hidden = false;
     } catch {
       elements.refreshState.textContent = "刷新失败，点击重试";
+      elements.refreshState.hidden = false;
     } finally {
       state.refreshing = false;
     }
   }
 
   async function initialize() {
+    elements.retryGroups.hidden = true;
+    elements.groupsState.textContent = "";
     try {
       const response = await fetch("/chat/groups", {cache: "no-store"});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -264,6 +277,7 @@
     } catch {
       elements.groupsCount.textContent = "加载失败";
       elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。";
+      elements.retryGroups.hidden = false;
     }
   }
 
@@ -274,6 +288,8 @@
     });
   });
   elements.loadEarlier.addEventListener("click", () => loadMessages(state.nextPage));
+  elements.retryGroups.addEventListener("click", initialize);
+  elements.retryMessages.addEventListener("click", () => loadMessages(state.failedPage));
   elements.refreshState.addEventListener("click", refreshMessages);
   elements.newMessages.addEventListener("click", () => {
     elements.messages.scrollTop = elements.messages.scrollHeight;

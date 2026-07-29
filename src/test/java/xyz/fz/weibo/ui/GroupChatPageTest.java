@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
@@ -26,19 +28,33 @@ class GroupChatPageTest {
     private static Browser browser;
     private static String baseUrl;
     private static final AtomicInteger latestPageRequests = new AtomicInteger();
+    private static final AtomicBoolean failGroups = new AtomicBoolean();
+    private static final AtomicBoolean failMessages = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/chat/groups", exchange -> sendJson(exchange, """
+        server.createContext("/chat/groups", exchange -> {
+            if (failGroups.get()) {
+                exchange.sendResponseHeaders(503, -1);
+                exchange.close();
+                return;
+            }
+            sendJson(exchange, """
                 [
                   {"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
                    "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
                   {"gid":202,"name":"LinkNow","avatar":"","memberCount":3,
                    "maxMember":200,"ownerId":2,"admins":[],"summary":"测试群","groupType":1}
                 ]
-                """));
+                """);
+        });
         server.createContext("/chat/messages", exchange -> {
+            if (failMessages.get()) {
+                exchange.sendResponseHeaders(503, -1);
+                exchange.close();
+                return;
+            }
             String query = exchange.getRequestURI().getRawQuery();
             if (query == null || !query.contains("size=50")) {
                 exchange.sendResponseHeaders(400, -1);
@@ -113,9 +129,15 @@ class GroupChatPageTest {
         }
     }
 
+    @BeforeEach
+    void resetServerState() {
+        latestPageRequests.set(0);
+        failGroups.set(false);
+        failMessages.set(false);
+    }
+
     @Test
     void loads_real_groups_and_renders_latest_messages_in_chronological_order() {
-        latestPageRequests.set(0);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
@@ -124,13 +146,15 @@ class GroupChatPageTest {
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"较早消息", "较新消息"});
         assertThat(page.locator("#send-button")).isDisabled();
+        assertThat(page.locator("#composer")).isDisabled();
+        assertThat(page.locator(".composer button:enabled")).hasCount(0);
+        assertThat(page.locator(".message.mine")).hasCount(0);
 
         page.close();
     }
 
     @Test
     void loads_earlier_messages_at_the_top_without_replacing_the_latest_page() {
-        latestPageRequests.set(0);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
@@ -146,24 +170,31 @@ class GroupChatPageTest {
 
     @Test
     void refreshes_local_messages_on_focus_and_merges_them_by_mid() {
-        latestPageRequests.set(0);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"较早消息", "较新消息"});
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = 0;
+                }
+                """);
         page.evaluate("window.dispatchEvent(new Event('focus'))");
 
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"较早消息", "较新消息", "刷新后消息"});
         assertThat(page.locator("[data-mid='1']")).hasCount(1);
+        assertThat(page.locator("#new-messages")).isVisible();
+        page.locator("#new-messages").click();
+        assertThat(page.locator("#new-messages")).isHidden();
 
         page.close();
     }
 
     @Test
     void previews_original_images_and_starts_video_after_clicking_its_cover() {
-        latestPageRequests.set(0);
         Page page = browser.newPage();
         page.addInitScript("""
                 window.__playCalls = 0;
@@ -187,6 +218,54 @@ class GroupChatPageTest {
         org.assertj.core.api.Assertions
                 .assertThat(((Number) page.evaluate("window.__playCalls")).intValue())
                 .isEqualTo(1);
+
+        page.close();
+    }
+
+    @Test
+    void keeps_the_initial_group_error_visible_and_allows_retrying_it() {
+        failGroups.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator("#groups-state")).containsText("群聊列表加载失败");
+        assertThat(page.locator("#retry-groups")).isVisible();
+        failGroups.set(false);
+        page.locator("#retry-groups").click();
+        assertThat(page.locator(".group-row")).hasCount(2);
+
+        page.close();
+    }
+
+    @Test
+    void keeps_the_group_visible_when_messages_fail_and_allows_retrying_them() {
+        failMessages.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+        assertThat(page.locator("#messages-state")).containsText("消息加载失败");
+        assertThat(page.locator("#retry-messages")).isVisible();
+        failMessages.set(false);
+        page.locator("#retry-messages").click();
+        assertThat(page.locator(".message")).hasCount(2);
+
+        page.close();
+    }
+
+    @Test
+    void filters_groups_by_name_and_restores_the_last_selected_group_after_reload() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        page.locator("#group-search").fill("Link");
+        assertThat(page.locator(".group-row:visible")).hasCount(1);
+        page.locator("#group-search").fill("");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+
+        page.reload();
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
 
         page.close();
     }
