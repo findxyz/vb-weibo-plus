@@ -342,6 +342,31 @@ class GroupChatPageTest {
     }
 
     @Test
+    void hides_new_messages_button_after_scrolling_to_the_bottom() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = 0;
+                }
+                """);
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+        assertThat(page.locator("#new-messages")).isVisible();
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+
+        assertThat(page.locator("#new-messages")).isHidden();
+
+        page.close();
+    }
+
+    @Test
     void new_messages_button_refreshes_again_before_scrolling_to_the_bottom() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");

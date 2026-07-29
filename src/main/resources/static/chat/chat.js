@@ -369,6 +369,7 @@
   });
   elements.messages.addEventListener("scroll", () => {
     state.followingLatest = isNearBottom();
+    if (state.followingLatest) elements.newMessages.hidden = true;
     maybeLoadEarlierMessages();
   });
   elements.retryGroups.addEventListener("click", initialize);
