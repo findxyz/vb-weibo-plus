@@ -94,8 +94,11 @@ public class ChatController {
             @RequestParam long gid,
             @RequestParam(required = false) Long beforeCreatedAt,
             @RequestParam(required = false) Long beforeMid,
+            @RequestParam(required = false) Long afterCreatedAt,
+            @RequestParam(required = false) Long afterMid,
             @RequestParam int size) {
-        return chatService.queryMessagesByCursor(gid, beforeCreatedAt, beforeMid, size);
+        return chatService.queryMessagesByCursor(
+                gid, beforeCreatedAt, beforeMid, afterCreatedAt, afterMid, size);
     }
 
     @GetMapping("/media")

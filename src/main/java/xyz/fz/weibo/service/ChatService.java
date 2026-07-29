@@ -32,6 +32,8 @@ import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -138,21 +140,34 @@ public class ChatService {
     }
 
     public MessageCursorResult queryMessagesByCursor(
-            long gid, Long beforeCreatedAt, Long beforeMid, int size) {
+            long gid, Long beforeCreatedAt, Long beforeMid,
+            Long afterCreatedAt, Long afterMid, int size) {
         validateGid(gid);
-        validateCursorQuery(beforeCreatedAt, beforeMid, size);
-        List<MessageEntity> result = messageRepository.findCursorPage(
-                gid, beforeCreatedAt, beforeMid, PageRequest.of(0, size + 1));
+        validateCursorQuery(beforeCreatedAt, beforeMid, afterCreatedAt, afterMid, size);
+        boolean loadingAfter = afterCreatedAt != null;
+        List<MessageEntity> result = loadingAfter
+                ? messageRepository.findAfterCursorPage(
+                        gid, afterCreatedAt, afterMid, PageRequest.of(0, size + 1))
+                : messageRepository.findCursorPage(
+                        gid, beforeCreatedAt, beforeMid, PageRequest.of(0, size + 1));
         boolean hasMore = result.size() > size;
-        List<MessageEntity> page = result.subList(0, Math.min(size, result.size()));
+        List<MessageEntity> page = new ArrayList<>(
+                result.subList(0, Math.min(size, result.size())));
+        if (loadingAfter) {
+            Collections.reverse(page);
+        }
         GroupRecord group = groupRepository.findById(gid)
                 .map(messageMapper::toGroupRecord)
                 .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
         List<MessageView> items = messageMapper.toMessageViews(page);
-        MessageEntity last = hasMore ? page.getLast() : null;
+        MessageEntity next = hasMore
+                ? (loadingAfter ? page.getFirst() : page.getLast())
+                : null;
         return new MessageCursorResult(group, items, size, hasMore,
-                last == null ? null : last.getCreatedAt(),
-                last == null ? null : last.getMid());
+                !loadingAfter && next != null ? next.getCreatedAt() : null,
+                !loadingAfter && next != null ? next.getMid() : null,
+                loadingAfter && next != null ? next.getCreatedAt() : null,
+                loadingAfter && next != null ? next.getMid() : null);
     }
 
     public SaveResult saveBySince(long gid, long sinceTime, Long beforeMid) {
@@ -343,10 +358,18 @@ public class ChatService {
         }
     }
 
-    private void validateCursorQuery(Long beforeCreatedAt, Long beforeMid, int size) {
+    private void validateCursorQuery(Long beforeCreatedAt, Long beforeMid,
+                                     Long afterCreatedAt, Long afterMid, int size) {
         if ((beforeCreatedAt == null) != (beforeMid == null)) {
             throw new InvalidRequestException(
                     "beforeCreatedAt 和 beforeMid 必须同时提供或同时省略。");
+        }
+        if ((afterCreatedAt == null) != (afterMid == null)) {
+            throw new InvalidRequestException(
+                    "afterCreatedAt 和 afterMid 必须同时提供或同时省略。");
+        }
+        if (beforeCreatedAt != null && afterCreatedAt != null) {
+            throw new InvalidRequestException("before 游标和 after 游标不能同时提供。");
         }
         if (size < 1 || size > 100) {
             throw new InvalidRequestException("size 必须介于 1 和 100 之间。");

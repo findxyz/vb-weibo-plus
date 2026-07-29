@@ -211,9 +211,11 @@ class ChatControllerTest {
         MessageView view = objectMapper.readValue("""
                 {"mid": 100, "gid": 101, "createdAt": 1000}
                 """, MessageView.class);
-        when(chatService.queryMessagesByCursor(101, 2_000L, 200L, 20))
+        when(chatService.queryMessagesByCursor(
+                101, 2_000L, 200L, null, null, 20))
                 .thenReturn(new MessageCursorResult(
-                        group(101), List.of(view), 20, true, 1_000L, 100L));
+                        group(101), List.of(view), 20, true,
+                        1_000L, 100L, null, null));
 
         mockMvc.perform(get("/chat/messages/cursor")
                         .param("gid", "101")
@@ -226,9 +228,40 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.hasMore").value(true))
                 .andExpect(jsonPath("$.nextBeforeCreatedAt").value(1_000))
-                .andExpect(jsonPath("$.nextBeforeMid").value(100));
+                .andExpect(jsonPath("$.nextBeforeMid").value(100))
+                .andExpect(jsonPath("$.nextAfterCreatedAt").isEmpty())
+                .andExpect(jsonPath("$.nextAfterMid").isEmpty());
 
-        verify(chatService).queryMessagesByCursor(101, 2_000L, 200L, 20);
+        verify(chatService).queryMessagesByCursor(
+                101, 2_000L, 200L, null, null, 20);
+    }
+
+    @Test
+    void cursor_messages_bind_the_after_cursor_for_newer_messages() throws Exception {
+        MessageView view = objectMapper.readValue("""
+                {"mid": 300, "gid": 101, "createdAt": 3000}
+                """, MessageView.class);
+        when(chatService.queryMessagesByCursor(
+                101, null, null, 2_000L, 200L, 20))
+                .thenReturn(new MessageCursorResult(
+                        group(101), List.of(view), 20, true,
+                        null, null, 3_000L, 300L));
+
+        mockMvc.perform(get("/chat/messages/cursor")
+                        .param("gid", "101")
+                        .param("afterCreatedAt", "2000")
+                        .param("afterMid", "200")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].mid").value(300))
+                .andExpect(jsonPath("$.hasMore").value(true))
+                .andExpect(jsonPath("$.nextBeforeCreatedAt").isEmpty())
+                .andExpect(jsonPath("$.nextBeforeMid").isEmpty())
+                .andExpect(jsonPath("$.nextAfterCreatedAt").value(3_000))
+                .andExpect(jsonPath("$.nextAfterMid").value(300));
+
+        verify(chatService).queryMessagesByCursor(
+                101, null, null, 2_000L, 200L, 20);
     }
 
     @Test

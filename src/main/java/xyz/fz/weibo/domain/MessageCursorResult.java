@@ -8,6 +8,8 @@ public record MessageCursorResult(
         int size,
         boolean hasMore,
         Long nextBeforeCreatedAt,
-        Long nextBeforeMid
+        Long nextBeforeMid,
+        Long nextAfterCreatedAt,
+        Long nextAfterMid
 ) {
 }

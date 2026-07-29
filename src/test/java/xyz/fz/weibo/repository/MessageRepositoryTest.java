@@ -130,7 +130,7 @@ class MessageRepositoryTest {
     void after_cursor_returns_the_nearest_newer_messages_without_shifting() {
         messageRepository.insertIfAbsent(message(100, 1, 1_000, "最早", ""));
         messageRepository.insertIfAbsent(message(101, 1, 2_000, "锚点", ""));
-        messageRepository.insertIfAbsent(message(102, 1, 3_000, "较新", ""));
+        messageRepository.insertIfAbsent(message(102, 1, 2_000, "同一时刻的较新消息", ""));
         messageRepository.insertIfAbsent(message(103, 1, 4_000, "更新", ""));
 
         List<MessageEntity> first = messageRepository.findAfterCursorPage(

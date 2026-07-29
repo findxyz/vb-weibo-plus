@@ -268,22 +268,64 @@ class ChatServiceTest {
         when(messageMapper.toGroupRecord(group)).thenReturn(groupRecord);
         when(messageMapper.toMessageViews(List.of(newest, next))).thenReturn(views);
 
-        MessageCursorResult result = chatService.queryMessagesByCursor(1, null, null, 2);
+        MessageCursorResult result = chatService.queryMessagesByCursor(
+                1, null, null, null, null, 2);
 
         assertThat(result.group()).isEqualTo(groupRecord);
         assertThat(result.items()).containsExactlyElementsOf(views);
         assertThat(result.hasMore()).isTrue();
         assertThat(result.nextBeforeCreatedAt()).isEqualTo(3_000);
         assertThat(result.nextBeforeMid()).isEqualTo(102);
+        assertThat(result.nextAfterCreatedAt()).isNull();
+        assertThat(result.nextAfterMid()).isNull();
+    }
+
+    @Test
+    void queries_newer_messages_from_the_after_cursor_and_keeps_descending_response_order() {
+        GroupEntity group = group(1, 100);
+        GroupRecord groupRecord = record(1);
+        MessageEntity nearest = messageEntity(102, 3_000);
+        MessageEntity newer = messageEntity(103, 4_000);
+        MessageEntity lookahead = messageEntity(104, 5_000);
+        List<MessageView> views = List.of(view(103), view(102));
+        when(messageRepository.findAfterCursorPage(
+                1, 2_000L, 101L, PageRequest.of(0, 3)))
+                .thenReturn(List.of(nearest, newer, lookahead));
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+        when(messageMapper.toGroupRecord(group)).thenReturn(groupRecord);
+        when(messageMapper.toMessageViews(List.of(newer, nearest))).thenReturn(views);
+
+        MessageCursorResult result = chatService.queryMessagesByCursor(
+                1, null, null, 2_000L, 101L, 2);
+
+        assertThat(result.group()).isEqualTo(groupRecord);
+        assertThat(result.items()).containsExactlyElementsOf(views);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.nextBeforeCreatedAt()).isNull();
+        assertThat(result.nextBeforeMid()).isNull();
+        assertThat(result.nextAfterCreatedAt()).isEqualTo(4_000);
+        assertThat(result.nextAfterMid()).isEqualTo(103);
     }
 
     @Test
     void cursor_query_requires_a_complete_cursor_and_valid_size() {
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, 1_000L, null, 50))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
+                1, 1_000L, null, null, null, 50))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, 100L, 50))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
+                1, null, 100L, null, null, 50))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, null, 101))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
+                1, null, null, 1_000L, null, 50))
+                .isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
+                1, null, null, null, 100L, 50))
+                .isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
+                1, 1_000L, 100L, 2_000L, 200L, 50))
+                .isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
+                1, null, null, null, null, 101))
                 .isInstanceOf(InvalidRequestException.class);
     }
 
