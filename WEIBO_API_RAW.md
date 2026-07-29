@@ -626,3 +626,340 @@ max_mid 取上一页 messages[0].id（最旧一条），返回比该 mid 更早�
 - 图片（media_type=1）：fid=消息 fids[0]，Content-Type: image/png 或 image/jpeg
 - 视频（media_type=10）：fid=消息 fids[0]，Content-Type: video/mpeg4，Content-Disposition filename 含 .mp4
 - 视频封面图：fid=消息 annotations.video_pic_fid，Content-Type: image/jpeg，Content-Disposition filename 含 .jpg
+
+## 群聊发送图片：初始化文件
+
+请求
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| Method | POST | application/x-www-form-urlencoded |
+| URL | https://api.weibo.com/webim/fileplatform/init.json | |
+| extprops | {"uploadType":3,"recipientId":5046020575330655} | recipientId 为群 gid，uploadType=3 为群聊 |
+| length | 630 | 文件字节数 |
+| name | linknow-api-test.png | 原始文件名 |
+| type | dm_attachment_pic | 图片固定 |
+| md5 | 42509cffa005422b1ca82fb76ff6d4e7 | 文件 MD5 |
+| check | 42509cffa005422b1ca82fb76ff6d4e7 | 与 md5 相同 |
+| source | 209678993 | 固定 |
+| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA |
+| Referer | https://api.weibo.com/chat | |
+| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
+
+响应
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| fileToken | 本次上传的动态令牌，后续 uploadx 使用 | （省略） |
+| length | 分片大小，单位为 KB | 1024 |
+| urlTag | 上传节点标识 | 1 |
+
+原始响应
+
+```json
+{
+  "fileToken": "<动态上传令牌>",
+  "length": 1024,
+  "urlTag": 1
+}
+```
+
+说明
+先计算整张图片的 MD5，再初始化文件。响应中的 fileToken 仅用于本次上传，文档不记录真实值。实测目标为测试群 LinkNow，gid=5046020575330655。
+
+## 群聊发送图片：上传文件
+
+请求
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| Method | POST | multipart/form-data |
+| URL | https://api.weibo.com/webim/uploadx.json | |
+| source（query） | 209678993 | 固定 |
+| is_chunk（query） | 1 | 启用分片上传 |
+| file | （图片二进制） | plupload 生成的文件字段 |
+| filetoken | &lt;动态上传令牌&gt; | 来自 fileplatform/init.json |
+| startloc | 0 | 当前分片起始偏移；后续分片取上一响应 offset |
+| selectId | 5046020575330655 | 群 gid |
+| source（form） | 209678993 | 固定 |
+| filelength / filecheck / percent | 空字符串 | 网页端固定附带 |
+| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA |
+| Referer | https://api.weibo.com/chat | |
+| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
+
+响应
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| fid | 图片文件 id，发送消息时作为 fids | 5326071291448867 |
+
+原始响应
+
+```json
+{"fid":5326071291448867}
+```
+
+说明
+网页端配置的分片大小来自初始化响应，实测为 1024 KB。630 字节测试图只有 1 个分片。multipart 边界、文件名、chunk 和 chunks 等字段由 plupload 自动生成；核心业务字段如上。
+
+## 群聊发送图片：发送消息
+
+请求
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| Method | POST | application/x-www-form-urlencoded |
+| URL | https://api.weibo.com/webim/groupchat/send_message.json | |
+| annotations | {"webchat":1,"clientid":"&lt;网页会话 clientid&gt;"} | clientid 为网页聊天会话标识 |
+| content | 分享图片 | 网页端固定文案 |
+| fids | 5326071291448867 | uploadx 响应的 fid |
+| id | 5046020575330655 | 群 gid |
+| return_detail | 1 | 返回消息详情 |
+| media_type | 1 | 图片固定 |
+| source | 209678993 | 固定 |
+| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA |
+| Referer | https://api.weibo.com/chat | |
+| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
+
+响应
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| result | true 表示发送成功 | true |
+| mid / id | 新消息 id | 5326071289614715 |
+| gid | 群 gid | 5046020575330655 |
+| content | 消息文案 | 分享图片 |
+| media_type | 图片为 1 | 1 |
+| time / ts | 秒级时间戳 | 1785317812 |
+
+原始响应
+
+```json
+{
+  "from_uid": 1795308214,
+  "time": 1785317812,
+  "id": 5326071289614715,
+  "gid": 5046020575330655,
+  "type": 321,
+  "content": "分享图片",
+  "media_type": 1,
+  "result": true,
+  "mid": 5326071289614715,
+  "ts": 1785317812
+}
+```
+
+说明
+图片发送共 3 步：fileplatform/init 初始化、uploadx 上传、groupchat/send_message 发送。发送成功后，query_messages 返回的图片消息以 fids[0] 保存图片 fid。
+
+## 群聊发送视频：上传封面图
+
+请求
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| Method | POST | multipart/form-data |
+| URL | https://api.weibo.com/webim/uploadx.json | |
+| source | 209678993 | query 参数，固定 |
+| gid | 5046020575330655 | query 参数，群 gid |
+| imageName | （PNG 二进制） | 浏览器从视频生成的封面图 |
+| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA |
+| Referer | https://api.weibo.com/chat | |
+| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
+
+响应
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| fid | 视频封面图 fid | 5326071353316787 |
+| filename | 服务端文件名 | blob |
+| filesize | 封面图字节数 | 18894 |
+| extension | 封面图格式 | png |
+| thumbnail_60 ... thumbnail_600 | 不同尺寸的封面图下载地址 | https://upload.api.weibo.com/2/mss/msget_thumbnail?... |
+| http_code | 200 表示成功 | 200 |
+
+原始响应
+
+```json
+{
+  "fid": 5326071353316787,
+  "vfid": 5326071353316787,
+  "tovfid": 5326071353316787,
+  "filename": "blob",
+  "filesize": 18894,
+  "extension": "png",
+  "fidstr": "5326071353316787",
+  "is_outofdate": false,
+  "flag": 0,
+  "thumbnail_600": "https://upload.api.weibo.com/2/mss/msget_thumbnail?fid=5326071353316787&high=600&width=600&gid=5046020575330655&size=600,338",
+  "http_code": 200
+}
+```
+
+说明
+网页端先从视频提取封面图，再以 imageName 字段上传。返回的 fid 在最终发送消息时写入 annotations.video_pic_fid，不是视频文件本身的 fid。
+
+## 群聊发送视频：初始化文件
+
+请求
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| Method | POST | application/x-www-form-urlencoded |
+| URL | https://api.weibo.com/webim/2/multimedia/init.json | |
+| extprops | {"uploadType":3,"recipientId":5046020575330655} | recipientId 为群 gid |
+| length | 9355 | 视频文件字节数 |
+| name | linknow-api-test.mp4 | 原始文件名 |
+| type | dm_attachment_video | 视频固定 |
+| md5 | 1b5f45f90889d408c7d29f33318ebfc9 | 整个视频的 MD5 |
+| check | 1b5f45f90889d408c7d29f33318ebfc9 | 与 md5 相同 |
+| mediaprops | 见下方 JSON | 视频属性 |
+| source | 209678993 | 固定 |
+| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA |
+| Referer | https://api.weibo.com/chat | |
+| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
+
+mediaprops 解码后：
+
+```json
+{
+  "raw_md5": "1b5f45f90889d408c7d29f33318ebfc9",
+  "video_type": "dm_video",
+  "screenshot": 0,
+  "width": 320,
+  "height": 180,
+  "duration": 2,
+  "dm_video_props": {
+    "togid": 5046020575330655,
+    "touid": 0,
+    "gid": 0
+  }
+}
+```
+
+响应
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| auth | 分片上传的动态鉴权值，用于 X-Up-Auth | （省略） |
+| fileToken | 本次视频上传令牌 | （省略） |
+| length | 分片大小，单位为 KB | 4096 |
+| threads | 并发上传线程数 | 1 |
+| chunk_retry | 分片重试次数 | 30 |
+| chunk_timeout | 分片超时，单位为毫秒 | 120000 |
+| chunk_read_timeout | 分片读取超时，单位为毫秒 | 30000 |
+| media_id | 媒体 id | 5326071353245828 |
+| request_id | 请求跟踪 id | req_c52674a8ac1947a3839bbfd1157b640a |
+
+原始响应
+
+```json
+{
+  "chunk_slow_speed": 100,
+  "auth": "<动态上传鉴权>",
+  "chunk_delay": 3000,
+  "length": 4096,
+  "threads": 1,
+  "idc": "ali",
+  "chunk_retry": 30,
+  "chunk_timeout": 120000,
+  "fileToken": "<动态上传令牌>",
+  "urlTag": "1",
+  "media_id": "5326071353245828",
+  "request_id": "req_c52674a8ac1947a3839bbfd1157b640a",
+  "chunk_read_timeout": 30000
+}
+```
+
+说明
+网页端只接受 MP4 视频，实测代码限制为时长小于 5 分钟且文件小于 100 MB。screenshot=0 表示浏览器成功提取了封面图；如果无法提取则为 1，并在上传完成后轮询首帧接口补封面。
+
+## 群聊发送视频：分片上传
+
+请求
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| Method | POST | application/octet-stream |
+| URL | https://up.video.weibocdn.com/2/multimedia/upload.json | |
+| name | linknow-api-test.mp4 | 原始文件名 |
+| chunk | 0 | 当前分片序号，从 0 开始 |
+| chunks | 1 | 总分片数 |
+| source | 209678993 | 固定 |
+| filetoken | &lt;动态上传令牌&gt; | multimedia/init 响应的 fileToken |
+| startloc | 0 | 当前分片起始偏移 |
+| selectId | 5046020575330655 | 群 gid |
+| check | 1b5f45f90889d408c7d29f33318ebfc9 | 整个文件的 MD5 |
+| sectioncheck | 1b5f45f90889d408c7d29f33318ebfc9 | 当前分片的 MD5；单分片时与 check 相同 |
+| filelength / filecheck / percent | 空字符串 | 网页端固定附带 |
+| X-Up-Auth | &lt;动态上传鉴权&gt; | multimedia/init 响应的 auth，禁止持久化 |
+| Origin | https://api.weibo.com | 跨域上传，由浏览器自动附加 |
+| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA |
+| Referer | https://api.weibo.com/ | |
+| 请求体 | 当前视频分片二进制 | 非 multipart |
+
+响应
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| fid | 视频文件 fid，发送消息时作为 fids | 5326071357508212 |
+| HTTP 状态 | 200 表示当前分片上传成功 | 200 |
+
+原始响应
+
+```json
+{"fid":5326071357508212}
+```
+
+说明
+实测 9355 字节视频只有 1 个分片。浏览器网络面板的响应正文因缓存淘汰未能直接读取，但网页端上传完成回调必须从 JSON 响应读取 fid，且随后 send_message 请求实际使用了 fid=5326071357508212，因此此处响应结构由前端实现与后续请求共同确认。多分片时，startloc 使用上一分片响应的 offset，sectioncheck 使用当前分片 MD5。
+
+## 群聊发送视频：发送消息
+
+请求
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| Method | POST | application/x-www-form-urlencoded |
+| URL | https://api.weibo.com/webim/groupchat/send_message.json | |
+| annotations | {"video_pic_fid":5326071353316787,"webchat":1,"clientid":"&lt;网页会话 clientid&gt;"} | video_pic_fid 为封面图 fid |
+| content | 分享视频 | 网页端固定文案 |
+| fids | 5326071357508212 | 视频分片上传响应的 fid |
+| id | 5046020575330655 | 群 gid |
+| return_detail | 1 | 返回消息详情 |
+| media_type | 10 | 视频固定 |
+| source | 209678993 | 固定 |
+| User-Agent | Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36 | 桌面 UA |
+| Referer | https://api.weibo.com/chat | |
+| Cookie | SUBP=...; ALF=...; SSOLoginState=...; SUB=... | 扫码登录获得，详见"扫码登录" |
+
+响应
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| result | true 表示发送成功 | true |
+| mid / id | 新消息 id | 5326071357511649 |
+| gid | 群 gid | 5046020575330655 |
+| content | 消息文案 | 分享视频 |
+| media_type | 视频为 10 | 10 |
+| time / ts | 秒级时间戳 | 1785317828 |
+
+原始响应
+
+```json
+{
+  "from_uid": 1795308214,
+  "time": 1785317828,
+  "id": 5326071357511649,
+  "gid": 5046020575330655,
+  "type": 321,
+  "content": "分享视频",
+  "media_type": 10,
+  "result": true,
+  "mid": 5326071357511649,
+  "ts": 1785317828
+}
+```
+
+说明
+视频发送共 4 步：上传封面图、multimedia/init 初始化视频、up.video.weibocdn.com 分片上传视频、groupchat/send_message 发送。发送成功后，query_messages 返回的视频消息以 fids[0] 保存视频 fid，以 annotations.video_pic_fid 保存封面图 fid。
