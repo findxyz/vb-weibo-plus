@@ -33,6 +33,7 @@
     nextBeforeCreatedAt: null,
     nextBeforeMid: null,
     hasMore: false,
+    refreshingGroups: false,
     refreshing: false,
     loadingEarlier: false,
     followingLatest: true,
@@ -90,6 +91,10 @@
       button.className = "group-row";
       button.type = "button";
       button.dataset.gid = String(group.gid);
+      if (group.gid === state.currentGid) {
+        button.classList.add("active");
+        button.setAttribute("aria-current", "true");
+      }
       const previewText = groupPreview(group);
       button.setAttribute("aria-label",
         `${group.name || `群聊 ${group.gid}`}，${previewText}`);
@@ -108,6 +113,14 @@
       elements.groupsList.append(button);
     });
     elements.groupsCount.textContent = `${state.groups.length} 个群聊`;
+    filterGroups(elements.groupSearch.value);
+  }
+
+  function filterGroups(value) {
+    const keyword = value.trim().toLocaleLowerCase("zh-CN");
+    elements.groupsList.querySelectorAll(".group-row").forEach(row => {
+      row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword);
+    });
   }
 
   function renderMessages() {
@@ -339,6 +352,27 @@
     }
   }
 
+  async function refreshGroups() {
+    if (state.refreshingGroups || document.hidden) return;
+    state.refreshingGroups = true;
+    try {
+      const response = await fetch("/chat/groups", {cache: "no-store"});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const groups = await response.json();
+      if (JSON.stringify(groups) === JSON.stringify(state.groups)) return;
+      state.groups = groups;
+      renderGroups();
+    } catch {
+    } finally {
+      state.refreshingGroups = false;
+    }
+  }
+
+  function refreshView() {
+    refreshGroups();
+    refreshMessages();
+  }
+
   async function initialize() {
     elements.retryGroups.hidden = true;
     elements.groupsState.textContent = "";
@@ -362,10 +396,7 @@
   }
 
   elements.groupSearch.addEventListener("input", event => {
-    const keyword = event.target.value.trim().toLocaleLowerCase("zh-CN");
-    elements.groupsList.querySelectorAll(".group-row").forEach(row => {
-      row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword);
-    });
+    filterGroups(event.target.value);
   });
   elements.messages.addEventListener("scroll", () => {
     state.followingLatest = isNearBottom();
@@ -392,11 +423,11 @@
     elements.imageViewerImage.hidden = true;
     elements.imageViewerState.textContent = "原图加载失败，请关闭后重试。";
   });
-  window.addEventListener("focus", refreshMessages);
+  window.addEventListener("focus", refreshView);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) refreshMessages();
+    if (!document.hidden) refreshView();
   });
-  setInterval(refreshMessages, 2_000);
+  setInterval(refreshView, 2_000);
 
   initialize();
 })();

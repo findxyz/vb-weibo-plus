@@ -28,6 +28,7 @@ class GroupChatPageTest {
     private static Playwright playwright;
     private static Browser browser;
     private static String baseUrl;
+    private static final AtomicInteger groupListRequests = new AtomicInteger();
     private static final AtomicInteger latestPageRequests = new AtomicInteger();
     private static final AtomicInteger earlierPageRequests = new AtomicInteger();
     private static final AtomicBoolean failGroups = new AtomicBoolean();
@@ -42,6 +43,7 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
+            boolean refreshed = groupListRequests.incrementAndGet() > 1;
             sendJson(exchange, """
                 [
                   {"gid":101,"name":"周末活动讨论组","avatar":"https://example.test/group.png","memberCount":12,
@@ -49,9 +51,10 @@ class GroupChatPageTest {
                    "latestSenderName":"小凯","latestMessage":"大家周末有空吗？"},
                   {"gid":202,"name":"LinkNow","avatar":"","memberCount":3,
                    "maxMember":200,"ownerId":2,"admins":[],"summary":"测试群","groupType":1,
-                   "latestSenderName":"阿呆","latestMessage":"收到"}
+                   "latestSenderName":"%s","latestMessage":"%s"}
                 ]
-                """);
+                """.formatted(refreshed ? "媒体用户" : "阿呆",
+                    refreshed ? "新的群消息" : "收到"));
         });
         server.createContext("/chat/messages/cursor", exchange -> {
             if (failMessages.get()) {
@@ -171,6 +174,7 @@ class GroupChatPageTest {
 
     @BeforeEach
     void resetServerState() {
+        groupListRequests.set(0);
         latestPageRequests.set(0);
         earlierPageRequests.set(0);
         failGroups.set(false);
@@ -231,6 +235,20 @@ class GroupChatPageTest {
                 }
                 """);
         org.assertj.core.api.Assertions.assertThat(usesAvailableWidth).isEqualTo(true);
+
+        page.close();
+    }
+
+    @Test
+    void refreshes_latest_message_summaries_for_all_groups() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        var linkNowPreview = page.locator("[data-gid='202'] .group-preview");
+
+        assertThat(linkNowPreview).hasText("阿呆：收到");
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+        assertThat(linkNowPreview).hasText("媒体用户：新的群消息");
 
         page.close();
     }
