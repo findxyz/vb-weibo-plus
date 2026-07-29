@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
+import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageQueryResult;
@@ -84,17 +85,21 @@ class ChatControllerTest {
 
     @Test
     void lists_local_groups_including_gid_only_placeholders() throws Exception {
-        when(chatService.queryGroups()).thenReturn(List.of(
-                new GroupRecord(3, "", "", 0, 0, 0, List.of(), "", 0)
+        when(chatService.queryGroupList()).thenReturn(List.of(
+                new GroupListView(3, "", "", 0, 500, 0, List.of(), "", 0,
+                        "发送者", "最新消息")
         ));
 
         mockMvc.perform(get("/chat/groups"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].gid").value(3))
                 .andExpect(jsonPath("$[0].name").value(""))
-                .andExpect(jsonPath("$[0].admins").isEmpty());
+                .andExpect(jsonPath("$[0].maxMember").value(500))
+                .andExpect(jsonPath("$[0].admins").isEmpty())
+                .andExpect(jsonPath("$[0].latestSenderName").value("发送者"))
+                .andExpect(jsonPath("$[0].latestMessage").value("最新消息"));
 
-        verify(chatService).queryGroups();
+        verify(chatService).queryGroupList();
     }
 
     @Test

@@ -12,6 +12,7 @@ import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
+import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageQueryResult;
@@ -123,6 +124,26 @@ class ChatServiceTest {
 
         assertThat(chatService.queryGroups()).isEqualTo(records);
 
+        verifyNoInteractions(groupListApi);
+    }
+
+    @Test
+    void group_list_includes_the_message_at_each_groups_latest_mid() {
+        GroupEntity group = new GroupEntity(1L, "群", "", 0, 500, 10, "[]", "", 1,
+                50, 100, 1_000, 1_000);
+        GroupRecord record = record(1);
+        MessageEntity message = messageEntity(100, 2_000);
+        MessageRecord messageRecord = messageRecord(100, 0, "", "");
+        when(groupRepository.findAllOrdered()).thenReturn(List.of(group));
+        when(messageRepository.findAllById(List.of(100L))).thenReturn(List.of(message));
+        when(messageMapper.toGroupRecord(group)).thenReturn(record);
+        when(messageMapper.toMessageRecord(message)).thenReturn(messageRecord);
+
+        List<GroupListView> result = chatService.queryGroupList();
+
+        assertThat(result).containsExactly(new GroupListView(
+                1, "群", "", 1, 500, 10, List.of(), "", 1,
+                "发送者", "消息"));
         verifyNoInteractions(groupListApi);
     }
 

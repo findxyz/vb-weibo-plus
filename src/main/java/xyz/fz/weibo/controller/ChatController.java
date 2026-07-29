@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageQueryResult;
@@ -54,8 +55,8 @@ public class ChatController {
     }
 
     @GetMapping("/groups")
-    public List<GroupRecord> queryGroups() {
-        return chatService.queryGroups();
+    public List<GroupListView> queryGroups() {
+        return chatService.queryGroupList();
     }
 
     @PostMapping("/incremental")

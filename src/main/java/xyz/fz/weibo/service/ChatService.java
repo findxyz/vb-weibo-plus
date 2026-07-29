@@ -11,6 +11,7 @@ import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
+import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageQueryResult;
@@ -29,7 +30,9 @@ import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
@@ -69,6 +72,24 @@ public class ChatService {
 
     public List<GroupRecord> queryGroups() {
         return messageMapper.toGroupRecords(groupRepository.findAllOrdered());
+    }
+
+    public List<GroupListView> queryGroupList() {
+        List<GroupEntity> groups = groupRepository.findAllOrdered();
+        List<Long> latestMids = groups.stream()
+                .map(GroupEntity::getMaxMid)
+                .filter(mid -> mid > 0)
+                .distinct()
+                .toList();
+        Map<Long, MessageRecord> latestMessages = new HashMap<>();
+        if (!latestMids.isEmpty()) {
+            messageRepository.findAllById(latestMids).stream()
+                    .map(messageMapper::toMessageRecord)
+                    .forEach(message -> latestMessages.put(message.mid(), message));
+        }
+        return groups.stream()
+                .map(group -> toGroupListView(group, latestMessages.get(group.getMaxMid())))
+                .toList();
     }
 
     public SaveResult saveIncremental(long gid) {
@@ -245,6 +266,18 @@ public class ChatService {
             throw new ResourceNotFoundException("本地群消息不存在。");
         }
         return message;
+    }
+
+    private GroupListView toGroupListView(GroupEntity entity, MessageRecord latestMessage) {
+        GroupRecord group = messageMapper.toGroupRecord(entity);
+        String senderName = latestMessage == null ? "" : latestMessage.senderName();
+        String message = latestMessage == null ? "" : latestMessage.text();
+        if (latestMessage != null && (message == null || message.isBlank())) {
+            message = "[" + latestMessage.msgTypeName() + "]";
+        }
+        return new GroupListView(group.gid(), group.name(), group.avatar(), group.memberCount(),
+                group.maxMember(), group.ownerId(), group.admins(), group.summary(), group.groupType(),
+                senderName == null ? "" : senderName, message == null ? "" : message);
     }
 
     private String requireMediaReference(String reference) {
