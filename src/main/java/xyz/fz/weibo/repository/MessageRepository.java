@@ -34,6 +34,19 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
             @Param("beforeMid") Long beforeMid,
             Pageable pageable);
 
+    @Query("""
+            select m from MessageEntity m
+            where m.gid = :gid
+              and (m.createdAt > :afterCreatedAt
+                or (m.createdAt = :afterCreatedAt and m.mid > :afterMid))
+            order by m.createdAt asc, m.mid asc
+            """)
+    List<MessageEntity> findAfterCursorPage(
+            @Param("gid") long gid,
+            @Param("afterCreatedAt") long afterCreatedAt,
+            @Param("afterMid") long afterMid,
+            Pageable pageable);
+
     @SuppressWarnings("DuplicatedCode")
     default Page<MessageEntity> findPage(long gid, Long start, Long end,
                                          String senderName, String keyword, Pageable pageable) {

@@ -127,6 +127,23 @@ class MessageRepositoryTest {
     }
 
     @Test
+    void after_cursor_returns_the_nearest_newer_messages_without_shifting() {
+        messageRepository.insertIfAbsent(message(100, 1, 1_000, "最早", ""));
+        messageRepository.insertIfAbsent(message(101, 1, 2_000, "锚点", ""));
+        messageRepository.insertIfAbsent(message(102, 1, 3_000, "较新", ""));
+        messageRepository.insertIfAbsent(message(103, 1, 4_000, "更新", ""));
+
+        List<MessageEntity> first = messageRepository.findAfterCursorPage(
+                1, 2_000L, 101L, PageRequest.of(0, 2));
+        messageRepository.insertIfAbsent(message(104, 1, 5_000, "新增", ""));
+        List<MessageEntity> second = messageRepository.findAfterCursorPage(
+                1, 2_000L, 101L, PageRequest.of(0, 2));
+
+        assertThat(first).extracting(MessageEntity::getMid).containsExactly(102L, 103L);
+        assertThat(second).extracting(MessageEntity::getMid).containsExactly(102L, 103L);
+    }
+
+    @Test
     void filters_sender_name_by_exact_match() {
         messageRepository.insertIfAbsent(message(100, 1, 1_000, "甲的消息", "", "甲"));
         messageRepository.insertIfAbsent(message(101, 1, 2_000, "同名前缀", "", "甲乙"));
