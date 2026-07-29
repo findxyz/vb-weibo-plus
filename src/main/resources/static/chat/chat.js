@@ -352,7 +352,8 @@
   elements.retryGroups.addEventListener("click", initialize);
   elements.retryMessages.addEventListener("click", () =>
     loadMessages(state.failedBeforeCreatedAt, state.failedBeforeMid));
-  elements.newMessages.addEventListener("click", () => {
+  elements.newMessages.addEventListener("click", async () => {
+    await refreshMessages();
     state.followingLatest = true;
     elements.messages.scrollTop = elements.messages.scrollHeight;
     elements.newMessages.hidden = true;
@@ -372,7 +373,7 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshMessages();
   });
-  setInterval(refreshMessages, 30_000);
+  setInterval(refreshMessages, 2_000);
 
   initialize();
 })();

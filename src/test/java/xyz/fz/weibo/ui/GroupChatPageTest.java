@@ -4,6 +4,7 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.Response;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
@@ -99,8 +100,12 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
-            boolean refreshed = latestPageRequests.incrementAndGet() > 1;
-            String newMessage = refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
+            int requestNumber = latestPageRequests.incrementAndGet();
+            boolean refreshed = requestNumber > 1;
+            String newMessage = requestNumber > 2
+                    ? messageJson(4, "小凯", "点击后消息", 4000) + ","
+                            + messageJson(3, "阿呆", "刷新后消息", 3000) + ","
+                    : refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
             sendJson(exchange, cursorMessagesJson(true,
                     refreshed ? 2_000L : 1_000L, refreshed ? 2L : 1L,
                     newMessage
@@ -339,8 +344,55 @@ class GroupChatPageTest {
                 """);
         page.locator("#load-earlier").click();
         assertThat(page.locator(".message .bubble"))
-                .hasText(new String[]{"最早消息", "较早消息", "较新消息", "刷新后消息"});
+                .hasText(new String[]{
+                        "最早消息", "较早消息", "较新消息", "刷新后消息", "点击后消息"});
         assertThat(page.locator("[data-mid='1']")).hasCount(1);
+
+        page.close();
+    }
+
+    @Test
+    void new_messages_button_refreshes_again_before_scrolling_to_the_bottom() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = 0;
+                }
+                """);
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+        assertThat(page.locator("#new-messages")).isVisible();
+        assertThat(page.locator("[data-mid='3']")).isVisible();
+        Response response = page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor"),
+                new Page.WaitForResponseOptions().setTimeout(1_000),
+                () -> page.locator("#new-messages").click());
+
+        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
+        assertThat(page.locator("[data-mid='4']")).isVisible();
+        assertThat(page.locator("#new-messages")).isHidden();
+
+        page.close();
+    }
+
+    @Test
+    void polls_local_messages_every_two_seconds() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.waitForTimeout(500);
+        int requestsAfterLoad = latestPageRequests.get();
+
+        Response response = page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor"),
+                new Page.WaitForResponseOptions().setTimeout(3_000),
+                () -> {
+                });
+
+        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(latestPageRequests.get())
+                .isGreaterThan(requestsAfterLoad);
 
         page.close();
     }
