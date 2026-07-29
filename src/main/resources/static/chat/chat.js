@@ -57,13 +57,6 @@
     return container;
   }
 
-  function truncate(value, maxLength) {
-    const characters = Array.from(value);
-    return characters.length > maxLength
-      ? `${characters.slice(0, maxLength).join("")}...`
-      : value;
-  }
-
   function appendMessageText(container, text) {
     let offset = 0;
     for (const match of text.matchAll(MESSAGE_URL_PATTERN)) {
@@ -83,7 +76,7 @@
     const sender = group.latestSenderName?.trim() || "";
     const message = group.latestMessage?.trim() || "";
     if (sender || message) {
-      return truncate(sender ? `${sender}：${message}` : message, 10);
+      return sender ? `${sender}：${message}` : message;
     }
     return `${group.maxMember || group.memberCount} 人群`;
   }

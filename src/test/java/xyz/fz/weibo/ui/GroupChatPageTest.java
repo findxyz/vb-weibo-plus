@@ -213,12 +213,21 @@ class GroupChatPageTest {
     }
 
     @Test
-    void shows_the_latest_message_summary_truncated_to_ten_characters() {
+    void shows_the_full_latest_message_summary_and_uses_css_ellipsis() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
         assertThat(page.locator(".group-preview"))
-                .hasText(new String[]{"小凯：大家周末有空吗...", "阿呆：收到"});
+                .hasText(new String[]{"小凯：大家周末有空吗？", "阿呆：收到"});
+        Object usesAvailableWidth = page.locator(".group-preview").first().evaluate("""
+                element => {
+                  const style = getComputedStyle(element);
+                  return style.whiteSpace === "nowrap"
+                    && style.overflow === "hidden"
+                    && style.textOverflow === "ellipsis";
+                }
+                """);
+        org.assertj.core.api.Assertions.assertThat(usesAvailableWidth).isEqualTo(true);
 
         page.close();
     }
