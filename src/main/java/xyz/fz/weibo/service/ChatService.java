@@ -277,7 +277,7 @@ public class ChatService {
         }
         return new GroupListView(group.gid(), group.name(), group.avatar(), group.memberCount(),
                 group.maxMember(), group.ownerId(), group.admins(), group.summary(), group.groupType(),
-                senderName == null ? "" : senderName, message == null ? "" : message);
+                senderName == null ? "" : senderName, message);
     }
 
     private String requireMediaReference(String reference) {
