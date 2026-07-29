@@ -33,6 +33,7 @@
     nextPage: FIRST_PAGE,
     total: 0,
     refreshing: false,
+    followingLatest: true,
     failedPage: FIRST_PAGE
   };
 
@@ -156,6 +157,11 @@
     image.src = message.previewUrl;
     image.loading = "lazy";
     image.alt = "";
+    image.addEventListener("load", () => {
+      if (state.followingLatest) {
+        elements.messages.scrollTop = elements.messages.scrollHeight;
+      }
+    });
     button.append(image);
     const label = document.createElement("span");
     if (message.videoUrl) {
@@ -249,6 +255,7 @@
       state.total = result.total;
       result.items.forEach(message => state.messages.set(message.mid, message));
       state.nextPage = page + 1;
+      if (page === FIRST_PAGE) state.followingLatest = true;
       renderMessages();
       elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
       elements.loadEarlier.disabled = state.messages.size >= result.total || !result.items.length;
@@ -284,6 +291,7 @@
       state.total = result.total;
       const added = result.items.some(message => !knownMids.has(message.mid));
       if (added) {
+        state.followingLatest = followedLatest;
         renderMessages();
         if (followedLatest) {
           elements.messages.scrollTop = elements.messages.scrollHeight;
@@ -328,10 +336,14 @@
     });
   });
   elements.loadEarlier.addEventListener("click", () => loadMessages(state.nextPage));
-  elements.messages.addEventListener("scroll", updateLoadEarlierVisibility);
+  elements.messages.addEventListener("scroll", () => {
+    updateLoadEarlierVisibility();
+    state.followingLatest = isNearBottom();
+  });
   elements.retryGroups.addEventListener("click", initialize);
   elements.retryMessages.addEventListener("click", () => loadMessages(state.failedPage));
   elements.newMessages.addEventListener("click", () => {
+    state.followingLatest = true;
     elements.messages.scrollTop = elements.messages.scrollHeight;
     elements.newMessages.hidden = true;
   });

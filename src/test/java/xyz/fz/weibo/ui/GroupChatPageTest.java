@@ -287,6 +287,28 @@ class GroupChatPageTest {
     }
 
     @Test
+    void stays_at_the_bottom_after_media_finishes_loading_on_refresh() {
+        Page page = browser.newPage();
+        page.setViewportSize(1000, 400);
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        page.reload();
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        page.waitForFunction("""
+                () => document.querySelector("[data-mid='4'] .image-preview img")?.naturalHeight > 0
+                """);
+
+        Object distanceFromBottom = page.locator("#messages").evaluate("""
+                element => element.scrollHeight - element.scrollTop - element.clientHeight
+                """);
+        org.assertj.core.api.Assertions.assertThat(((Number) distanceFromBottom).doubleValue())
+                .isLessThan(1.0);
+
+        page.close();
+    }
+
+    @Test
     void refreshes_local_messages_on_focus_and_merges_them_by_mid() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
