@@ -263,6 +263,30 @@ class GroupChatPageTest {
     }
 
     @Test
+    void does_not_scroll_after_loading_earlier_messages() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "80px";
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#load-earlier")).isVisible();
+
+        page.locator("#load-earlier").click();
+        assertThat(page.locator("[data-mid='0']")).isVisible();
+
+        Object scrollTop = page.locator("#messages")
+                .evaluate("element => element.scrollTop");
+        org.assertj.core.api.Assertions.assertThat(((Number) scrollTop).doubleValue())
+                .isZero();
+
+        page.close();
+    }
+
+    @Test
     void refreshes_local_messages_on_focus_and_merges_them_by_mid() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");

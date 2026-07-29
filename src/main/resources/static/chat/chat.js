@@ -236,8 +236,6 @@
   }
 
   async function loadMessages(page) {
-    const previousHeight = elements.messages.scrollHeight;
-    const previousTop = elements.messages.scrollTop;
     state.failedPage = page;
     elements.retryMessages.hidden = true;
     elements.messagesState.textContent = "正在加载消息…";
@@ -256,9 +254,6 @@
       elements.loadEarlier.disabled = state.messages.size >= result.total || !result.items.length;
       if (page === FIRST_PAGE) {
         elements.messages.scrollTop = elements.messages.scrollHeight;
-      } else {
-        elements.messages.scrollTop =
-          previousTop + elements.messages.scrollHeight - previousHeight;
       }
       updateLoadEarlierVisibility();
     } catch {
