@@ -637,6 +637,10 @@ h1 {
   object-fit: contain;
 }
 
+.image-viewer img[hidden] {
+  display: none;
+}
+
 .image-viewer-close {
   position: absolute;
   top: 10px;

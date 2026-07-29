@@ -154,7 +154,8 @@
   }
 
   function openImage(url) {
-    elements.imageViewerState.textContent = "";
+    elements.imageViewerImage.hidden = true;
+    elements.imageViewerState.textContent = "正在加载原图…";
     elements.imageViewerImage.src = url;
     elements.imageViewer.showModal();
     elements.closeImageViewer.focus();
@@ -299,7 +300,12 @@
   elements.imageViewer.addEventListener("click", event => {
     if (event.target === elements.imageViewer) elements.imageViewer.close();
   });
+  elements.imageViewerImage.addEventListener("load", () => {
+    elements.imageViewerImage.hidden = false;
+    elements.imageViewerState.textContent = "";
+  });
   elements.imageViewerImage.addEventListener("error", () => {
+    elements.imageViewerImage.hidden = true;
     elements.imageViewerState.textContent = "原图加载失败，请关闭后重试。";
   });
   window.addEventListener("focus", refreshMessages);

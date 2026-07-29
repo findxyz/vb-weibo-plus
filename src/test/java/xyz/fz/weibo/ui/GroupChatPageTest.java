@@ -67,14 +67,17 @@ class GroupChatPageTest {
                     exchange.close();
                     return;
                 }
-                sendJson(exchange, messagesJson(1, 3,
+                sendJson(exchange, messagesJson(1, 4,
                         mediaMessageJson(4, 1, "图片消息",
                                 "/chat/media?gid=202&mid=4&variant=preview",
                                 "/chat/media?gid=202&mid=4&variant=original", "") + ","
                                 + mediaMessageJson(5, 13, "视频消息",
                                 "/chat/media?gid=202&mid=5&variant=preview", "",
                                 "/chat/media?gid=202&mid=5&variant=video") + ","
-                                + systemMessageJson(6, "涉及资金问题请务必提高警惕，谨防诈骗。查看案例")));
+                                + systemMessageJson(6, "涉及资金问题请务必提高警惕，谨防诈骗。查看案例") + ","
+                                + mediaMessageJson(7, 1, "第二张图片",
+                                "/chat/media?gid=202&mid=7&variant=preview",
+                                "/chat/media?gid=202&mid=7&variant=original", "")));
                 return;
             }
             if (!query.contains("gid=101")) {
@@ -106,6 +109,13 @@ class GroupChatPageTest {
                 exchange.sendResponseHeaders(200, body.length);
                 exchange.close();
                 return;
+            }
+            if (query != null && query.contains("mid=7") && query.contains("variant=original")) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
             }
             byte[] body = """
                     <svg xmlns="http://www.w3.org/2000/svg" width="100" height="300" viewBox="0 0 100 300">
@@ -254,6 +264,16 @@ class GroupChatPageTest {
         assertThat(page.locator("#image-viewer")).isVisible();
         assertThat(page.locator("#image-viewer img"))
                 .hasAttribute("src", "/chat/media?gid=202&mid=4&variant=original");
+        assertThat(page.locator("#image-viewer img")).isVisible();
+        page.locator("#close-image-viewer").click();
+
+        page.locator("[data-mid='7'] .image-preview").click();
+        Object newImageIsHiddenWhileLoading = page.locator("#image-viewer img")
+                .evaluate("image => image.hidden");
+        org.assertj.core.api.Assertions.assertThat(newImageIsHiddenWhileLoading).isEqualTo(true);
+        assertThat(page.locator("#image-viewer-state")).hasText("正在加载原图…");
+        assertThat(page.locator("#image-viewer img")).isVisible();
+        assertThat(page.locator("#image-viewer-state")).isEmpty();
         page.locator("#close-image-viewer").click();
 
         page.locator("[data-mid='5'] .video-preview").click();
