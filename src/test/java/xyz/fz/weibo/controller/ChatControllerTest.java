@@ -20,6 +20,7 @@ import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MessageCursorResult;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.MessageView;
 import xyz.fz.weibo.domain.SaveResult;
@@ -203,6 +204,31 @@ class ChatControllerTest {
                         .param("size", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void cursor_messages_bind_the_composite_cursor_and_return_the_next_cursor() throws Exception {
+        MessageView view = objectMapper.readValue("""
+                {"mid": 100, "gid": 101, "createdAt": 1000}
+                """, MessageView.class);
+        when(chatService.queryMessagesByCursor(101, 2_000L, 200L, 20))
+                .thenReturn(new MessageCursorResult(
+                        group(101), List.of(view), 20, true, 1_000L, 100L));
+
+        mockMvc.perform(get("/chat/messages/cursor")
+                        .param("gid", "101")
+                        .param("beforeCreatedAt", "2000")
+                        .param("beforeMid", "200")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.group.gid").value(101))
+                .andExpect(jsonPath("$.items[0].mid").value(100))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.hasMore").value(true))
+                .andExpect(jsonPath("$.nextBeforeCreatedAt").value(1_000))
+                .andExpect(jsonPath("$.nextBeforeMid").value(100));
+
+        verify(chatService).queryMessagesByCursor(101, 2_000L, 200L, 20);
     }
 
     @Test

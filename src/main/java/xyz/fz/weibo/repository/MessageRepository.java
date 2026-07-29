@@ -20,6 +20,20 @@ import java.util.List;
 public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
         JpaSpecificationExecutor<MessageEntity> {
 
+    @Query("""
+            select m from MessageEntity m
+            where m.gid = :gid
+              and (:beforeCreatedAt is null
+                or m.createdAt < :beforeCreatedAt
+                or (m.createdAt = :beforeCreatedAt and m.mid < :beforeMid))
+            order by m.createdAt desc, m.mid desc
+            """)
+    List<MessageEntity> findCursorPage(
+            @Param("gid") long gid,
+            @Param("beforeCreatedAt") Long beforeCreatedAt,
+            @Param("beforeMid") Long beforeMid,
+            Pageable pageable);
+
     @SuppressWarnings("DuplicatedCode")
     default Page<MessageEntity> findPage(long gid, Long start, Long end,
                                          String senderName, String keyword, Pageable pageable) {

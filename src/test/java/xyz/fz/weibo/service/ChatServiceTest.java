@@ -15,6 +15,7 @@ import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MessageCursorResult;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.MessageRecord;
 import xyz.fz.weibo.domain.MessageView;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -249,6 +251,40 @@ class ChatServiceTest {
                 .isInstanceOf(InvalidRequestException.class);
 
         verifyNoInteractions(groupMessagesApi, groupMediaApi);
+    }
+
+    @Test
+    void queries_messages_with_a_stable_composite_cursor_and_reports_the_next_cursor() {
+        GroupEntity group = group(1, 100);
+        GroupRecord groupRecord = record(1);
+        MessageEntity newest = messageEntity(103, 4_000);
+        MessageEntity next = messageEntity(102, 3_000);
+        MessageEntity lookahead = messageEntity(101, 2_000);
+        List<MessageView> views = List.of(view(103), view(102));
+        when(messageRepository.findCursorPage(
+                1, null, null, PageRequest.of(0, 3)))
+                .thenReturn(List.of(newest, next, lookahead));
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+        when(messageMapper.toGroupRecord(group)).thenReturn(groupRecord);
+        when(messageMapper.toMessageViews(List.of(newest, next))).thenReturn(views);
+
+        MessageCursorResult result = chatService.queryMessagesByCursor(1, null, null, 2);
+
+        assertThat(result.group()).isEqualTo(groupRecord);
+        assertThat(result.items()).containsExactlyElementsOf(views);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.nextBeforeCreatedAt()).isEqualTo(3_000);
+        assertThat(result.nextBeforeMid()).isEqualTo(102);
+    }
+
+    @Test
+    void cursor_query_requires_a_complete_cursor_and_valid_size() {
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, 1_000L, null, 50))
+                .isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, 100L, 50))
+                .isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, null, 101))
+                .isInstanceOf(InvalidRequestException.class);
     }
 
     @Test

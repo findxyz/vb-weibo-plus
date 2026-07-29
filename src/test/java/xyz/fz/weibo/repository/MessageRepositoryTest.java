@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import xyz.fz.weibo.entity.GroupEntity;
@@ -16,6 +17,7 @@ import javax.sql.DataSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.ResultSet;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -105,6 +107,23 @@ class MessageRepositoryTest {
         assertThat(page.getTotalElements()).isEqualTo(3);
         assertThat(page.getContent()).extracting(MessageEntity::getMid)
                 .containsExactly(102L, 101L);
+    }
+
+    @Test
+    void cursor_page_does_not_shift_when_a_newer_message_is_inserted() {
+        messageRepository.insertIfAbsent(message(100, 1, 1_000, "最早", ""));
+        messageRepository.insertIfAbsent(message(101, 1, 2_000, "较早", ""));
+        messageRepository.insertIfAbsent(message(102, 1, 3_000, "较新", ""));
+        messageRepository.insertIfAbsent(message(103, 1, 4_000, "最新", ""));
+
+        List<MessageEntity> first = messageRepository.findCursorPage(
+                1, null, null, PageRequest.of(0, 2));
+        messageRepository.insertIfAbsent(message(104, 1, 5_000, "新增", ""));
+        List<MessageEntity> second = messageRepository.findCursorPage(
+                1, 3_000L, 102L, PageRequest.of(0, 2));
+
+        assertThat(first).extracting(MessageEntity::getMid).containsExactly(103L, 102L);
+        assertThat(second).extracting(MessageEntity::getMid).containsExactly(101L, 100L);
     }
 
     @Test

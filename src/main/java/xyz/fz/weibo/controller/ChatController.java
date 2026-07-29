@@ -16,6 +16,7 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MessageCursorResult;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.ChatService;
@@ -86,6 +87,15 @@ public class ChatController {
             @RequestParam int size) {
         return chatService.queryMessages(
                 gid, toEpochMillis(start), toEpochMillis(end), senderName, keyword, page, size);
+    }
+
+    @GetMapping("/messages/cursor")
+    public MessageCursorResult queryMessagesByCursor(
+            @RequestParam long gid,
+            @RequestParam(required = false) Long beforeCreatedAt,
+            @RequestParam(required = false) Long beforeMid,
+            @RequestParam int size) {
+        return chatService.queryMessagesByCursor(gid, beforeCreatedAt, beforeMid, size);
     }
 
     @GetMapping("/media")

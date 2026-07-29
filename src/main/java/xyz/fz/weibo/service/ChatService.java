@@ -1,6 +1,7 @@
 package xyz.fz.weibo.service;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MessageCursorResult;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.MessageRecord;
 import xyz.fz.weibo.domain.MessageView;
@@ -133,6 +135,24 @@ public class ChatService {
                 .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
         List<MessageView> items = messageMapper.toMessageViews(result.getContent());
         return new MessageQueryResult(group, items, page, size, result.getTotalElements());
+    }
+
+    public MessageCursorResult queryMessagesByCursor(
+            long gid, Long beforeCreatedAt, Long beforeMid, int size) {
+        validateGid(gid);
+        validateCursorQuery(beforeCreatedAt, beforeMid, size);
+        List<MessageEntity> result = messageRepository.findCursorPage(
+                gid, beforeCreatedAt, beforeMid, PageRequest.of(0, size + 1));
+        boolean hasMore = result.size() > size;
+        List<MessageEntity> page = result.subList(0, Math.min(size, result.size()));
+        GroupRecord group = groupRepository.findById(gid)
+                .map(messageMapper::toGroupRecord)
+                .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
+        List<MessageView> items = messageMapper.toMessageViews(page);
+        MessageEntity last = hasMore ? page.getLast() : null;
+        return new MessageCursorResult(group, items, size, hasMore,
+                last == null ? null : last.getCreatedAt(),
+                last == null ? null : last.getMid());
     }
 
     public SaveResult saveBySince(long gid, long sinceTime, Long beforeMid) {
@@ -320,6 +340,16 @@ public class ChatService {
         }
         if (start != null && end != null && start > end) {
             throw new InvalidRequestException("start 不能晚于 end。");
+        }
+    }
+
+    private void validateCursorQuery(Long beforeCreatedAt, Long beforeMid, int size) {
+        if ((beforeCreatedAt == null) != (beforeMid == null)) {
+            throw new InvalidRequestException(
+                    "beforeCreatedAt 和 beforeMid 必须同时提供或同时省略。");
+        }
+        if (size < 1 || size > 100) {
+            throw new InvalidRequestException("size 必须介于 1 和 100 之间。");
         }
     }
 

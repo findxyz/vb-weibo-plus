@@ -24,6 +24,14 @@ GET {{host}}/chat/messages?gid=4761715839862414&page=1&size=100
 ### 查询群聊的全部本地消息：第 2 页
 GET {{host}}/chat/messages?gid=4761715839862414&page=2&size=100
 
+### 使用游标查询群聊的最新一批本地消息
+GET {{host}}/chat/messages/cursor?gid=4761715839862414&size=100
+
+### 使用上一批响应中的复合游标继续查询更早消息
+# beforeCreatedAt 和 beforeMid 分别取上一批响应中的 nextBeforeCreatedAt 和 nextBeforeMid。
+# hasMore 为 false 时表示没有更早消息，此时两个下一游标均为 null。
+GET {{host}}/chat/messages/cursor?gid=4761715839862414&beforeCreatedAt=1753794000000&beforeMid=5195793712456700&size=100
+
 ### 按时间范围查询群聊的本地消息
 GET {{host}}/chat/messages?gid=4761715839862414&start=2026-07-10%2000:00:00&end=2026-07-23%2023:59:59&page=1&size=100
 

@@ -51,7 +51,7 @@ class GroupChatPageTest {
                 ]
                 """);
         });
-        server.createContext("/chat/messages", exchange -> {
+        server.createContext("/chat/messages/cursor", exchange -> {
             if (failMessages.get()) {
                 exchange.sendResponseHeaders(503, -1);
                 exchange.close();
@@ -64,12 +64,12 @@ class GroupChatPageTest {
                 return;
             }
             if (query.contains("gid=202")) {
-                if (!query.contains("page=1")) {
+                if (query.contains("beforeCreatedAt") || query.contains("beforeMid")) {
                     exchange.sendResponseHeaders(400, -1);
                     exchange.close();
                     return;
                 }
-                sendJson(exchange, messagesJson(1, 5,
+                sendJson(exchange, cursorMessagesJson(false, null, null,
                         mediaMessageJson(4, 1, "分享图片",
                                 "/chat/media?gid=202&mid=4&variant=preview",
                                 "/chat/media?gid=202&mid=4&variant=original", "") + ","
@@ -89,18 +89,20 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
-            if (query.contains("page=2")) {
-                sendJson(exchange, messagesJson(2, 3, messageJson(0, "路路", "最早消息", 500)));
+            if (query.contains("beforeCreatedAt=1000") && query.contains("beforeMid=1")) {
+                sendJson(exchange, cursorMessagesJson(false, null, null,
+                        messageJson(0, "路路", "最早消息", 500)));
                 return;
             }
-            if (!query.contains("page=1")) {
+            if (query.contains("beforeCreatedAt") || query.contains("beforeMid")) {
                 exchange.sendResponseHeaders(400, -1);
                 exchange.close();
                 return;
             }
             boolean refreshed = latestPageRequests.incrementAndGet() > 1;
             String newMessage = refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
-            sendJson(exchange, messagesJson(1, refreshed ? 4 : 3,
+            sendJson(exchange, cursorMessagesJson(true,
+                    refreshed ? 2_000L : 1_000L, refreshed ? 2L : 1L,
                     newMessage
                             + messageJson(2, "飞飞", "较新消息", 2000) + ","
                             + messageJson(1, "小凯", "较早消息", 1000)));
@@ -329,6 +331,16 @@ class GroupChatPageTest {
         assertThat(page.locator("#new-messages")).isVisible();
         page.locator("#new-messages").click();
         assertThat(page.locator("#new-messages")).isHidden();
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        page.locator("#load-earlier").click();
+        assertThat(page.locator(".message .bubble"))
+                .hasText(new String[]{"最早消息", "较早消息", "较新消息", "刷新后消息"});
+        assertThat(page.locator("[data-mid='1']")).hasCount(1);
 
         page.close();
     }
@@ -532,14 +544,16 @@ class GroupChatPageTest {
         exchange.close();
     }
 
-    private static String messagesJson(int page, int total, String messages) {
+    private static String cursorMessagesJson(boolean hasMore, Long nextBeforeCreatedAt,
+                                             Long nextBeforeMid, String messages) {
         return """
                 {
                   "group":{"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
                     "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
-                  "items":[%s],"page":%d,"size":50,"total":%d
+                  "items":[%s],"size":50,"hasMore":%s,
+                  "nextBeforeCreatedAt":%s,"nextBeforeMid":%s
                 }
-                """.formatted(messages, page, total);
+                """.formatted(messages, hasMore, nextBeforeCreatedAt, nextBeforeMid);
     }
 
     private static String messageJson(long mid, String sender, String text, long createdAt) {

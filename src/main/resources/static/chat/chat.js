@@ -2,7 +2,6 @@
   "use strict";
 
   const PAGE_SIZE = 50;
-  const FIRST_PAGE = 1;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
   const elements = {
@@ -30,11 +29,13 @@
     groups: [],
     currentGid: null,
     messages: new Map(),
-    nextPage: FIRST_PAGE,
-    total: 0,
+    nextBeforeCreatedAt: null,
+    nextBeforeMid: null,
+    hasMore: false,
     refreshing: false,
     followingLatest: true,
-    failedPage: FIRST_PAGE
+    failedBeforeCreatedAt: null,
+    failedBeforeMid: null
   };
 
   function initials(value, fallback) {
@@ -218,8 +219,9 @@
     if (!group) return;
     state.currentGid = gid;
     state.messages.clear();
-    state.nextPage = FIRST_PAGE;
-    state.total = 0;
+    state.nextBeforeCreatedAt = null;
+    state.nextBeforeMid = null;
+    state.hasMore = false;
     elements.newMessages.hidden = true;
     elements.loadEarlier.disabled = true;
     elements.loadEarlier.hidden = true;
@@ -238,28 +240,35 @@
       if (active) row.setAttribute("aria-current", "true");
       else row.removeAttribute("aria-current");
     });
-    await loadMessages(FIRST_PAGE);
+    await loadMessages();
   }
 
-  async function loadMessages(page) {
-    state.failedPage = page;
+  async function loadMessages(beforeCreatedAt = null, beforeMid = null) {
+    const isLatestPage = beforeCreatedAt === null && beforeMid === null;
+    state.failedBeforeCreatedAt = beforeCreatedAt;
+    state.failedBeforeMid = beforeMid;
     elements.retryMessages.hidden = true;
     elements.messagesState.textContent = "正在加载消息…";
     const query = new URLSearchParams({
-      gid: String(state.currentGid), page: String(page), size: String(PAGE_SIZE)
+      gid: String(state.currentGid), size: String(PAGE_SIZE)
     });
+    if (!isLatestPage) {
+      query.set("beforeCreatedAt", String(beforeCreatedAt));
+      query.set("beforeMid", String(beforeMid));
+    }
     try {
-      const response = await fetch(`/chat/messages?${query}`, {cache: "no-store"});
+      const response = await fetch(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
-      state.total = result.total;
       result.items.forEach(message => state.messages.set(message.mid, message));
-      state.nextPage = page + 1;
-      if (page === FIRST_PAGE) state.followingLatest = true;
+      state.nextBeforeCreatedAt = result.nextBeforeCreatedAt;
+      state.nextBeforeMid = result.nextBeforeMid;
+      state.hasMore = result.hasMore;
+      if (isLatestPage) state.followingLatest = true;
       renderMessages();
       elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
-      elements.loadEarlier.disabled = state.messages.size >= result.total || !result.items.length;
-      if (page === FIRST_PAGE) {
+      elements.loadEarlier.disabled = !state.hasMore;
+      if (isLatestPage) {
         elements.messages.scrollTop = elements.messages.scrollHeight;
       }
       updateLoadEarlierVisibility();
@@ -281,14 +290,13 @@
     const followedLatest = isNearBottom();
     const knownMids = new Set(state.messages.keys());
     const query = new URLSearchParams({
-      gid: String(state.currentGid), page: String(FIRST_PAGE), size: String(PAGE_SIZE)
+      gid: String(state.currentGid), size: String(PAGE_SIZE)
     });
     try {
-      const response = await fetch(`/chat/messages?${query}`, {cache: "no-store"});
+      const response = await fetch(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       result.items.forEach(message => state.messages.set(message.mid, message));
-      state.total = result.total;
       const added = result.items.some(message => !knownMids.has(message.mid));
       if (added) {
         state.followingLatest = followedLatest;
@@ -299,7 +307,7 @@
           elements.newMessages.hidden = false;
         }
       }
-      elements.loadEarlier.disabled = state.messages.size >= state.total;
+      elements.loadEarlier.disabled = !state.hasMore;
       updateLoadEarlierVisibility();
     } catch {
     } finally {
@@ -335,13 +343,15 @@
       row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword);
     });
   });
-  elements.loadEarlier.addEventListener("click", () => loadMessages(state.nextPage));
+  elements.loadEarlier.addEventListener("click", () =>
+    loadMessages(state.nextBeforeCreatedAt, state.nextBeforeMid));
   elements.messages.addEventListener("scroll", () => {
     updateLoadEarlierVisibility();
     state.followingLatest = isNearBottom();
   });
   elements.retryGroups.addEventListener("click", initialize);
-  elements.retryMessages.addEventListener("click", () => loadMessages(state.failedPage));
+  elements.retryMessages.addEventListener("click", () =>
+    loadMessages(state.failedBeforeCreatedAt, state.failedBeforeMid));
   elements.newMessages.addEventListener("click", () => {
     state.followingLatest = true;
     elements.messages.scrollTop = elements.messages.scrollHeight;
