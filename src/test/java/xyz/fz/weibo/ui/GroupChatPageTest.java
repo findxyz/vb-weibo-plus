@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -23,6 +24,7 @@ class GroupChatPageTest {
     private static Playwright playwright;
     private static Browser browser;
     private static String baseUrl;
+    private static final AtomicInteger latestPageRequests = new AtomicInteger();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -43,20 +45,7 @@ class GroupChatPageTest {
                 return;
             }
             if (query.contains("page=1")) {
-                sendJson(exchange, """
-                        {
-                          "group":{"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
-                            "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
-                          "items":[
-                            {"mid":0,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
-                             "senderId":3,"senderName":"路路","senderAvatar":"","text":"最早消息",
-                             "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
-                             "recallBy":"","createdAt":500,"savedAt":500,
-                             "previewUrl":"","originalUrl":"","videoUrl":""}
-                          ],
-                          "page":1,"size":50,"total":3
-                        }
-                        """);
+                sendJson(exchange, messagesJson(1, 3, messageJson(0, "路路", "最早消息", 500)));
                 return;
             }
             if (!query.contains("page=0")) {
@@ -64,25 +53,12 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
-            sendJson(exchange, """
-                    {
-                      "group":{"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
-                        "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
-                      "items":[
-                        {"mid":2,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
-                         "senderId":2,"senderName":"飞飞","senderAvatar":"","text":"较新消息",
-                         "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
-                         "recallBy":"","createdAt":2000,"savedAt":2000,
-                         "previewUrl":"","originalUrl":"","videoUrl":""},
-                        {"mid":1,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
-                         "senderId":1,"senderName":"小凯","senderAvatar":"","text":"较早消息",
-                         "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
-                         "recallBy":"","createdAt":1000,"savedAt":1000,
-                         "previewUrl":"","originalUrl":"","videoUrl":""}
-                      ],
-                      "page":0,"size":50,"total":3
-                    }
-                    """);
+            boolean refreshed = latestPageRequests.incrementAndGet() > 1;
+            String newMessage = refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
+            sendJson(exchange, messagesJson(0, refreshed ? 4 : 3,
+                    newMessage
+                            + messageJson(2, "飞飞", "较新消息", 2000) + ","
+                            + messageJson(1, "小凯", "较早消息", 1000)));
         });
         server.createContext("/chat/", GroupChatPageTest::sendStaticResource);
         server.start();
@@ -107,6 +83,7 @@ class GroupChatPageTest {
 
     @Test
     void loads_real_groups_and_renders_latest_messages_in_chronological_order() {
+        latestPageRequests.set(0);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
@@ -121,6 +98,7 @@ class GroupChatPageTest {
 
     @Test
     void loads_earlier_messages_at_the_top_without_replacing_the_latest_page() {
+        latestPageRequests.set(0);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
@@ -130,6 +108,21 @@ class GroupChatPageTest {
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"最早消息", "较早消息", "较新消息"});
         assertThat(page.locator("#load-earlier")).isDisabled();
+
+        page.close();
+    }
+
+    @Test
+    void refreshes_local_messages_on_focus_and_merges_them_by_mid() {
+        latestPageRequests.set(0);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+        assertThat(page.locator(".message .bubble"))
+                .hasText(new String[]{"较早消息", "较新消息", "刷新后消息"});
+        assertThat(page.locator("[data-mid='1']")).hasCount(1);
 
         page.close();
     }
@@ -162,5 +155,25 @@ class GroupChatPageTest {
         exchange.sendResponseHeaders(200, body.length);
         exchange.getResponseBody().write(body);
         exchange.close();
+    }
+
+    private static String messagesJson(int page, int total, String messages) {
+        return """
+                {
+                  "group":{"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
+                    "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
+                  "items":[%s],"page":%d,"size":50,"total":%d
+                }
+                """.formatted(messages, page, total);
+    }
+
+    private static String messageJson(long mid, String sender, String text, long createdAt) {
+        return """
+                {"mid":%d,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
+                 "senderId":%d,"senderName":"%s","senderAvatar":"","text":"%s",
+                 "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":%d,"savedAt":%d,
+                 "previewUrl":"","originalUrl":"","videoUrl":""}
+                """.formatted(mid, mid, sender, text, createdAt, createdAt);
     }
 }

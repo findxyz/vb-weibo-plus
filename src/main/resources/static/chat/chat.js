@@ -16,14 +16,17 @@
     currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"),
     messagesState: document.querySelector("#messages-state"),
-    loadEarlier: document.querySelector("#load-earlier")
+    loadEarlier: document.querySelector("#load-earlier"),
+    refreshState: document.querySelector("#refresh-state"),
+    newMessages: document.querySelector("#new-messages")
   };
   const state = {
     groups: [],
     currentGid: null,
     messages: new Map(),
     nextPage: 0,
-    total: 0
+    total: 0,
+    refreshing: false
   };
 
   function initials(value, fallback) {
@@ -107,6 +110,7 @@
     state.messages.clear();
     state.nextPage = 0;
     state.total = 0;
+    elements.newMessages.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     elements.currentSize.textContent = `${group.memberCount} 人群`;
@@ -153,6 +157,44 @@
     }
   }
 
+  function isNearBottom() {
+    return elements.messages.scrollHeight
+      - elements.messages.scrollTop
+      - elements.messages.clientHeight < 80;
+  }
+
+  async function refreshMessages() {
+    if (!state.currentGid || state.refreshing || document.hidden) return;
+    state.refreshing = true;
+    const followedLatest = isNearBottom();
+    const knownMids = new Set(state.messages.keys());
+    const query = new URLSearchParams({
+      gid: String(state.currentGid), page: "0", size: String(PAGE_SIZE)
+    });
+    try {
+      const response = await fetch(`/chat/messages?${query}`, {cache: "no-store"});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      result.items.forEach(message => state.messages.set(message.mid, message));
+      state.total = result.total;
+      const added = result.items.some(message => !knownMids.has(message.mid));
+      if (added) {
+        renderMessages();
+        if (followedLatest) {
+          elements.messages.scrollTop = elements.messages.scrollHeight;
+        } else {
+          elements.newMessages.hidden = false;
+        }
+      }
+      elements.loadEarlier.disabled = state.messages.size >= state.total;
+      elements.refreshState.textContent = "刚刚更新";
+    } catch {
+      elements.refreshState.textContent = "刷新失败，点击重试";
+    } finally {
+      state.refreshing = false;
+    }
+  }
+
   async function initialize() {
     try {
       const response = await fetch("/chat/groups", {cache: "no-store"});
@@ -179,6 +221,16 @@
     });
   });
   elements.loadEarlier.addEventListener("click", () => loadMessages(state.nextPage));
+  elements.refreshState.addEventListener("click", refreshMessages);
+  elements.newMessages.addEventListener("click", () => {
+    elements.messages.scrollTop = elements.messages.scrollHeight;
+    elements.newMessages.hidden = true;
+  });
+  window.addEventListener("focus", refreshMessages);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshMessages();
+  });
+  setInterval(refreshMessages, 30_000);
 
   initialize();
 })();
