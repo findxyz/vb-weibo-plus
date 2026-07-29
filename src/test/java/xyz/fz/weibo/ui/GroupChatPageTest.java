@@ -42,7 +42,7 @@ class GroupChatPageTest {
             }
             sendJson(exchange, """
                 [
-                  {"gid":101,"name":"周末活动讨论组","avatar":"","memberCount":12,
+                  {"gid":101,"name":"周末活动讨论组","avatar":"https://example.test/group.png","memberCount":12,
                    "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1},
                   {"gid":202,"name":"LinkNow","avatar":"","memberCount":3,
                    "maxMember":200,"ownerId":2,"admins":[],"summary":"测试群","groupType":1}
@@ -62,7 +62,12 @@ class GroupChatPageTest {
                 return;
             }
             if (query.contains("gid=202")) {
-                sendJson(exchange, messagesJson(0, 2,
+                if (!query.contains("page=1")) {
+                    exchange.sendResponseHeaders(400, -1);
+                    exchange.close();
+                    return;
+                }
+                sendJson(exchange, messagesJson(1, 2,
                         mediaMessageJson(4, 1, "图片消息",
                                 "/chat/media?gid=202&mid=4&variant=preview",
                                 "/chat/media?gid=202&mid=4&variant=original", "") + ","
@@ -76,18 +81,18 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
-            if (query.contains("page=1")) {
-                sendJson(exchange, messagesJson(1, 3, messageJson(0, "路路", "最早消息", 500)));
+            if (query.contains("page=2")) {
+                sendJson(exchange, messagesJson(2, 3, messageJson(0, "路路", "最早消息", 500)));
                 return;
             }
-            if (!query.contains("page=0")) {
+            if (!query.contains("page=1")) {
                 exchange.sendResponseHeaders(400, -1);
                 exchange.close();
                 return;
             }
             boolean refreshed = latestPageRequests.incrementAndGet() > 1;
             String newMessage = refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
-            sendJson(exchange, messagesJson(0, refreshed ? 4 : 3,
+            sendJson(exchange, messagesJson(1, refreshed ? 4 : 3,
                     newMessage
                             + messageJson(2, "飞飞", "较新消息", 2000) + ","
                             + messageJson(1, "小凯", "较早消息", 1000)));
@@ -101,6 +106,14 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
+            byte[] body = Base64.getDecoder().decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/chat/image", exchange -> {
             byte[] body = Base64.getDecoder().decode(
                     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
             exchange.getResponseHeaders().set("Content-Type", "image/png");
@@ -149,6 +162,11 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).isDisabled();
         assertThat(page.locator(".composer button:enabled")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
+        Object avatarFitsContainer = page.locator(".group-avatar img").first().evaluate("""
+                image => image.offsetWidth === image.parentElement.clientWidth
+                  && image.offsetHeight === image.parentElement.clientHeight
+                """);
+        org.assertj.core.api.Assertions.assertThat(avatarFitsContainer).isEqualTo(true);
 
         page.close();
     }

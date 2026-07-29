@@ -2,6 +2,7 @@
   "use strict";
 
   const PAGE_SIZE = 50;
+  const FIRST_PAGE = 1;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const elements = {
     appTitle: document.querySelector("#app-title"),
@@ -30,10 +31,10 @@
     groups: [],
     currentGid: null,
     messages: new Map(),
-    nextPage: 0,
+    nextPage: FIRST_PAGE,
     total: 0,
     refreshing: false,
-    failedPage: 0
+    failedPage: FIRST_PAGE
   };
 
   function initials(value, fallback) {
@@ -167,7 +168,7 @@
     if (!group) return;
     state.currentGid = gid;
     state.messages.clear();
-    state.nextPage = 0;
+    state.nextPage = FIRST_PAGE;
     state.total = 0;
     elements.newMessages.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
@@ -185,7 +186,7 @@
       if (active) row.setAttribute("aria-current", "true");
       else row.removeAttribute("aria-current");
     });
-    await loadMessages(0);
+    await loadMessages(FIRST_PAGE);
   }
 
   async function loadMessages(page) {
@@ -207,7 +208,7 @@
       renderMessages();
       elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
       elements.loadEarlier.disabled = state.messages.size >= result.total || !result.items.length;
-      if (page === 0) {
+      if (page === FIRST_PAGE) {
         elements.messages.scrollTop = elements.messages.scrollHeight;
       } else {
         elements.messages.scrollTop =
@@ -231,7 +232,7 @@
     const followedLatest = isNearBottom();
     const knownMids = new Set(state.messages.keys());
     const query = new URLSearchParams({
-      gid: String(state.currentGid), page: "0", size: String(PAGE_SIZE)
+      gid: String(state.currentGid), page: String(FIRST_PAGE), size: String(PAGE_SIZE)
     });
     try {
       const response = await fetch(`/chat/messages?${query}`, {cache: "no-store"});
