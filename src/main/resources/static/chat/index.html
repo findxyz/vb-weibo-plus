@@ -14,7 +14,6 @@
         <img src="assets/weibo-logo.svg" alt="">
       </span>
       <h1 id="app-title">微博群聊</h1>
-      <span class="read-only-badge">本地只读</span>
     </header>
 
     <div class="workspace">
@@ -49,13 +48,9 @@
           </div>
         </header>
 
-        <div class="chat-strip">
-          <button id="load-earlier" type="button" disabled>加载更早消息</button>
-          <button class="refresh-state" id="refresh-state" type="button"
-                  aria-live="polite" hidden></button>
-        </div>
-
         <div class="messages-shell">
+          <button class="load-earlier-button" id="load-earlier" type="button"
+                  disabled>加载更早消息</button>
           <div class="messages" id="messages" aria-live="polite"></div>
           <div class="messages-feedback">
             <div class="messages-state" id="messages-state" role="status">请选择群聊</div>
@@ -67,9 +62,15 @@
         <div class="composer" aria-label="只读消息编辑器">
           <div class="composer-tools">
             <button type="button" disabled>😊 表情</button>
-            <button type="button" disabled>🖼 图片</button>
+            <button type="button" disabled>
+              <svg class="composer-tool-icon" viewBox="0 0 20 20" aria-hidden="true">
+                <rect x="2.5" y="3.5" width="15" height="13" rx="1.5"></rect>
+                <circle cx="7" cy="8" r="1.5"></circle>
+                <path d="m4.5 14 4-4 2.5 2.5 2-2 2.5 3.5"></path>
+              </svg>
+              图片
+            </button>
             <button type="button" disabled>🎬 视频</button>
-            <span>当前为只读模式，发送功能后续开放</span>
           </div>
           <textarea id="composer" aria-label="输入消息" placeholder="当前为只读模式" disabled></textarea>
           <div class="send-row">

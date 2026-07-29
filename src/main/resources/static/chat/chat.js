@@ -20,7 +20,6 @@
     messagesState: document.querySelector("#messages-state"),
     retryMessages: document.querySelector("#retry-messages"),
     loadEarlier: document.querySelector("#load-earlier"),
-    refreshState: document.querySelector("#refresh-state"),
     newMessages: document.querySelector("#new-messages"),
     imageViewer: document.querySelector("#image-viewer"),
     imageViewerImage: document.querySelector("#image-viewer img"),
@@ -89,6 +88,14 @@
       const article = document.createElement("article");
       article.className = "message";
       article.dataset.mid = String(message.mid);
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = message.text || `[${message.msgTypeName || "消息"}]`;
+      if (message.senderName?.trim() === "粉丝群") {
+        article.classList.add("system-message");
+        article.append(bubble);
+        return article;
+      }
       article.append(avatar({
         name: message.senderName,
         avatar: message.senderAvatar
@@ -98,9 +105,6 @@
       const meta = document.createElement("div");
       meta.className = "message-meta";
       meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      bubble.textContent = message.text || `[${message.msgTypeName || "消息"}]`;
       content.append(meta, bubble);
       const media = messageMedia(message);
       if (media) content.append(media);
@@ -250,11 +254,7 @@
         }
       }
       elements.loadEarlier.disabled = state.messages.size >= state.total;
-      elements.refreshState.textContent = "刚刚更新";
-      elements.refreshState.hidden = false;
     } catch {
-      elements.refreshState.textContent = "刷新失败，点击重试";
-      elements.refreshState.hidden = false;
     } finally {
       state.refreshing = false;
     }
@@ -291,7 +291,6 @@
   elements.loadEarlier.addEventListener("click", () => loadMessages(state.nextPage));
   elements.retryGroups.addEventListener("click", initialize);
   elements.retryMessages.addEventListener("click", () => loadMessages(state.failedPage));
-  elements.refreshState.addEventListener("click", refreshMessages);
   elements.newMessages.addEventListener("click", () => {
     elements.messages.scrollTop = elements.messages.scrollHeight;
     elements.newMessages.hidden = true;

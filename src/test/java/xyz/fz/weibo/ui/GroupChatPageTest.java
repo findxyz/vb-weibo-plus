@@ -67,13 +67,14 @@ class GroupChatPageTest {
                     exchange.close();
                     return;
                 }
-                sendJson(exchange, messagesJson(1, 2,
+                sendJson(exchange, messagesJson(1, 3,
                         mediaMessageJson(4, 1, "图片消息",
                                 "/chat/media?gid=202&mid=4&variant=preview",
                                 "/chat/media?gid=202&mid=4&variant=original", "") + ","
                                 + mediaMessageJson(5, 13, "视频消息",
                                 "/chat/media?gid=202&mid=5&variant=preview", "",
-                                "/chat/media?gid=202&mid=5&variant=video")));
+                                "/chat/media?gid=202&mid=5&variant=video") + ","
+                                + systemMessageJson(6, "涉及资金问题请务必提高警惕，谨防诈骗。查看案例")));
                 return;
             }
             if (!query.contains("gid=101")) {
@@ -106,9 +107,12 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
-            byte[] body = Base64.getDecoder().decode(
-                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
-            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            byte[] body = """
+                    <svg xmlns="http://www.w3.org/2000/svg" width="100" height="300" viewBox="0 0 100 300">
+                      <rect width="100" height="300" fill="#dcefff"/>
+                    </svg>
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "image/svg+xml");
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
             exchange.close();
@@ -162,6 +166,11 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).isDisabled();
         assertThat(page.locator(".composer button:enabled")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
+        assertThat(page.locator(".read-only-badge")).hasCount(0);
+        assertThat(page.locator("#refresh-state")).hasCount(0);
+        assertThat(page.locator(".composer-tools > span")).hasCount(0);
+        assertThat(page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("图片")).locator("svg")).hasCount(1);
         Object avatarFitsContainer = page.locator(".group-avatar img").first().evaluate("""
                 image => image.offsetWidth === image.parentElement.clientWidth
                   && image.offsetHeight === image.parentElement.clientHeight
@@ -176,6 +185,7 @@ class GroupChatPageTest {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
+        assertThat(page.locator(".messages-shell > #load-earlier")).isVisible();
         assertThat(page.locator("#load-earlier")).isEnabled();
         page.locator("#load-earlier").click();
 
@@ -223,6 +233,22 @@ class GroupChatPageTest {
                 """);
         page.navigate(baseUrl + "/chat/index.html");
         page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        page.waitForFunction("""
+                () => document.querySelector("[data-mid='4'] .image-preview img")?.naturalHeight > 0
+                """);
+        Object imageKeepsPortraitRatio = page.locator("[data-mid='4'] .image-preview").evaluate("""
+                preview => {
+                  const previewBox = preview.getBoundingClientRect();
+                  const imageBox = preview.querySelector("img").getBoundingClientRect();
+                  return previewBox.width < previewBox.height
+                    && Math.abs(previewBox.height - imageBox.height - 2) < 1;
+                }
+                """);
+        org.assertj.core.api.Assertions.assertThat(imageKeepsPortraitRatio).isEqualTo(true);
+        assertThat(page.locator("[data-mid='6'].system-message .bubble"))
+                .hasText("涉及资金问题请务必提高警惕，谨防诈骗。查看案例");
+        assertThat(page.locator("[data-mid='6'] .message-avatar")).hasCount(0);
 
         page.locator("[data-mid='4'] .image-preview").click();
         assertThat(page.locator("#image-viewer")).isVisible();
@@ -348,5 +374,15 @@ class GroupChatPageTest {
                  "previewUrl":"%s","originalUrl":"%s","videoUrl":"%s"}
                 """.formatted(mid, mediaType, text, mid * 1000, mid * 1000,
                 previewUrl, originalUrl, videoUrl);
+    }
+
+    private static String systemMessageJson(long mid, String text) {
+        return """
+                {"mid":%d,"gid":202,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
+                 "senderId":0,"senderName":"粉丝群","senderAvatar":"","text":"%s",
+                 "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":%d,"savedAt":%d,
+                 "previewUrl":"","originalUrl":"","videoUrl":""}
+                """.formatted(mid, text, mid * 1000, mid * 1000);
     }
 }
