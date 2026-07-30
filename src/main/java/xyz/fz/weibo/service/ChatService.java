@@ -50,17 +50,20 @@ public class ChatService {
     private final MessageMapper messageMapper;
     private final GroupRepository groupRepository;
     private final MessageRepository messageRepository;
+    private final HeicConverter heicConverter;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
 
     public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
                        GroupMediaApi groupMediaApi, MessageMapper messageMapper,
-                       GroupRepository groupRepository, MessageRepository messageRepository) {
+                       GroupRepository groupRepository, MessageRepository messageRepository,
+                       HeicConverter heicConverter) {
         this.groupListApi = groupListApi;
         this.groupMessagesApi = groupMessagesApi;
         this.groupMediaApi = groupMediaApi;
         this.messageMapper = messageMapper;
         this.groupRepository = groupRepository;
         this.messageRepository = messageRepository;
+        this.heicConverter = heicConverter;
     }
 
     public List<GroupRecord> syncGroups() {
@@ -239,8 +242,8 @@ public class ChatService {
             if (response == null || !response.getStatusCode().is2xxSuccessful()) {
                 throw new WeiboException("群消息媒体下载失败。", -1);
             }
-            return messageMapper.toMediaBinary(response);
-        } catch (WeiboCookieExpiredException | WeiboRateLimitException e) {
+            return heicConverter.convertIfHeic(messageMapper.toMediaBinary(response));
+        } catch (WeiboException e) {
             throw e;
         } catch (RuntimeException e) {
             throw new WeiboException("群消息媒体下载失败。", -1, e);

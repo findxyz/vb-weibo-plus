@@ -90,7 +90,7 @@ class ChatServiceTest {
     void setUp() {
         chatService = new ChatService(
                 groupListApi, groupMessagesApi, groupMediaApi,
-                messageMapper, groupRepository, messageRepository);
+                messageMapper, groupRepository, messageRepository, new HeicConverter("ffmpeg"));
     }
 
     @Test

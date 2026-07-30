@@ -2,6 +2,10 @@
 
 A single-user, locally-run tool that drives one Weibo account's web credentials via a local Spring Boot web app. The operator QR-scans to log in, then manually invokes Weibo Web/API endpoints through HTTP controllers.
 
+## 前置条件
+
+安装与配置见 [README.md](README.md)。
+
 ## Language
 
 **Credential**:
