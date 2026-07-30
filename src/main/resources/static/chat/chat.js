@@ -193,7 +193,7 @@
       size.textContent = previewText;
       copy.append(name, size);
       button.append(copy);
-      button.addEventListener("click", () => selectGroup(group.gid));
+      button.addEventListener("click", () => selectGroup(group.gid, false));
       elements.groupsList.append(button);
     });
     elements.groupsCount.textContent = `${state.groups.length} 个群聊`;
@@ -534,7 +534,7 @@
     }
   }
 
-  async function selectGroup(gid) {
+  async function selectGroup(gid, showLoading = true) {
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
     if (historyState.gid !== gid) resetHistory(gid);
@@ -563,16 +563,16 @@
       if (active) row.setAttribute("aria-current", "true");
       else row.removeAttribute("aria-current");
     });
-    await loadMessages();
+    await loadMessages(null, null, showLoading);
   }
 
-  async function loadMessages(beforeCreatedAt = null, beforeMid = null) {
+  async function loadMessages(beforeCreatedAt = null, beforeMid = null, showLoading = true) {
     const isLatestPage = beforeCreatedAt === null && beforeMid === null;
     const anchor = isLatestPage ? null : captureScrollAnchor();
     state.failedBeforeCreatedAt = beforeCreatedAt;
     state.failedBeforeMid = beforeMid;
     elements.retryMessages.hidden = true;
-    if (isLatestPage) elements.messagesState.textContent = "正在加载消息…";
+    if (isLatestPage && showLoading) elements.messagesState.textContent = "正在加载消息…";
     const query = new URLSearchParams({
       gid: String(state.currentGid), size: String(PAGE_SIZE)
     });
