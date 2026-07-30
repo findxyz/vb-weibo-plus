@@ -52,10 +52,10 @@ public class HeicConverter {
         if (!ffmpegAvailable) {
             return new MediaBinary(content, "image/heic");
         }
-        return transcode(source, content);
+        return transcode(content);
     }
 
-    private MediaBinary transcode(MediaBinary source, byte[] content) {
+    private MediaBinary transcode(byte[] content) {
         Path input = null;
         Path output = null;
         try {
