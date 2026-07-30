@@ -83,8 +83,6 @@ public class HeicConverter {
                 throw new WeiboException("群消息 HEIC 图片转码失败。", -1);
             }
             return new MediaBinary(jpeg, "image/jpeg");
-        } catch (WeiboException e) {
-            throw e;
         } catch (IOException | InterruptedException e) {
             throw new WeiboException("群消息 HEIC 图片转码失败。", -1, e);
         } finally {
