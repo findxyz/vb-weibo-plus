@@ -42,6 +42,7 @@ textarea {
 
 button {
   color: inherit;
+  user-select: none;
 }
 
 button:not(:disabled) {
@@ -328,6 +329,7 @@ h1 {
 }
 
 .conversation-toolbar button,
+.composer-tools button,
 .history-filters button,
 .history-pagination button,
 .history-context-toolbar button {
@@ -630,14 +632,9 @@ h1 {
 }
 
 .composer-tools button {
-  height: 28px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  color: #81909b;
-  background: transparent;
 }
 
 .composer-tool-emoji {
@@ -700,36 +697,63 @@ h1 {
 .history-window {
   height: 100%;
   display: grid;
-  grid-template-rows: 42px minmax(0, 1fr);
+  grid-template-rows: 38px minmax(0, 1fr);
 }
 
 .history-titlebar {
   display: flex;
   align-items: center;
-  padding-left: 12px;
+  gap: 8px;
+  padding: 0 8px 0 10px;
   color: #ffffff;
-  background: linear-gradient(#1394fa, #0060d8);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
+    linear-gradient(#1394fa 0, #0879ed 28%, #0060d8 72%, #006bea 100%);
+  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .history-titlebar h2 {
+  min-width: 0;
   margin: 0;
-  font-size: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 1px #003692;
+}
+
+.history-title-icon {
+  flex: none;
+  filter: drop-shadow(0 1px 1px #003692);
 }
 
 .history-titlebar button {
-  width: 42px;
-  height: 100%;
-  min-height: 0;
+  width: 28px;
+  height: 26px;
+  flex: none;
   margin-left: auto;
   padding: 0;
-  border: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 94%);
+  border-radius: 5px;
   color: #ffffff;
-  background: transparent;
-  font-size: 25px;
+  background: linear-gradient(#ff9a73, #e63c20 72%);
+  box-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
+}
+
+.history-titlebar button::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23fff' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 1px #074b9a);
 }
 
 .history-titlebar button:hover {
-  background: rgb(0 47 130 / 34%);
+  filter: brightness(1.08);
 }
 
 .history-layout {
@@ -770,9 +794,6 @@ h1 {
 
 .history-filters .primary-button {
   margin-top: 8px;
-  border-color: #075fc9;
-  color: #ffffff;
-  background: linear-gradient(#1b91f4, #0867d8);
 }
 
 .history-content {
