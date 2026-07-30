@@ -483,10 +483,10 @@
     }
   }
 
-  async function queryHistory(page) {
+  async function queryHistory(page, showLoading = true) {
     const requestVersion = ++historyState.requestVersion;
     const gid = historyState.gid;
-    elements.historyFeedback.textContent = "正在查询聊天记录…";
+    if (showLoading) elements.historyFeedback.textContent = "正在查询聊天记录…";
     elements.historyEmpty.hidden = true;
     elements.historyContext.hidden = true;
     const query = new URLSearchParams({
@@ -728,8 +728,8 @@
     };
     queryHistory(1);
   });
-  elements.historyPrevious.addEventListener("click", () => queryHistory(historyState.page - 1));
-  elements.historyNext.addEventListener("click", () => queryHistory(historyState.page + 1));
+  elements.historyPrevious.addEventListener("click", () => queryHistory(historyState.page - 1, false));
+  elements.historyNext.addEventListener("click", () => queryHistory(historyState.page + 1, false));
   elements.historyBack.addEventListener("click", () => {
     historyState.requestVersion += 1;
     elements.historyContext.hidden = true;
