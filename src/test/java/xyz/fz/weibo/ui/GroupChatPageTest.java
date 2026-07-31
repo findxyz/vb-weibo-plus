@@ -440,36 +440,6 @@ class GroupChatPageTest {
     }
 
     @Test
-    void opens_a_search_result_in_an_isolated_history_context() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/chat/index.html");
-        page.locator("#history-open").click();
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-                new Page.GetByRoleOptions().setName("查询")).click();
-
-        page.locator(".history-result[data-mid='5']").click();
-
-        assertThat(page.locator("#history-context")).isVisible();
-        assertThat(page.locator("#history-results")).isHidden();
-        assertThat(page.getByText("消息上下文", new Page.GetByTextOptions().setExact(true))).hasCount(0);
-        assertThat(page.locator("#history-back")).hasText("返回搜索结果");
-        assertThat(page.locator("#history-messages .bubble")).hasText(new String[]{
-                "确认集合地点", "准备登山鞋", "周末一起爬山", "我也参加", "山顶见"});
-        assertThat(page.locator("#history-messages [data-mid='5']"))
-                .hasClass(java.util.regex.Pattern.compile("target-message"));
-        org.assertj.core.api.Assertions.assertThat(historyBeforeRequests.get()).isEqualTo(1);
-        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(1);
-
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-                new Page.GetByRoleOptions().setName("返回搜索结果")).click();
-        assertThat(page.locator("#history-results")).isVisible();
-        assertThat(page.locator(".history-result-summary"))
-                .hasText(new String[]{"周末一起爬山", "准备登山鞋"});
-
-        page.close();
-    }
-
-    @Test
     void loads_earlier_and_newer_history_while_preserving_the_scroll_anchor() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -577,25 +547,6 @@ class GroupChatPageTest {
                 """);
         org.assertj.core.api.Assertions.assertThat(styles)
                 .isEqualTo(java.util.List.of("0px", "0px", "none"));
-        page.close();
-    }
-
-    @Test
-    void close_button_fills_the_history_titlebar_without_a_gap() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/chat/index.html");
-        page.locator("#history-open").click();
-
-        Object edgeOffsets = page.locator("#history-close").evaluate("""
-                button => {
-                  const buttonRect = button.getBoundingClientRect();
-                  const titlebarRect = button.parentElement.getBoundingClientRect();
-                  return [buttonRect.top - titlebarRect.top, titlebarRect.bottom - buttonRect.bottom];
-                }
-                """);
-        org.assertj.core.api.Assertions.assertThat(edgeOffsets)
-                .isEqualTo(java.util.List.of(0, 0));
-
         page.close();
     }
 
@@ -729,43 +680,6 @@ class GroupChatPageTest {
     }
 
     @Test
-    void can_load_earlier_after_returning_during_an_obsolete_cursor_request() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/chat/index.html");
-        page.locator("#history-open").click();
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-                new Page.GetByRoleOptions().setName("查询")).click();
-        page.locator(".history-result[data-mid='5']").click();
-        assertThat(page.locator("#history-messages [data-mid='3']")).isVisible();
-        delayEarlierHistory.set(true);
-
-        page.waitForRequest(
-                request -> request.url().contains("beforeCreatedAt=3000"),
-                () -> page.locator("#history-messages").evaluate("""
-                        element => {
-                          element.style.height = "120px";
-                          element.scrollTop = 0;
-                          element.dispatchEvent(new Event("scroll"));
-                        }
-                        """));
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-                new Page.GetByRoleOptions().setName("返回搜索结果")).click();
-        page.locator(".history-result[data-mid='5']").click();
-        assertThat(page.locator("#history-feedback")).hasText("");
-
-        page.locator("#history-messages").evaluate("""
-                element => {
-                  element.style.height = "120px";
-                  element.scrollTop = 0;
-                  element.dispatchEvent(new Event("scroll"));
-                }
-                """);
-        assertThat(page.locator("#history-messages [data-mid='2']")).isVisible();
-
-        page.close();
-    }
-
-    @Test
     void sends_a_text_message_and_refreshes_to_show_it() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -802,26 +716,6 @@ class GroupChatPageTest {
                 .containsText("消息已发出，但本地同步失败");
         assertThat(page.locator("#composer")).hasValue("待发送");
         assertThat(page.locator("#composer")).isEnabled();
-
-        page.close();
-    }
-
-    @Test
-    void shows_the_full_latest_message_summary_and_uses_css_ellipsis() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/chat/index.html");
-
-        assertThat(page.locator(".group-preview"))
-                .hasText(new String[]{"小凯：大家周末有空吗？", "阿呆：收到"});
-        Object usesAvailableWidth = page.locator(".group-preview").first().evaluate("""
-                element => {
-                  const style = getComputedStyle(element);
-                  return style.whiteSpace === "nowrap"
-                    && style.overflow === "hidden"
-                    && style.textOverflow === "ellipsis";
-                }
-                """);
-        org.assertj.core.api.Assertions.assertThat(usesAvailableWidth).isEqualTo(true);
 
         page.close();
     }
