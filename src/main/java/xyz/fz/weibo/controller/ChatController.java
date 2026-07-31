@@ -66,12 +66,13 @@ public class ChatController {
     }
 
     @PostMapping("/since")
-    public SaveResult saveBySince(
+    public ResponseEntity<Void> saveBySince(
             @RequestParam long gid,
             @RequestParam
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime sinceTime,
             @RequestParam(required = false) Long beforeMid) {
-        return chatService.saveBySince(gid, toEpochMillis(sinceTime), beforeMid);
+        chatService.saveBySince(gid, toEpochMillis(sinceTime), beforeMid);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/messages/send")

@@ -36,6 +36,10 @@ _Avoid_: latest state, synchronized copy, revision history
 The scheduled process that pulls new Weibo content into the local database without being initiated by the browser UI.
 _Avoid_: page refresh, UI sync, polling
 
+**Historical Capture**:
+A remote pull of earlier Group Messages into the local database, initiated from the Historical Browse UI and bounded by a caller-supplied time point. Unlike Background Capture it goes backwards from the locally captured boundary, and unlike View Refresh it writes to the store.
+_Avoid_: backfill sync, history sync, UI pull
+
 **View Refresh**:
 Re-reading local data so the browser UI reflects newly captured content. It never calls Weibo or starts Background Capture.
 _Avoid_: sync, capture, remote refresh

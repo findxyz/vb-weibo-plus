@@ -267,30 +267,21 @@ class ChatControllerTest {
 
     @Test
     void since_binds_shanghai_time_and_optional_starting_mid_from_query_parameters() throws Exception {
-        when(chatService.saveBySince(101, 1_783_652_523_000L, 50L))
-                .thenReturn(new SaveResult(4, 3, 1));
-
         mockMvc.perform(post("/chat/since")
                         .param("gid", "101")
                         .param("sinceTime", "2026-07-10 11:02:03")
                         .param("beforeMid", "50"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.fetchedCount").value(4))
-                .andExpect(jsonPath("$.insertedCount").value(3))
-                .andExpect(jsonPath("$.ignoredCount").value(1));
+                .andExpect(status().isNoContent());
 
         verify(chatService).saveBySince(101, 1_783_652_523_000L, 50L);
     }
 
     @Test
     void since_requires_gid_and_time_but_allows_omitting_before_mid() throws Exception {
-        when(chatService.saveBySince(101, 1_783_652_523_000L, null))
-                .thenReturn(new SaveResult(0, 0, 0));
-
         mockMvc.perform(post("/chat/since")
                         .param("gid", "101")
                         .param("sinceTime", "2026-07-10 11:02:03"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
         mockMvc.perform(post("/chat/since").param("gid", "101"))
                 .andExpect(status().isBadRequest());
 

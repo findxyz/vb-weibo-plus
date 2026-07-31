@@ -1,10 +1,13 @@
 package xyz.fz.weibo.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.client.ResponseExtractor;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
@@ -46,6 +49,8 @@ import java.util.function.Predicate;
 
 @Service
 public class ChatService {
+
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
     private final GroupListApi groupListApi;
     private final GroupMessagesApi groupMessagesApi;
@@ -176,29 +181,27 @@ public class ChatService {
                 loadingAfter && next != null ? next.getMid() : null);
     }
 
-    public SaveResult saveBySince(long gid, long sinceTime, Long beforeMid) {
+    @Async
+    public void saveBySince(long gid, long sinceTime, Long beforeMid) {
         if (!saveBySinceLock.tryLock()) {
-            return new SaveResult(0, 0, 0);
+            return;
         }
         try {
             validateGid(gid);
             long capturedAt = System.currentTimeMillis();
             groupRepository.ensurePlaceholderExists(gid, capturedAt);
-            Long cursor = beforeMid;
-            int fetched = 0;
-            int inserted = 0;
-            int ignored = 0;
+            Long cursor = beforeMid != null ? beforeMid : startCursor(gid);
             while (true) {
                 List<GroupMessagesResponse.Message> messages = requireMessages(
                         groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
                 if (messages.isEmpty()) {
                     break;
                 }
-                fetched += messages.size();
                 PageCapture capture = capturePage(messages, gid, capturedAt,
                         message -> messageMapper.toMessageTimestamp(message) < sinceTime);
-                inserted += capture.inserted();
-                ignored += capture.ignored();
+                long oldestTime = messageMapper.toMessageTimestamp(messages.getLast());
+                log.info("群 {} 历史同步：新增消息 {} 条，忽略 {} 条，最旧消息时间 {}",
+                        gid, capture.inserted(), capture.ignored(), formatTimestamp(oldestTime));
                 if (capture.reachedBoundary()) {
                     break;
                 }
@@ -206,10 +209,21 @@ public class ChatService {
                 sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
             }
             messageRepository.refreshGroupRange(gid);
-            return new SaveResult(fetched, inserted, ignored);
         } finally {
             saveBySinceLock.unlock();
         }
+    }
+
+    private Long startCursor(long gid) {
+        long minMid = groupRepository.findMinMid(gid);
+        return minMid > 0 ? minMid : null;
+    }
+
+    private static String formatTimestamp(long epochMillis) {
+        return java.time.LocalDateTime.ofInstant(
+                java.time.Instant.ofEpochMilli(epochMillis),
+                java.time.ZoneId.of("Asia/Shanghai"))
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
     public SaveResult sendText(long gid, String content) {

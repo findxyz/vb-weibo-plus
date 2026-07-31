@@ -437,8 +437,7 @@ class ChatServiceTest {
         mapEveryMessageWithTime();
         when(messageRepository.insertIfAbsent(any())).thenReturn(true);
 
-        assertThat(chatService.saveBySince(1, 1_000, null))
-                .isEqualTo(new SaveResult(4, 3, 1));
+        chatService.saveBySince(1, 1_000, null);
 
         ArgumentCaptor<MessageEntity> saved = ArgumentCaptor.forClass(MessageEntity.class);
         verify(messageRepository, times(3)).insertIfAbsent(saved.capture());
@@ -484,13 +483,12 @@ class ChatServiceTest {
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         try {
-            Future<SaveResult> firstRequest = executor.submit(
+            Future<?> firstRequest = executor.submit(
                     () -> chatService.saveBySince(1, 900, null));
             assertThat(firstFetchStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
             long startedAt = System.nanoTime();
-            assertThat(chatService.saveBySince(1, 900, null))
-                    .isEqualTo(new SaveResult(0, 0, 0));
+            chatService.saveBySince(1, 900, null);
             assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt))
                     .isLessThan(200);
             verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, null));
@@ -500,8 +498,7 @@ class ChatServiceTest {
                     .isInstanceOf(ExecutionException.class)
                     .hasCauseInstanceOf(WeiboException.class);
 
-            assertThat(chatService.saveBySince(1, 900, null))
-                    .isEqualTo(new SaveResult(0, 0, 0));
+            chatService.saveBySince(1, 900, null);
             verify(groupMessagesApi, times(2))
                     .messages(new GroupMessagesRequest(1L, null));
         } finally {
@@ -515,8 +512,7 @@ class ChatServiceTest {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 50L)))
                 .thenReturn(messagePage());
 
-        assertThat(chatService.saveBySince(1, 1_000, 50L))
-                .isEqualTo(new SaveResult(0, 0, 0));
+        chatService.saveBySince(1, 1_000, 50L);
 
         verify(groupRepository, never()).findMaxMid(anyLong());
         verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 50L));
@@ -543,8 +539,7 @@ class ChatServiceTest {
                 .isInstanceOf(WeiboException.class);
         verify(messageRepository, never()).refreshGroupRange(1);
 
-        assertThat(chatService.saveBySince(1, 1_000, null))
-                .isEqualTo(new SaveResult(3, 1, 2));
+        chatService.saveBySince(1, 1_000, null);
         verify(messageRepository).refreshGroupRange(1);
     }
 

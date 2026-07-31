@@ -44,6 +44,8 @@
     historyPrevious: document.querySelector("#history-previous"),
     historyNext: document.querySelector("#history-next"),
     historyPageState: document.querySelector("#history-page-state"),
+    historySyncTime: document.querySelector("#history-sync-time"),
+    historySync: document.querySelector("#history-sync"),
     imageViewer: document.querySelector("#image-viewer"),
     imageViewerImage: document.querySelector("#image-viewer img"),
     imageViewerState: document.querySelector("#image-viewer-state"),
@@ -569,6 +571,28 @@
     }
   }
 
+  async function captureHistory() {
+    const gid = historyState.gid;
+    if (!gid) return;
+    const raw = elements.historySyncTime.value;
+    if (!raw) {
+      elements.historyFeedback.textContent = "请先选择要同步到的历史时间点。";
+      return;
+    }
+    const sinceTime = `${raw.replace("T", " ")}:00`;
+    const query = new URLSearchParams({gid: String(gid), sinceTime});
+    elements.historySync.disabled = true;
+    try {
+      const response = await fetch(`/chat/since?${query}`, {method: "POST"});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      elements.historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";
+    } catch {
+      elements.historyFeedback.textContent = "同步历史请求失败，请稍后重试。";
+    } finally {
+      elements.historySync.disabled = false;
+    }
+  }
+
   function captureScrollAnchor(container = elements.messages) {
     const containerTop = container.getBoundingClientRect().top;
     const anchor = [...container.children].find(element =>
@@ -835,6 +859,7 @@
   });
   elements.historyPrevious.addEventListener("click", () => queryHistory(historyState.page - 1));
   elements.historyNext.addEventListener("click", () => queryHistory(historyState.page + 1));
+  elements.historySync.addEventListener("click", captureHistory);
   elements.historyBack.addEventListener("click", () => {
     historyState.requestVersion += 1;
     elements.historyContext.hidden = true;

@@ -98,6 +98,16 @@ class GroupRepositoryTest {
                 .containsExactly(3L, 1L, 2L);
     }
 
+    @Test
+    void find_min_mid_returns_the_local_boundary_for_backfill_start() {
+        groupRepository.upsertMetadata(group(1, "群", 30, 70, 100, 100));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(groupRepository.findMinMid(1)).isEqualTo(30);
+        assertThat(groupRepository.findMinMid(999)).isZero();
+    }
+
     private GroupEntity group(long gid, String name, long minMid, long maxMid,
                               long createdAt, long updatedAt) {
         return new GroupEntity(gid, name, "avatar-" + name, 10, 100, 9,
