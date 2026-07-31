@@ -577,6 +577,9 @@
   async function captureHistory() {
     const gid = historyState.gid;
     if (!gid) return;
+    elements.historyEmpty.hidden = true;
+    elements.historyResults.hidden = true;
+    elements.historyContext.hidden = true;
     const raw = elements.historySyncTime.value;
     if (!raw) {
       elements.historyFeedback.textContent = "请先选择要同步到的历史日期。";
@@ -584,18 +587,12 @@
     }
     const sinceTime = `${raw} 00:00:00`;
     const query = new URLSearchParams({gid: String(gid), sinceTime});
-    elements.historyEmpty.hidden = true;
-    elements.historyResults.hidden = true;
-    elements.historyContext.hidden = true;
-    elements.historySync.disabled = true;
     try {
       const response = await fetch(`/chat/since?${query}`, {method: "POST"});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       elements.historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";
     } catch {
       elements.historyFeedback.textContent = "同步历史请求失败，请稍后重试。";
-    } finally {
-      elements.historySync.disabled = false;
     }
   }
 

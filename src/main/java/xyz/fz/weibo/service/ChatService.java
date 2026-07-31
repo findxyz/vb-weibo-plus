@@ -190,6 +190,7 @@ public class ChatService {
     @Async
     public void saveBySince(long gid, long sinceTime, Long beforeMid) {
         if (!saveBySinceLock.tryLock()) {
+            log.warn("群 {} 历史同步跳过：已有同步任务在运行。", gid);
             return;
         }
         try {
