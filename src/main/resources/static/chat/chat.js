@@ -240,11 +240,18 @@
     });
   }
 
+  function isAdminSender(senderId) {
+    if (!Number.isSafeInteger(senderId) || senderId <= 0) return false;
+    const group = state.groups.find(item => item.gid === state.currentGid);
+    return Array.isArray(group?.admins) && group.admins.includes(senderId);
+  }
+
   function messageElement(message, targetMid = null, onMediaLoad = null) {
       const article = document.createElement("article");
       article.className = "message";
       article.dataset.mid = String(message.mid);
       if (message.mid === targetMid) article.classList.add("target-message");
+      if (isAdminSender(message.senderId)) article.classList.add("admin-message");
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       if (message.fileUrl) {

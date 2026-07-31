@@ -60,7 +60,7 @@ class GroupChatPageTest {
                    "maxMember":500,"ownerId":1,"admins":[],"summary":"周末出游","groupType":1,
                    "latestSenderName":"小凯","latestMessage":"大家周末有空吗？"},
                   {"gid":202,"name":"LinkNow","avatar":"","memberCount":3,
-                   "maxMember":200,"ownerId":2,"admins":[],"summary":"测试群","groupType":1,
+                   "maxMember":200,"ownerId":2,"admins":[9],"summary":"测试群","groupType":1,
                    "latestSenderName":"%s","latestMessage":"%s"}
                 ]
                 """.formatted(refreshed ? "媒体用户" : "阿呆",
@@ -935,6 +935,18 @@ class GroupChatPageTest {
 
         assertThat(page.locator("[data-mid='12'] .image-preview img"))
                 .hasAttribute("src", "https://wx4.sinaimg.cn/large/sticker.jpg");
+
+        page.close();
+    }
+
+    @Test
+    void highlights_admin_messages_with_a_distinct_bubble_color() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("[data-mid='4']")).hasClass(java.util.regex.Pattern.compile("admin-message"));
+        assertThat(page.locator("[data-mid='6']")).not().hasClass(java.util.regex.Pattern.compile("admin-message"));
 
         page.close();
     }

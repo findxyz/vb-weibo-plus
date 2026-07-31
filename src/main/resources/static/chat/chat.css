@@ -492,6 +492,11 @@ h1 {
   line-height: 1.4;
 }
 
+.admin-message .bubble {
+  background: #fff3e0;
+  border-color: #f0c78a;
+}
+
 .messages-feedback {
   position: absolute;
   inset: 50% auto auto 50%;
