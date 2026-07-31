@@ -109,6 +109,9 @@
     historyState.loadingMore = false;
     elements.historyStart.value = localDateValue(start);
     elements.historyEnd.value = localDateValue(new Date());
+    const syncDate = new Date();
+    syncDate.setFullYear(syncDate.getFullYear() - 2);
+    elements.historySyncTime.value = localDateValue(syncDate);
     elements.historySender.value = "";
     elements.historyKeyword.value = "";
     elements.historyResultsList.replaceChildren();
@@ -576,10 +579,10 @@
     if (!gid) return;
     const raw = elements.historySyncTime.value;
     if (!raw) {
-      elements.historyFeedback.textContent = "请先选择要同步到的历史时间点。";
+      elements.historyFeedback.textContent = "请先选择要同步到的历史日期。";
       return;
     }
-    const sinceTime = `${raw.replace("T", " ")}:00`;
+    const sinceTime = `${raw} 00:00:00`;
     const query = new URLSearchParams({gid: String(gid), sinceTime});
     elements.historySync.disabled = true;
     try {
