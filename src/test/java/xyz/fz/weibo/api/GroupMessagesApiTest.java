@@ -12,7 +12,7 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.SendMessageResponse;
+import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,7 +37,7 @@ class GroupMessagesApiTest {
                 request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true))
                 .thenReturn(ResponseEntity.ok(body));
 
-        SendMessageResponse response = api.send(request);
+        GroupSendMessageResponse response = api.send(request);
 
         assertThat(response.result()).isTrue();
         assertThat(response.mid()).isEqualTo(5326071289614715L);

@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <p>
  * result 为 true 表示发送成功；mid 为新消息 id；time 为秒级时间戳。
  */
-public record SendMessageResponse(
+public record GroupSendMessageResponse(
         boolean result,
         @JsonAlias({"id", "mid"}) Long mid,
         Long gid,

@@ -14,7 +14,7 @@ import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.SendMessageResponse;
+import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
 /**
  * 微博群聊接口：群列表与群消息。
@@ -45,7 +45,7 @@ public class WeiboGroupController {
     }
 
     @PostMapping("/send")
-    public SendMessageResponse send(@RequestParam Long id, @RequestParam String content) {
+    public GroupSendMessageResponse send(@RequestParam Long id, @RequestParam String content) {
         return groupMessagesApi.send(new GroupSendMessageRequest(id, content));
     }
 

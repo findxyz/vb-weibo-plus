@@ -27,7 +27,7 @@ import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.SendMessageResponse;
+import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
@@ -217,7 +217,7 @@ public class ChatService {
         if (content == null || content.isBlank()) {
             throw new InvalidRequestException("消息内容不能为空。");
         }
-        SendMessageResponse response = groupMessagesApi.send(
+        GroupSendMessageResponse response = groupMessagesApi.send(
                 new GroupSendMessageRequest(gid, content));
         if (!response.result()) {
             throw new WeiboException("消息发送失败：result != true。", -1);

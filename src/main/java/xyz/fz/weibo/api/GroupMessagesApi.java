@@ -10,7 +10,7 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.SendMessageResponse;
+import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
 /**
  * 群聊消息接口。
@@ -39,11 +39,11 @@ public class GroupMessagesApi {
         }
     }
 
-    public SendMessageResponse send(GroupSendMessageRequest request) {
+    public GroupSendMessageResponse send(GroupSendMessageRequest request) {
         ResponseEntity<String> resp = client.postForm(
                 SEND_MESSAGE_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
         try {
-            return objectMapper.readValue(resp.getBody(), SendMessageResponse.class);
+            return objectMapper.readValue(resp.getBody(), GroupSendMessageResponse.class);
         } catch (JsonProcessingException e) {
             throw new WeiboException("响应反序列化失败：" + e.getMessage(), e);
         }

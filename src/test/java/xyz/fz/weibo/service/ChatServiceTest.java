@@ -27,7 +27,7 @@ import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.SendMessageResponse;
+import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
 import xyz.fz.weibo.service.mapper.MessageMapper;
@@ -776,7 +776,7 @@ class ChatServiceTest {
     void send_text_posts_to_weibo_then_triggers_incremental_capture_and_returns_success() {
         GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
         when(groupMessagesApi.send(request))
-                .thenReturn(new SendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage());
@@ -799,7 +799,7 @@ class ChatServiceTest {
     void send_text_propagates_weibo_send_failure_without_triggering_capture() {
         GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
         when(groupMessagesApi.send(request))
-                .thenReturn(new SendMessageResponse(false, null, 1L, null, null, null, null));
+                .thenReturn(new GroupSendMessageResponse(false, null, 1L, null, null, null, null));
 
         assertThatThrownBy(() -> chatService.sendText(1, "hello"))
                 .isInstanceOf(WeiboException.class);
@@ -812,7 +812,7 @@ class ChatServiceTest {
     void send_text_reports_sync_failure_when_capture_fails_after_a_successful_send() {
         GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
         when(groupMessagesApi.send(request))
-                .thenReturn(new SendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenThrow(new WeiboException("增量拉取失败。", -1));

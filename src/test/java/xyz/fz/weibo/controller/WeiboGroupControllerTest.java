@@ -17,7 +17,7 @@ import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.SendMessageResponse;
+import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
 import java.util.List;
 
@@ -121,7 +121,7 @@ class WeiboGroupControllerTest {
     @Test
     void send_returns_200_and_passes_through_the_weibo_response() throws Exception {
         when(groupMessagesApi.send(new GroupSendMessageRequest(101L, "hello")))
-                .thenReturn(new SendMessageResponse(true, 100L, 101L, "hello", null, 1_000L, 1_000L));
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 101L, "hello", null, 1_000L, 1_000L));
 
         mockMvc.perform(post("/weibo/group/send")
                         .param("id", "101")
