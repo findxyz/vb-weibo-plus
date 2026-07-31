@@ -942,12 +942,12 @@ h1 {
 
 .history-result {
   width: 100%;
-  min-height: 66px;
+  min-height: 48px;
   display: grid;
-  grid-template-columns: 150px 120px minmax(0, 1fr);
+  grid-template-columns: 130px 180px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   border: 0;
   border-bottom: 1px solid #d5e4ef;
   border-radius: 0;
@@ -963,6 +963,11 @@ h1 {
 .history-result-sender {
   color: #486b88;
   font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-right: 1px solid #d5e4ef;
+  padding-right: 8px;
 }
 
 .history-result-summary {
