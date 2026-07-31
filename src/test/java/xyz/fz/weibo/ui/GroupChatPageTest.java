@@ -97,7 +97,10 @@ class GroupChatPageTest {
                         + mediaMessageJson(8, 0,
                         "微博链接 http://weibo.com/1560906700/RaX1Tdqh7", "", "", "") + ","
                         + fileMessageJson(10, "海外即插即充流程.md",
-                        "/chat/media?gid=202&mid=10&variant=file");
+                        "/chat/media?gid=202&mid=10&variant=file") + ","
+                        + weiboMessageJson(11, "tombkeeper", "如果未来中国也被迫要腾笼换鸟，希望至少能先把还活着的大力推行和鼓吹计划生育的人先用中华民族传统方法处理一下。",
+                        "http://weibo.com/1401527553/Rbd0OxIhB") + ","
+                        + stickerMessageJson(12, "https://wx4.sinaimg.cn/large/sticker.jpg");
                 String messages = sendRequests.get() > 0
                         ? "{\"mid\":9,\"gid\":202,\"msgType\":321,\"msgTypeName\":\"普通消息\","
                         + "\"mediaType\":0,\"senderId\":1,\"senderName\":\"测试者\",\"senderAvatar\":\"\","
@@ -910,6 +913,33 @@ class GroupChatPageTest {
     }
 
     @Test
+    void renders_a_weibo_share_as_a_card_with_author_summary_and_link() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("[data-mid='11'] .weibo-card-author")).hasText("tombkeeper");
+        assertThat(page.locator("[data-mid='11'] .weibo-card-summary"))
+                .containsText("如果未来中国也被迫要腾笼换鸟");
+        assertThat(page.locator("[data-mid='11'] .weibo-card-link"))
+                .hasAttribute("href", "http://weibo.com/1401527553/Rbd0OxIhB");
+
+        page.close();
+    }
+
+    @Test
+    void renders_a_sticker_as_an_image() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("[data-mid='12'] .image-preview img"))
+                .hasAttribute("src", "https://wx4.sinaimg.cn/large/sticker.jpg");
+
+        page.close();
+    }
+
+    @Test
     void opens_message_links_in_a_new_tab_without_exposing_the_opener() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -1183,6 +1213,27 @@ class GroupChatPageTest {
                  "recallBy":"","createdAt":%d,"savedAt":%d,
                  "previewUrl":"","originalUrl":"","videoUrl":"","fileUrl":"%s"}
                 """.formatted(mid, text, mid * 1000, mid * 1000, fileUrl);
+    }
+
+    private static String weiboMessageJson(long mid, String author, String summary, String link) {
+        return """
+                {"mid":%d,"gid":202,"msgType":321,"msgTypeName":"普通消息","mediaType":14,
+                 "senderId":9,"senderName":"媒体用户","senderAvatar":"","text":"%s",
+                 "urlObjects":[{"url_ori":"%s","status":{"text":"%s","user":{"screen_name":"%s"}}}],
+                 "picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":%d,"savedAt":%d,
+                 "previewUrl":"","originalUrl":"","videoUrl":"","fileUrl":""}
+                """.formatted(mid, link, link, summary, author, mid * 1000, mid * 1000);
+    }
+
+    private static String stickerMessageJson(long mid, String stickerUrl) {
+        return """
+                {"mid":%d,"gid":202,"msgType":321,"msgTypeName":"普通消息","mediaType":15,
+                 "senderId":9,"senderName":"媒体用户","senderAvatar":"","text":"[动画表情]",
+                 "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":%d,"savedAt":%d,
+                 "previewUrl":"%s","originalUrl":"%s","videoUrl":"","fileUrl":""}
+                """.formatted(mid, mid * 1000, mid * 1000, stickerUrl, stickerUrl);
     }
 
     private static String systemMessageJson(long mid, String text) {

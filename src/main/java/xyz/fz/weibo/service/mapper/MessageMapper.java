@@ -177,11 +177,26 @@ public class MessageMapper {
         if (record.mediaType() == 5 && !record.fid().isBlank()) {
             fileUrl = mediaUrl(record.gid(), record.mid(), "file");
         }
+        if (record.mediaType() == 15) {
+            String stickerUrl = firstPicOriginalUrl(record.picInfos());
+            if (!stickerUrl.isBlank()) {
+                previewUrl = stickerUrl;
+                originalUrl = stickerUrl;
+            }
+        }
         return new MessageView(record.mid(), record.gid(), record.msgType(), record.msgTypeName(),
                 record.mediaType(), record.senderId(), record.senderName(), record.senderAvatar(), record.text(),
                 record.urlObjects(), record.picInfos(), record.template(), record.templateData(),
                 record.recallMids(), record.recallBy(), record.createdAt(), record.savedAt(),
                 previewUrl, originalUrl, videoUrl, fileUrl);
+    }
+
+    private String firstPicOriginalUrl(List<Map<String, Object>> picInfos) {
+        if (picInfos == null || picInfos.isEmpty()) {
+            return "";
+        }
+        Object url = picInfos.getFirst().get("original_pic");
+        return url == null ? "" : emptyIfNull(url.toString());
     }
 
     private String mediaUrl(long gid, long mid, String variant) {

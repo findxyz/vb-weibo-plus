@@ -162,6 +162,36 @@
     container.append(document.createTextNode(text.slice(offset)));
   }
 
+  function appendWeiboCard(container, urlObject) {
+    const status = urlObject.status || {};
+    const author = status.user?.screen_name?.trim() || "";
+    const rawText = (status.text || "").replace(/<[^>]+>/g, "").trim();
+    const summary = rawText.length > 100 ? rawText.slice(0, 100) + "…" : rawText;
+    const link = urlObject.url_ori || urlObject.info?.url_long || "";
+    container.classList.add("weibo-card");
+    if (author) {
+      const authorEl = document.createElement("div");
+      authorEl.className = "weibo-card-author";
+      authorEl.textContent = author;
+      container.append(authorEl);
+    }
+    if (summary) {
+      const summaryEl = document.createElement("div");
+      summaryEl.className = "weibo-card-summary";
+      summaryEl.textContent = summary;
+      container.append(summaryEl);
+    }
+    if (link) {
+      const linkEl = document.createElement("a");
+      linkEl.className = "weibo-card-link";
+      linkEl.href = link;
+      linkEl.target = "_blank";
+      linkEl.rel = "noopener noreferrer";
+      linkEl.textContent = "查看微博";
+      container.append(linkEl);
+    }
+  }
+
   function groupPreview(group) {
     const sender = group.latestSenderName?.trim() || "";
     const message = group.latestMessage?.trim() || "";
@@ -226,6 +256,8 @@
         link.rel = "noopener noreferrer";
         link.textContent = message.text || "下载文件";
         bubble.append(link);
+      } else if (message.mediaType === 14 && message.urlObjects?.[0]?.status) {
+        appendWeiboCard(bubble, message.urlObjects[0]);
       } else {
         appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
       }
@@ -331,6 +363,7 @@
     const video = message.mediaType === 10
       || (message.mediaType === 13 && !text.includes("收到红包消息"));
     if (video || message.videoUrl) return "[视频]";
+    if (message.mediaType === 14) return "[微博]";
     if (message.mediaType === 1 || message.previewUrl) return "[图片]";
     return message.text?.trim() || `[${message.msgTypeName || "消息"}]`;
   }

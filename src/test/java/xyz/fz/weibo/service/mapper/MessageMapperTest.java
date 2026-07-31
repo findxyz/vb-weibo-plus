@@ -278,4 +278,21 @@ class MessageMapperTest {
                 views.get(0).videoUrl())).containsExactly("", "", "");
         assertThat(views.get(1).fileUrl()).isEmpty();
     }
+
+    @Test
+    void media_type_15_uses_pic_infos_original_pic_as_preview_and_original_url() {
+        MessageEntity sticker = new MessageEntity(600L, 101, 321, "普通消息", 15,
+                9, "发送者", "", "[动画表情]", "", "", "",
+                "[]", "[{\"original_pic\":\"https://wx4.sinaimg.cn/large/sticker.jpg\"}]",
+                "", "{}", "[]", "", 1_000, 2_000);
+
+        List<MessageView> views = messageMapper.toMessageViews(List.of(sticker));
+
+        assertThat(views.get(0).previewUrl())
+                .isEqualTo("https://wx4.sinaimg.cn/large/sticker.jpg");
+        assertThat(views.get(0).originalUrl())
+                .isEqualTo("https://wx4.sinaimg.cn/large/sticker.jpg");
+        assertThat(views.get(0).videoUrl()).isEmpty();
+        assertThat(views.get(0).fileUrl()).isEmpty();
+    }
 }

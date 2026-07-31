@@ -570,6 +570,30 @@ h1 {
   text-decoration: underline;
 }
 
+.weibo-card .weibo-card-author {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.weibo-card .weibo-card-summary {
+  color: #555;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  margin-bottom: 6px;
+}
+
+.weibo-card .weibo-card-link {
+  color: #1677ff;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.weibo-card .weibo-card-link:hover {
+  text-decoration: underline;
+}
+
 .image-preview {
   width: auto;
   max-width: min(420px, 70vw);
