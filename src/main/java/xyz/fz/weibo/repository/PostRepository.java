@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,12 +63,37 @@ public interface PostRepository extends JpaRepository<PostEntity, String>,
         return PageRequest.of(page - 1, size, sort);
     }
 
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query(value = """
+            insert or ignore into posts (mblogid, post_id, uid, content, content_raw,
+                source, region, pics_json, video_cover_url, video_page_url,
+                retweeted_json, reposts_count, comments_count, attitudes_count,
+                created_at, saved_at)
+            values (:mblogid, :postId, :uid, :content, :contentRaw,
+                :source, :region, :picsJson, :videoCoverUrl, :videoPageUrl,
+                :retweetedJson, :repostsCount, :commentsCount, :attitudesCount,
+                :createdAt, :savedAt)
+            """, nativeQuery = true)
+    int insertIgnore(@Param("mblogid") String mblogid, @Param("postId") long postId,
+                     @Param("uid") long uid, @Param("content") String content,
+                     @Param("contentRaw") String contentRaw, @Param("source") String source,
+                     @Param("region") String region, @Param("picsJson") String picsJson,
+                     @Param("videoCoverUrl") String videoCoverUrl,
+                     @Param("videoPageUrl") String videoPageUrl,
+                     @Param("retweetedJson") String retweetedJson,
+                     @Param("repostsCount") int repostsCount,
+                     @Param("commentsCount") int commentsCount,
+                     @Param("attitudesCount") int attitudesCount,
+                     @Param("createdAt") long createdAt, @Param("savedAt") long savedAt);
+
     @Transactional
     default boolean insertIfAbsent(PostEntity post) {
-        if (existsById(post.getMblogId())) {
-            return false;
-        }
-        saveAndFlush(post);
-        return true;
+        return insertIgnore(
+                post.getMblogId(), post.getPostId(), post.getUid(), post.getContent(),
+                post.getContentRaw(), post.getSource(), post.getRegion(), post.getPicsJson(),
+                post.getVideoCoverUrl(), post.getVideoPageUrl(), post.getRetweetedJson(),
+                post.getRepostsCount(), post.getCommentsCount(), post.getAttitudesCount(),
+                post.getCreatedAt(), post.getSavedAt()) > 0;
     }
 }

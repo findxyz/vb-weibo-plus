@@ -82,13 +82,40 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
                 .replace("_", "\\_");
     }
 
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query(value = """
+            insert or ignore into messages (mid, gid, msg_type, msg_type_name, media_type,
+                sender_id, sender_name, sender_avatar, text, fid, video_cover_fid,
+                media_orig_url, url_objects, pic_infos, template, template_data,
+                recall_mids, recall_by, created_at, saved_at)
+            values (:mid, :gid, :msgType, :msgTypeName, :mediaType,
+                :senderId, :senderName, :senderAvatar, :text, :fid, :videoCoverFid,
+                :mediaOrigUrl, :urlObjects, :picInfos, :template, :templateData,
+                :recallMids, :recallBy, :createdAt, :savedAt)
+            """, nativeQuery = true)
+    int insertIgnore(@Param("mid") long mid, @Param("gid") long gid,
+                     @Param("msgType") int msgType, @Param("msgTypeName") String msgTypeName,
+                     @Param("mediaType") int mediaType, @Param("senderId") long senderId,
+                     @Param("senderName") String senderName, @Param("senderAvatar") String senderAvatar,
+                     @Param("text") String text, @Param("fid") String fid,
+                     @Param("videoCoverFid") String videoCoverFid,
+                     @Param("mediaOrigUrl") String mediaOrigUrl,
+                     @Param("urlObjects") String urlObjects, @Param("picInfos") String picInfos,
+                     @Param("template") String template, @Param("templateData") String templateData,
+                     @Param("recallMids") String recallMids, @Param("recallBy") String recallBy,
+                     @Param("createdAt") long createdAt, @Param("savedAt") long savedAt);
+
     @Transactional
     default boolean insertIfAbsent(MessageEntity message) {
-        if (existsById(message.getMid())) {
-            return false;
-        }
-        saveAndFlush(message);
-        return true;
+        return insertIgnore(
+                message.getMid(), message.getGid(), message.getMsgType(), message.getMsgTypeName(),
+                message.getMediaType(), message.getSenderId(), message.getSenderName(),
+                message.getSenderAvatar(), message.getText(), message.getFid(),
+                message.getVideoCoverFid(), message.getMediaOrigUrl(), message.getUrlObjectsJson(),
+                message.getPicInfosJson(), message.getTemplate(), message.getTemplateDataJson(),
+                message.getRecallMidsJson(), message.getRecallBy(),
+                message.getCreatedAt(), message.getSavedAt()) > 0;
     }
 
     @Modifying(clearAutomatically = true)
