@@ -584,6 +584,9 @@
     }
     const sinceTime = `${raw} 00:00:00`;
     const query = new URLSearchParams({gid: String(gid), sinceTime});
+    elements.historyEmpty.hidden = true;
+    elements.historyResults.hidden = true;
+    elements.historyContext.hidden = true;
     elements.historySync.disabled = true;
     try {
       const response = await fetch(`/chat/since?${query}`, {method: "POST"});
