@@ -701,7 +701,7 @@
       elements.composer.value = "";
       state.followingLatest = true;
       await refreshMessages();
-      elements.composerHint.textContent = "按下 Enter 发送内容 / Ctrl+Enter 换行";
+      elements.composerHint.textContent = "按下 Enter 发送内容 / Shift+Enter 换行";
     } catch {
       elements.composerHint.textContent = "消息发送失败，请稍后重试。";
     } finally {
