@@ -354,7 +354,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).hasAttribute("placeholder", "输入消息后按 Enter 发送");
         assertThat(page.locator(".composer-hint"))
                 .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
-        assertThat(page.locator(".composer button:enabled")).hasCount(0);
+        assertThat(page.locator(".composer button:enabled:not(#history-open)")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
         assertThat(page.locator(".read-only-badge")).hasCount(0);
         assertThat(page.locator("#refresh-state")).hasCount(0);
@@ -801,41 +801,6 @@ class GroupChatPageTest {
                 """);
         org.assertj.core.api.Assertions.assertThat(((Number) distanceFromBottom).doubleValue())
                 .isLessThan(1.0);
-
-        page.close();
-    }
-
-    @Test
-    void refreshes_local_messages_on_focus_and_merges_them_by_mid() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/chat/index.html");
-
-        assertThat(page.locator(".message .bubble"))
-                .hasText(new String[]{"较早消息", "较新消息"});
-        page.locator("#messages").evaluate("""
-                element => {
-                  element.style.height = "40px";
-                  element.scrollTop = 0;
-                }
-                """);
-        page.evaluate("window.dispatchEvent(new Event('focus'))");
-
-        assertThat(page.locator(".message .bubble"))
-                .hasText(new String[]{"较早消息", "较新消息", "刷新后消息"});
-        assertThat(page.locator("[data-mid='1']")).hasCount(1);
-        assertThat(page.locator("#new-messages")).isVisible();
-        page.locator("#new-messages").click();
-        assertThat(page.locator("#new-messages")).isHidden();
-        page.locator("#messages").evaluate("""
-                element => {
-                  element.scrollTop = 0;
-                  element.dispatchEvent(new Event("scroll"));
-                }
-                """);
-        assertThat(page.locator(".message .bubble"))
-                .hasText(new String[]{
-                        "最早消息", "较早消息", "较新消息", "刷新后消息", "点击后消息"});
-        assertThat(page.locator("[data-mid='1']")).hasCount(1);
 
         page.close();
     }

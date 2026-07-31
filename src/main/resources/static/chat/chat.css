@@ -316,19 +316,10 @@ h1 {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 104px 48px minmax(0, 1fr) 154px;
+  grid-template-rows: 104px minmax(0, 1fr) 154px;
   background: var(--surface);
 }
 
-.conversation-toolbar {
-  display: flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border-strong);
-  background: linear-gradient(#f8fcff, #e2eef8);
-}
-
-.conversation-toolbar button,
 .composer-tools button,
 .history-filters button,
 .history-pagination button,
@@ -635,6 +626,10 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+#history-open {
+  margin-left: auto;
 }
 
 .composer-tool-emoji {
