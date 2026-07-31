@@ -13,6 +13,7 @@ public record GroupListView(
         String summary,
         int groupType,
         String latestSenderName,
-        String latestMessage
+        String latestMessage,
+        long messageCount
 ) {
 }

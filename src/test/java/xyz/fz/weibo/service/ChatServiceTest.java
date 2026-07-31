@@ -32,6 +32,7 @@ import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
+import xyz.fz.weibo.repository.GidCount;
 import xyz.fz.weibo.service.mapper.MessageMapper;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
@@ -143,6 +144,7 @@ class ChatServiceTest {
         MessageRecord messageRecord = messageRecord(100, 0, "", "");
         when(groupRepository.findAllOrdered()).thenReturn(List.of(group));
         when(messageRepository.findAllById(List.of(100L))).thenReturn(List.of(message));
+        when(messageRepository.countByGids(List.of(1L))).thenReturn(List.of(gidCount(1L, 7L)));
         when(messageMapper.toGroupRecord(group)).thenReturn(record);
         when(messageMapper.toMessageRecord(message)).thenReturn(messageRecord);
 
@@ -150,7 +152,7 @@ class ChatServiceTest {
 
         assertThat(result).containsExactly(new GroupListView(
                 1, "群", "", 1, 500, 10, List.of(), "", 1,
-                "发送者", "消息"));
+                "发送者", "消息", 7));
         verifyNoInteractions(groupListApi);
     }
 
@@ -857,6 +859,13 @@ class ChatServiceTest {
 
     private GroupRecord record(long gid) {
         return new GroupRecord(gid, "群", "", 1, 500, 10, List.of(), "", 1);
+    }
+
+    private GidCount gidCount(long gid, long count) {
+        return new GidCount() {
+            @Override public long getGid() { return gid; }
+            @Override public long getCnt() { return count; }
+        };
     }
 
     private GroupMessagesResponse.Message message(long mid, int type, long time) {

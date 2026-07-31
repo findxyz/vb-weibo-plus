@@ -108,8 +108,15 @@ public class ChatService {
                     .map(messageMapper::toMessageRecord)
                     .forEach(message -> latestMessages.put(message.mid(), message));
         }
+        List<Long> gids = groups.stream().map(GroupEntity::getGid).toList();
+        Map<Long, Long> messageCounts = new HashMap<>();
+        if (!gids.isEmpty()) {
+            messageRepository.countByGids(gids).forEach(
+                    item -> messageCounts.put(item.getGid(), item.getCnt()));
+        }
         return groups.stream()
-                .map(group -> toGroupListView(group, latestMessages.get(group.getMaxMid())))
+                .map(group -> toGroupListView(group, latestMessages.get(group.getMaxMid()),
+                        messageCounts.getOrDefault(group.getGid(), 0L)))
                 .toList();
     }
 
@@ -367,7 +374,7 @@ public class ChatService {
         return message;
     }
 
-    private GroupListView toGroupListView(GroupEntity entity, MessageRecord latestMessage) {
+    private GroupListView toGroupListView(GroupEntity entity, MessageRecord latestMessage, long messageCount) {
         GroupRecord group = messageMapper.toGroupRecord(entity);
         String senderName = latestMessage == null ? "" : latestMessage.senderName();
         String message = latestMessage == null ? "" : latestMessage.text();
@@ -376,7 +383,7 @@ public class ChatService {
         }
         return new GroupListView(group.gid(), group.name(), group.avatar(), group.memberCount(),
                 group.maxMember(), group.ownerId(), group.admins(), group.summary(), group.groupType(),
-                senderName == null ? "" : senderName, message);
+                senderName == null ? "" : senderName, message, messageCount);
     }
 
     private String requireMediaReference(String reference) {

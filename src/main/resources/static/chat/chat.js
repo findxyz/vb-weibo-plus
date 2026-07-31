@@ -65,7 +65,9 @@
     followingLatest: true,
     failedBeforeCreatedAt: null,
     failedBeforeMid: null,
-    sending: false
+    sending: false,
+    lastSizeGid: null,
+    lastMessageCount: null
   };
   const historyState = {
     gid: null,
@@ -421,7 +423,6 @@
       button.addEventListener("click", () => openHistoryContext(message));
       return button;
     }));
-    elements.historyResultsList.scrollTop = 0;
     const pageCount = Math.max(1, Math.ceil(historyState.total / HISTORY_SEARCH_PAGE_SIZE));
     elements.historyPageState.textContent =
       `第 ${historyState.page} / ${pageCount} 页，共 ${historyState.total} 条`;
@@ -430,6 +431,7 @@
     elements.historyEmpty.hidden = true;
     elements.historyContext.hidden = true;
     elements.historyResults.hidden = false;
+    elements.historyResultsList.scrollTop = 0;
   }
 
   function compareMessages(left, right) {
@@ -629,7 +631,7 @@
     elements.loadEarlier.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
-    elements.currentSize.textContent = `${group.maxMember || group.memberCount} 人群`;
+    updateCurrentGroupHeader();
     elements.currentId.textContent = String(group.gid);
     elements.currentNotice.textContent = group.summary || "暂无简介";
     elements.historyOpen.disabled = false;
@@ -645,6 +647,38 @@
       else row.removeAttribute("aria-current");
     });
     await loadMessages(null, null);
+  }
+
+  function updateCurrentGroupHeader() {
+    if (!state.currentGid) return;
+    const group = state.groups.find(item => item.gid === state.currentGid);
+    if (!group) return;
+    const prefix = `${group.maxMember || group.memberCount} 人群 + `;
+    let countEl = elements.currentSize.querySelector("#current-message-count");
+    if (!countEl) {
+      countEl = document.createElement("span");
+      countEl.id = "current-message-count";
+      elements.currentSize.replaceChildren(document.createTextNode(prefix), countEl,
+              document.createTextNode(" 条消息"));
+    } else {
+      elements.currentSize.firstChild.textContent = prefix;
+    }
+    countEl.textContent = String(group.messageCount);
+    if (state.lastSizeGid !== state.currentGid) {
+      state.lastSizeGid = state.currentGid;
+      state.lastMessageCount = group.messageCount;
+      return;
+    }
+    if (group.messageCount !== state.lastMessageCount) {
+      state.lastMessageCount = group.messageCount;
+      flashSize(countEl);
+    }
+  }
+
+  function flashSize(el) {
+    el.classList.remove("size-flash");
+    void el.offsetWidth;
+    el.classList.add("size-flash");
   }
 
   async function loadMessages(beforeCreatedAt = null, beforeMid = null) {
@@ -743,6 +777,7 @@
       if (JSON.stringify(groups) === JSON.stringify(state.groups)) return;
       state.groups = groups;
       renderGroups();
+      updateCurrentGroupHeader();
     } catch {
     } finally {
       state.refreshingGroups = false;

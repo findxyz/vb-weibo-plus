@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import xyz.fz.weibo.entity.MessageEntity;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
@@ -117,6 +118,14 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long>,
                 message.getRecallMidsJson(), message.getRecallBy(),
                 message.getCreatedAt(), message.getSavedAt()) > 0;
     }
+
+    @Query(value = """
+            select gid, count(*) as cnt
+            from messages
+            where gid in (:gids)
+            group by gid
+            """, nativeQuery = true)
+    List<GidCount> countByGids(@Param("gids") Collection<Long> gids);
 
     @Modifying(clearAutomatically = true)
     @Transactional

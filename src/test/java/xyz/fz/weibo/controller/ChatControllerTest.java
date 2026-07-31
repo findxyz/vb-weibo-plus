@@ -89,7 +89,7 @@ class ChatControllerTest {
     void lists_local_groups_including_gid_only_placeholders() throws Exception {
         when(chatService.queryGroupList()).thenReturn(List.of(
                 new GroupListView(3, "", "", 0, 500, 0, List.of(), "", 0,
-                        "发送者", "最新消息")
+                        "发送者", "最新消息", 0)
         ));
 
         mockMvc.perform(get("/chat/groups"))
