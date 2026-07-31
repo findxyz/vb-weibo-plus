@@ -193,7 +193,7 @@
       size.textContent = previewText;
       copy.append(name, size);
       button.append(copy);
-      button.addEventListener("click", () => selectGroup(group.gid, false));
+      button.addEventListener("click", () => selectGroup(group.gid));
       elements.groupsList.append(button);
     });
     elements.groupsCount.textContent = `${state.groups.length} 个群聊`;
@@ -362,6 +362,7 @@
       button.addEventListener("click", () => openHistoryContext(message));
       return button;
     }));
+    elements.historyResultsList.scrollTop = 0;
     const pageCount = Math.max(1, Math.ceil(historyState.total / HISTORY_SEARCH_PAGE_SIZE));
     elements.historyPageState.textContent =
       `第 ${historyState.page} / ${pageCount} 页，共 ${historyState.total} 条`;
@@ -422,7 +423,7 @@
     elements.historyEarlierState.textContent = "";
     elements.historyNewerState.textContent = "";
     renderHistoryMessages([target]);
-    elements.historyFeedback.textContent = "正在定位消息…";
+    elements.historyFeedback.textContent = "";
     try {
       const [before, after] = await Promise.all([
         fetchHistoryCursor("before", target, gid),
@@ -483,10 +484,9 @@
     }
   }
 
-  async function queryHistory(page, showLoading = true) {
+  async function queryHistory(page) {
     const requestVersion = ++historyState.requestVersion;
     const gid = historyState.gid;
-    if (showLoading) elements.historyFeedback.textContent = "正在查询聊天记录…";
     elements.historyEmpty.hidden = true;
     elements.historyContext.hidden = true;
     const query = new URLSearchParams({
@@ -534,7 +534,7 @@
     }
   }
 
-  async function selectGroup(gid, showLoading = true) {
+  async function selectGroup(gid) {
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
     if (historyState.gid !== gid) resetHistory(gid);
@@ -563,16 +563,15 @@
       if (active) row.setAttribute("aria-current", "true");
       else row.removeAttribute("aria-current");
     });
-    await loadMessages(null, null, showLoading);
+    await loadMessages(null, null);
   }
 
-  async function loadMessages(beforeCreatedAt = null, beforeMid = null, showLoading = true) {
+  async function loadMessages(beforeCreatedAt = null, beforeMid = null) {
     const isLatestPage = beforeCreatedAt === null && beforeMid === null;
     const anchor = isLatestPage ? null : captureScrollAnchor();
     state.failedBeforeCreatedAt = beforeCreatedAt;
     state.failedBeforeMid = beforeMid;
     elements.retryMessages.hidden = true;
-    if (isLatestPage && showLoading) elements.messagesState.textContent = "正在加载消息…";
     const query = new URLSearchParams({
       gid: String(state.currentGid), size: String(PAGE_SIZE)
     });
@@ -728,8 +727,8 @@
     };
     queryHistory(1);
   });
-  elements.historyPrevious.addEventListener("click", () => queryHistory(historyState.page - 1, false));
-  elements.historyNext.addEventListener("click", () => queryHistory(historyState.page + 1, false));
+  elements.historyPrevious.addEventListener("click", () => queryHistory(historyState.page - 1));
+  elements.historyNext.addEventListener("click", () => queryHistory(historyState.page + 1));
   elements.historyBack.addEventListener("click", () => {
     historyState.requestVersion += 1;
     elements.historyContext.hidden = true;
