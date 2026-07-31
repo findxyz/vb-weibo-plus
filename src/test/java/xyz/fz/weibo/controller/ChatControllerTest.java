@@ -27,6 +27,7 @@ import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.ImageProxyService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 import java.io.IOException;
@@ -592,6 +593,54 @@ class ChatControllerTest {
         mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "104")
                         .param("variant", "preview"))
                 .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void send_text_binds_gid_and_content_and_returns_the_incremental_capture_result() throws Exception {
+        when(chatService.sendText(101, "hello")).thenReturn(new SaveResult(3, 2, 1));
+
+        mockMvc.perform(post("/chat/messages/send")
+                        .param("gid", "101")
+                        .param("content", "hello"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fetchedCount").value(3))
+                .andExpect(jsonPath("$.insertedCount").value(2))
+                .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        verify(chatService).sendText(101, "hello");
+    }
+
+    @Test
+    void send_text_requires_gid_and_content() throws Exception {
+        mockMvc.perform(post("/chat/messages/send").param("content", "hello"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/chat/messages/send").param("gid", "101"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void send_text_maps_upstream_failure_to_bad_gateway() throws Exception {
+        when(chatService.sendText(101, "hello"))
+                .thenThrow(new WeiboException("消息发送失败：result != true。", -1));
+
+        mockMvc.perform(post("/chat/messages/send")
+                        .param("gid", "101")
+                        .param("content", "hello"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value(502));
+    }
+
+    @Test
+    void send_text_maps_sync_failure_to_conflict() throws Exception {
+        when(chatService.sendText(101, "hello"))
+                .thenThrow(new MessageSentButSyncFailedException(
+                        "消息已发出，但本地同步失败，稍后会自动补全。", new RuntimeException()));
+
+        mockMvc.perform(post("/chat/messages/send")
+                        .param("gid", "101")
+                        .param("content", "hello"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(409));
     }
 
     private GroupRecord group(long gid) {

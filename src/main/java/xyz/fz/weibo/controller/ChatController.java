@@ -74,6 +74,11 @@ public class ChatController {
         return chatService.saveBySince(gid, toEpochMillis(sinceTime), beforeMid);
     }
 
+    @PostMapping("/messages/send")
+    public SaveResult sendText(@RequestParam long gid, @RequestParam String content) {
+        return chatService.sendText(gid, content);
+    }
+
     @GetMapping("/messages")
     public MessageQueryResult queryMessages(
             @RequestParam long gid,

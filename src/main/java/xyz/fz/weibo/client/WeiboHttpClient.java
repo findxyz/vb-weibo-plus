@@ -8,8 +8,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -58,12 +61,30 @@ public class WeiboHttpClient {
         return get0(uri, httpHeaders, byte[].class);
     }
 
+    public ResponseEntity<String> postForm(String url, Map<String, String> params,
+                                            Map<String, String> headers, boolean withCookie) {
+        URI uri = buildUri(url, null);
+        HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
+        httpHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        if (params != null) {
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                String value = entry.getValue();
+                if (value == null || value.isEmpty()) {
+                    continue;
+                }
+                form.add(entry.getKey(), value);
+            }
+        }
+        return post0(uri, new HttpEntity<>(form, httpHeaders), String.class);
+    }
+
     public <T> T getForStream(String url, Map<String, String> params,
                               Map<String, String> headers, boolean withCredential,
                               ResponseExtractor<T> responseExtractor) {
         URI uri = buildUri(url, params);
         HttpHeaders httpHeaders = buildHeaders(headers, withCredential);
-        return get0(uri, httpHeaders,
+        return request0(uri, httpHeaders,
                 () -> restTemplate.execute(uri, HttpMethod.GET,
                         request -> request.getHeaders().putAll(httpHeaders),
                         response -> {
@@ -79,8 +100,17 @@ public class WeiboHttpClient {
      * 重试循环：attempt 从 1 到 MAX_RETRY+1，即 1 次初始加最多 3 次重试，合计 4 次请求。
      */
     private <T> ResponseEntity<T> get0(URI uri, HttpHeaders headers, Class<T> responseType) {
-        return get0(uri, headers, () -> {
-            ResponseEntity<T> resp = restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
+        return exchangeAndCheck(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
+    }
+
+    private <T> ResponseEntity<T> post0(URI uri, HttpEntity<?> entity, Class<T> responseType) {
+        return exchangeAndCheck(uri, HttpMethod.POST, entity, responseType);
+    }
+
+    private <T> ResponseEntity<T> exchangeAndCheck(URI uri, HttpMethod method,
+                                                    HttpEntity<?> entity, Class<T> responseType) {
+        return request0(uri, entity.getHeaders(), () -> {
+            ResponseEntity<T> resp = restTemplate.exchange(uri, method, entity, responseType);
             int statusCode = resp.getStatusCode().value();
             log.debug("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
             checkRateLimit(statusCode);
@@ -92,11 +122,11 @@ public class WeiboHttpClient {
         });
     }
 
-    private <T> T get0(URI uri, HttpHeaders headers, Supplier<T> request) {
+    private <T> T request0(URI uri, HttpHeaders headers, Supplier<T> request) {
         //noinspection ConstantValue
         for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
             try {
-                log.debug("微博请求：GET {} headers={}", uri, maskCookie(headers));
+                log.debug("微博请求：{} headers={}", uri, maskCookie(headers));
                 return request.get();
             } catch (RateLimitedResponseException e) {
                 if (attempt <= WeiboConstants.MAX_RETRY) {

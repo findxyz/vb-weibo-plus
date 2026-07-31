@@ -40,6 +40,9 @@ class GroupChatPageTest {
     private static final AtomicBoolean failGroups = new AtomicBoolean();
     private static final AtomicBoolean failMessages = new AtomicBoolean();
     private static final AtomicBoolean delayEarlierHistory = new AtomicBoolean();
+    private static final AtomicBoolean failSend = new AtomicBoolean();
+    private static final AtomicBoolean failSendSync = new AtomicBoolean();
+    private static final AtomicInteger sendRequests = new AtomicInteger();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -81,19 +84,28 @@ class GroupChatPageTest {
                     exchange.close();
                     return;
                 }
-                sendJson(exchange, cursorMessagesJson(false, null, null,
-                        mediaMessageJson(4, 1, "分享图片",
-                                "/chat/media?gid=202&mid=4&variant=preview",
-                                "/chat/media?gid=202&mid=4&variant=original", "") + ","
-                                + mediaMessageJson(5, 13, "分享视频",
-                                "/chat/media?gid=202&mid=5&variant=preview", "",
-                                "/chat/media?gid=202&mid=5&variant=video") + ","
-                                + systemMessageJson(6, "涉及资金问题请务必提高警惕，谨防诈骗。查看案例") + ","
-                                + mediaMessageJson(7, 1, "第二张图片",
-                                "/chat/media?gid=202&mid=7&variant=preview",
-                                "/chat/media?gid=202&mid=7&variant=original", "") + ","
-                                + mediaMessageJson(8, 0,
-                                "微博链接 http://weibo.com/1560906700/RaX1Tdqh7", "", "", "")));
+                String baseMessages = mediaMessageJson(4, 1, "分享图片",
+                        "/chat/media?gid=202&mid=4&variant=preview",
+                        "/chat/media?gid=202&mid=4&variant=original", "") + ","
+                        + mediaMessageJson(5, 13, "分享视频",
+                        "/chat/media?gid=202&mid=5&variant=preview", "",
+                        "/chat/media?gid=202&mid=5&variant=video") + ","
+                        + systemMessageJson(6, "涉及资金问题请务必提高警惕，谨防诈骗。查看案例") + ","
+                        + mediaMessageJson(7, 1, "第二张图片",
+                        "/chat/media?gid=202&mid=7&variant=preview",
+                        "/chat/media?gid=202&mid=7&variant=original", "") + ","
+                        + mediaMessageJson(8, 0,
+                        "微博链接 http://weibo.com/1560906700/RaX1Tdqh7", "", "", "");
+                String messages = sendRequests.get() > 0
+                        ? "{\"mid\":9,\"gid\":202,\"msgType\":321,\"msgTypeName\":\"普通消息\","
+                        + "\"mediaType\":0,\"senderId\":1,\"senderName\":\"测试者\",\"senderAvatar\":\"\","
+                        + "\"text\":\"刚发出的消息\",\"urlObjects\":[],\"picInfos\":[],\"template\":\"\","
+                        + "\"templateData\":{},\"recallMids\":[],\"recallBy\":\"\","
+                        + "\"createdAt\":9000,\"savedAt\":9000,"
+                        + "\"previewUrl\":\"\",\"originalUrl\":\"\",\"videoUrl\":\"\"},"
+                        + baseMessages
+                        : baseMessages;
+                sendJson(exchange, cursorMessagesJson(false, null, null, messages));
                 return;
             }
             if (!query.contains("gid=101")) {
@@ -189,6 +201,31 @@ class GroupChatPageTest {
                     newMessage
                             + messageJson(2, "飞飞", "较新消息", 2000) + ","
                             + messageJson(1, "小凯", "较早消息", 1000)));
+        });
+        server.createContext("/chat/messages/send", exchange -> {
+            sendRequests.incrementAndGet();
+            if (failSend.get()) {
+                exchange.sendResponseHeaders(502, -1);
+                exchange.close();
+                return;
+            }
+            if (failSendSync.get()) {
+                byte[] body = """
+                        {"code":409,"msg":"消息已发出，但本地同步失败，稍后会自动补全。"}
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(409, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+                return;
+            }
+            byte[] body = """
+                    {"fetchedCount":1,"insertedCount":1,"ignoredCount":0}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
         });
         server.createContext("/chat/messages", exchange -> {
             historyPageRequests.incrementAndGet();
@@ -298,6 +335,9 @@ class GroupChatPageTest {
         failGroups.set(false);
         failMessages.set(false);
         delayEarlierHistory.set(false);
+        failSend.set(false);
+        failSendSync.set(false);
+        sendRequests.set(0);
     }
 
     @Test
@@ -310,7 +350,8 @@ class GroupChatPageTest {
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"较早消息", "较新消息"});
         assertThat(page.locator("#send-button")).hasCount(0);
-        assertThat(page.locator("#composer")).isDisabled();
+        assertThat(page.locator("#composer")).isEnabled();
+        assertThat(page.locator("#composer")).hasAttribute("placeholder", "输入消息后按 Enter 发送");
         assertThat(page.locator(".composer-hint"))
                 .hasText("按下 Enter 发送内容 / Ctrl+Enter 换行");
         assertThat(page.locator(".composer button:enabled")).hasCount(0);
@@ -725,6 +766,47 @@ class GroupChatPageTest {
     }
 
     @Test
+    void sends_a_text_message_and_refreshes_to_show_it() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        org.assertj.core.api.Assertions.assertThat(sendRequests.get()).isZero();
+
+        page.locator("#composer").fill("刚发出的消息");
+        Response sendResponse = page.waitForResponse(
+                item -> item.url().contains("/chat/messages/send"),
+                () -> page.locator("#composer").press("Enter"));
+        org.assertj.core.api.Assertions.assertThat(sendResponse.ok()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(sendRequests.get()).isEqualTo(1);
+
+        assertThat(page.locator("#composer")).isEmpty();
+        assertThat(page.locator("#composer")).isEnabled();
+        assertThat(page.locator(".composer-hint"))
+                .hasText("按下 Enter 发送内容 / Ctrl+Enter 换行");
+        assertThat(page.locator("#messages [data-mid='9'] .bubble")).hasText("刚发出的消息");
+
+        page.close();
+    }
+
+    @Test
+    void shows_a_sync_failure_hint_without_losing_the_composed_text() {
+        failSendSync.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        page.locator("#composer").fill("待发送");
+        page.locator("#composer").press("Enter");
+
+        assertThat(page.locator(".composer-hint"))
+                .containsText("消息已发出，但本地同步失败");
+        assertThat(page.locator("#composer")).hasValue("待发送");
+        assertThat(page.locator("#composer")).isEnabled();
+
+        page.close();
+    }
+
+    @Test
     void shows_the_full_latest_message_summary_and_uses_css_ellipsis() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -916,7 +998,7 @@ class GroupChatPageTest {
     }
 
     @Test
-    void polls_local_messages_every_two_seconds() {
+    void polls_local_messages_every_second() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
         page.waitForTimeout(500);

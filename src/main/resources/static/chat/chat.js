@@ -46,7 +46,9 @@
     historyPageState: document.querySelector("#history-page-state"),
     imageViewer: document.querySelector("#image-viewer"),
     imageViewerImage: document.querySelector("#image-viewer img"),
-    imageViewerState: document.querySelector("#image-viewer-state")
+    imageViewerState: document.querySelector("#image-viewer-state"),
+    composer: document.querySelector("#composer"),
+    composerHint: document.querySelector("#composer-hint")
   };
   const state = {
     groups: [],
@@ -60,7 +62,8 @@
     loadingEarlier: false,
     followingLatest: true,
     failedBeforeCreatedAt: null,
-    failedBeforeMid: null
+    failedBeforeMid: null,
+    sending: false
   };
   const historyState = {
     gid: null,
@@ -673,6 +676,41 @@
     refreshMessages();
   }
 
+  async function sendMessage() {
+    if (state.sending || !state.currentGid) return;
+    const content = elements.composer.value.trim();
+    if (!content) return;
+    state.sending = true;
+    elements.composer.disabled = true;
+    elements.composerHint.textContent = "发送中…";
+    try {
+      const response = await fetch("/chat/messages/send", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: new URLSearchParams({gid: String(state.currentGid), content})
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          elements.composerHint.textContent = error.msg || "消息已发出，但本地同步失败，稍后会自动补全。";
+        } else {
+          elements.composerHint.textContent = error.msg || "消息发送失败，请稍后重试。";
+        }
+        return;
+      }
+      elements.composer.value = "";
+      state.followingLatest = true;
+      await refreshMessages();
+      elements.composerHint.textContent = "按下 Enter 发送内容 / Ctrl+Enter 换行";
+    } catch {
+      elements.composerHint.textContent = "消息发送失败，请稍后重试。";
+    } finally {
+      state.sending = false;
+      elements.composer.disabled = false;
+      elements.composer.focus();
+    }
+  }
+
   async function initialize() {
     elements.retryGroups.hidden = true;
     elements.groupsState.textContent = "";
@@ -704,6 +742,17 @@
     maybeLoadEarlierMessages();
   });
   elements.retryGroups.addEventListener("click", initialize);
+  elements.composer.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+  elements.composer.addEventListener("input", () => {
+    if (elements.composerHint.textContent !== "发送中…") {
+      elements.composerHint.textContent = "按下 Enter 发送内容 / Ctrl+Enter 换行";
+    }
+  });
   elements.retryMessages.addEventListener("click", () =>
     loadMessages(state.failedBeforeCreatedAt, state.failedBeforeMid));
   elements.newMessages.addEventListener("click", async () => {
@@ -760,7 +809,7 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshView();
   });
-  setInterval(refreshView, 2_000);
+  setInterval(refreshView, 1_000);
 
   initialize();
 })();

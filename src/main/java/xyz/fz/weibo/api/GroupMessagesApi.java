@@ -8,7 +8,9 @@ import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
+import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
+import xyz.fz.weibo.model.response.SendMessageResponse;
 
 /**
  * 群聊消息接口。
@@ -17,6 +19,7 @@ import xyz.fz.weibo.model.response.GroupMessagesResponse;
 public class GroupMessagesApi {
 
     private static final String GROUP_MESSAGES_URL = "https://api.weibo.com/webim/groupchat/query_messages.json";
+    private static final String SEND_MESSAGE_URL = "https://api.weibo.com/webim/groupchat/send_message.json";
 
     private final WeiboHttpClient client;
     private final ObjectMapper objectMapper;
@@ -31,6 +34,16 @@ public class GroupMessagesApi {
                 GROUP_MESSAGES_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM, true);
         try {
             return objectMapper.readValue(resp.getBody(), GroupMessagesResponse.class);
+        } catch (JsonProcessingException e) {
+            throw new WeiboException("响应反序列化失败：" + e.getMessage(), e);
+        }
+    }
+
+    public SendMessageResponse send(GroupSendMessageRequest request) {
+        ResponseEntity<String> resp = client.postForm(
+                SEND_MESSAGE_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
+        try {
+            return objectMapper.readValue(resp.getBody(), SendMessageResponse.class);
         } catch (JsonProcessingException e) {
             throw new WeiboException("响应反序列化失败：" + e.getMessage(), e);
         }

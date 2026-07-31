@@ -45,6 +45,12 @@ public final class WeiboConstants {
             HttpHeaders.ORIGIN, "https://web.im.weibo.com"
     );
 
+    /** 群聊消息发送：send_message。Referer 必须为 api.weibo.com/chat，与读取接口的 weibo.com 不同。 */
+    public static final Map<String, String> HEADERS_WEBIM_SEND = Map.of(
+            HttpHeaders.USER_AGENT, USER_AGENT,
+            HttpHeaders.REFERER, "https://api.weibo.com/chat"
+    );
+
     /** 图床 / 视频直链 */
     public static final Map<String, String> HEADERS_DIRECT = Map.of(
             HttpHeaders.USER_AGENT, USER_AGENT,

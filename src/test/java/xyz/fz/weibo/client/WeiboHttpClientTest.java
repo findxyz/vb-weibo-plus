@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
@@ -145,6 +146,41 @@ class WeiboHttpClientTest {
 
         assertThat(body).containsExactly(7, 8);
         assertThat(requestCount).hasValue(2);
+    }
+
+    @Test
+    void post_form_encodes_params_and_returns_the_response_body() throws Exception {
+        server = startServer(exchange -> {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            String body = new String(exchange.getRequestBody().readAllBytes());
+            exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
+            exchange.sendResponseHeaders(200, body.length());
+            exchange.getResponseBody().write(body.getBytes());
+            exchange.close();
+        });
+
+        ResponseEntity<String> resp = createClient().postForm(
+                mediaUrl(), Map.of("content", "hello", "id", "123"), Map.of(), false);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody()).contains("content=hello").contains("id=123");
+    }
+
+    @Test
+    void post_form_maps_login_redirect_to_expired_credential() throws Exception {
+        server = startServer(exchange -> {
+            exchange.getResponseHeaders().set(HttpHeaders.LOCATION, "https://passport.weibo.com/login");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+
+        assertThatThrownBy(() -> createClient().postForm(
+                mediaUrl(), Map.of("content", "hello"), Map.of(), true))
+                .isInstanceOf(WeiboCookieExpiredException.class);
     }
 
     private WeiboHttpClient createClient() {

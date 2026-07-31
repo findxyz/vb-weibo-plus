@@ -18,6 +18,9 @@ POST {{host}}/chat/since?gid=4761715839862414&sinceTime=2026-07-10%2000:00:00
 ### 从指定消息之前继续保存指定时间以来的群聊消息（beforeMid 为起始消息 ID）
 POST {{host}}/chat/since?gid=4761715839862414&sinceTime=2026-07-10%2000:00:00&beforeMid=5319836654896760
 
+### 发送文字消息（发送成功后自动增量同步到本地库，仅支持 LinkNow 群测试）
+POST {{host}}/chat/messages/send?gid=5046020575330655&content=测试消息
+
 ### 查询群聊的全部本地消息：第 1 页
 GET {{host}}/chat/messages?gid=4761715839862414&page=1&size=100
 

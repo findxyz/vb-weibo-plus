@@ -2,6 +2,7 @@ package xyz.fz.weibo.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,8 +11,10 @@ import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
+import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
+import xyz.fz.weibo.model.response.SendMessageResponse;
 
 /**
  * 微博群聊接口：群列表与群消息。
@@ -39,6 +42,11 @@ public class WeiboGroupController {
     public GroupMessagesResponse messages(@RequestParam Long id,
                                            @RequestParam(required = false) Long maxMid) {
         return groupMessagesApi.messages(new GroupMessagesRequest(id, maxMid));
+    }
+
+    @PostMapping("/send")
+    public SendMessageResponse send(@RequestParam Long id, @RequestParam String content) {
+        return groupMessagesApi.send(new GroupSendMessageRequest(id, content));
     }
 
     @GetMapping("/media")

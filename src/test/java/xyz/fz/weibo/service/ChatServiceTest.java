@@ -24,11 +24,14 @@ import xyz.fz.weibo.entity.GroupEntity;
 import xyz.fz.weibo.entity.MessageEntity;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
+import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
+import xyz.fz.weibo.model.response.SendMessageResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
 import xyz.fz.weibo.service.mapper.MessageMapper;
+import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
@@ -767,6 +770,56 @@ class ChatServiceTest {
                 .isInstanceOf(WeiboCookieExpiredException.class);
         assertThatThrownBy(() -> chatService.queryMessageMedia(1, 100, "preview"))
                 .isInstanceOf(WeiboRateLimitException.class);
+    }
+
+    @Test
+    void send_text_posts_to_weibo_then_triggers_incremental_capture_and_returns_success() {
+        GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
+        when(groupMessagesApi.send(request))
+                .thenReturn(new SendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
+        when(groupRepository.findMaxMid(1)).thenReturn(99L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenReturn(messagePage());
+
+        SaveResult result = chatService.sendText(1, "hello");
+
+        assertThat(result).isEqualTo(new SaveResult(0, 0, 0));
+        verify(groupMessagesApi).send(request);
+        verify(messageRepository).refreshGroupRange(1);
+    }
+
+    @Test
+    void send_text_rejects_blank_content_before_calling_weibo() {
+        assertThatThrownBy(() -> chatService.sendText(1, "   "))
+                .isInstanceOf(InvalidRequestException.class);
+        verifyNoInteractions(groupMessagesApi);
+    }
+
+    @Test
+    void send_text_propagates_weibo_send_failure_without_triggering_capture() {
+        GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
+        when(groupMessagesApi.send(request))
+                .thenReturn(new SendMessageResponse(false, null, 1L, null, null, null, null));
+
+        assertThatThrownBy(() -> chatService.sendText(1, "hello"))
+                .isInstanceOf(WeiboException.class);
+
+        verify(groupMessagesApi, never()).messages(any());
+        verify(messageRepository, never()).refreshGroupRange(anyLong());
+    }
+
+    @Test
+    void send_text_reports_sync_failure_when_capture_fails_after_a_successful_send() {
+        GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
+        when(groupMessagesApi.send(request))
+                .thenReturn(new SendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
+        when(groupRepository.findMaxMid(1)).thenReturn(99L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenThrow(new WeiboException("增量拉取失败。", -1));
+
+        assertThatThrownBy(() -> chatService.sendText(1, "hello"))
+                .isInstanceOf(MessageSentButSyncFailedException.class)
+                .hasMessageContaining("已发出");
     }
 
     private GroupEntity group(long gid, long updatedAt) {

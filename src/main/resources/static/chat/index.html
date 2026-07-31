@@ -68,7 +68,7 @@
           <button class="new-messages-button" id="new-messages" type="button" hidden>有新消息</button>
         </div>
 
-        <div class="composer" aria-label="只读消息编辑器">
+        <div class="composer" aria-label="消息编辑器">
           <div class="composer-tools">
             <button type="button" disabled>😊 表情</button>
             <button type="button" disabled>
@@ -77,8 +77,8 @@
             </button>
             <button type="button" disabled>🎬 视频</button>
           </div>
-          <textarea id="composer" aria-label="输入消息" placeholder="当前为只读模式" disabled></textarea>
-          <span class="composer-hint" aria-hidden="true">按下 Enter 发送内容 / Ctrl+Enter 换行</span>
+          <textarea id="composer" aria-label="输入消息" placeholder="输入消息后按 Enter 发送"></textarea>
+          <span class="composer-hint" id="composer-hint" aria-hidden="true">按下 Enter 发送内容 / Ctrl+Enter 换行</span>
         </div>
       </section>
     </div>

@@ -14,8 +14,10 @@ import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
+import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
+import xyz.fz.weibo.model.response.SendMessageResponse;
 
 import java.util.List;
 
@@ -23,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -113,6 +116,35 @@ class WeiboGroupControllerTest {
         mockMvc.perform(get("/weibo/group/messages").param("id", "1"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value(429));
+    }
+
+    @Test
+    void send_returns_200_and_passes_through_the_weibo_response() throws Exception {
+        when(groupMessagesApi.send(new GroupSendMessageRequest(101L, "hello")))
+                .thenReturn(new SendMessageResponse(true, 100L, 101L, "hello", null, 1_000L, 1_000L));
+
+        mockMvc.perform(post("/weibo/group/send")
+                        .param("id", "101")
+                        .param("content", "hello"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result").value(true))
+                .andExpect(jsonPath("$.mid").value(100))
+                .andExpect(jsonPath("$.gid").value(101))
+                .andExpect(jsonPath("$.content").value("hello"));
+
+        verify(groupMessagesApi).send(new GroupSendMessageRequest(101L, "hello"));
+    }
+
+    @Test
+    void send_returns_401_when_cookie_expired() throws Exception {
+        when(groupMessagesApi.send(any(GroupSendMessageRequest.class)))
+                .thenThrow(new WeiboCookieExpiredException("Cookie 失效"));
+
+        mockMvc.perform(post("/weibo/group/send")
+                        .param("id", "1")
+                        .param("content", "hello"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
     }
 
     @Test

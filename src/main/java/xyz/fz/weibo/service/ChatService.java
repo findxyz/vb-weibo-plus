@@ -24,10 +24,13 @@ import xyz.fz.weibo.entity.GroupEntity;
 import xyz.fz.weibo.entity.MessageEntity;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
+import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
+import xyz.fz.weibo.model.response.SendMessageResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
+import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
@@ -206,6 +209,23 @@ public class ChatService {
             return new SaveResult(fetched, inserted, ignored);
         } finally {
             saveBySinceLock.unlock();
+        }
+    }
+
+    public SaveResult sendText(long gid, String content) {
+        validateGid(gid);
+        if (content == null || content.isBlank()) {
+            throw new InvalidRequestException("消息内容不能为空。");
+        }
+        SendMessageResponse response = groupMessagesApi.send(
+                new GroupSendMessageRequest(gid, content));
+        if (!response.result()) {
+            throw new WeiboException("消息发送失败：result != true。", -1);
+        }
+        try {
+            return saveIncremental(gid);
+        } catch (RuntimeException e) {
+            throw new MessageSentButSyncFailedException("消息已发出，但本地同步失败，稍后会自动补全。", e);
         }
     }
 
