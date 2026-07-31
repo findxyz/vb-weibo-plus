@@ -38,6 +38,9 @@ import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,6 +54,9 @@ import java.util.function.Predicate;
 public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
+    private static final ZoneId REQUEST_TIME_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final DateTimeFormatter LOG_TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final GroupListApi groupListApi;
     private final GroupMessagesApi groupMessagesApi;
@@ -220,10 +226,9 @@ public class ChatService {
     }
 
     private static String formatTimestamp(long epochMillis) {
-        return java.time.LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(epochMillis),
-                java.time.ZoneId.of("Asia/Shanghai"))
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        return Instant.ofEpochMilli(epochMillis)
+                .atZone(REQUEST_TIME_ZONE)
+                .format(LOG_TIMESTAMP_FORMAT);
     }
 
     public SaveResult sendText(long gid, String content) {
