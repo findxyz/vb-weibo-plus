@@ -20,7 +20,9 @@ weibo:
 
 spring:
   datasource:
-    url: jdbc:sqlite:${weibo.database-path}
+    # busy_timeout：撞锁时让 SQLite 等待 5 秒再重试，而不是立即抛 SQLITE_BUSY
+    # journal_mode=WAL：开启预写式日志，读不阻塞写、写不阻塞读，缓解 /chat/since 与后台 SyncTask 并发写同一文件
+    url: jdbc:sqlite:${weibo.database-path}?busy_timeout=5000&journal_mode=WAL
     driver-class-name: org.sqlite.JDBC
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
