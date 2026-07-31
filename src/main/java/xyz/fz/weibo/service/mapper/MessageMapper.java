@@ -164,6 +164,7 @@ public class MessageMapper {
         String previewUrl = "";
         String originalUrl = "";
         String videoUrl = "";
+        String fileUrl = "";
         if (record.mediaType() == 1 && !record.fid().isBlank()) {
             previewUrl = mediaUrl(record.gid(), record.mid(), "preview");
             originalUrl = mediaUrl(record.gid(), record.mid(), "original");
@@ -173,11 +174,14 @@ public class MessageMapper {
         if (isVideo(record)) {
             videoUrl = mediaUrl(record.gid(), record.mid(), "video");
         }
+        if (record.mediaType() == 5 && !record.fid().isBlank()) {
+            fileUrl = mediaUrl(record.gid(), record.mid(), "file");
+        }
         return new MessageView(record.mid(), record.gid(), record.msgType(), record.msgTypeName(),
                 record.mediaType(), record.senderId(), record.senderName(), record.senderAvatar(), record.text(),
                 record.urlObjects(), record.picInfos(), record.template(), record.templateData(),
                 record.recallMids(), record.recallBy(), record.createdAt(), record.savedAt(),
-                previewUrl, originalUrl, videoUrl);
+                previewUrl, originalUrl, videoUrl, fileUrl);
     }
 
     private String mediaUrl(long gid, long mid, String variant) {

@@ -270,6 +270,27 @@ public class ChatService {
         }
     }
 
+    public MediaBinary downloadMessageFile(long gid, long mid) {
+        validateGid(gid);
+        MessageRecord message = requireLocalMessage(gid, mid);
+        if (message.mediaType() != 5) {
+            throw new InvalidRequestException("该消息不是文件消息。");
+        }
+        GroupMediaRequest request = new GroupMediaRequest(
+                requireMediaReference(message.fid()), null);
+        try {
+            var response = groupMediaApi.download(request);
+            if (response == null || !response.getStatusCode().is2xxSuccessful()) {
+                throw new WeiboException("群消息媒体下载失败。", -1);
+            }
+            return messageMapper.toMediaBinary(response);
+        } catch (WeiboException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new WeiboException("群消息媒体下载失败。", -1, e);
+        }
+    }
+
     public <T> T streamMessageVideo(long gid, long mid, ResponseExtractor<T> responseExtractor) {
         return streamMessageVideo(gid, mid, new HttpHeaders(), responseExtractor);
     }

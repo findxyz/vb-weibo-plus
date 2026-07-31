@@ -217,7 +217,18 @@
       if (message.mid === targetMid) article.classList.add("target-message");
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
+      if (message.fileUrl) {
+        const link = document.createElement("a");
+        link.className = "file-download";
+        link.href = message.fileUrl;
+        link.download = message.text || "";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = message.text || "下载文件";
+        bubble.append(link);
+      } else {
+        appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
+      }
       if (message.senderName?.trim() === "粉丝群") {
         article.classList.add("system-message");
         article.append(bubble);

@@ -131,7 +131,7 @@ class ChatControllerTest {
     void messages_binds_inclusive_shanghai_times_filters_and_pagination() throws Exception {
         MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "", "消息",
                 List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "",
-                "/chat/media?gid=101&mid=100&variant=video");
+                "/chat/media?gid=101&mid=100&variant=video", "");
         when(chatService.queryMessages(
                 101, 1_783_652_523_000L, 1_783_656_184_000L, "发送者", "消息", 2, 20))
                 .thenReturn(new MessageQueryResult(group(101), List.of(view), 2, 20, 1));

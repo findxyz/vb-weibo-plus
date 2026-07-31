@@ -95,7 +95,9 @@ class GroupChatPageTest {
                         "/chat/media?gid=202&mid=7&variant=preview",
                         "/chat/media?gid=202&mid=7&variant=original", "") + ","
                         + mediaMessageJson(8, 0,
-                        "微博链接 http://weibo.com/1560906700/RaX1Tdqh7", "", "", "");
+                        "微博链接 http://weibo.com/1560906700/RaX1Tdqh7", "", "", "") + ","
+                        + fileMessageJson(10, "海外即插即充流程.md",
+                        "/chat/media?gid=202&mid=10&variant=file");
                 String messages = sendRequests.get() > 0
                         ? "{\"mid\":9,\"gid\":202,\"msgType\":321,\"msgTypeName\":\"普通消息\","
                         + "\"mediaType\":0,\"senderId\":1,\"senderName\":\"测试者\",\"senderAvatar\":\"\","
@@ -892,6 +894,22 @@ class GroupChatPageTest {
     }
 
     @Test
+    void renders_a_file_message_as_a_download_link() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("[data-mid='10'] .file-download"))
+                .hasAttribute("href", "/chat/media?gid=202&mid=10&variant=file");
+        assertThat(page.locator("[data-mid='10'] .file-download"))
+                .hasAttribute("download", "海外即插即充流程.md");
+        assertThat(page.locator("[data-mid='10'] .file-download"))
+                .hasText("海外即插即充流程.md");
+
+        page.close();
+    }
+
+    @Test
     void opens_message_links_in_a_new_tab_without_exposing_the_opener() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -1155,6 +1173,16 @@ class GroupChatPageTest {
                  "recallBy":"","createdAt":%d,"savedAt":%d,
                  "previewUrl":"%s","originalUrl":"","videoUrl":"%s"}
                 """.formatted(mid, mediaType, text, mid * 1000, mid * 1000, previewUrl, videoUrl);
+    }
+
+    private static String fileMessageJson(long mid, String text, String fileUrl) {
+        return """
+                {"mid":%d,"gid":202,"msgType":321,"msgTypeName":"普通消息","mediaType":5,
+                 "senderId":9,"senderName":"媒体用户","senderAvatar":"","text":"%s",
+                 "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":%d,"savedAt":%d,
+                 "previewUrl":"","originalUrl":"","videoUrl":"","fileUrl":"%s"}
+                """.formatted(mid, text, mid * 1000, mid * 1000, fileUrl);
     }
 
     private static String systemMessageJson(long mid, String text) {

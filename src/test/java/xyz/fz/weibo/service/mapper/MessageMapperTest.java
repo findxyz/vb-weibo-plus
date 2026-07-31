@@ -260,4 +260,22 @@ class MessageMapperTest {
         assertThat(untyped.content()).containsExactly(3);
         assertThat(untyped.contentType()).isEqualTo("application/octet-stream");
     }
+
+    @Test
+    void media_type_5_generates_a_file_download_url_and_leaves_other_urls_empty() {
+        MessageEntity file = new MessageEntity(500L, 101, 321, "普通消息", 5,
+                9, "发送者", "", "海外即插即充流程.md", "file-fid", "", "", "[]", "[]", "", "{}",
+                "[]", "", 1_000, 2_000);
+        MessageEntity fileWithoutFid = new MessageEntity(501L, 101, 321, "普通消息", 5,
+                9, "发送者", "", "无引用文件", "", "", "", "[]", "[]", "", "{}",
+                "[]", "", 1_000, 2_000);
+
+        List<MessageView> views = messageMapper.toMessageViews(List.of(file, fileWithoutFid));
+
+        assertThat(views.get(0).fileUrl())
+                .isEqualTo("/chat/media?gid=101&mid=500&variant=file");
+        assertThat(List.of(views.get(0).previewUrl(), views.get(0).originalUrl(),
+                views.get(0).videoUrl())).containsExactly("", "", "");
+        assertThat(views.get(1).fileUrl()).isEmpty();
+    }
 }

@@ -134,6 +134,14 @@ public class ChatController {
             });
             return;
         }
+        if ("file".equals(variant)) {
+            MediaBinary file = chatService.downloadMessageFile(gid, mid);
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setContentType(file.contentType());
+            response.setContentLength(file.content().length);
+            response.getOutputStream().write(file.content());
+            return;
+        }
         MediaBinary media = chatService.queryMessageMedia(gid, mid, variant);
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(media.contentType());

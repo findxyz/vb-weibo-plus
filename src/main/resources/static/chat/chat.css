@@ -557,6 +557,19 @@ h1 {
   object-fit: contain;
 }
 
+.file-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #1677ff;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.file-download:hover {
+  text-decoration: underline;
+}
+
 .image-preview {
   width: auto;
   max-width: min(420px, 70vw);

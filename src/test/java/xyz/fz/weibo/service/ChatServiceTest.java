@@ -6,6 +6,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
@@ -822,6 +824,37 @@ class ChatServiceTest {
                 .hasMessageContaining("已发出");
     }
 
+    @Test
+    void downloads_a_file_message_by_fid_via_the_local_message() {
+        MessageEntity file = new MessageEntity(500L, 1, 321, "普通消息", 5, 9, "发送者", "",
+                "海外即插即充流程.md", "file-fid", "", "", "[]", "[]", "", "{}", "[]", "", 1_000, 2_000);
+        when(messageRepository.findById(500L)).thenReturn(Optional.of(file));
+        when(messageMapper.toMessageRecord(file)).thenReturn(messageRecord(500, 5, "file-fid", ""));
+        ResponseEntity<byte[]> upstream = ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, "application/octet-stream")
+                .body(new byte[]{1, 2, 3});
+        when(groupMediaApi.download(new GroupMediaRequest("file-fid", null))).thenReturn(upstream);
+        when(messageMapper.toMediaBinary(upstream))
+                .thenReturn(new MediaBinary(new byte[]{1, 2, 3}, "application/octet-stream"));
+
+        MediaBinary result = chatService.downloadMessageFile(1, 500L);
+
+        assertThat(result.content()).containsExactly(1, 2, 3);
+        assertThat(result.contentType()).isEqualTo("application/octet-stream");
+    }
+
+    @Test
+    void rejects_file_download_for_a_non_file_message() {
+        MessageEntity image = new MessageEntity(500L, 1, 321, "普通消息", 1, 9, "发送者", "",
+                "图片", "image-fid", "", "", "[]", "[]", "", "{}", "[]", "", 1_000, 2_000);
+        when(messageRepository.findById(500L)).thenReturn(Optional.of(image));
+        when(messageMapper.toMessageRecord(image)).thenReturn(messageRecord(500, 1, "image-fid", ""));
+
+        assertThatThrownBy(() -> chatService.downloadMessageFile(1, 500L))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("不是文件消息");
+    }
+
     private GroupEntity group(long gid, long updatedAt) {
         return new GroupEntity(gid, "群", "", 1, 500, 10, "[]", "", 1,
                 0, 0, updatedAt, updatedAt);
@@ -843,7 +876,7 @@ class ChatServiceTest {
 
     private MessageView view(long mid) {
         return new MessageView(mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息",
-                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "", "");
+                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "", "", "");
     }
 
     private MessageRecord messageRecord(long mid, int mediaType, String fid, String coverFid) {
