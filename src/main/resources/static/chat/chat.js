@@ -279,7 +279,7 @@
       meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
       const media = messageMedia(message, onMediaLoad);
       const hidesMediaLabel = media
-        && ["分享图片", "分享视频"].includes(message.text?.trim());
+        && ["分享图片", "分享视频", "[动画表情]"].includes(message.text?.trim());
       content.append(meta);
       if (!hidesMediaLabel) content.append(bubble);
       if (media) content.append(media);
