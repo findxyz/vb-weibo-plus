@@ -353,7 +353,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).isEnabled();
         assertThat(page.locator("#composer")).hasAttribute("placeholder", "输入消息后按 Enter 发送");
         assertThat(page.locator(".composer-hint"))
-                .hasText("按下 Enter 发送内容 / Ctrl+Enter 换行");
+                .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
         assertThat(page.locator(".composer button:enabled")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
         assertThat(page.locator(".read-only-badge")).hasCount(0);
@@ -696,7 +696,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).isEmpty();
         assertThat(page.locator("#composer")).isEnabled();
         assertThat(page.locator(".composer-hint"))
-                .hasText("按下 Enter 发送内容 / Ctrl+Enter 换行");
+                .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
         assertThat(page.locator("#messages [data-mid='9'] .bubble")).hasText("刚发出的消息");
 
         page.close();

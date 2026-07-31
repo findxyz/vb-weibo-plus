@@ -676,13 +676,19 @@
     refreshMessages();
   }
 
+  function setComposerHint(text, level) {
+    elements.composerHint.textContent = text;
+    elements.composerHint.classList.toggle("is-sending", level === "sending");
+    elements.composerHint.classList.toggle("is-error", level === "error");
+  }
+
   async function sendMessage() {
     if (state.sending || !state.currentGid) return;
     const content = elements.composer.value.trim();
     if (!content) return;
     state.sending = true;
     elements.composer.disabled = true;
-    elements.composerHint.textContent = "发送中…";
+    setComposerHint("发送中…", "sending");
     try {
       const response = await fetch("/chat/messages/send", {
         method: "POST",
@@ -692,18 +698,18 @@
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          elements.composerHint.textContent = error.msg || "消息已发出，但本地同步失败，稍后会自动补全。";
+          setComposerHint(error.msg || "消息已发出，但本地同步失败，稍后会自动补全。", "error");
         } else {
-          elements.composerHint.textContent = error.msg || "消息发送失败，请稍后重试。";
+          setComposerHint(error.msg || "消息发送失败，请稍后重试。", "error");
         }
         return;
       }
       elements.composer.value = "";
       state.followingLatest = true;
       await refreshMessages();
-      elements.composerHint.textContent = "按下 Enter 发送内容 / Shift+Enter 换行";
+      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
     } catch {
-      elements.composerHint.textContent = "消息发送失败，请稍后重试。";
+      setComposerHint("消息发送失败，请稍后重试。", "error");
     } finally {
       state.sending = false;
       elements.composer.disabled = false;
@@ -750,7 +756,7 @@
   });
   elements.composer.addEventListener("input", () => {
     if (elements.composerHint.textContent !== "发送中…") {
-      elements.composerHint.textContent = "按下 Enter 发送内容 / Ctrl+Enter 换行";
+      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
     }
   });
   elements.retryMessages.addEventListener("click", () =>

@@ -651,8 +651,8 @@ h1 {
   padding: 9px 12px;
   border: 0;
   outline: none;
-  color: #74818b;
-  background: #f8fafb;
+  color: #000;
+  background: #fff;
   font-size: 15px;
   line-height: 1.5;
 }
@@ -661,9 +661,17 @@ h1 {
   position: absolute;
   right: 12px;
   bottom: 12px;
-  color: #a3afbd;
+  color: #1677ff;
   font-size: 14px;
   pointer-events: none;
+}
+
+.composer-hint.is-sending {
+  color: #52c41a;
+}
+
+.composer-hint.is-error {
+  color: #f5222d;
 }
 
 .image-viewer {
