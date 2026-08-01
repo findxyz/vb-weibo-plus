@@ -403,7 +403,8 @@
     const button = document.createElement("button");
     button.type = "button";
     const image = document.createElement("img");
-    image.loading = "lazy";
+    // 首页/刷新的图片需要立即加载以触发 stickToBottom，懒加载会让 load 回调无法及时跟随到底部
+    image.loading = onLoad ? "eager" : "lazy";
     image.alt = "";
     // 先注册 load 再设 src，避免缓存命中时 load 在监听前触发而漏掉跟随到底部
     if (onLoad) image.addEventListener("load", onLoad, {once: true});
