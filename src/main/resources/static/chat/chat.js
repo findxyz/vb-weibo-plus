@@ -801,11 +801,7 @@
       elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
       elements.loadEarlier.disabled = !state.hasMore;
       if (isLatestPage) {
-        setTimeout(() => {
-          if (state.currentGid === gid && state.followingLatest) {
-            elements.messages.scrollTop = elements.messages.scrollHeight;
-          }
-        }, 200);
+        scrollToBottom(true);
       } else {
         restoreScrollAnchor(anchor);
       }
@@ -816,8 +812,14 @@
     }
   }
 
+  function scrollToBottom(force = false) {
+    if (force || state.followingLatest) {
+      elements.messages.scrollTop = elements.messages.scrollHeight;
+    }
+  }
+
   function stickToBottom() {
-    if (state.followingLatest) elements.messages.scrollTop = elements.messages.scrollHeight;
+    scrollToBottom();
   }
 
   function isNearBottom() {
@@ -1193,6 +1195,9 @@
     if (!document.hidden) refreshView();
   });
   setInterval(refreshView, 1_000);
+
+  // 容器尺寸变化（图片加载撑开等）时跟随到底部，替代不可靠的固定延时
+  new ResizeObserver(() => scrollToBottom()).observe(elements.messages);
 
   initialize();
   checkLoginStatus();
