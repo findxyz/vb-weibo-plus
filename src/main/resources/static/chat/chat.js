@@ -26,6 +26,9 @@
     loadEarlier: document.querySelector("#load-earlier"),
     newMessages: document.querySelector("#new-messages"),
     historyOpen: document.querySelector("#history-open"),
+    emojiPickerOpen: document.querySelector("#emoji-picker-open"),
+    emojiPanel: document.querySelector("#emoji-panel"),
+    emojiPanelGrid: document.querySelector("#emoji-panel-grid"),
     historyDialog: document.querySelector("#history-dialog"),
     historyClose: document.querySelector("#history-close"),
     historyTitle: document.querySelector("#history-title"),
@@ -194,6 +197,42 @@
       offset = match.index + match[0].length;
     }
     appendTextSegment(container, text.slice(offset));
+  }
+
+  let emojiPanelBuilt = false;
+
+  function buildEmojiPanel() {
+    if (emojiPanelBuilt) return;
+    const grid = elements.emojiPanelGrid;
+    for (const [phrase, url] of Object.entries(WEIBO_EMOJI_MAP)) {
+      const img = document.createElement("img");
+      img.className = "emoji-cell";
+      img.src = url;
+      img.alt = phrase;
+      img.title = phrase;
+      img.loading = "lazy";
+      grid.append(img);
+    }
+    emojiPanelBuilt = true;
+  }
+
+  function toggleEmojiPanel(forceOpen) {
+    const open = forceOpen ?? elements.emojiPanel.hidden;
+    if (open) {
+      buildEmojiPanel();
+      elements.emojiPanel.hidden = false;
+    } else {
+      elements.emojiPanel.hidden = true;
+    }
+  }
+
+  function insertEmoji(phrase) {
+    const composer = elements.composer;
+    const start = composer.selectionStart ?? composer.value.length;
+    const end = composer.selectionEnd ?? composer.value.length;
+    composer.setRangeText(phrase, start, end, "end");
+    composer.focus();
+    composer.dispatchEvent(new Event("input", {bubbles: true}));
   }
 
   function appendWeiboCard(container, urlObject) {
@@ -662,6 +701,7 @@
     elements.currentId.textContent = String(group.gid);
     elements.currentNotice.textContent = group.summary || "暂无简介";
     elements.historyOpen.disabled = false;
+    elements.emojiPickerOpen.disabled = false;
     elements.historyTitle.textContent = `聊天记录 - ${group.name || `群聊 ${group.gid}`}`;
     elements.currentAvatar.replaceWith(avatar(group, "main-group-avatar"));
     elements.currentAvatar = document.querySelector(".main-group-avatar");
@@ -957,6 +997,22 @@
   elements.historyOpen.addEventListener("click", () => {
     resetHistory(state.currentGid);
     elements.historyDialog.showModal();
+  });
+  elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
+  elements.emojiPanelGrid.addEventListener("click", event => {
+    const cell = event.target.closest(".emoji-cell");
+    if (cell) insertEmoji(cell.alt);
+  });
+  document.addEventListener("click", event => {
+    if (elements.emojiPanel.hidden) return;
+    if (elements.emojiPanel.contains(event.target)) return;
+    if (elements.emojiPickerOpen.contains(event.target)) return;
+    toggleEmojiPanel(false);
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !elements.emojiPanel.hidden) {
+      toggleEmojiPanel(false);
+    }
   });
   elements.historyClose.addEventListener("click", () => elements.historyDialog.close());
   elements.historyForm.addEventListener("submit", event => {

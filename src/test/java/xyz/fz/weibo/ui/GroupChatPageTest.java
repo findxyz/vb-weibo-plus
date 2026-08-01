@@ -387,7 +387,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).hasAttribute("placeholder", "输入消息后按 Enter 发送");
         assertThat(page.locator(".composer-hint"))
                 .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
-        assertThat(page.locator(".composer button:enabled:not(#history-open)")).hasCount(0);
+        assertThat(page.locator(".composer button:enabled:not(#history-open):not(#emoji-picker-open)")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
         assertThat(page.locator(".read-only-badge")).hasCount(0);
         assertThat(page.locator("#refresh-state")).hasCount(0);
@@ -1178,6 +1178,27 @@ class GroupChatPageTest {
         assertThat(page.locator("#login-qr")).hasText("📱 扫码登录");
         assertThat(page.locator("#login-qr")).isEnabled();
         assertThat(page.locator("#groups-state")).containsText("扫码登录失败");
+
+        page.close();
+    }
+
+    @Test
+    void opens_emoji_panel_above_button_and_toggles_closed_on_second_click() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        page.locator("#emoji-picker-open").click();
+        assertThat(page.locator("#emoji-panel")).isVisible();
+        Number panelBottom = (Number) page.locator("#emoji-panel").evaluate(
+                "el => el.getBoundingClientRect().bottom");
+        Number btnTop = (Number) page.locator("#emoji-picker-open").evaluate(
+                "el => el.getBoundingClientRect().top");
+        org.assertj.core.api.Assertions.assertThat(panelBottom.doubleValue())
+                .isLessThanOrEqualTo(btnTop.doubleValue());
+
+        page.locator("#emoji-picker-open").click();
+        assertThat(page.locator("#emoji-panel")).isHidden();
 
         page.close();
     }

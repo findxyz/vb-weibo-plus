@@ -714,6 +714,50 @@ h1 {
   line-height: 1;
 }
 
+.emoji-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 10px;
+  z-index: 10;
+  width: 320px;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #a7bdcd;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgb(17 67 115 / 16%);
+}
+
+.emoji-panel[hidden] {
+  display: none;
+}
+
+.emoji-panel-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 6px 8px 0;
+}
+
+.emoji-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 32px);
+  gap: 4px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.emoji-cell {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.emoji-cell:hover {
+  background: #eef4fb;
+}
+
 #composer {
   min-width: 0;
   width: 100%;

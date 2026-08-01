@@ -72,13 +72,17 @@
 
         <div class="composer" aria-label="消息编辑器">
           <div class="composer-tools">
-            <button type="button" disabled>😊 表情</button>
+            <button id="emoji-picker-open" type="button" disabled>😊 表情</button>
             <button type="button" disabled>
               <span class="composer-tool-emoji" aria-hidden="true">🖼️</span>
               图片
             </button>
             <button type="button" disabled>🎬 视频</button>
             <button id="history-open" type="button" disabled>📜 聊天记录</button>
+          </div>
+          <div class="emoji-panel" id="emoji-panel" hidden role="dialog" aria-label="表情选择">
+            <div class="emoji-panel-tabs"></div>
+            <div class="emoji-panel-grid" id="emoji-panel-grid"></div>
           </div>
           <textarea id="composer" aria-label="输入消息" placeholder="输入消息后按 Enter 发送"></textarea>
           <span class="composer-hint" id="composer-hint" aria-hidden="true">按下 Enter 发送内容 / Shift+Enter 换行</span>
