@@ -835,7 +835,7 @@
     } finally {
       state.loginPending = false;
       elements.loginQr.disabled = false;
-      elements.loginQr.textContent = "扫码登录";
+      elements.loginQr.textContent = "📱 扫码登录";
     }
   }
 

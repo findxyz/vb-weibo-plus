@@ -1154,7 +1154,7 @@ class GroupChatPageTest {
         page.navigate(baseUrl + "/chat/index.html");
 
         assertThat(page.locator("#login-expired")).isVisible();
-        assertThat(page.locator("#login-qr")).hasText("扫码登录");
+        assertThat(page.locator("#login-qr")).hasText("📱 扫码登录");
         assertThat(page.locator("#login-qr")).isEnabled();
 
         page.locator("#login-qr").click();
@@ -1175,7 +1175,7 @@ class GroupChatPageTest {
 
         assertThat(page.locator("#login-expired")).isVisible();
         page.locator("#login-qr").click();
-        assertThat(page.locator("#login-qr")).hasText("扫码登录");
+        assertThat(page.locator("#login-qr")).hasText("📱 扫码登录");
         assertThat(page.locator("#login-qr")).isEnabled();
         assertThat(page.locator("#groups-state")).containsText("扫码登录失败");
 
