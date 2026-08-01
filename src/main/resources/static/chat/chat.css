@@ -634,17 +634,19 @@ h1 {
 }
 
 .image-preview {
-  width: auto;
-  max-width: min(420px, 70vw);
+  width: min(320px, 70vw);
+  aspect-ratio: 4 / 3;
+  max-width: none;
   max-height: none;
   min-height: 0;
-  background: transparent;
+  background: #ffffff;
 }
 
 .image-preview img {
-  width: auto;
-  max-width: 100%;
-  max-height: 360px;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
 }
 
 .video-preview span {
