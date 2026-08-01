@@ -50,7 +50,9 @@
     imageViewerImage: document.querySelector("#image-viewer img"),
     imageViewerState: document.querySelector("#image-viewer-state"),
     composer: document.querySelector("#composer"),
-    composerHint: document.querySelector("#composer-hint")
+    composerHint: document.querySelector("#composer-hint"),
+    loginExpired: document.querySelector("#login-expired"),
+    loginQr: document.querySelector("#login-qr")
   };
   const state = {
     groups: [],
@@ -67,7 +69,9 @@
     failedBeforeMid: null,
     sending: false,
     lastSizeGid: null,
-    lastMessageCount: null
+    lastMessageCount: null,
+    loginCheckTick: 0,
+    loginPending: false
   };
   const historyState = {
     gid: null,
@@ -787,6 +791,52 @@
   function refreshView() {
     refreshGroups();
     refreshMessages();
+    maybeCheckLoginStatus();
+  }
+
+  const LOGIN_CHECK_INTERVAL = 60;
+  const QR_LOGIN_LOADING_TEXT = "扫码中…请在新弹出的浏览器窗口扫码";
+
+  function maybeCheckLoginStatus() {
+    if (document.hidden || state.loginPending) return;
+    state.loginCheckTick += 1;
+    if (state.loginCheckTick < LOGIN_CHECK_INTERVAL) return;
+    state.loginCheckTick = 0;
+    checkLoginStatus();
+  }
+
+  async function checkLoginStatus() {
+    try {
+      const response = await fetch("/weibo/login/status", {cache: "no-store"});
+      if (!response.ok) return;
+      const result = await response.json();
+      if (result.valid === false) {
+        elements.loginExpired.hidden = false;
+      } else {
+        elements.loginExpired.hidden = true;
+      }
+    } catch {
+    }
+  }
+
+  async function startQrLogin() {
+    if (state.loginPending) return;
+    state.loginPending = true;
+    elements.loginQr.disabled = true;
+    elements.loginQr.textContent = QR_LOGIN_LOADING_TEXT;
+    try {
+      const response = await fetch("/weibo/login/qr", {method: "POST"});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      elements.loginExpired.hidden = true;
+      await initialize();
+    } catch {
+      elements.groupsState.textContent = "扫码登录失败，请稍后重试。";
+      elements.retryGroups.hidden = false;
+    } finally {
+      state.loginPending = false;
+      elements.loginQr.disabled = false;
+      elements.loginQr.textContent = "扫码登录";
+    }
   }
 
   function setComposerHint(text, level) {
@@ -861,6 +911,7 @@
     maybeLoadEarlierMessages();
   });
   elements.retryGroups.addEventListener("click", initialize);
+  elements.loginQr.addEventListener("click", startQrLogin);
   elements.composer.addEventListener("keydown", event => {
     if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
       event.preventDefault();
@@ -932,4 +983,5 @@
   setInterval(refreshView, 1_000);
 
   initialize();
+  checkLoginStatus();
 })();

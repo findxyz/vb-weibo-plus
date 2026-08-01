@@ -43,6 +43,10 @@ class GroupChatPageTest {
     private static final AtomicBoolean failSend = new AtomicBoolean();
     private static final AtomicBoolean failSendSync = new AtomicBoolean();
     private static final AtomicInteger sendRequests = new AtomicInteger();
+    private static final AtomicBoolean loginInvalid = new AtomicBoolean();
+    private static final AtomicInteger loginStatusRequests = new AtomicInteger();
+    private static final AtomicInteger qrLoginRequests = new AtomicInteger();
+    private static final AtomicBoolean failQrLogin = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -306,6 +310,26 @@ class GroupChatPageTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/weibo/login/status", exchange -> {
+            loginStatusRequests.incrementAndGet();
+            boolean valid = !loginInvalid.get();
+            sendJson(exchange, "{\"valid\":" + valid + "}");
+        });
+        server.createContext("/weibo/login/qr", exchange -> {
+            qrLoginRequests.incrementAndGet();
+            if (failQrLogin.get()) {
+                exchange.sendResponseHeaders(502, -1);
+                exchange.close();
+                return;
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            loginInvalid.set(false);
+            sendJson(exchange, "{\"sub\":\"SUB\",\"subp\":\"SUBP\",\"ssoLoginState\":\"1\",\"alf\":\"1\"}");
+        });
         server.createContext("/chat/", GroupChatPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -343,6 +367,10 @@ class GroupChatPageTest {
         failSend.set(false);
         failSendSync.set(false);
         sendRequests.set(0);
+        loginInvalid.set(false);
+        loginStatusRequests.set(0);
+        qrLoginRequests.set(0);
+        failQrLogin.set(false);
     }
 
     @Test
@@ -1115,6 +1143,41 @@ class GroupChatPageTest {
 
         page.reload();
         assertThat(page.locator("#current-group")).hasText("LinkNow");
+
+        page.close();
+    }
+
+    @Test
+    void shows_login_expired_prompt_and_starts_qr_login_on_click() {
+        loginInvalid.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator("#login-expired")).isVisible();
+        assertThat(page.locator("#login-qr")).hasText("扫码登录");
+        assertThat(page.locator("#login-qr")).isEnabled();
+
+        page.locator("#login-qr").click();
+        assertThat(page.locator("#login-qr")).hasText("扫码中…请在新弹出的浏览器窗口扫码");
+        assertThat(page.locator("#login-qr")).isDisabled();
+        assertThat(page.locator("#login-expired")).isHidden();
+        org.assertj.core.api.Assertions.assertThat(qrLoginRequests.get()).isGreaterThanOrEqualTo(1);
+
+        page.close();
+    }
+
+    @Test
+    void restores_qr_login_button_after_qr_login_failure() {
+        loginInvalid.set(true);
+        failQrLogin.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator("#login-expired")).isVisible();
+        page.locator("#login-qr").click();
+        assertThat(page.locator("#login-qr")).hasText("扫码登录");
+        assertThat(page.locator("#login-qr")).isEnabled();
+        assertThat(page.locator("#groups-state")).containsText("扫码登录失败");
 
         page.close();
     }
