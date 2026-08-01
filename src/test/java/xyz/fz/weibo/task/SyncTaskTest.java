@@ -37,7 +37,7 @@ class SyncTaskTest {
 
     @BeforeEach
     void setUp() {
-        syncTask = new SyncTask(chatService, postService);
+        syncTask = new SyncTask(chatService, postService, "4761715839862414");
     }
 
     @Test
@@ -56,24 +56,47 @@ class SyncTaskTest {
     }
 
     @Test
-    void group_message_check_incrementally_saves_every_local_group() {
-        when(chatService.queryGroups()).thenReturn(List.of(group(101), group(202)));
+    void group_message_check_only_syncs_configured_groups() {
+        when(chatService.queryGroups()).thenReturn(List.of(group(4761715839862414L), group(202)));
 
         syncTask.syncGroupMessages();
 
-        verify(chatService).saveIncremental(101);
-        verify(chatService).saveIncremental(202);
+        verify(chatService).saveIncremental(4761715839862414L);
+        verify(chatService, org.mockito.Mockito.never()).saveIncremental(202);
     }
 
     @Test
     void group_message_check_continues_after_one_group_fails() {
-        when(chatService.queryGroups()).thenReturn(List.of(group(101), group(202)));
+        SyncTask twoGidTask = new SyncTask(chatService, postService, "4761715839862414, 4761715839862415");
+        when(chatService.queryGroups()).thenReturn(List.of(
+                group(4761715839862414L), group(4761715839862415L)));
         doThrow(new WeiboException("上游失败。"))
-                .when(chatService).saveIncremental(101);
+                .when(chatService).saveIncremental(4761715839862414L);
 
-        syncTask.syncGroupMessages();
+        twoGidTask.syncGroupMessages();
 
+        verify(chatService).saveIncremental(4761715839862415L);
+    }
+
+    @Test
+    void group_message_check_skips_all_when_auto_sync_gids_is_empty() {
+        SyncTask emptyTask = new SyncTask(chatService, postService, "");
+
+        emptyTask.syncGroupMessages();
+
+        verify(chatService, org.mockito.Mockito.never()).saveIncremental(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void group_message_check_supports_multiple_comma_separated_gids() {
+        SyncTask multiTask = new SyncTask(chatService, postService, "101, 202");
+        when(chatService.queryGroups()).thenReturn(List.of(group(101), group(202), group(303)));
+
+        multiTask.syncGroupMessages();
+
+        verify(chatService).saveIncremental(101);
         verify(chatService).saveIncremental(202);
+        verify(chatService, org.mockito.Mockito.never()).saveIncremental(303);
     }
 
     @Test

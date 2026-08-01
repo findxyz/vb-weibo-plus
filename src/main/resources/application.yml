@@ -15,6 +15,9 @@ weibo:
   cookie-file: .weibo_cookie.txt
   qr-timeout-seconds: 300
   database-path: ${WEIBO_DATABASE_PATH:weibo.db}
+  chat:
+    # auto-sync-gids：定时增量同步的群号，逗号分割，留空则不同步
+    auto-sync-gids: ${WEIBO_AUTO_SYNC_GIDS:4761715839862414}
   media:
     ffmpeg-path: ${WEIBO_FFMPEG_PATH:ffmpeg}
 
