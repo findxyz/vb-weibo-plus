@@ -100,14 +100,15 @@ class SyncTaskTest {
     }
 
     @Test
-    void group_message_check_runs_every_30_seconds() throws NoSuchMethodException {
+    void group_message_check_runs_every_20_seconds_by_default() throws NoSuchMethodException {
         Method method = SyncTask.class.getMethod("syncGroupMessages");
 
         Scheduled scheduled = method.getAnnotation(Scheduled.class);
 
         assertThat(scheduled).isNotNull();
-        assertThat(scheduled.fixedDelay()).isEqualTo(30_000);
-        assertThat(scheduled.initialDelay()).isEqualTo(30_000);
+        assertThat(scheduled.fixedDelayString())
+                .isEqualTo("${weibo.chat.sync-group-fixed-delay:20s}");
+        assertThat(scheduled.initialDelay()).isEqualTo(3_000);
         assertThat(WeiboApplication.class).hasAnnotation(EnableScheduling.class);
     }
 
