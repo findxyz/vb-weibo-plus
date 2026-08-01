@@ -1,5 +1,7 @@
 package xyz.fz.weibo.model.request;
 
+import xyz.fz.weibo.client.WeiboConstants;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -17,7 +19,7 @@ public record GroupMessagesRequest(Long id, Long maxMid) {
         params.put("max_mid", maxMid == null ? null : maxMid.toString());
         params.put("convert_emoji", "1");
         params.put("query_sender", "1");
-        params.put("source", "209678993");
+        params.put("source", WeiboConstants.SOURCE);
         params.put("t", String.valueOf(System.currentTimeMillis()));
         return params;
     }

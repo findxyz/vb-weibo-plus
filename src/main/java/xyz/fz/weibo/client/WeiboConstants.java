@@ -21,6 +21,9 @@ public final class WeiboConstants {
 
     public static final String X_REQUESTED_WITH = "XMLHttpRequest";
 
+    /** 群聊 webim 接口固定的 source 参数。 */
+    public static final String SOURCE = "209678993";
+
     public static final int MAX_RETRY = 3;
 
     public static final String LOGIN_DOMAIN_REGEX = "login\\.sina\\.com\\.cn|passport\\.weibo\\.com|weibo\\.com/login";

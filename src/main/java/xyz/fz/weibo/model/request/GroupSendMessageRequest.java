@@ -1,5 +1,7 @@
 package xyz.fz.weibo.model.request;
 
+import xyz.fz.weibo.client.WeiboConstants;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -14,7 +16,7 @@ public record GroupSendMessageRequest(Long id, String content) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("id", id == null ? null : id.toString());
         params.put("content", content);
-        params.put("source", "209678993");
+        params.put("source", WeiboConstants.SOURCE);
         return params;
     }
 }

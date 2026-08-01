@@ -1,5 +1,7 @@
 package xyz.fz.weibo.model.request;
 
+import xyz.fz.weibo.client.WeiboConstants;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -12,7 +14,7 @@ public record GroupListRequest() {
 
     public Map<String, String> toParams() {
         Map<String, String> params = new LinkedHashMap<>();
-        params.put("source", "209678993");
+        params.put("source", WeiboConstants.SOURCE);
         params.put("t", String.valueOf(System.currentTimeMillis()));
         params.put("count", "50");
         params.put("special_source", "3");
