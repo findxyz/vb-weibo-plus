@@ -7,6 +7,8 @@
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
   const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
+  const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
+  const EMOJI_IMAGE_BASE = "https://img.t.sinajs.cn/t4/appstyle/expression/emimage";
   const WEIBO_EMOJI_MAP = (typeof window !== "undefined" && window.WEIBO_EMOJI_MAP) || {};
   const elements = {
     appTitle: document.querySelector("#app-title"),
@@ -163,10 +165,18 @@
     return container;
   }
 
+  function emojiImageUrl(token) {
+    const imageMatch = token.match(EMOJI_IMAGE_TEST);
+    if (imageMatch) {
+      return EMOJI_IMAGE_BASE + imageMatch[1];
+    }
+    return WEIBO_EMOJI_MAP[token];
+  }
+
   function appendTextSegment(container, text) {
     let offset = 0;
     for (const match of text.matchAll(EMOJI_PHRASE_PATTERN)) {
-      const url = WEIBO_EMOJI_MAP[match[0]];
+      const url = emojiImageUrl(match[0]);
       if (!url) continue;
       if (match.index > offset) {
         container.append(document.createTextNode(text.slice(offset, match.index)));
