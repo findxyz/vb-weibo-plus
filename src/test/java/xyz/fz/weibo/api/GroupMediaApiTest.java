@@ -7,10 +7,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboHttpClient;
+import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupMediaUploadInitRequest;
 import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
@@ -19,10 +19,10 @@ import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class GroupMediaApiTest {
@@ -30,7 +30,8 @@ class GroupMediaApiTest {
     @Mock
     private WeiboHttpClient client;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Test
     void sends_string_fid_with_only_endpoint_specific_query_and_headers() {
@@ -97,7 +98,7 @@ class GroupMediaApiTest {
                 eq(WeiboConstants.HEADERS_WEBIM_SEND), eq(true)))
                 .thenReturn(ResponseEntity.ok("{\"fid\":5326071291448867}"));
 
-        GroupMediaUploadResponse response = api.upload(bytes, "test.png", "token-abc", 5046020575330655L);
+        GroupMediaUploadResponse response = api.upload(bytes, "test.png", "token-abc", 5046020575330655L, 1024);
 
         assertThat(response.fid()).isEqualTo(5326071291448867L);
         org.mockito.ArgumentCaptor<Map<String, String>> queryCaptor =
@@ -115,5 +116,67 @@ class GroupMediaApiTest {
         assertThat(bodyCaptor.getValue().get("filetoken")).containsExactly("token-abc");
         assertThat(bodyCaptor.getValue().get("startloc")).containsExactly("0");
         assertThat(bodyCaptor.getValue().get("file")).hasSize(1);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void upload_chunks_oversized_file_by_init_length_and_returns_last_chunk_fid() {
+        GroupMediaApi api = new GroupMediaApi(client, objectMapper);
+        // 2.5 MB 图片，init.length=1024 KB -> 切成 3 片：1MB + 1MB + 499963B
+        int chunkSizeKb = 1024;
+        int chunkSize = chunkSizeKb * 1024;
+        int total = 2 * chunkSize + 499_963;
+        byte[] bytes = new byte[total];
+        // 模拟真实分片响应序列：中间片 {"succ":true}，最后一片返回 fid
+        when(client.postMultipart(
+                eq("https://api.weibo.com/webim/uploadx.json"),
+                any(Map.class), any(MultiValueMap.class),
+                eq(WeiboConstants.HEADERS_WEBIM_SEND), eq(true)))
+                .thenReturn(ResponseEntity.ok("{\"succ\":true}"))
+                .thenReturn(ResponseEntity.ok("{\"succ\":true}"))
+                .thenReturn(ResponseEntity.ok("{\"fid\":5326071291448867}"));
+
+        GroupMediaUploadResponse response = api.upload(bytes, "media.png", "token-abc", 5046020575330655L, chunkSizeKb);
+
+        assertThat(response.fid()).isEqualTo(5326071291448867L);
+        // 共调用 3 次 postMultipart，每次一片
+        verify(client, times(3)).postMultipart(
+                eq("https://api.weibo.com/webim/uploadx.json"),
+                any(Map.class), any(MultiValueMap.class),
+                eq(WeiboConstants.HEADERS_WEBIM_SEND), eq(true));
+        // 校验每片 startloc 与字节长度
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
+                org.mockito.ArgumentCaptor.forClass(MultiValueMap.class);
+        verify(client, times(3)).postMultipart(
+                eq("https://api.weibo.com/webim/uploadx.json"),
+                any(Map.class), bodyCaptor.capture(),
+                eq(WeiboConstants.HEADERS_WEBIM_SEND), eq(true));
+        java.util.List<MultiValueMap<String, Object>> bodies = bodyCaptor.getAllValues();
+        assertThat(bodies.get(0).get("startloc")).containsExactly("0");
+        assertThat(bodies.get(1).get("startloc")).containsExactly(String.valueOf(chunkSize));
+        assertThat(bodies.get(2).get("startloc")).containsExactly(String.valueOf(2 * chunkSize));
+        assertThat(((org.springframework.core.io.ByteArrayResource) bodies.get(0).get("file").get(0)).contentLength()).isEqualTo(chunkSize);
+        assertThat(((org.springframework.core.io.ByteArrayResource) bodies.get(1).get("file").get(0)).contentLength()).isEqualTo(chunkSize);
+        assertThat(((org.springframework.core.io.ByteArrayResource) bodies.get(2).get("file").get(0)).contentLength()).isEqualTo(499_963);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void upload_throws_when_response_has_no_fid_rejecting_error_body_silently_parsed_to_zero() {
+        GroupMediaApi api = new GroupMediaApi(client, objectMapper);
+        byte[] bytes = new byte[]{1, 2, 3};
+        // 真实分片过大错误：HTTP 200，body 不含 fid（会被反序列化为 fid=0）
+        when(client.postMultipart(
+                eq("https://api.weibo.com/webim/uploadx.json"),
+                any(Map.class), any(MultiValueMap.class),
+                eq(WeiboConstants.HEADERS_WEBIM_SEND), eq(true)))
+                .thenReturn(ResponseEntity.ok(
+                        "{\"error\":\"file piece is larger than initialized pieceSplitLength\","
+                        + "\"error_code\":20054,\"http_code\":500}"));
+
+        assertThatThrownBy(() -> api.upload(bytes, "media.png", "token-abc", 5046020575330655L, 1024))
+                .isInstanceOf(WeiboException.class)
+                .hasMessageContaining("图片上传失败");
     }
 }

@@ -63,26 +63,45 @@ public class GroupMediaApi {
     }
 
     /**
-     * 群聊发送图片第 2 步：上传文件（uploadx.json，multipart/form-data）。
+     * 群聊发送图片第 2 步：分片上传文件（uploadx.json，multipart/form-data）。
      * <p>
      * source/is_chunk/selectId 走 query 参数，file/filetoken/startloc 走 multipart body。
+     * 分片大小取自 init 响应的 length（单位 KB）。中间分片响应 {@code {"succ":true}}，
+     * 最后一片响应 {@code {"fid":...}}。微博不回传 offset，由客户端按已上传字节累加 startloc。
+     * chunkSizeKb <= 0 时退化为单次上传（兼容异常 init 响应）。
      */
-    public GroupMediaUploadResponse upload(byte[] bytes, String filename, String fileToken, long gid) {
+    public GroupMediaUploadResponse upload(byte[] bytes, String filename, String fileToken,
+                                           long gid, int chunkSizeKb) {
         Map<String, String> queryParams = new LinkedHashMap<>();
         queryParams.put("source", WeiboConstants.SOURCE);
         queryParams.put("is_chunk", "1");
         queryParams.put("selectId", String.valueOf(gid));
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("file", new ImageByteArrayResource(bytes, filename));
-        body.add("filetoken", fileToken);
-        body.add("startloc", "0");
-        body.add("source", WeiboConstants.SOURCE);
-        body.add("filelength", "");
-        body.add("filecheck", "");
-        body.add("percent", "");
-        ResponseEntity<String> resp = client.postMultipart(
-                UPLOAD_URL, queryParams, body, WeiboConstants.HEADERS_WEBIM_SEND, true);
-        return deserialize(resp.getBody(), GroupMediaUploadResponse.class);
+        int chunkSize = chunkSizeKb > 0 ? chunkSizeKb * 1024 : bytes.length;
+        chunkSize = Math.min(chunkSize, bytes.length);
+        long fid = 0;
+        for (int startloc = 0; startloc < bytes.length; startloc += chunkSize) {
+            int end = Math.min(startloc + chunkSize, bytes.length);
+            byte[] chunk = java.util.Arrays.copyOfRange(bytes, startloc, end);
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new ImageByteArrayResource(chunk, filename));
+            body.add("filetoken", fileToken);
+            body.add("startloc", String.valueOf(startloc));
+            body.add("source", WeiboConstants.SOURCE);
+            body.add("filelength", "");
+            body.add("filecheck", "");
+            body.add("percent", "");
+            ResponseEntity<String> resp = client.postMultipart(
+                    UPLOAD_URL, queryParams, body, WeiboConstants.HEADERS_WEBIM_SEND, true);
+            GroupMediaUploadResponse chunkResponse = deserialize(resp.getBody(), GroupMediaUploadResponse.class);
+            if (chunkResponse.fid() > 0) {
+                fid = chunkResponse.fid();
+                break;
+            }
+        }
+        if (fid <= 0) {
+            throw new WeiboException("图片上传失败：未拿到文件 id。");
+        }
+        return new GroupMediaUploadResponse(fid);
     }
 
     private <T> T deserialize(String body, Class<T> type) {

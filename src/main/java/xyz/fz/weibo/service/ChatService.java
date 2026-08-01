@@ -300,7 +300,7 @@ public class ChatService {
             GroupMediaUploadInitResponse initResponse = groupMediaApi.initUpload(
                     new GroupMediaUploadInitRequest(gid, bytes.length, filename, md5, "dm_attachment_pic"));
             GroupMediaUploadResponse uploadResponse = groupMediaApi.upload(
-                    bytes, filename, initResponse.fileToken(), gid);
+                    bytes, filename, initResponse.fileToken(), gid, initResponse.length());
             GroupSendMessageResponse response = groupMessagesApi.sendImage(
                     new GroupSendImageRequest(gid, uploadResponse.fid()));
             if (!response.result()) {

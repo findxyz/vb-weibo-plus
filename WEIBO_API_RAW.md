@@ -702,6 +702,12 @@ max_mid 取上一页 messages[0].id（最旧一条），返回比该 mid 更早�
 说明
 网页端配置的分片大小来自初始化响应，实测为 1024 KB。630 字节测试图只有 1 个分片。multipart 边界、文件名、chunk 和 chunks 等字段由 plupload 自动生成；核心业务字段如上。
 
+分片上传实测（2.5 MB 图片，分片大小 1024 KB，共 3 片）：
+
+- 中间分片（非最后一片）响应：`{"succ":true}`，**不含 offset，也不含 fid**。下一片的 `startloc` 由客户端自行累加上一片字节长度得到，微博不回传 offset（与上文「后续分片取上一响应 offset」的字面描述不符，实测以客户端累加为准）。
+- 最后一片响应：`{"fid":<图片文件 id>}`，与单片上传一致。只有最后一片会返回 fid。
+- 超过分片大小的单片上传会被拒绝：响应 HTTP 200，但 body 为 `{"error":"file piece is larger than initialized pieceSplitLength","error_code":20054,"http_code":500,"request":"/fileplatform/upload.json","request_id":"..."}`。注意此时 HTTP 状态码仍是 200，仅靠 body 区分成功与失败。
+
 ## 群聊发送图片：发送消息
 
 请求

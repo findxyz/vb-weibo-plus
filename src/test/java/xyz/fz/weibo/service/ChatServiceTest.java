@@ -3,56 +3,9 @@ package xyz.fz.weibo.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import xyz.fz.weibo.api.GroupListApi;
-import xyz.fz.weibo.api.GroupMediaApi;
-import xyz.fz.weibo.api.GroupMessagesApi;
-import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
-import xyz.fz.weibo.client.exception.WeiboException;
-import xyz.fz.weibo.client.exception.WeiboRateLimitException;
-import xyz.fz.weibo.domain.GroupListView;
-import xyz.fz.weibo.domain.GroupRecord;
-import xyz.fz.weibo.domain.MediaBinary;
-import xyz.fz.weibo.domain.MessageCursorResult;
-import xyz.fz.weibo.domain.MessageQueryResult;
-import xyz.fz.weibo.domain.MessageRecord;
-import xyz.fz.weibo.domain.MessageView;
-import xyz.fz.weibo.domain.SaveResult;
-import xyz.fz.weibo.entity.GroupEntity;
-import xyz.fz.weibo.entity.MessageEntity;
-import xyz.fz.weibo.model.request.GroupMessagesRequest;
-import xyz.fz.weibo.model.request.GroupMediaRequest;
-import xyz.fz.weibo.model.request.GroupSendMessageRequest;
-import xyz.fz.weibo.model.request.GroupSendImageRequest;
-import xyz.fz.weibo.model.request.GroupMediaUploadInitRequest;
-import xyz.fz.weibo.model.response.GroupListResponse;
-import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.GroupSendMessageResponse;
-import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
-import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
-import xyz.fz.weibo.repository.GroupRepository;
-import xyz.fz.weibo.repository.MessageRepository;
-import xyz.fz.weibo.repository.GidCount;
-import xyz.fz.weibo.service.mapper.MessageMapper;
-import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
-import xyz.fz.weibo.service.exception.ResourceNotFoundException;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
@@ -61,18 +14,35 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.client.ResponseExtractor;
+import xyz.fz.weibo.api.GroupListApi;
+import xyz.fz.weibo.api.GroupMediaApi;
+import xyz.fz.weibo.api.GroupMessagesApi;
+import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.client.exception.WeiboRateLimitException;
+import xyz.fz.weibo.domain.*;
+import xyz.fz.weibo.entity.GroupEntity;
+import xyz.fz.weibo.entity.MessageEntity;
+import xyz.fz.weibo.model.request.*;
+import xyz.fz.weibo.model.response.*;
+import xyz.fz.weibo.repository.GidCount;
+import xyz.fz.weibo.repository.GroupRepository;
+import xyz.fz.weibo.repository.MessageRepository;
+import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
+import xyz.fz.weibo.service.mapper.MessageMapper;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
@@ -832,7 +802,7 @@ class ChatServiceTest {
                 "file", "test.png", "image/png", new byte[]{1, 2, 3});
         when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
                 .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
-        when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L)))
+        when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024)))
                 .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
         when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
                 .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
@@ -844,7 +814,7 @@ class ChatServiceTest {
 
         assertThat(result).isEqualTo(new SaveResult(0, 0, 0));
         verify(groupMediaApi).initUpload(any(GroupMediaUploadInitRequest.class));
-        verify(groupMediaApi).upload(any(), eq("test.png"), eq("token-abc"), eq(1L));
+        verify(groupMediaApi).upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024));
         verify(groupMessagesApi).sendImage(new GroupSendImageRequest(1L, 5326071291448867L));
         verify(messageRepository).refreshGroupRange(1);
     }
@@ -890,7 +860,7 @@ class ChatServiceTest {
                 "file", "test.png", "image/png", new byte[]{1, 2, 3});
         when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
                 .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
-        when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L)))
+        when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024)))
                 .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
         when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
                 .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
@@ -901,6 +871,26 @@ class ChatServiceTest {
         assertThatThrownBy(() -> chatService.sendImage(1, file))
                 .isInstanceOf(MessageSentButSyncFailedException.class)
                 .hasMessageContaining("已发出");
+    }
+
+    @Test
+    void send_image_passes_init_chunk_size_to_upload() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
+                .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
+        when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024)))
+                .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
+        when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
+        when(groupRepository.findMaxMid(1)).thenReturn(99L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenReturn(messagePage());
+
+        chatService.sendImage(1, file);
+
+        // 关键：init 响应的 length（分片大小 KB）必须透传给 upload，否则大图无法分片
+        verify(groupMediaApi).upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024));
     }
 
     @Test
