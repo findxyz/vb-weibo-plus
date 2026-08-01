@@ -9,6 +9,7 @@
   const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
   const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
   const EMOJI_IMAGE_BASE = "https://img.t.sinajs.cn/t4/appstyle/expression/emimage";
+  const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
   const WEIBO_EMOJI_MAP = (typeof window !== "undefined" && window.WEIBO_EMOJI_MAP) || {};
   const elements = {
     appTitle: document.querySelector("#app-title"),
@@ -98,6 +99,12 @@
     loadingMore: false,
     requestVersion: 0
   };
+
+  async function fetchJson(url, options) {
+    const response = await fetch(url, options);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
 
   function localDateValue(date) {
     const year = date.getFullYear();
@@ -336,7 +343,7 @@
     return Array.isArray(group?.admins) && group.admins.includes(senderId);
   }
 
-  function messageElement(message, targetMid = null, onMediaLoad = null) {
+  function messageElement(message, targetMid, onMediaLoad = null) {
       const article = document.createElement("article");
       article.className = "message";
       article.dataset.mid = String(message.mid);
@@ -353,7 +360,7 @@
         link.rel = "noopener noreferrer";
         link.textContent = message.text || "下载文件";
         bubble.append(link);
-      } else if (message.mediaType === 14 && message.urlObjects?.[0]?.status) {
+      } else if (message.mediaType === MEDIA_TYPE.WEIBO_CARD && message.urlObjects?.[0]?.status) {
         appendWeiboCard(bubble, message.urlObjects[0]);
       } else {
         appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
@@ -388,9 +395,7 @@
     const ordered = [...state.messages.values()].sort((left, right) =>
       left.createdAt - right.createdAt || left.mid - right.mid);
     elements.messages.replaceChildren(...ordered.map(message => messageElement(
-      message, null, () => {
-        if (state.followingLatest) elements.messages.scrollTop = elements.messages.scrollHeight;
-      })));
+      message, null, stickToBottom)));
   }
 
   function messageMedia(message, onLoad) {
@@ -398,10 +403,11 @@
     const button = document.createElement("button");
     button.type = "button";
     const image = document.createElement("img");
-    image.src = message.previewUrl;
     image.loading = "lazy";
     image.alt = "";
-    if (onLoad) image.addEventListener("load", onLoad);
+    // 先注册 load 再设 src，避免缓存命中时 load 在监听前触发而漏掉跟随到底部
+    if (onLoad) image.addEventListener("load", onLoad, {once: true});
+    image.src = message.previewUrl;
     button.append(image);
     const label = document.createElement("span");
     if (message.videoUrl) {
@@ -458,11 +464,11 @@
 
   function historySummary(message) {
     const text = message.text?.trim() || "";
-    const video = message.mediaType === 10
-      || (message.mediaType === 13 && !text.includes("收到红包消息"));
+    const video = message.mediaType === MEDIA_TYPE.VIDEO
+      || (message.mediaType === MEDIA_TYPE.VIDEO_OR_REDPACKET && !text.includes("收到红包消息"));
     if (video || message.videoUrl) return "[视频]";
-    if (message.mediaType === 14) return "[微博]";
-    if (message.mediaType === 1 || message.previewUrl) return "[图片]";
+    if (message.mediaType === MEDIA_TYPE.WEIBO_CARD) return "[微博]";
+    if (message.mediaType === MEDIA_TYPE.IMAGE || message.previewUrl) return "[图片]";
     return message.text?.trim() || `[${message.msgTypeName || "消息"}]`;
   }
 
@@ -545,15 +551,13 @@
       - containerTop - paddingTop;
   }
 
-  async function fetchHistoryCursor(direction, message, gid = historyState.gid) {
+  async function fetchHistoryCursor(direction, message, gid) {
     const query = new URLSearchParams({
       gid: String(gid), size: String(PAGE_SIZE)
     });
     query.set(`${direction}CreatedAt`, String(message.createdAt));
     query.set(`${direction}Mid`, String(message.mid));
-    const response = await fetch(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    return fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
   }
 
   async function openHistoryContext(target) {
@@ -645,9 +649,7 @@
     if (filters.sender) query.set("senderName", filters.sender);
     if (filters.keyword) query.set("keyword", filters.keyword);
     try {
-      const response = await fetch(`/chat/messages?${query}`, {cache: "no-store"});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json();
+      const result = await fetchJson(`/chat/messages?${query}`, {cache: "no-store"});
       if (requestVersion !== historyState.requestVersion) return;
       historyState.page = result.page;
       historyState.total = result.total;
@@ -778,17 +780,17 @@
     state.failedBeforeCreatedAt = beforeCreatedAt;
     state.failedBeforeMid = beforeMid;
     elements.retryMessages.hidden = true;
+    const gid = state.currentGid;
     const query = new URLSearchParams({
-      gid: String(state.currentGid), size: String(PAGE_SIZE)
+      gid: String(gid), size: String(PAGE_SIZE)
     });
     if (!isLatestPage) {
       query.set("beforeCreatedAt", String(beforeCreatedAt));
       query.set("beforeMid", String(beforeMid));
     }
     try {
-      const response = await fetch(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json();
+      const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
+      if (state.currentGid !== gid) return;
       result.items.forEach(message => state.messages.set(message.mid, message));
       state.nextBeforeCreatedAt = result.nextBeforeCreatedAt;
       state.nextBeforeMid = result.nextBeforeMid;
@@ -803,9 +805,14 @@
         restoreScrollAnchor(anchor);
       }
     } catch {
+      if (state.currentGid !== gid) return;
       elements.messagesState.textContent = "消息加载失败，请稍后重试。";
       elements.retryMessages.hidden = false;
     }
+  }
+
+  function stickToBottom() {
+    if (state.followingLatest) elements.messages.scrollTop = elements.messages.scrollHeight;
   }
 
   function isNearBottom() {
@@ -830,15 +837,15 @@
   async function refreshMessages() {
     if (!state.currentGid || state.refreshing || state.loadingEarlier || document.hidden) return;
     state.refreshing = true;
+    const gid = state.currentGid;
     const followedLatest = isNearBottom();
     const knownMids = new Set(state.messages.keys());
     const query = new URLSearchParams({
-      gid: String(state.currentGid), size: String(PAGE_SIZE)
+      gid: String(gid), size: String(PAGE_SIZE)
     });
     try {
-      const response = await fetch(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json();
+      const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
+      if (state.currentGid !== gid) return;
       result.items.forEach(message => state.messages.set(message.mid, message));
       const added = result.items.some(message => !knownMids.has(message.mid));
       if (added) {
@@ -854,7 +861,7 @@
     } catch {
     } finally {
       state.refreshing = false;
-      maybeLoadEarlierMessages();
+      if (state.currentGid === gid) maybeLoadEarlierMessages();
     }
   }
 
@@ -862,9 +869,7 @@
     if (state.refreshingGroups || document.hidden) return;
     state.refreshingGroups = true;
     try {
-      const response = await fetch("/chat/groups", {cache: "no-store"});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const groups = await response.json();
+      const groups = await fetchJson("/chat/groups", {cache: "no-store"});
       if (JSON.stringify(groups) === JSON.stringify(state.groups)) return;
       state.groups = groups;
       renderGroups();
@@ -966,6 +971,15 @@
     }
   }
 
+  async function handleSendError(response, fallbackMessage) {
+    const error = await response.json().catch(() => ({}));
+    if (response.status === 409) {
+      setComposerHint(error.msg || "消息已发出，但本地同步失败，稍后会自动补全。", "error");
+    } else {
+      setComposerHint(error.msg || fallbackMessage, "error");
+    }
+  }
+
   async function sendImage() {
     if (state.sending || !state.currentGid || !state.pendingImage) return;
     state.sending = true;
@@ -981,12 +995,7 @@
         body: formData
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        if (response.status === 409) {
-          setComposerHint(error.msg || "消息已发出，但本地同步失败，稍后会自动补全。", "error");
-        } else {
-          setComposerHint(error.msg || "图片发送失败，请稍后重试。", "error");
-        }
+        await handleSendError(response, "图片发送失败，请稍后重试。");
         return;
       }
       clearPendingImage();
@@ -1021,12 +1030,7 @@
         body: new URLSearchParams({gid: String(state.currentGid), content})
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        if (response.status === 409) {
-          setComposerHint(error.msg || "消息已发出，但本地同步失败，稍后会自动补全。", "error");
-        } else {
-          setComposerHint(error.msg || "消息发送失败，请稍后重试。", "error");
-        }
+        await handleSendError(response, "消息发送失败，请稍后重试。");
         return;
       }
       elements.composer.value = "";
@@ -1046,9 +1050,7 @@
     elements.retryGroups.hidden = true;
     elements.groupsState.textContent = "";
     try {
-      const response = await fetch("/chat/groups", {cache: "no-store"});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      state.groups = await response.json();
+      state.groups = await fetchJson("/chat/groups", {cache: "no-store"});
       renderGroups();
       if (!state.groups.length) {
         elements.groupsState.textContent = "本地还没有群聊数据。";
