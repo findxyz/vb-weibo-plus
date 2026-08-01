@@ -72,3 +72,4 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_msg_gid_ctime ON messages(gid, created_at);
+CREATE INDEX IF NOT EXISTS idx_msg_gid_ctime_cover ON messages(gid, created_at, mid, sender_name, text);

@@ -223,6 +223,19 @@ class MessageRepositoryTest {
         assertThat(found).isTrue();
     }
 
+    @Test
+    void schema_provides_covering_index_for_keyword_count_and_sort() throws Exception {
+        boolean found = false;
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("pragma index_list('messages')")) {
+            while (result.next()) {
+                found |= "idx_msg_gid_ctime_cover".equals(result.getString("name"));
+            }
+        }
+        assertThat(found).isTrue();
+    }
+
     private MessageEntity message(long mid, long gid, long createdAt, String text, String fid) {
         return message(mid, gid, createdAt, text, fid, "发送者");
     }
