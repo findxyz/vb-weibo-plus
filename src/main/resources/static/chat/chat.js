@@ -391,11 +391,12 @@
       return article;
   }
 
-  function renderMessages() {
+  function renderMessages(forceFollow = false) {
     const ordered = [...state.messages.values()].sort((left, right) =>
       left.createdAt - right.createdAt || left.mid - right.mid);
+    const onLoad = forceFollow ? () => scrollToBottom(true) : stickToBottom;
     elements.messages.replaceChildren(...ordered.map(message => messageElement(
-      message, null, stickToBottom)));
+      message, null, onLoad)));
   }
 
   function messageMedia(message, onLoad) {
@@ -797,7 +798,7 @@
       state.nextBeforeMid = result.nextBeforeMid;
       state.hasMore = result.hasMore;
       if (isLatestPage) state.followingLatest = true;
-      renderMessages();
+      renderMessages(isLatestPage);
       elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
       elements.loadEarlier.disabled = !state.hasMore;
       if (isLatestPage) {
