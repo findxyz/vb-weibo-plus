@@ -1158,7 +1158,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#login-qr")).isEnabled();
 
         page.locator("#login-qr").click();
-        assertThat(page.locator("#login-qr")).hasText("扫码中…请在新弹出的浏览器窗口扫码");
+        assertThat(page.locator("#login-qr")).hasText("📱 扫码中…");
         assertThat(page.locator("#login-qr")).isDisabled();
         assertThat(page.locator("#login-expired")).isHidden();
         org.assertj.core.api.Assertions.assertThat(qrLoginRequests.get()).isGreaterThanOrEqualTo(1);
