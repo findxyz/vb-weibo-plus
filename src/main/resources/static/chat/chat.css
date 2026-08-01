@@ -304,6 +304,14 @@ h1 {
   display: none;
 }
 
+.panel-feedback button {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid #8badca;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
 .login-expired:not([hidden]) {
   display: flex;
   align-items: center;
@@ -323,7 +331,6 @@ h1 {
 .history-filters button,
 .history-pagination button,
 .history-context-toolbar button,
-.panel-feedback button,
 .login-expired button {
   min-height: 32px;
   padding: 0 14px;
