@@ -801,7 +801,11 @@
       elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
       elements.loadEarlier.disabled = !state.hasMore;
       if (isLatestPage) {
-        elements.messages.scrollTop = elements.messages.scrollHeight;
+        setTimeout(() => {
+          if (state.currentGid === gid && state.followingLatest) {
+            elements.messages.scrollTop = elements.messages.scrollHeight;
+          }
+        }, 200);
       } else {
         restoreScrollAnchor(anchor);
       }
