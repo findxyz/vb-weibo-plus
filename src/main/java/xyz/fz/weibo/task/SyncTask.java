@@ -51,7 +51,7 @@ public class SyncTask implements CommandLineRunner {
         }
     }
 
-    @Scheduled(fixedDelay = 30_000, initialDelay = 30_000)
+    @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:20s}", initialDelay = 3_000)
     public void syncGroupMessages() {
         if (autoSyncGids.isEmpty()) {
             return;
