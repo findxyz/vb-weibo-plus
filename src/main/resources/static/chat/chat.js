@@ -795,7 +795,7 @@
   }
 
   const LOGIN_CHECK_INTERVAL = 60;
-  const QR_LOGIN_LOADING_TEXT = "扫码中…请在新弹出的浏览器窗口扫码";
+  const QR_LOGIN_LOADING_TEXT = "📱 扫码中…";
 
   function maybeCheckLoginStatus() {
     if (document.hidden || state.loginPending) return;
