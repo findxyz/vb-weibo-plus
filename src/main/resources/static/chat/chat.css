@@ -298,7 +298,13 @@ h1 {
 
 .panel-state {
   color: var(--danger);
-  font-size: 13px;
+  font-size: 15px;
+  animation: panel-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes panel-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .panel-feedback:has(.panel-state:empty) {
