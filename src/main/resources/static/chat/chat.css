@@ -502,6 +502,12 @@ h1 {
   white-space: pre-wrap;
 }
 
+.bubble .emoji {
+  width: 1.3em;
+  height: 1.3em;
+  vertical-align: -0.25em;
+}
+
 .system-message {
   display: flex;
   justify-content: center;

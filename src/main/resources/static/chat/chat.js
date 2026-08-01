@@ -6,6 +6,8 @@
   const EARLIER_LOAD_THRESHOLD = 120;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
+  const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
+  const WEIBO_EMOJI_MAP = (typeof window !== "undefined" && window.WEIBO_EMOJI_MAP) || {};
   const elements = {
     appTitle: document.querySelector("#app-title"),
     groupsCount: document.querySelector("#groups-count"),
@@ -158,10 +160,31 @@
     return container;
   }
 
+  function appendTextSegment(container, text) {
+    let offset = 0;
+    for (const match of text.matchAll(EMOJI_PHRASE_PATTERN)) {
+      const url = WEIBO_EMOJI_MAP[match[0]];
+      if (!url) continue;
+      if (match.index > offset) {
+        container.append(document.createTextNode(text.slice(offset, match.index)));
+      }
+      const img = document.createElement("img");
+      img.className = "emoji";
+      img.src = url;
+      img.alt = match[0];
+      img.loading = "lazy";
+      container.append(img);
+      offset = match.index + match[0].length;
+    }
+    if (offset < text.length) {
+      container.append(document.createTextNode(text.slice(offset)));
+    }
+  }
+
   function appendMessageText(container, text) {
     let offset = 0;
     for (const match of text.matchAll(MESSAGE_URL_PATTERN)) {
-      container.append(document.createTextNode(text.slice(offset, match.index)));
+      appendTextSegment(container, text.slice(offset, match.index));
       const link = document.createElement("a");
       link.href = match[0];
       link.target = "_blank";
@@ -170,7 +193,7 @@
       container.append(link);
       offset = match.index + match[0].length;
     }
-    container.append(document.createTextNode(text.slice(offset)));
+    appendTextSegment(container, text.slice(offset));
   }
 
   function appendWeiboCard(container, urlObject) {
