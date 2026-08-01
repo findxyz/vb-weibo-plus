@@ -1196,8 +1196,11 @@
   });
   setInterval(refreshView, 1_000);
 
-  // 容器尺寸变化（图片加载撑开等）时跟随到底部，替代不可靠的固定延时
-  new ResizeObserver(() => scrollToBottom()).observe(elements.messages);
+  // 监听消息子树变化（renderMessages 重建 DOM 等）跟随到底部
+  // 图片异步加载撑开由 messageMedia 的 load 回调（stickToBottom）处理
+  // ResizeObserver 监听固定高度 overflow 容器不会因 children 撑开触发，故改用 MutationObserver
+  new MutationObserver(() => scrollToBottom())
+    .observe(elements.messages, {childList: true, subtree: true});
 
   initialize();
   checkLoginStatus();
