@@ -248,7 +248,7 @@ public class PostMapper {
                 .toUriString();
     }
 
-    private long parseCreatedAt(String value) {
+    public long parseCreatedAt(String value) {
         try {
             return ZonedDateTime.parse(value, CREATED_AT_FORMAT).toInstant().toEpochMilli();
         } catch (DateTimeParseException | NullPointerException e) {

@@ -88,7 +88,9 @@ public class ChatService {
         List<GroupEntity> groups = messageMapper.toGroupEntities(
                 response.contacts(), System.currentTimeMillis());
         groups.forEach(groupRepository::upsertMetadata);
-        return queryGroups();
+        List<GroupRecord> result = queryGroups();
+        log.info("群列表同步完成：共 {} 个群。", result.size());
+        return result;
     }
 
     public List<GroupRecord> queryGroups() {
@@ -129,6 +131,8 @@ public class ChatService {
         int fetched = 0;
         int inserted = 0;
         int ignored = 0;
+        long oldestTime = Long.MAX_VALUE;
+        long newestTime = Long.MIN_VALUE;
         while (true) {
             List<GroupMessagesResponse.Message> messages = requireMessages(
                     groupMessagesApi.messages(new GroupMessagesRequest(gid, beforeMid)));
@@ -136,6 +140,11 @@ public class ChatService {
                 break;
             }
             fetched += messages.size();
+            for (GroupMessagesResponse.Message message : messages) {
+                long messageTime = messageMapper.toMessageTimestamp(message);
+                oldestTime = Math.min(oldestTime, messageTime);
+                newestTime = Math.max(newestTime, messageTime);
+            }
             PageCapture capture = capturePage(messages, gid, capturedAt,
                     message -> boundaryMid > 0 && requireMid(message) <= boundaryMid);
             inserted += capture.inserted();
@@ -146,6 +155,11 @@ public class ChatService {
             beforeMid = requireMid(messages.getFirst());
         }
         messageRepository.refreshGroupRange(gid);
+        if (inserted > 0) {
+            log.info("群 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                    gid, fetched, inserted, ignored,
+                    formatTimestamp(oldestTime), formatTimestamp(newestTime));
+        }
         return new SaveResult(fetched, inserted, ignored);
     }
 

@@ -1,5 +1,7 @@
 package xyz.fz.weibo.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ import xyz.fz.weibo.service.mapper.PostMapper;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReentrantLock;
@@ -43,7 +46,10 @@ import java.util.stream.Stream;
 @Service
 public class PostService {
 
+    private static final Logger log = LoggerFactory.getLogger(PostService.class);
     private static final ZoneId REQUEST_TIME_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final DateTimeFormatter LOG_TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final MyBlogApi myBlogApi;
     private final SearchProfileApi searchProfileApi;
@@ -78,6 +84,8 @@ public class PostService {
         int fetched = 0;
         int inserted = 0;
         int ignored = 0;
+        long oldestTime = Long.MAX_VALUE;
+        long newestTime = Long.MIN_VALUE;
         while (true) {
             MyBlogResponse response = myBlogApi.myBlog(new MyBlogRequest(uid, page, sinceId));
             List<MblogResponse> posts = requirePosts(response);
@@ -97,6 +105,9 @@ public class PostService {
                     reachedBoundary = true;
                     continue;
                 }
+                long postTime = postMapper.parseCreatedAt(post.createdAt());
+                oldestTime = Math.min(oldestTime, postTime);
+                newestTime = Math.max(newestTime, postTime);
                 if (capturePost(post, capturedAt)) {
                     inserted++;
                 } else {
@@ -118,11 +129,17 @@ public class PostService {
             long currentLatestPostId = postRepository.findMaxPostIdByUid(uid);
             bloggerRepository.refreshLatestPostId(uid, currentLatestPostId);
         }
+        if (inserted > 0) {
+            log.info("博主 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                    uid, fetched, inserted, ignored,
+                    formatTimestamp(oldestTime), formatTimestamp(newestTime));
+        }
         return new SaveResult(fetched, inserted, ignored);
     }
 
     public SaveResult saveByRange(long uid, long startMillis, long endMillis) {
         if (!saveByRangeLock.tryLock()) {
+            log.warn("博主 {} 历史同步跳过：已有同步任务在运行。", uid);
             return new SaveResult(0, 0, 0);
         }
         try {
@@ -136,6 +153,8 @@ public class PostService {
             int fetched = 0;
             int inserted = 0;
             int ignored = 0;
+            long oldestTime = Long.MAX_VALUE;
+            long newestTime = Long.MIN_VALUE;
             boolean firstRequest = true;
             LocalDate firstDate = Instant.ofEpochMilli(startMillis)
                     .atZone(REQUEST_TIME_ZONE).toLocalDate();
@@ -168,6 +187,9 @@ public class PostService {
                     bloggerRepository.upsertMetadata(blogger);
                     for (MblogResponse post : posts) {
                         fetched++;
+                        long postTime = postMapper.parseCreatedAt(post.createdAt());
+                        oldestTime = Math.min(oldestTime, postTime);
+                        newestTime = Math.max(newestTime, postTime);
                         if (capturePost(post, capturedAt)) {
                             inserted++;
                         } else {
@@ -176,6 +198,13 @@ public class PostService {
                     }
                     page++;
                 }
+            }
+            if (inserted > 0) {
+                log.info("博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                        uid, fetched, inserted, ignored,
+                        formatTimestamp(oldestTime), formatTimestamp(newestTime));
+            } else {
+                log.info("博主 {} 历史同步完成：拉取 {} 条，无新增。", uid, fetched);
             }
             return new SaveResult(fetched, inserted, ignored);
         } finally {
@@ -305,6 +334,12 @@ public class PostService {
             Thread.currentThread().interrupt();
             throw new WeiboException("微博范围保存等待被中断。", -1, e);
         }
+    }
+
+    private static String formatTimestamp(long epochMillis) {
+        return Instant.ofEpochMilli(epochMillis)
+                .atZone(REQUEST_TIME_ZONE)
+                .format(LOG_TIMESTAMP_FORMAT);
     }
 
     @SuppressWarnings("DuplicatedCode")
