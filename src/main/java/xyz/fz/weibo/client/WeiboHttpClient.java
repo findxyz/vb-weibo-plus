@@ -79,6 +79,21 @@ public class WeiboHttpClient {
         return post0(uri, new HttpEntity<>(form, httpHeaders), String.class);
     }
 
+    /**
+     * multipart/form-data POST：file part 用 ByteArrayResource 包装（带 filename），不落临时文件。
+     * <p>
+     * 与 postForm 的区别：queryParams 进 URL（如 uploadx.json 的 source/is_chunk/selectId），
+     * body 为 MultiValueMap（含 file part 与普通字段）。
+     */
+    public ResponseEntity<String> postMultipart(String url, Map<String, String> queryParams,
+                                                 MultiValueMap<String, Object> body,
+                                                 Map<String, String> headers, boolean withCookie) {
+        URI uri = buildUri(url, queryParams);
+        HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
+        httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+        return post0(uri, new HttpEntity<>(body, httpHeaders), String.class);
+    }
+
     public <T> T getForStream(String url, Map<String, String> params,
                               Map<String, String> headers, boolean withCredential,
                               ResponseExtractor<T> responseExtractor) {

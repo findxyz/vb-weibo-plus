@@ -24,6 +24,12 @@ weibo:
     ffmpeg-path: ${WEIBO_FFMPEG_PATH:ffmpeg}
 
 spring:
+  servlet:
+    # max-file-size：单个上传文件上限，群聊发图需要容纳手机原图
+    # max-request-size：整个 multipart 请求上限，略大于文件上限即可
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
   datasource:
     # busy_timeout：撞锁时让 SQLite 等待 5 秒再重试，而不是立即抛 SQLITE_BUSY
     # journal_mode=WAL：开启预写式日志，读不阻塞写、写不阻塞读，缓解 /chat/since 与后台 SyncTask 并发写同一文件

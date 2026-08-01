@@ -236,6 +236,31 @@ class GroupChatPageTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/chat/messages/sendImage", exchange -> {
+            sendRequests.incrementAndGet();
+            if (failSend.get()) {
+                exchange.sendResponseHeaders(502, -1);
+                exchange.close();
+                return;
+            }
+            if (failSendSync.get()) {
+                byte[] body = """
+                        {"code":409,"msg":"消息已发出，但本地同步失败，稍后会自动补全。"}
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(409, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+                return;
+            }
+            byte[] body = """
+                    {"fetchedCount":1,"insertedCount":1,"ignoredCount":0}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
         server.createContext("/chat/messages", exchange -> {
             historyPageRequests.incrementAndGet();
             String query = exchange.getRequestURI().getRawQuery();
@@ -387,7 +412,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).hasAttribute("placeholder", "输入消息后按 Enter 发送");
         assertThat(page.locator(".composer-hint"))
                 .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
-        assertThat(page.locator(".composer button:enabled:not(#history-open):not(#emoji-picker-open)")).hasCount(0);
+        assertThat(page.locator(".composer button:enabled:not(#history-open):not(#emoji-picker-open):not(#image-picker-open):not(#composer-attachment-remove)")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
         assertThat(page.locator(".read-only-badge")).hasCount(0);
         assertThat(page.locator("#refresh-state")).hasCount(0);
@@ -754,13 +779,59 @@ class GroupChatPageTest {
     }
 
     @Test
+    void image_picker_button_is_enabled_and_attachment_hidden_after_selecting_a_group() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        assertThat(page.locator("#image-picker-open")).isEnabled();
+        assertThat(page.locator("#composer-attachment")).isHidden();
+        page.close();
+    }
+
+    @Test
+    void pastes_an_image_and_sends_it_via_sendImage_endpoint() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        page.evaluate("""
+                const composer = document.querySelector('#composer');
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(new File(['\\x89PNG\\r\\n'], 'pasted.png', {type: 'image/png'}));
+                const pasteEvent = new ClipboardEvent('paste', {
+                  clipboardData: dataTransfer,
+                  bubbles: true,
+                  cancelable: true
+                });
+                composer.dispatchEvent(pasteEvent);
+                """);
+        assertThat(page.locator("#composer-attachment")).isVisible();
+        String previewSrc = page.locator(".composer-attachment-preview").getAttribute("src");
+        org.assertj.core.api.Assertions.assertThat(previewSrc).startsWith("blob:");
+        assertThat(page.locator(".composer-hint")).hasText("按下 Enter 发送图片");
+
+        Response sendResponse = page.waitForResponse(
+                item -> item.url().contains("/chat/messages/sendImage"),
+                () -> page.locator("#composer-attachment").press("Enter"));
+        org.assertj.core.api.Assertions.assertThat(sendResponse.ok()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(sendRequests.get()).isEqualTo(1);
+        assertThat(page.locator("#composer-attachment")).isHidden();
+        assertThat(page.locator(".composer-hint"))
+                .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
+
+        page.close();
+    }
+
+    @Test
     void refreshes_latest_message_summaries_for_all_groups() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
         var linkNowPreview = page.locator("[data-gid='202'] .group-preview");
 
         assertThat(linkNowPreview).hasText("阿呆：收到");
-        page.evaluate("window.dispatchEvent(new Event('focus'))");
+        page.waitForResponse(
+                item -> item.url().contains("/chat/groups"),
+                () -> page.evaluate("window.dispatchEvent(new Event('focus'))"));
 
         assertThat(linkNowPreview).hasText("媒体用户：新的群消息");
 

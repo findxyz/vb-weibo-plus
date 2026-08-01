@@ -690,6 +690,48 @@ h1 {
   background: #ffffff;
 }
 
+.composer-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f3f8fc;
+}
+
+.composer-attachment[hidden] {
+  display: none;
+}
+
+.composer-attachment:focus-visible {
+  outline: none;
+}
+
+.composer:has(.composer-attachment:not([hidden])) #composer {
+  display: none;
+}
+
+.composer-attachment-preview {
+  height: 60px;
+  max-width: 120px;
+  border: 1px solid #91abc0;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
+.composer-attachment-remove {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #c0a0a0;
+  border-radius: 50%;
+  color: #b42318;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1;
+}
+
 .composer-tools {
   display: flex;
   align-items: center;

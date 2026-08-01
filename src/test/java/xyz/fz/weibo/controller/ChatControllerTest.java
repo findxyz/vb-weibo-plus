@@ -10,9 +10,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.ResponseExtractor;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
@@ -47,6 +49,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -630,6 +633,63 @@ class ChatControllerTest {
         mockMvc.perform(post("/chat/messages/send")
                         .param("gid", "101")
                         .param("content", "hello"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(409));
+    }
+
+    @Test
+    void sendImage_binds_gid_and_file_and_returns_the_incremental_capture_result() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
+                .thenReturn(new SaveResult(3, 2, 1));
+
+        mockMvc.perform(multipart("/chat/messages/sendImage")
+                        .file(file)
+                        .param("gid", "101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fetchedCount").value(3))
+                .andExpect(jsonPath("$.insertedCount").value(2))
+                .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        verify(chatService).sendImage(eq(101L), any(MultipartFile.class));
+    }
+
+    @Test
+    void sendImage_requires_gid_and_file() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        mockMvc.perform(multipart("/chat/messages/sendImage").file(file))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(multipart("/chat/messages/sendImage").param("gid", "101"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void sendImage_maps_upstream_failure_to_bad_gateway() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
+                .thenThrow(new WeiboException("图片消息发送失败：result != true。", -1));
+
+        mockMvc.perform(multipart("/chat/messages/sendImage")
+                        .file(file)
+                        .param("gid", "101"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value(502));
+    }
+
+    @Test
+    void sendImage_maps_sync_failure_to_conflict() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
+                .thenThrow(new MessageSentButSyncFailedException(
+                        "消息已发出，但本地同步失败，稍后会自动补全。", new RuntimeException()));
+
+        mockMvc.perform(multipart("/chat/messages/sendImage")
+                        .file(file)
+                        .param("gid", "101"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409));
     }

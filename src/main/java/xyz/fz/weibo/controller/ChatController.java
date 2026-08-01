@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.GroupListView;
 import xyz.fz.weibo.domain.GroupRecord;
@@ -78,6 +80,11 @@ public class ChatController {
     @PostMapping("/messages/send")
     public SaveResult sendText(@RequestParam long gid, @RequestParam String content) {
         return chatService.sendText(gid, content);
+    }
+
+    @PostMapping("/messages/sendImage")
+    public SaveResult sendImage(@RequestParam long gid, @RequestPart MultipartFile file) {
+        return chatService.sendImage(gid, file);
     }
 
     @GetMapping("/messages")

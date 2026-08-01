@@ -27,9 +27,13 @@ import xyz.fz.weibo.entity.MessageEntity;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
+import xyz.fz.weibo.model.request.GroupSendImageRequest;
+import xyz.fz.weibo.model.request.GroupMediaUploadInitRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
+import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
+import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
 import xyz.fz.weibo.repository.GidCount;
@@ -55,6 +59,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.client.ResponseExtractor;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -817,6 +822,83 @@ class ChatServiceTest {
                 .thenThrow(new WeiboException("增量拉取失败。", -1));
 
         assertThatThrownBy(() -> chatService.sendText(1, "hello"))
+                .isInstanceOf(MessageSentButSyncFailedException.class)
+                .hasMessageContaining("已发出");
+    }
+
+    @Test
+    void send_image_uploads_then_sends_then_triggers_incremental_capture() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
+                .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
+        when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L)))
+                .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
+        when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
+        when(groupRepository.findMaxMid(1)).thenReturn(99L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenReturn(messagePage());
+
+        SaveResult result = chatService.sendImage(1, file);
+
+        assertThat(result).isEqualTo(new SaveResult(0, 0, 0));
+        verify(groupMediaApi).initUpload(any(GroupMediaUploadInitRequest.class));
+        verify(groupMediaApi).upload(any(), eq("test.png"), eq("token-abc"), eq(1L));
+        verify(groupMessagesApi).sendImage(new GroupSendImageRequest(1L, 5326071291448867L));
+        verify(messageRepository).refreshGroupRange(1);
+    }
+
+    @Test
+    void send_image_rejects_oversize_file_before_calling_weibo() {
+        byte[] oversize = new byte[20 * 1024 * 1024 + 1];
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "big.png", "image/png", oversize);
+
+        assertThatThrownBy(() -> chatService.sendImage(1, file))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("20MB");
+        verifyNoInteractions(groupMediaApi, groupMessagesApi);
+    }
+
+    @Test
+    void send_image_rejects_non_image_content_type_before_calling_weibo() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.txt", "text/plain", new byte[]{1, 2, 3});
+
+        assertThatThrownBy(() -> chatService.sendImage(1, file))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("图片");
+        verifyNoInteractions(groupMediaApi, groupMessagesApi);
+    }
+
+    @Test
+    void send_image_propagates_weibo_upload_failure_without_sending() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
+                .thenThrow(new WeiboException("init 失败。", -1));
+
+        assertThatThrownBy(() -> chatService.sendImage(1, file))
+                .isInstanceOf(WeiboException.class);
+        verify(groupMessagesApi, never()).sendImage(any());
+    }
+
+    @Test
+    void send_image_reports_sync_failure_when_capture_fails_after_successful_send() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
+                .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
+        when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L)))
+                .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
+        when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
+        when(groupRepository.findMaxMid(1)).thenReturn(99L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenThrow(new WeiboException("增量拉取失败。", -1));
+
+        assertThatThrownBy(() -> chatService.sendImage(1, file))
                 .isInstanceOf(MessageSentButSyncFailedException.class)
                 .hasMessageContaining("已发出");
     }

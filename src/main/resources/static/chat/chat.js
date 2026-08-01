@@ -58,6 +58,11 @@
     imageViewerState: document.querySelector("#image-viewer-state"),
     composer: document.querySelector("#composer"),
     composerHint: document.querySelector("#composer-hint"),
+    composerAttachment: document.querySelector("#composer-attachment"),
+    composerAttachmentPreview: document.querySelector("#composer-attachment-preview"),
+    composerAttachmentRemove: document.querySelector("#composer-attachment-remove"),
+    imagePickerOpen: document.querySelector("#image-picker-open"),
+    imageInput: document.querySelector("#image-input"),
     loginExpired: document.querySelector("#login-expired"),
     loginQr: document.querySelector("#login-qr")
   };
@@ -75,6 +80,8 @@
     failedBeforeCreatedAt: null,
     failedBeforeMid: null,
     sending: false,
+    pendingImage: null,
+    pendingImageUrl: null,
     lastSizeGid: null,
     lastMessageCount: null,
     loginCheckTick: 0,
@@ -423,6 +430,7 @@
       label.textContent = "媒体加载失败，点击重试";
       button.append(label);
       button.classList.add("media-failed");
+      if (onLoad) onLoad();
     }, {once: true});
     return button;
   }
@@ -712,6 +720,7 @@
     elements.currentNotice.textContent = group.summary || "暂无简介";
     elements.historyOpen.disabled = false;
     elements.emojiPickerOpen.disabled = false;
+    elements.imagePickerOpen.disabled = false;
     elements.historyTitle.textContent = `聊天记录 - ${group.name || `群聊 ${group.gid}`}`;
     elements.currentAvatar.replaceWith(avatar(group, "main-group-avatar"));
     elements.currentAvatar = document.querySelector(".main-group-avatar");
@@ -730,25 +739,30 @@
     if (!state.currentGid) return;
     const group = state.groups.find(item => item.gid === state.currentGid);
     if (!group) return;
-    const prefix = `${group.maxMember || group.memberCount} 人群 + `;
-    let countEl = elements.currentSize.querySelector("#current-message-count");
-    if (!countEl) {
-      countEl = document.createElement("span");
-      countEl.id = "current-message-count";
-      elements.currentSize.replaceChildren(document.createTextNode(prefix), countEl,
-              document.createTextNode(" 条消息"));
+    const hasCount = typeof group.messageCount === "number";
+    if (hasCount) {
+      const prefix = `${group.maxMember || group.memberCount} 人群 + `;
+      let countEl = elements.currentSize.querySelector("#current-message-count");
+      if (!countEl) {
+        countEl = document.createElement("span");
+        countEl.id = "current-message-count";
+        elements.currentSize.replaceChildren(document.createTextNode(prefix), countEl,
+                document.createTextNode(" 条消息"));
+      } else {
+        elements.currentSize.firstChild.textContent = prefix;
+      }
+      countEl.textContent = String(group.messageCount);
+      if (state.lastSizeGid !== state.currentGid) {
+        state.lastSizeGid = state.currentGid;
+        state.lastMessageCount = group.messageCount;
+        return;
+      }
+      if (group.messageCount !== state.lastMessageCount) {
+        state.lastMessageCount = group.messageCount;
+        flashSize(countEl);
+      }
     } else {
-      elements.currentSize.firstChild.textContent = prefix;
-    }
-    countEl.textContent = String(group.messageCount);
-    if (state.lastSizeGid !== state.currentGid) {
-      state.lastSizeGid = state.currentGid;
-      state.lastMessageCount = group.messageCount;
-      return;
-    }
-    if (group.messageCount !== state.lastMessageCount) {
-      state.lastMessageCount = group.messageCount;
-      flashSize(countEl);
+      elements.currentSize.textContent = `${group.maxMember || group.memberCount} 人群`;
     }
   }
 
@@ -918,8 +932,83 @@
     elements.composerHint.classList.toggle("is-error", level === "error");
   }
 
+  const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
+
+  function setPendingImage(file) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setComposerHint("仅支持图片文件。", "error");
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setComposerHint("图片不能超过 20MB。", "error");
+      return;
+    }
+    clearPendingImage();
+    state.pendingImage = file;
+    state.pendingImageUrl = URL.createObjectURL(file);
+    elements.composerAttachmentPreview.src = state.pendingImageUrl;
+    elements.composerAttachment.hidden = false;
+    elements.composerAttachment.focus();
+    setComposerHint("按下 Enter 发送图片");
+  }
+
+  function clearPendingImage() {
+    if (state.pendingImageUrl) {
+      URL.revokeObjectURL(state.pendingImageUrl);
+    }
+    state.pendingImage = null;
+    state.pendingImageUrl = null;
+    elements.composerAttachment.hidden = true;
+    elements.composerAttachmentPreview.src = "";
+    if (elements.imageInput.value) {
+      elements.imageInput.value = "";
+    }
+  }
+
+  async function sendImage() {
+    if (state.sending || !state.currentGid || !state.pendingImage) return;
+    state.sending = true;
+    elements.composer.disabled = true;
+    elements.imagePickerOpen.disabled = true;
+    setComposerHint("发送中…", "sending");
+    try {
+      const formData = new FormData();
+      formData.append("gid", String(state.currentGid));
+      formData.append("file", state.pendingImage);
+      const response = await fetch("/chat/messages/sendImage", {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          setComposerHint(error.msg || "消息已发出，但本地同步失败，稍后会自动补全。", "error");
+        } else {
+          setComposerHint(error.msg || "图片发送失败，请稍后重试。", "error");
+        }
+        return;
+      }
+      clearPendingImage();
+      state.followingLatest = true;
+      await refreshMessages();
+      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
+    } catch {
+      setComposerHint("图片发送失败，请稍后重试。", "error");
+    } finally {
+      state.sending = false;
+      elements.composer.disabled = false;
+      elements.imagePickerOpen.disabled = !state.currentGid;
+      elements.composer.focus();
+    }
+  }
+
   async function sendMessage() {
     if (state.sending || !state.currentGid) return;
+    if (state.pendingImage) {
+      await sendImage();
+      return;
+    }
     const content = elements.composer.value.trim();
     if (!content) return;
     state.sending = true;
@@ -991,11 +1080,31 @@
       sendMessage();
     }
   });
+  elements.composerAttachment.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
   elements.composer.addEventListener("input", () => {
     if (elements.composerHint.textContent !== "发送中…") {
       setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
     }
   });
+  const handlePaste = event => {
+    if (!state.currentGid) return;
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        event.preventDefault();
+        setPendingImage(item.getAsFile());
+        return;
+      }
+    }
+  };
+  elements.composer.addEventListener("paste", handlePaste);
+  elements.composerAttachment.addEventListener("paste", handlePaste);
   elements.retryMessages.addEventListener("click", () =>
     loadMessages(state.failedBeforeCreatedAt, state.failedBeforeMid));
   elements.newMessages.addEventListener("click", async () => {
@@ -1009,6 +1118,13 @@
     elements.historyDialog.showModal();
   });
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
+  elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());
+  elements.imageInput.addEventListener("change", () => {
+    if (elements.imageInput.files?.[0]) {
+      setPendingImage(elements.imageInput.files[0]);
+    }
+  });
+  elements.composerAttachmentRemove.addEventListener("click", clearPendingImage);
   elements.emojiPanelGrid.addEventListener("click", event => {
     const cell = event.target.closest(".emoji-cell");
     if (cell) insertEmoji(cell.alt);

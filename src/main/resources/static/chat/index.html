@@ -73,12 +73,17 @@
         <div class="composer" aria-label="消息编辑器">
           <div class="composer-tools">
             <button id="emoji-picker-open" type="button" disabled>😊 表情</button>
-            <button type="button" disabled>
+            <button id="image-picker-open" type="button" disabled>
               <span class="composer-tool-emoji" aria-hidden="true">🖼️</span>
               图片
             </button>
+            <input id="image-input" type="file" accept="image/*" hidden>
             <button type="button" disabled>🎬 视频</button>
             <button id="history-open" type="button" disabled>📜 聊天记录</button>
+          </div>
+          <div class="composer-attachment" id="composer-attachment" hidden tabindex="0">
+            <img class="composer-attachment-preview" id="composer-attachment-preview" alt="">
+            <button class="composer-attachment-remove" id="composer-attachment-remove" type="button" aria-label="删除图片">✕</button>
           </div>
           <div class="emoji-panel" id="emoji-panel" hidden role="dialog" aria-label="表情选择">
             <div class="emoji-panel-tabs"></div>

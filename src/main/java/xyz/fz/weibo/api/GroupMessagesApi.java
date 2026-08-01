@@ -9,6 +9,7 @@ import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
+import xyz.fz.weibo.model.request.GroupSendImageRequest;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
@@ -40,6 +41,19 @@ public class GroupMessagesApi {
     }
 
     public GroupSendMessageResponse send(GroupSendMessageRequest request) {
+        ResponseEntity<String> resp = client.postForm(
+                SEND_MESSAGE_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
+        try {
+            return objectMapper.readValue(resp.getBody(), GroupSendMessageResponse.class);
+        } catch (JsonProcessingException e) {
+            throw new WeiboException("响应反序列化失败：" + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 群聊发送图片消息：复用 send_message.json，带 fids/media_type=1/annotations。
+     */
+    public GroupSendMessageResponse sendImage(GroupSendImageRequest request) {
         ResponseEntity<String> resp = client.postForm(
                 SEND_MESSAGE_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
         try {

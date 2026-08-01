@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
@@ -181,6 +183,55 @@ class WeiboHttpClientTest {
         assertThatThrownBy(() -> createClient().postForm(
                 mediaUrl(), Map.of("content", "hello"), Map.of(), true))
                 .isInstanceOf(WeiboCookieExpiredException.class);
+    }
+
+    @Test
+    void post_multipart_sends_query_params_in_url_and_multipart_body_with_file_part() throws Exception {
+        server = startServer(exchange -> {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            String contentType = exchange.getRequestHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+            String requestUri = exchange.getRequestURI().toString();
+            byte[] body = exchange.getRequestBody().readAllBytes();
+            String echoedBody = "contentType=" + contentType + "\nuri=" + requestUri + "\nbody=" + new String(body);
+            exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "text/plain");
+            exchange.sendResponseHeaders(200, echoedBody.length());
+            exchange.getResponseBody().write(echoedBody.getBytes());
+            exchange.close();
+        });
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", new ByteArrayResourceWithFilename(new byte[]{1, 2, 3}, "test.png"));
+        body.add("filetoken", "token123");
+        body.add("startloc", "0");
+
+        ResponseEntity<String> resp = createClient().postMultipart(
+                mediaUrl(), Map.of("source", WeiboConstants.SOURCE, "is_chunk", "1", "selectId", "5046020575330655"),
+                body, Map.of(), false);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody()).contains("contentType=multipart/form-data;boundary=");
+        assertThat(resp.getBody()).contains("source=" + WeiboConstants.SOURCE).contains("is_chunk=1").contains("selectId=5046020575330655");
+        assertThat(resp.getBody()).contains("name=\"file\"").contains("filename=\"test.png\"");
+        assertThat(resp.getBody()).contains("name=\"filetoken\"").contains("token123");
+    }
+
+    /** ByteArrayResource 子类，暴露 filename 让 RestTemplate 输出 Content-Disposition 的 filename。 */
+    private static final class ByteArrayResourceWithFilename extends org.springframework.core.io.ByteArrayResource {
+        private final String filename;
+
+        ByteArrayResourceWithFilename(byte[] bytes, String filename) {
+            super(bytes);
+            this.filename = filename;
+        }
+
+        @Override
+        public String getFilename() {
+            return filename;
+        }
     }
 
     private WeiboHttpClient createClient() {
