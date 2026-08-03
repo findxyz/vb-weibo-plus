@@ -21,7 +21,6 @@
     currentGroup: document.querySelector("#current-group"),
     currentSize: document.querySelector("#current-size"),
     currentId: document.querySelector("#current-id"),
-    currentNotice: document.querySelector("#current-notice"),
     currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"),
     messagesState: document.querySelector("#messages-state"),
@@ -721,7 +720,6 @@
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     updateCurrentGroupHeader();
     elements.currentId.textContent = String(group.gid);
-    elements.currentNotice.textContent = group.summary || "暂无简介";
     elements.historyOpen.disabled = false;
     elements.emojiPickerOpen.disabled = false;
     elements.imagePickerOpen.disabled = false;

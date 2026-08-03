@@ -378,9 +378,8 @@ h1 {
   font-size: 20px;
 }
 
-.group-title-line span,
 .group-number,
-.group-notice {
+#current-size {
   color: var(--muted);
   font-size: 13px;
 }
@@ -398,17 +397,6 @@ h1 {
   0% { background: rgb(199 255 184 / 0.65); }
   96.67% { background: rgb(199 255 184 / 0.65); }
   100% { background: transparent; }
-}
-
-.group-notice {
-  min-width: 0;
-  display: flex;
-}
-
-#current-notice {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .messages-shell {
