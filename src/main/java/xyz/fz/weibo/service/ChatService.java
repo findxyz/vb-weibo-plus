@@ -47,6 +47,7 @@ import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -318,7 +319,7 @@ public class ChatService {
             }
         } catch (InvalidRequestException | WeiboException | MessageSentButSyncFailedException e) {
             throw e;
-        } catch (java.io.IOException | RuntimeException e) {
+        } catch (IOException | RuntimeException e) {
             throw new WeiboException("图片上传失败：" + e.getMessage(), e);
         }
     }
@@ -363,7 +364,7 @@ public class ChatService {
             }
         } catch (InvalidRequestException | WeiboException | MessageSentButSyncFailedException e) {
             throw e;
-        } catch (java.io.IOException | RuntimeException e) {
+        } catch (IOException | RuntimeException e) {
             throw new WeiboException("视频上传失败：" + e.getMessage(), e);
         }
     }

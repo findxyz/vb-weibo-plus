@@ -18,6 +18,7 @@ import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,9 +86,9 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(postService, never()).saveByRange(
-                org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyLong());
+                anyLong(),
+                anyLong(),
+                anyLong());
     }
 
     @Test

@@ -1,12 +1,14 @@
 package xyz.fz.weibo.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -220,7 +222,7 @@ class WeiboHttpClientTest {
     }
 
     /** ByteArrayResource 子类，暴露 filename 让 RestTemplate 输出 Content-Disposition 的 filename。 */
-    private static final class ByteArrayResourceWithFilename extends org.springframework.core.io.ByteArrayResource {
+    private static final class ByteArrayResourceWithFilename extends ByteArrayResource {
         private final String filename;
 
         ByteArrayResourceWithFilename(byte[] bytes, String filename) {
@@ -247,7 +249,7 @@ class WeiboHttpClientTest {
         return new WeiboHttpClient(restTemplate, credentialHolder, new ObjectMapper());
     }
 
-    private HttpServer startServer(com.sun.net.httpserver.HttpHandler handler) throws IOException {
+    private HttpServer startServer(HttpHandler handler) throws IOException {
         HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.createContext("/media", handler);
         httpServer.start();

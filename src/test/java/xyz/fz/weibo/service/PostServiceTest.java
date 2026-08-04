@@ -52,7 +52,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -340,7 +342,7 @@ class PostServiceTest {
         verify(searchProfileApi).searchProfile(dayThree);
         verify(postMapper).toPostEntity(
                 eq(longText), eq(currentLongText), eq(retweetedLongText),
-                org.mockito.ArgumentMatchers.longThat(value -> value > 0));
+                longThat(value -> value > 0));
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
     }
 
@@ -432,7 +434,7 @@ class PostServiceTest {
         assertThat(postService.saveByRange(1, 1783652523000L, 1783702800000L))
                 .isEqualTo(new SaveResult(2, 1, 1));
 
-        verify(postRepository, org.mockito.Mockito.times(2)).insertIfAbsent(firstEntity);
+        verify(postRepository, times(2)).insertIfAbsent(firstEntity);
         verify(postRepository).insertIfAbsent(secondEntity);
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
     }
@@ -462,7 +464,7 @@ class PostServiceTest {
         verify(myBlogApi).myBlog(new MyBlogRequest(1L, 1, null));
         verifyNoMoreInteractions(myBlogApi);
         verify(postMapper).toPostEntity(eq(current), eq(currentLongText), eq(retweetedLongText),
-                org.mockito.ArgumentMatchers.longThat(value -> value > 0));
+                longThat(value -> value > 0));
 
         InOrder cursorOrder = inOrder(postRepository, bloggerRepository);
         cursorOrder.verify(postRepository).insertIfAbsent(entity);
@@ -602,8 +604,8 @@ class PostServiceTest {
 
         assertThat(postService.saveIncremental(1)).isEqualTo(new SaveResult(4, 1, 3));
 
-        verify(postRepository, org.mockito.Mockito.times(2)).insertIfAbsent(newestEntity);
-        verify(postRepository, org.mockito.Mockito.times(2)).insertIfAbsent(newerEntity);
+        verify(postRepository, times(2)).insertIfAbsent(newestEntity);
+        verify(postRepository, times(2)).insertIfAbsent(newerEntity);
         verify(postRepository).insertIfAbsent(remainingEntity);
         verify(bloggerRepository).refreshLatestPostId(1, 130);
     }
@@ -693,9 +695,9 @@ class PostServiceTest {
         when(bloggerRepository.findLatestPostId(1)).thenReturn(0L);
         when(myBlogApi.myBlog(any())).thenReturn(page(List.of(first, second)));
         when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
-        when(postMapper.toPostEntity(org.mockito.ArgumentMatchers.eq(first), any(), any(), anyLong()))
+        when(postMapper.toPostEntity(eq(first), any(), any(), anyLong()))
                 .thenReturn(firstEntity);
-        when(postMapper.toPostEntity(org.mockito.ArgumentMatchers.eq(second), any(), any(), anyLong()))
+        when(postMapper.toPostEntity(eq(second), any(), any(), anyLong()))
                 .thenThrow(new IllegalArgumentException("Invalid Blogger Blog created_at"));
         when(postRepository.insertIfAbsent(firstEntity)).thenReturn(true);
 
@@ -711,7 +713,7 @@ class PostServiceTest {
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 100, 1, 2);
         BloggerRecord bloggerRecord = new BloggerRecord(1, "博主", "", "", false);
         PostEntity entity = entity("current-id", 100);
-        PostView view = org.mockito.Mockito.mock(PostView.class);
+        PostView view = mock(PostView.class);
         Page<PostEntity> page = new PageImpl<>(List.of(entity));
         when(bloggerRepository.findAllOrdered()).thenReturn(List.of(blogger));
         when(postMapper.toBloggerRecords(List.of(blogger))).thenReturn(List.of(bloggerRecord));

@@ -2,6 +2,7 @@ package xyz.fz.weibo.service;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -31,7 +32,7 @@ class ImageProxyServiceTest {
     void fetches_image_with_curl_request_headers() {
         URI uri = URI.create("https://93.184.216.34/avatar.jpg");
         when(restTemplate.exchange(
-                eq(uri), eq(HttpMethod.GET), org.mockito.ArgumentMatchers.<HttpEntity<Void>>any(), eq(byte[].class)))
+                eq(uri), eq(HttpMethod.GET), ArgumentMatchers.<HttpEntity<Void>>any(), eq(byte[].class)))
                 .thenReturn(ResponseEntity.ok()
                         .contentType(MediaType.IMAGE_JPEG)
                         .body(new byte[]{1, 2, 3}));
@@ -66,7 +67,7 @@ class ImageProxyServiceTest {
     void rejects_unsuccessful_upstream_response() {
         URI uri = URI.create("https://93.184.216.34/avatar.jpg");
         when(restTemplate.exchange(
-                eq(uri), eq(HttpMethod.GET), org.mockito.ArgumentMatchers.<HttpEntity<Void>>any(), eq(byte[].class)))
+                eq(uri), eq(HttpMethod.GET), ArgumentMatchers.<HttpEntity<Void>>any(), eq(byte[].class)))
                 .thenReturn(ResponseEntity.status(403).body(new byte[0]));
 
         assertThatThrownBy(() -> imageProxyService.fetch(uri.toString()))

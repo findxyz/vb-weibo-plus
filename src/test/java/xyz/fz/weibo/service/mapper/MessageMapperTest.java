@@ -17,6 +17,7 @@ import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -145,8 +146,8 @@ class MessageMapperTest {
 
         MessageRecord record = messageMapper.toMessageRecord(entity);
         assertThat(record.urlObjects()).containsExactly(
-                java.util.Map.of("url", "https://example.test"));
-        assertThat(record.picInfos()).containsExactly(java.util.Map.of("pid", "p1"));
+                Map.of("url", "https://example.test"));
+        assertThat(record.picInfos()).containsExactly(Map.of("pid", "p1"));
         assertThat(record.templateData()).containsKey("name");
         assertThat(record.recallMids()).containsExactly("10", "11");
         assertThat(record.mediaOrigUrl()).isEqualTo("https://upstream.example/media");

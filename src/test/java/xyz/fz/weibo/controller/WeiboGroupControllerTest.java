@@ -13,6 +13,7 @@ import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
+import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
@@ -183,7 +184,7 @@ class WeiboGroupControllerTest {
                 .andExpect(status().isOk());
 
         verify(groupMediaApi).download(
-                new xyz.fz.weibo.model.request.GroupMediaRequest(
+                new GroupMediaRequest(
                         "5302496155143676_file", "origin"));
     }
 }

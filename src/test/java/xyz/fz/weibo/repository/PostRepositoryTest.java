@@ -16,6 +16,7 @@ import javax.sql.DataSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -235,7 +236,7 @@ class PostRepositoryTest {
     }
 
     private List<String> queryPlan(String sql) throws Exception {
-        List<String> details = new java.util.ArrayList<>();
+        List<String> details = new ArrayList<>();
         try (var connection = dataSource.getConnection();
              var statement = connection.createStatement();
              ResultSet result = statement.executeQuery("explain query plan " + sql)) {

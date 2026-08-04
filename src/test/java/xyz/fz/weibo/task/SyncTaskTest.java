@@ -20,7 +20,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,7 +64,7 @@ class SyncTaskTest {
         syncTask.syncGroupMessages();
 
         verify(chatService).saveIncremental(4761715839862414L);
-        verify(chatService, org.mockito.Mockito.never()).saveIncremental(202);
+        verify(chatService, never()).saveIncremental(202);
     }
 
     @Test
@@ -84,7 +86,7 @@ class SyncTaskTest {
 
         emptyTask.syncGroupMessages();
 
-        verify(chatService, org.mockito.Mockito.never()).saveIncremental(org.mockito.ArgumentMatchers.anyLong());
+        verify(chatService, never()).saveIncremental(anyLong());
     }
 
     @Test
@@ -96,7 +98,7 @@ class SyncTaskTest {
 
         verify(chatService).saveIncremental(101);
         verify(chatService).saveIncremental(202);
-        verify(chatService, org.mockito.Mockito.never()).saveIncremental(303);
+        verify(chatService, never()).saveIncremental(303);
     }
 
     @Test

@@ -103,6 +103,7 @@
   - 当出现error后,抛出异常（中英文间没有空格，且逗号应为中文）
 
 - 所有 `@Test` 方法统一使用 snake_case，例如 `list_returns_200`；测试辅助方法仍使用普通 Java camelCase 命名。
+- 如非类名冲突，类的使用过程中不要出现全路径包名的类。
 
 ## Agent skills
 

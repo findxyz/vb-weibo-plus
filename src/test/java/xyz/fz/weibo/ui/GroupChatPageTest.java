@@ -5,8 +5,11 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Response;
+import com.microsoft.playwright.options.AriaRole;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,9 +20,11 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -417,14 +422,14 @@ class GroupChatPageTest {
         assertThat(page.locator(".read-only-badge")).hasCount(0);
         assertThat(page.locator("#refresh-state")).hasCount(0);
         assertThat(page.locator(".composer-tools > span")).hasCount(0);
-        assertThat(page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        assertThat(page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("图片")).locator(".composer-tool-emoji"))
                 .hasText("🖼️");
         Object avatarFitsContainer = page.locator(".group-avatar img").first().evaluate("""
                 image => image.offsetWidth === image.parentElement.clientWidth
                   && image.offsetHeight === image.parentElement.clientHeight
                 """);
-        org.assertj.core.api.Assertions.assertThat(avatarFitsContainer).isEqualTo(true);
+        Assertions.assertThat(avatarFitsContainer).isEqualTo(true);
 
         page.close();
     }
@@ -456,22 +461,22 @@ class GroupChatPageTest {
                 """);
         page.navigate(baseUrl + "/chat/index.html");
 
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("聊天记录")).click();
 
         assertThat(page.locator("#history-dialog")).isVisible();
         assertThat(page.locator("#history-empty")).hasText("设置筛选条件后点击查询");
-        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isZero();
+        Assertions.assertThat(historyPageRequests.get()).isZero();
         assertThat(page.locator("#history-start")).hasValue("2026-02-28");
         assertThat(page.locator("#history-end")).hasValue("2026-05-31");
-        org.assertj.core.api.Assertions.assertThat(page.locator("#history-sender").getAttribute("type"))
+        Assertions.assertThat(page.locator("#history-sender").getAttribute("type"))
                 .isEqualTo("search");
 
         page.locator("#history-start").fill("2026-04-01");
         page.locator("#history-end").fill("2026-07-29");
         page.locator("#history-sender").fill("小凯");
         page.locator("#history-keyword").fill("爬山");
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
 
         assertThat(page.locator(".history-result")).hasCount(2);
@@ -479,7 +484,7 @@ class GroupChatPageTest {
                 .hasText(new String[]{"周末一起爬山", "准备登山鞋"});
         assertThat(page.locator("#history-page-state")).hasText("第 1 / 3 页，共 51 条");
         assertThat(page.locator(".history-result-summary mark")).hasText("爬山");
-        org.assertj.core.api.Assertions.assertThat(lastHistoryQuery.get())
+        Assertions.assertThat(lastHistoryQuery.get())
                 .contains("gid=101", "start=2026-04-01+00%3A00%3A00",
                         "end=2026-07-29+23%3A59%3A59", "senderName=%E5%B0%8F%E5%87%AF",
                         "keyword=%E7%88%AC%E5%B1%B1", "page=1", "size=20");
@@ -487,7 +492,7 @@ class GroupChatPageTest {
         page.locator("#history-next").click();
         assertThat(page.locator(".history-result-summary")).hasText("第二页消息");
         assertThat(page.locator("#history-page-state")).hasText("第 2 / 3 页，共 51 条");
-        org.assertj.core.api.Assertions.assertThat(lastHistoryQuery.get())
+        Assertions.assertThat(lastHistoryQuery.get())
                 .contains("senderName=%E5%B0%8F%E5%87%AF", "keyword=%E7%88%AC%E5%B1%B1", "page=2");
 
         page.locator("#history-previous").click();
@@ -502,7 +507,7 @@ class GroupChatPageTest {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
         page.locator("#history-open").click();
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
         page.locator(".history-result[data-mid='5']").click();
         assertThat(page.locator("#history-messages [data-mid='3']")).isVisible();
@@ -520,9 +525,9 @@ class GroupChatPageTest {
         assertThat(page.locator("#history-messages [data-mid='2']")).isVisible();
         Object targetTopAfter = page.locator("#history-messages [data-mid='5']")
                 .evaluate("element => element.getBoundingClientRect().top");
-        org.assertj.core.api.Assertions.assertThat(((Number) targetTopAfter).doubleValue())
+        Assertions.assertThat(((Number) targetTopAfter).doubleValue())
                 .isCloseTo(((Number) targetTopBefore).doubleValue(),
-                        org.assertj.core.data.Offset.offset(0.5));
+                        Offset.offset(0.5));
         assertThat(page.locator("#history-earlier-state")).hasText("没有更早消息");
 
         page.locator("#history-messages").evaluate("""
@@ -533,8 +538,8 @@ class GroupChatPageTest {
                 """);
         assertThat(page.locator("#history-messages [data-mid='8']")).isVisible();
         assertThat(page.locator("#history-newer-state")).hasText("没有更新消息");
-        org.assertj.core.api.Assertions.assertThat(historyBeforeRequests.get()).isEqualTo(2);
-        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(2);
+        Assertions.assertThat(historyBeforeRequests.get()).isEqualTo(2);
+        Assertions.assertThat(historyAfterRequests.get()).isEqualTo(2);
 
         page.close();
     }
@@ -545,7 +550,7 @@ class GroupChatPageTest {
         page.navigate(baseUrl + "/chat/index.html");
         page.locator("#history-open").click();
         page.locator("#history-keyword").fill("chain");
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
         page.locator(".history-result[data-mid='91']").click();
         assertThat(page.locator("#history-messages [data-mid='141']")).isVisible();
@@ -558,7 +563,7 @@ class GroupChatPageTest {
                           element.dispatchEvent(new Event("scroll"));
                         }
                         """));
-        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
+        Assertions.assertThat(response.ok()).isTrue();
         assertThat(page.locator("#history-messages [data-mid='191']")).isVisible();
         Object oldestNewerOffset = page.locator("#history-messages [data-mid='142']").evaluate("""
                 message => {
@@ -568,11 +573,11 @@ class GroupChatPageTest {
                     - container.getBoundingClientRect().top - paddingTop;
                 }
                 """);
-        org.assertj.core.api.Assertions.assertThat(((Number) oldestNewerOffset).doubleValue())
-                .isCloseTo(0, org.assertj.core.data.Offset.offset(0.5));
+        Assertions.assertThat(((Number) oldestNewerOffset).doubleValue())
+                .isCloseTo(0, Offset.offset(0.5));
         page.waitForTimeout(400);
 
-        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(2);
+        Assertions.assertThat(historyAfterRequests.get()).isEqualTo(2);
         assertThat(page.locator("#history-messages [data-mid='192']")).hasCount(0);
 
         Response nextResponse = page.waitForResponse(
@@ -583,9 +588,9 @@ class GroupChatPageTest {
                           element.dispatchEvent(new Event("scroll"));
                         }
                         """));
-        org.assertj.core.api.Assertions.assertThat(nextResponse.ok()).isTrue();
+        Assertions.assertThat(nextResponse.ok()).isTrue();
         assertThat(page.locator("#history-messages [data-mid='192']")).isVisible();
-        org.assertj.core.api.Assertions.assertThat(historyAfterRequests.get()).isEqualTo(3);
+        Assertions.assertThat(historyAfterRequests.get()).isEqualTo(3);
         page.close();
     }
 
@@ -594,7 +599,7 @@ class GroupChatPageTest {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
         page.locator("#history-open").click();
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
 
         Object styles = page.locator(".history-result").first().evaluate("""
@@ -603,8 +608,8 @@ class GroupChatPageTest {
                   return [style.borderTopWidth, style.borderRadius, style.backgroundImage];
                 }
                 """);
-        org.assertj.core.api.Assertions.assertThat(styles)
-                .isEqualTo(java.util.List.of("0px", "0px", "none"));
+        Assertions.assertThat(styles)
+                .isEqualTo(List.of("0px", "0px", "none"));
         page.close();
     }
 
@@ -629,7 +634,7 @@ class GroupChatPageTest {
         page.locator("#history-end").fill("2026-07-29");
         page.locator("#history-sender").fill("小凯");
         page.locator("#history-keyword").fill("爬山");
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
         page.locator(".history-result[data-mid='5']").click();
         assertThat(page.locator("#history-messages .bubble")).hasCount(5);
@@ -645,7 +650,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#history-end")).hasValue("2026-05-31");
         assertThat(page.locator("#history-sender")).hasValue("");
         assertThat(page.locator("#history-keyword")).hasValue("");
-        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isEqualTo(1);
+        Assertions.assertThat(historyPageRequests.get()).isEqualTo(1);
 
         page.close();
     }
@@ -656,7 +661,7 @@ class GroupChatPageTest {
         page.navigate(baseUrl + "/chat/index.html");
         page.locator("#history-open").click();
         page.locator("#history-keyword").fill("latest");
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
         page.locator(".history-result[data-mid='9']").click();
         assertThat(page.locator("#history-messages [data-mid='9']")).isVisible();
@@ -668,7 +673,7 @@ class GroupChatPageTest {
                   return Math.abs((list.top + list.height / 2) - (target.top + target.height / 2));
                 }
                 """);
-        org.assertj.core.api.Assertions.assertThat(((Number) distanceFromCenter).doubleValue())
+        Assertions.assertThat(((Number) distanceFromCenter).doubleValue())
                 .isLessThan(2.0);
 
         page.close();
@@ -680,12 +685,12 @@ class GroupChatPageTest {
         page.navigate(baseUrl + "/chat/index.html");
         page.locator("#history-open").click();
         page.locator("#history-keyword").fill("media");
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
 
         assertThat(page.locator(".history-result-summary"))
                 .hasText(new String[]{"[图片]", "[视频]", "[图片]", "[视频]"});
-        org.assertj.core.api.Assertions.assertThat(mediaRequests.get()).isZero();
+        Assertions.assertThat(mediaRequests.get()).isZero();
 
         page.close();
     }
@@ -700,12 +705,12 @@ class GroupChatPageTest {
         Response response = page.waitForResponse(
                 item -> item.url().contains("/chat/messages?") && item.url().contains("keyword=slow"),
                 () -> {
-                    page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                    page.getByRole(AriaRole.BUTTON,
                             new Page.GetByRoleOptions().setName("查询")).click();
                     page.locator("#history-close").click();
                     page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
                 });
-        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
+        Assertions.assertThat(response.ok()).isTrue();
 
         page.locator("#history-open").click();
         assertThat(page.locator("#history-empty")).hasText("设置筛选条件后点击查询");
@@ -724,15 +729,15 @@ class GroupChatPageTest {
 
         page.waitForRequest(
                 request -> request.url().contains("/chat/messages?") && request.url().contains("keyword=slow"),
-                () -> page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+                () -> page.getByRole(AriaRole.BUTTON,
                         new Page.GetByRoleOptions().setName("查询")).click());
         page.locator("#history-keyword").fill("latest");
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
+        page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("查询")).click();
 
         assertThat(page.locator(".history-result[data-mid='9']")).isVisible();
         assertThat(page.locator(".history-result[data-mid='5']")).hasCount(0);
-        org.assertj.core.api.Assertions.assertThat(historyPageRequests.get()).isEqualTo(2);
+        Assertions.assertThat(historyPageRequests.get()).isEqualTo(2);
 
         page.close();
     }
@@ -742,14 +747,14 @@ class GroupChatPageTest {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
         page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
-        org.assertj.core.api.Assertions.assertThat(sendRequests.get()).isZero();
+        Assertions.assertThat(sendRequests.get()).isZero();
 
         page.locator("#composer").fill("刚发出的消息");
         Response sendResponse = page.waitForResponse(
                 item -> item.url().contains("/chat/messages/send"),
                 () -> page.locator("#composer").press("Enter"));
-        org.assertj.core.api.Assertions.assertThat(sendResponse.ok()).isTrue();
-        org.assertj.core.api.Assertions.assertThat(sendRequests.get()).isEqualTo(1);
+        Assertions.assertThat(sendResponse.ok()).isTrue();
+        Assertions.assertThat(sendRequests.get()).isEqualTo(1);
 
         assertThat(page.locator("#composer")).isEmpty();
         assertThat(page.locator("#composer")).isEnabled();
@@ -807,14 +812,14 @@ class GroupChatPageTest {
                 """);
         assertThat(page.locator("#composer-attachment")).isVisible();
         String previewSrc = page.locator(".composer-attachment-preview").getAttribute("src");
-        org.assertj.core.api.Assertions.assertThat(previewSrc).startsWith("blob:");
+        Assertions.assertThat(previewSrc).startsWith("blob:");
         assertThat(page.locator(".composer-hint")).hasText("按下 Enter 发送图片");
 
         Response sendResponse = page.waitForResponse(
                 item -> item.url().contains("/chat/messages/sendImage"),
                 () -> page.locator("#composer-attachment").press("Enter"));
-        org.assertj.core.api.Assertions.assertThat(sendResponse.ok()).isTrue();
-        org.assertj.core.api.Assertions.assertThat(sendRequests.get()).isEqualTo(1);
+        Assertions.assertThat(sendResponse.ok()).isTrue();
+        Assertions.assertThat(sendRequests.get()).isEqualTo(1);
         assertThat(page.locator("#composer-attachment")).isHidden();
         assertThat(page.locator(".composer-hint"))
                 .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
@@ -855,7 +860,7 @@ class GroupChatPageTest {
 
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"最早消息", "较早消息", "较新消息"});
-        org.assertj.core.api.Assertions.assertThat(earlierPageRequests.get()).isEqualTo(1);
+        Assertions.assertThat(earlierPageRequests.get()).isEqualTo(1);
         assertThat(page.locator("#load-earlier")).isDisabled();
         assertThat(page.locator("#load-earlier")).isHidden();
 
@@ -880,9 +885,9 @@ class GroupChatPageTest {
 
         Object currentMessageTopAfter = page.locator("[data-mid='1']")
                 .evaluate("element => element.getBoundingClientRect().top");
-        org.assertj.core.api.Assertions.assertThat(((Number) currentMessageTopAfter).doubleValue())
+        Assertions.assertThat(((Number) currentMessageTopAfter).doubleValue())
                 .isCloseTo(((Number) currentMessageTopBefore).doubleValue(),
-                        org.assertj.core.data.Offset.offset(0.5));
+                        Offset.offset(0.5));
 
         page.close();
     }
@@ -903,7 +908,7 @@ class GroupChatPageTest {
         Object distanceFromBottom = page.locator("#messages").evaluate("""
                 element => element.scrollHeight - element.scrollTop - element.clientHeight
                 """);
-        org.assertj.core.api.Assertions.assertThat(((Number) distanceFromBottom).doubleValue())
+        Assertions.assertThat(((Number) distanceFromBottom).doubleValue())
                 .isLessThan(1.0);
 
         page.close();
@@ -953,7 +958,7 @@ class GroupChatPageTest {
                 new Page.WaitForResponseOptions().setTimeout(1_000),
                 () -> page.locator("#new-messages").click());
 
-        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
+        Assertions.assertThat(response.ok()).isTrue();
         assertThat(page.locator("[data-mid='4']")).isVisible();
         assertThat(page.locator("#new-messages")).isHidden();
 
@@ -973,8 +978,8 @@ class GroupChatPageTest {
                 () -> {
                 });
 
-        org.assertj.core.api.Assertions.assertThat(response.ok()).isTrue();
-        org.assertj.core.api.Assertions.assertThat(latestPageRequests.get())
+        Assertions.assertThat(response.ok()).isTrue();
+        Assertions.assertThat(latestPageRequests.get())
                 .isGreaterThan(requestsAfterLoad);
 
         page.close();
@@ -1044,8 +1049,8 @@ class GroupChatPageTest {
         page.navigate(baseUrl + "/chat/index.html");
         page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
 
-        assertThat(page.locator("[data-mid='4']")).hasClass(java.util.regex.Pattern.compile("admin-message"));
-        assertThat(page.locator("[data-mid='6']")).not().hasClass(java.util.regex.Pattern.compile("admin-message"));
+        assertThat(page.locator("[data-mid='4']")).hasClass(Pattern.compile("admin-message"));
+        assertThat(page.locator("[data-mid='6']")).not().hasClass(Pattern.compile("admin-message"));
 
         page.close();
     }
@@ -1105,7 +1110,7 @@ class GroupChatPageTest {
                     && style.backgroundColor === "rgba(0, 0, 0, 0.76)";
                 }
                 """);
-        org.assertj.core.api.Assertions.assertThat(viewerIsAFullScreenOverlay).isEqualTo(true);
+        Assertions.assertThat(viewerIsAFullScreenOverlay).isEqualTo(true);
 
         page.locator("#image-viewer img").click();
         assertThat(page.locator("#image-viewer")).isVisible();
@@ -1139,7 +1144,7 @@ class GroupChatPageTest {
                     && Math.abs(previewBox.height - imageBox.height - 2) < 1;
                 }
                 """);
-        org.assertj.core.api.Assertions.assertThat(imageKeepsPortraitRatio).isEqualTo(true);
+        Assertions.assertThat(imageKeepsPortraitRatio).isEqualTo(true);
         assertThat(page.locator("[data-mid='6'].system-message .bubble"))
                 .hasText("涉及资金问题请务必提高警惕，谨防诈骗。查看案例");
         assertThat(page.locator("[data-mid='6'] .message-avatar")).hasCount(0);
@@ -1154,7 +1159,7 @@ class GroupChatPageTest {
         page.locator("[data-mid='7'] .image-preview").click();
         Object newImageIsHiddenWhileLoading = page.locator("#image-viewer img")
                 .evaluate("image => image.hidden");
-        org.assertj.core.api.Assertions.assertThat(newImageIsHiddenWhileLoading).isEqualTo(true);
+        Assertions.assertThat(newImageIsHiddenWhileLoading).isEqualTo(true);
         assertThat(page.locator("#image-viewer-state")).hasText("正在加载原图…");
         assertThat(page.locator("#image-viewer img")).isVisible();
         assertThat(page.locator("#image-viewer-state")).isEmpty();
@@ -1163,7 +1168,7 @@ class GroupChatPageTest {
         page.locator("[data-mid='5'] .video-preview").click();
         assertThat(page.locator("[data-mid='5'] video"))
                 .hasAttribute("src", "/chat/media?gid=202&mid=5&variant=video");
-        org.assertj.core.api.Assertions
+        Assertions
                 .assertThat(((Number) page.evaluate("window.__playCalls")).intValue())
                 .isEqualTo(1);
 
@@ -1232,7 +1237,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#login-qr")).hasText("📱 扫码中…");
         assertThat(page.locator("#login-qr")).isDisabled();
         assertThat(page.locator("#login-expired")).isHidden();
-        org.assertj.core.api.Assertions.assertThat(qrLoginRequests.get()).isGreaterThanOrEqualTo(1);
+        Assertions.assertThat(qrLoginRequests.get()).isGreaterThanOrEqualTo(1);
 
         page.close();
     }
@@ -1265,7 +1270,7 @@ class GroupChatPageTest {
                 "el => el.getBoundingClientRect().bottom");
         Number btnTop = (Number) page.locator("#emoji-picker-open").evaluate(
                 "el => el.getBoundingClientRect().top");
-        org.assertj.core.api.Assertions.assertThat(panelBottom.doubleValue())
+        Assertions.assertThat(panelBottom.doubleValue())
                 .isLessThanOrEqualTo(btnTop.doubleValue());
 
         page.locator("#emoji-picker-open").click();

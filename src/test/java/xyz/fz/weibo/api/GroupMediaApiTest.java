@@ -1,10 +1,13 @@
 package xyz.fz.weibo.api;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
@@ -18,6 +21,7 @@ import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
 import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
 import xyz.fz.weibo.model.response.GroupVideoUploadInitResponse;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +37,7 @@ class GroupMediaApiTest {
     private WeiboHttpClient client;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
-            .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Test
     void sends_string_fid_with_only_endpoint_specific_query_and_headers() {
@@ -103,10 +107,10 @@ class GroupMediaApiTest {
         GroupMediaUploadResponse response = api.upload(bytes, "test.png", "token-abc", 5046020575330655L, 1024);
 
         assertThat(response.fid()).isEqualTo(5326071291448867L);
-        org.mockito.ArgumentCaptor<Map<String, String>> queryCaptor =
-                org.mockito.ArgumentCaptor.forClass(Map.class);
-        org.mockito.ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
-                org.mockito.ArgumentCaptor.forClass(MultiValueMap.class);
+        ArgumentCaptor<Map<String, String>> queryCaptor =
+                ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
+                ArgumentCaptor.forClass(MultiValueMap.class);
         verify(client).postMultipart(
                 eq("https://api.weibo.com/webim/uploadx.json"),
                 queryCaptor.capture(), bodyCaptor.capture(),
@@ -148,19 +152,19 @@ class GroupMediaApiTest {
                 eq(WeiboConstants.HEADERS_WEBIM_SEND), eq(true));
         // 校验每片 startloc 与字节长度
         @SuppressWarnings("unchecked")
-        org.mockito.ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
-                org.mockito.ArgumentCaptor.forClass(MultiValueMap.class);
+        ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
+                ArgumentCaptor.forClass(MultiValueMap.class);
         verify(client, times(3)).postMultipart(
                 eq("https://api.weibo.com/webim/uploadx.json"),
                 any(Map.class), bodyCaptor.capture(),
                 eq(WeiboConstants.HEADERS_WEBIM_SEND), eq(true));
-        java.util.List<MultiValueMap<String, Object>> bodies = bodyCaptor.getAllValues();
+        List<MultiValueMap<String, Object>> bodies = bodyCaptor.getAllValues();
         assertThat(bodies.get(0).get("startloc")).containsExactly("0");
         assertThat(bodies.get(1).get("startloc")).containsExactly(String.valueOf(chunkSize));
         assertThat(bodies.get(2).get("startloc")).containsExactly(String.valueOf(2 * chunkSize));
-        assertThat(((org.springframework.core.io.ByteArrayResource) bodies.get(0).get("file").get(0)).contentLength()).isEqualTo(chunkSize);
-        assertThat(((org.springframework.core.io.ByteArrayResource) bodies.get(1).get("file").get(0)).contentLength()).isEqualTo(chunkSize);
-        assertThat(((org.springframework.core.io.ByteArrayResource) bodies.get(2).get("file").get(0)).contentLength()).isEqualTo(499_963);
+        assertThat(((ByteArrayResource) bodies.get(0).get("file").get(0)).contentLength()).isEqualTo(chunkSize);
+        assertThat(((ByteArrayResource) bodies.get(1).get("file").get(0)).contentLength()).isEqualTo(chunkSize);
+        assertThat(((ByteArrayResource) bodies.get(2).get("file").get(0)).contentLength()).isEqualTo(499_963);
     }
 
     @Test
@@ -196,10 +200,10 @@ class GroupMediaApiTest {
         GroupMediaUploadResponse response = api.uploadCover(cover, "cover.png", 5046020575330655L);
 
         assertThat(response.fid()).isEqualTo(5326071353316787L);
-        org.mockito.ArgumentCaptor<Map<String, String>> queryCaptor =
-                org.mockito.ArgumentCaptor.forClass(Map.class);
-        org.mockito.ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
-                org.mockito.ArgumentCaptor.forClass(MultiValueMap.class);
+        ArgumentCaptor<Map<String, String>> queryCaptor =
+                ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
+                ArgumentCaptor.forClass(MultiValueMap.class);
         verify(client).postMultipart(
                 eq("https://api.weibo.com/webim/uploadx.json"),
                 queryCaptor.capture(), bodyCaptor.capture(),
@@ -269,10 +273,10 @@ class GroupMediaApiTest {
                 "1b5f45f90889d408c7d29f33318ebfc9");
 
         assertThat(response.fid()).isEqualTo(5326071357508212L);
-        org.mockito.ArgumentCaptor<Map<String, String>> queryCaptor =
-                org.mockito.ArgumentCaptor.forClass(Map.class);
-        org.mockito.ArgumentCaptor<Map<String, String>> headerCaptor =
-                org.mockito.ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, String>> queryCaptor =
+                ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, String>> headerCaptor =
+                ArgumentCaptor.forClass(Map.class);
         verify(client).postOctetStream(
                 eq("https://up.video.weibocdn.com/2/multimedia/upload.json"),
                 queryCaptor.capture(), eq(bytes), headerCaptor.capture(), eq(true));
@@ -332,12 +336,12 @@ class GroupMediaApiTest {
                 eq("https://up.video.weibocdn.com/2/multimedia/upload.json"),
                 any(Map.class), any(byte[].class), any(Map.class), eq(true));
         // 校验每片 query 的 chunk 序号与 startloc
-        org.mockito.ArgumentCaptor<Map<String, String>> queryCaptor =
-                org.mockito.ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, String>> queryCaptor =
+                ArgumentCaptor.forClass(Map.class);
         verify(client, times(3)).postOctetStream(
                 eq("https://up.video.weibocdn.com/2/multimedia/upload.json"),
                 queryCaptor.capture(), any(byte[].class), any(Map.class), eq(true));
-        java.util.List<Map<String, String>> queries = queryCaptor.getAllValues();
+        List<Map<String, String>> queries = queryCaptor.getAllValues();
         assertThat(queries.get(0).get("chunk")).isEqualTo("0");
         assertThat(queries.get(0).get("startloc")).isEqualTo("0");
         assertThat(queries.get(0).get("chunks")).isEqualTo("3");
