@@ -54,6 +54,13 @@ public final class WeiboConstants {
             HttpHeaders.REFERER, "https://api.weibo.com/chat"
     );
 
+    /** 视频分片上传：跨域到 up.video.weibocdn.com，Origin/Referer 与发送接口不同。X-Up-Auth 由调用方动态追加。 */
+    public static final Map<String, String> HEADERS_VIDEO_UPLOAD = Map.of(
+            HttpHeaders.USER_AGENT, USER_AGENT,
+            HttpHeaders.ORIGIN, "https://api.weibo.com",
+            HttpHeaders.REFERER, "https://api.weibo.com/"
+    );
+
     /** 图床 / 视频直链 */
     public static final Map<String, String> HEADERS_DIRECT = Map.of(
             HttpHeaders.USER_AGENT, USER_AGENT,

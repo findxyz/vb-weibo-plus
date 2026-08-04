@@ -412,7 +412,7 @@ class GroupChatPageTest {
         assertThat(page.locator("#composer")).hasAttribute("placeholder", "输入消息后按 Enter 发送");
         assertThat(page.locator(".composer-hint"))
                 .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
-        assertThat(page.locator(".composer button:enabled:not(#history-open):not(#emoji-picker-open):not(#image-picker-open):not(#composer-attachment-remove)")).hasCount(0);
+        assertThat(page.locator(".composer button:enabled:not(#history-open):not(#emoji-picker-open):not(#image-picker-open):not(#video-picker-open):not(#composer-attachment-remove)")).hasCount(0);
         assertThat(page.locator(".message.mine")).hasCount(0);
         assertThat(page.locator(".read-only-badge")).hasCount(0);
         assertThat(page.locator("#refresh-state")).hasCount(0);

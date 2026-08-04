@@ -60,9 +60,12 @@
     composerHint: document.querySelector("#composer-hint"),
     composerAttachment: document.querySelector("#composer-attachment"),
     composerAttachmentPreview: document.querySelector("#composer-attachment-preview"),
+    composerAttachmentPreviewVideo: document.querySelector("#composer-attachment-preview-video"),
     composerAttachmentRemove: document.querySelector("#composer-attachment-remove"),
     imagePickerOpen: document.querySelector("#image-picker-open"),
     imageInput: document.querySelector("#image-input"),
+    videoPickerOpen: document.querySelector("#video-picker-open"),
+    videoInput: document.querySelector("#video-input"),
     loginExpired: document.querySelector("#login-expired"),
     loginQr: document.querySelector("#login-qr")
   };
@@ -82,6 +85,8 @@
     sending: false,
     pendingImage: null,
     pendingImageUrl: null,
+    pendingVideo: null,
+    pendingVideoUrl: null,
     lastSizeGid: null,
     lastMessageCount: null,
     loginCheckTick: 0,
@@ -723,6 +728,7 @@
     elements.historyOpen.disabled = false;
     elements.emojiPickerOpen.disabled = false;
     elements.imagePickerOpen.disabled = false;
+    elements.videoPickerOpen.disabled = false;
     elements.historyTitle.textContent = `聊天记录 - ${group.name || `群聊 ${group.gid}`}`;
     elements.currentAvatar.replaceWith(avatar(group, "main-group-avatar"));
     elements.currentAvatar = document.querySelector(".main-group-avatar");
@@ -944,6 +950,7 @@
   }
 
   const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
+  const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 
   function setPendingImage(file) {
     if (!file) return;
@@ -955,25 +962,59 @@
       setComposerHint("图片不能超过 20MB。", "error");
       return;
     }
-    clearPendingImage();
+    clearPendingAttachment();
     state.pendingImage = file;
     state.pendingImageUrl = URL.createObjectURL(file);
     elements.composerAttachmentPreview.src = state.pendingImageUrl;
+    elements.composerAttachmentPreview.hidden = false;
+    elements.composerAttachmentPreviewVideo.hidden = true;
     elements.composerAttachment.hidden = false;
     elements.composerAttachment.focus();
     setComposerHint("按下 Enter 发送图片");
   }
 
-  function clearPendingImage() {
+  function setPendingVideo(file) {
+    if (!file) return;
+    if (file.type !== "video/mp4") {
+      setComposerHint("仅支持 MP4 视频文件。", "error");
+      return;
+    }
+    if (file.size > MAX_VIDEO_SIZE) {
+      setComposerHint("视频不能超过 100MB。", "error");
+      return;
+    }
+    clearPendingAttachment();
+    state.pendingVideo = file;
+    state.pendingVideoUrl = URL.createObjectURL(file);
+    elements.composerAttachmentPreviewVideo.src = state.pendingVideoUrl;
+    elements.composerAttachmentPreviewVideo.hidden = false;
+    elements.composerAttachmentPreview.hidden = true;
+    elements.composerAttachment.hidden = false;
+    elements.composerAttachment.focus();
+    setComposerHint("按下 Enter 发送视频");
+  }
+
+  function clearPendingAttachment() {
     if (state.pendingImageUrl) {
       URL.revokeObjectURL(state.pendingImageUrl);
     }
+    if (state.pendingVideoUrl) {
+      URL.revokeObjectURL(state.pendingVideoUrl);
+    }
     state.pendingImage = null;
     state.pendingImageUrl = null;
+    state.pendingVideo = null;
+    state.pendingVideoUrl = null;
     elements.composerAttachment.hidden = true;
     elements.composerAttachmentPreview.src = "";
+    elements.composerAttachmentPreview.hidden = false;
+    elements.composerAttachmentPreviewVideo.src = "";
+    elements.composerAttachmentPreviewVideo.hidden = true;
     if (elements.imageInput.value) {
       elements.imageInput.value = "";
+    }
+    if (elements.videoInput.value) {
+      elements.videoInput.value = "";
     }
   }
 
@@ -991,6 +1032,7 @@
     state.sending = true;
     elements.composer.disabled = true;
     elements.imagePickerOpen.disabled = true;
+    elements.videoPickerOpen.disabled = true;
     setComposerHint("发送中…", "sending");
     try {
       const formData = new FormData();
@@ -1004,7 +1046,7 @@
         await handleSendError(response, "图片发送失败，请稍后重试。");
         return;
       }
-      clearPendingImage();
+      clearPendingAttachment();
       state.followingLatest = true;
       await refreshMessages();
       setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
@@ -1014,6 +1056,41 @@
       state.sending = false;
       elements.composer.disabled = false;
       elements.imagePickerOpen.disabled = !state.currentGid;
+      elements.videoPickerOpen.disabled = !state.currentGid;
+      elements.composer.focus();
+    }
+  }
+
+  async function sendVideo() {
+    if (state.sending || !state.currentGid || !state.pendingVideo) return;
+    state.sending = true;
+    elements.composer.disabled = true;
+    elements.imagePickerOpen.disabled = true;
+    elements.videoPickerOpen.disabled = true;
+    setComposerHint("发送中…", "sending");
+    try {
+      const formData = new FormData();
+      formData.append("gid", String(state.currentGid));
+      formData.append("file", state.pendingVideo);
+      const response = await fetch("/chat/messages/sendVideo", {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) {
+        await handleSendError(response, "视频发送失败，请稍后重试。");
+        return;
+      }
+      clearPendingAttachment();
+      state.followingLatest = true;
+      await refreshMessages();
+      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
+    } catch {
+      setComposerHint("视频发送失败，请稍后重试。", "error");
+    } finally {
+      state.sending = false;
+      elements.composer.disabled = false;
+      elements.imagePickerOpen.disabled = !state.currentGid;
+      elements.videoPickerOpen.disabled = !state.currentGid;
       elements.composer.focus();
     }
   }
@@ -1022,6 +1099,10 @@
     if (state.sending || !state.currentGid) return;
     if (state.pendingImage) {
       await sendImage();
+      return;
+    }
+    if (state.pendingVideo) {
+      await sendVideo();
       return;
     }
     const content = elements.composer.value.trim();
@@ -1109,6 +1190,11 @@
         setPendingImage(item.getAsFile());
         return;
       }
+      if (item.kind === "file" && item.type.startsWith("video/")) {
+        event.preventDefault();
+        setPendingVideo(item.getAsFile());
+        return;
+      }
     }
   };
   elements.composer.addEventListener("paste", handlePaste);
@@ -1132,7 +1218,13 @@
       setPendingImage(elements.imageInput.files[0]);
     }
   });
-  elements.composerAttachmentRemove.addEventListener("click", clearPendingImage);
+  elements.videoPickerOpen.addEventListener("click", () => elements.videoInput.click());
+  elements.videoInput.addEventListener("change", () => {
+    if (elements.videoInput.files?.[0]) {
+      setPendingVideo(elements.videoInput.files[0]);
+    }
+  });
+  elements.composerAttachmentRemove.addEventListener("click", clearPendingAttachment);
   elements.emojiPanelGrid.addEventListener("click", event => {
     const cell = event.target.closest(".emoji-cell");
     if (cell) insertEmoji(cell.alt);

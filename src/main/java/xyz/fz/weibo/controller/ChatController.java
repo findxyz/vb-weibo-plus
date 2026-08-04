@@ -87,6 +87,11 @@ public class ChatController {
         return chatService.sendImage(gid, file);
     }
 
+    @PostMapping("/messages/sendVideo")
+    public SaveResult sendVideo(@RequestParam long gid, @RequestPart MultipartFile file) {
+        return chatService.sendVideo(gid, file);
+    }
+
     @GetMapping("/messages")
     public MessageQueryResult queryMessages(
             @RequestParam long gid,

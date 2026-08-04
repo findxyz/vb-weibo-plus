@@ -694,6 +694,34 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.code").value(409));
     }
 
+    @Test
+    void sendVideo_binds_gid_and_file_and_returns_the_incremental_capture_result() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.mp4", "video/mp4", new byte[]{1, 2, 3});
+        when(chatService.sendVideo(eq(101L), any(MultipartFile.class)))
+                .thenReturn(new SaveResult(3, 2, 1));
+
+        mockMvc.perform(multipart("/chat/messages/sendVideo")
+                        .file(file)
+                        .param("gid", "101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fetchedCount").value(3))
+                .andExpect(jsonPath("$.insertedCount").value(2))
+                .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        verify(chatService).sendVideo(eq(101L), any(MultipartFile.class));
+    }
+
+    @Test
+    void sendVideo_requires_gid_and_file() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.mp4", "video/mp4", new byte[]{1, 2, 3});
+        mockMvc.perform(multipart("/chat/messages/sendVideo").file(file))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(multipart("/chat/messages/sendVideo").param("gid", "101"))
+                .andExpect(status().isBadRequest());
+    }
+
     private GroupRecord group(long gid) {
         return new GroupRecord(gid, "群", "", 1, 500, 10, List.of(10L), "简介", 1);
     }

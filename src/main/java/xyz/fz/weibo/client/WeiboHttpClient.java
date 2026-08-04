@@ -94,6 +94,22 @@ public class WeiboHttpClient {
         return post0(uri, new HttpEntity<>(body, httpHeaders), String.class);
     }
 
+    /**
+     * application/octet-stream POST：body 为原始分片二进制（如视频分片上传）。
+     * <p>
+     * 与 postMultipart 的区别：queryParams 进 URL（如 name/chunk/chunks/selectId），
+     * body 为 byte[]，非 multipart；Content-Type 固定为 application/octet-stream。
+     * 动态 header（如 X-Up-Auth）由调用方放入 headers。
+     */
+    public ResponseEntity<String> postOctetStream(String url, Map<String, String> queryParams,
+                                                  byte[] body,
+                                                  Map<String, String> headers, boolean withCookie) {
+        URI uri = buildUri(url, queryParams);
+        HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
+        httpHeaders.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        return post0(uri, new HttpEntity<>(body, httpHeaders), String.class);
+    }
+
     public <T> T getForStream(String url, Map<String, String> params,
                               Map<String, String> headers, boolean withCredential,
                               ResponseExtractor<T> responseExtractor) {

@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
+import xyz.fz.weibo.client.DigestUtils;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
@@ -30,12 +31,15 @@ import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.request.GroupSendImageRequest;
+import xyz.fz.weibo.model.request.GroupSendVideoRequest;
 import xyz.fz.weibo.model.request.GroupMediaUploadInitRequest;
+import xyz.fz.weibo.model.request.GroupVideoInitRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
 import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
+import xyz.fz.weibo.model.response.GroupVideoUploadInitResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
@@ -46,8 +50,6 @@ import xyz.fz.weibo.service.mapper.MessageMapper;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,6 +67,7 @@ public class ChatService {
     private static final DateTimeFormatter LOG_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final long MAX_IMAGE_SIZE = 20L * 1024 * 1024;
+    private static final long MAX_VIDEO_SIZE = 100L * 1024 * 1024;
 
     private final GroupListApi groupListApi;
     private final GroupMessagesApi groupMessagesApi;
@@ -73,12 +76,13 @@ public class ChatService {
     private final GroupRepository groupRepository;
     private final MessageRepository messageRepository;
     private final HeicConverter heicConverter;
+    private final VideoProbe videoProbe;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
 
     public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
                        GroupMediaApi groupMediaApi, MessageMapper messageMapper,
                        GroupRepository groupRepository, MessageRepository messageRepository,
-                       HeicConverter heicConverter) {
+                       HeicConverter heicConverter, VideoProbe videoProbe) {
         this.groupListApi = groupListApi;
         this.groupMessagesApi = groupMessagesApi;
         this.groupMediaApi = groupMediaApi;
@@ -86,6 +90,7 @@ public class ChatService {
         this.groupRepository = groupRepository;
         this.messageRepository = messageRepository;
         this.heicConverter = heicConverter;
+        this.videoProbe = videoProbe;
     }
 
     public List<GroupRecord> syncGroups() {
@@ -292,7 +297,7 @@ public class ChatService {
         }
         try {
             byte[] bytes = file.getBytes();
-            String md5 = md5Hex(bytes);
+            String md5 = DigestUtils.md5Hex(bytes);
             String filename = file.getOriginalFilename();
             if (filename == null || filename.isBlank()) {
                 filename = "image.png";
@@ -318,17 +323,48 @@ public class ChatService {
         }
     }
 
-    private static String md5Hex(byte[] bytes) {
+    public SaveResult sendVideo(long gid, MultipartFile file) {
+        validateGid(gid);
+        if (file == null || file.isEmpty()) {
+            throw new InvalidRequestException("视频文件不能为空。");
+        }
+        String contentType = file.getContentType();
+        if (!"video/mp4".equals(contentType)) {
+            throw new InvalidRequestException("仅支持 MP4 视频文件。");
+        }
+        if (file.getSize() > MAX_VIDEO_SIZE) {
+            throw new InvalidRequestException("视频不能超过 100MB。");
+        }
         try {
-            MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] hash = digest.digest(bytes);
-            StringBuilder sb = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
+            byte[] bytes = file.getBytes();
+            String md5 = DigestUtils.md5Hex(bytes);
+            String filename = file.getOriginalFilename();
+            if (filename == null || filename.isBlank()) {
+                filename = "video.mp4";
             }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new WeiboException("MD5 算法不可用：" + e.getMessage(), e);
+            VideoProbe.ProbeResult probeResult = videoProbe.probe(bytes);
+            GroupMediaUploadResponse coverResponse = groupMediaApi.uploadCover(
+                    probeResult.coverPng(), "cover.png", gid);
+            GroupVideoUploadInitResponse initResponse = groupMediaApi.initVideoUpload(
+                    new GroupVideoInitRequest(gid, bytes.length, filename, md5,
+                            probeResult.width(), probeResult.height(), probeResult.duration()));
+            GroupMediaUploadResponse uploadResponse = groupMediaApi.uploadVideo(
+                    bytes, filename, initResponse.fileToken(), initResponse.auth(),
+                    gid, initResponse.length(), md5);
+            GroupSendMessageResponse response = groupMessagesApi.sendVideo(
+                    new GroupSendVideoRequest(gid, uploadResponse.fid(), coverResponse.fid()));
+            if (!response.result()) {
+                throw new WeiboException("视频消息发送失败：result != true。", -1);
+            }
+            try {
+                return saveIncremental(gid);
+            } catch (RuntimeException e) {
+                throw new MessageSentButSyncFailedException("消息已发出，但本地同步失败，稍后会自动补全。", e);
+            }
+        } catch (InvalidRequestException | WeiboException | MessageSentButSyncFailedException e) {
+            throw e;
+        } catch (java.io.IOException | RuntimeException e) {
+            throw new WeiboException("视频上传失败：" + e.getMessage(), e);
         }
     }
 

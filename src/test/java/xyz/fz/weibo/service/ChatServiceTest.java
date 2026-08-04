@@ -32,7 +32,6 @@ import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -65,13 +64,17 @@ class ChatServiceTest {
     @Mock
     private MessageRepository messageRepository;
 
+    @Mock
+    private VideoProbe videoProbe;
+
     private ChatService chatService;
 
     @BeforeEach
     void setUp() {
         chatService = new ChatService(
                 groupListApi, groupMessagesApi, groupMediaApi,
-                messageMapper, groupRepository, messageRepository, new HeicConverter("ffmpeg"));
+                messageMapper, groupRepository, messageRepository,
+                new HeicConverter("ffmpeg"), videoProbe);
     }
 
     @Test
@@ -922,6 +925,114 @@ class ChatServiceTest {
         assertThatThrownBy(() -> chatService.downloadMessageFile(1, 500L))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessageContaining("不是文件消息");
+    }
+
+    @Test
+    void send_video_probes_then_uploads_cover_init_chunks_sends_then_captures() {
+        byte[] videoBytes = new byte[]{1, 2, 3, 4};
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.mp4", "video/mp4", videoBytes);
+        when(videoProbe.probe(videoBytes))
+                .thenReturn(new VideoProbe.ProbeResult(new byte[]{9}, 320, 180, 2));
+        when(groupMediaApi.uploadCover(any(), eq("cover.png"), eq(1L)))
+                .thenReturn(new GroupMediaUploadResponse(5326071353316787L));
+        when(groupMediaApi.initVideoUpload(any(GroupVideoInitRequest.class)))
+                .thenReturn(new GroupVideoUploadInitResponse("token-abc", "auth-xyz", 4096, "media-1"));
+        when(groupMediaApi.uploadVideo(any(), eq("test.mp4"), eq("token-abc"), eq("auth-xyz"),
+                eq(1L), eq(4096), anyString()))
+                .thenReturn(new GroupMediaUploadResponse(5326071357508212L));
+        when(groupMessagesApi.sendVideo(new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L)))
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享视频", 10, 1_000L, 1_000L));
+        when(groupRepository.findMaxMid(1)).thenReturn(99L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenReturn(messagePage());
+
+        SaveResult result = chatService.sendVideo(1, file);
+
+        assertThat(result).isEqualTo(new SaveResult(0, 0, 0));
+        verify(videoProbe).probe(videoBytes);
+        verify(groupMediaApi).uploadCover(any(), eq("cover.png"), eq(1L));
+        verify(groupMediaApi).initVideoUpload(any(GroupVideoInitRequest.class));
+        verify(groupMediaApi).uploadVideo(any(), eq("test.mp4"), eq("token-abc"), eq("auth-xyz"),
+                eq(1L), eq(4096), anyString());
+        verify(groupMessagesApi).sendVideo(new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L));
+        verify(messageRepository).refreshGroupRange(1);
+    }
+
+    @Test
+    void send_video_rejects_non_mp4_content_type_before_calling_weibo() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.avi", "video/x-msvideo", new byte[]{1, 2, 3});
+
+        assertThatThrownBy(() -> chatService.sendVideo(1, file))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("MP4");
+        verifyNoInteractions(groupMediaApi, groupMessagesApi, videoProbe);
+    }
+
+    @Test
+    void send_video_rejects_oversize_file_before_calling_weibo() {
+        byte[] oversize = new byte[100 * 1024 * 1024 + 1];
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "big.mp4", "video/mp4", oversize);
+
+        assertThatThrownBy(() -> chatService.sendVideo(1, file))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("100MB");
+        verifyNoInteractions(groupMediaApi, groupMessagesApi, videoProbe);
+    }
+
+    @Test
+    void send_video_propagates_probe_failure_without_calling_weibo() {
+        byte[] videoBytes = new byte[]{1, 2, 3};
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.mp4", "video/mp4", videoBytes);
+        when(videoProbe.probe(videoBytes))
+                .thenThrow(new WeiboException("未检测到 ffmpeg，无法发送视频。", -1));
+
+        assertThatThrownBy(() -> chatService.sendVideo(1, file))
+                .isInstanceOf(WeiboException.class);
+        verifyNoInteractions(groupMediaApi, groupMessagesApi);
+    }
+
+    @Test
+    void send_video_propagates_upload_failure_without_sending() {
+        byte[] videoBytes = new byte[]{1, 2, 3, 4};
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.mp4", "video/mp4", videoBytes);
+        when(videoProbe.probe(videoBytes))
+                .thenReturn(new VideoProbe.ProbeResult(new byte[]{9}, 320, 180, 2));
+        when(groupMediaApi.uploadCover(any(), eq("cover.png"), eq(1L)))
+                .thenThrow(new WeiboException("封面上传失败。", -1));
+
+        assertThatThrownBy(() -> chatService.sendVideo(1, file))
+                .isInstanceOf(WeiboException.class);
+        verify(groupMessagesApi, never()).sendVideo(any());
+    }
+
+    @Test
+    void send_video_reports_sync_failure_when_capture_fails_after_successful_send() {
+        byte[] videoBytes = new byte[]{1, 2, 3, 4};
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.mp4", "video/mp4", videoBytes);
+        when(videoProbe.probe(videoBytes))
+                .thenReturn(new VideoProbe.ProbeResult(new byte[]{9}, 320, 180, 2));
+        when(groupMediaApi.uploadCover(any(), eq("cover.png"), eq(1L)))
+                .thenReturn(new GroupMediaUploadResponse(5326071353316787L));
+        when(groupMediaApi.initVideoUpload(any(GroupVideoInitRequest.class)))
+                .thenReturn(new GroupVideoUploadInitResponse("token-abc", "auth-xyz", 4096, "media-1"));
+        when(groupMediaApi.uploadVideo(any(), eq("test.mp4"), eq("token-abc"), eq("auth-xyz"),
+                eq(1L), eq(4096), anyString()))
+                .thenReturn(new GroupMediaUploadResponse(5326071357508212L));
+        when(groupMessagesApi.sendVideo(new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L)))
+                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享视频", 10, 1_000L, 1_000L));
+        when(groupRepository.findMaxMid(1)).thenReturn(99L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenThrow(new WeiboException("增量拉取失败。", -1));
+
+        assertThatThrownBy(() -> chatService.sendVideo(1, file))
+                .isInstanceOf(MessageSentButSyncFailedException.class)
+                .hasMessageContaining("已发出");
     }
 
     private GroupEntity group(long gid, long updatedAt) {

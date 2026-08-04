@@ -94,6 +94,7 @@ public class HeicConverter {
     /**
      * 启动时探测 ffmpeg 是否可执行。执行 {@code ffmpeg -version}，退出码为 0 即视为可用。
      */
+    @SuppressWarnings("DuplicatedCode")
     private boolean probeFfmpeg() {
         try {
             Process process = new ProcessBuilder(ffmpegPath, "-version")

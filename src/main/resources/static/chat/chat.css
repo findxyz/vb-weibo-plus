@@ -700,6 +700,14 @@ h1 {
   object-fit: contain;
 }
 
+.composer-attachment-preview-video {
+  height: 60px;
+  max-width: 120px;
+  border: 1px solid #91abc0;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
 .composer-attachment-remove {
   width: 22px;
   height: 22px;
