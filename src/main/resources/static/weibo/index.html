@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>本地微博</title>
+  <link rel="stylesheet" href="weibo.css">
+  <script src="weibo.js" defer></script>
+</head>
+<body>
+  <main class="app" aria-labelledby="app-title">
+    <header class="titlebar">
+      <span class="title-logo" aria-hidden="true">
+        <img src="assets/weibo-logo.svg" alt="">
+      </span>
+      <h1 id="app-title">本地微博</h1>
+      <div class="window-controls">
+        <button class="window-control toggle" type="button" aria-label="切换到微博群聊" title="切换到微博群聊"></button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="bloggers-panel" aria-label="博主列表">
+        <header class="bloggers-heading">
+          <h2>博主列表</h2>
+          <span id="bloggers-count">正在加载…</span>
+        </header>
+        <label class="search-box">
+          <span class="visually-hidden">搜索博主</span>
+          <input id="blogger-search" type="search" placeholder="搜索博主">
+        </label>
+        <div class="bloggers-list" id="bloggers-list" aria-live="polite"></div>
+        <div class="panel-feedback">
+          <div class="panel-state" id="bloggers-state" role="status"></div>
+        </div>
+        <div class="login-expired" id="login-expired" role="status" hidden>
+          <span class="panel-state">登录已失效</span>
+          <button id="login-qr" type="button">📱 扫码登录</button>
+        </div>
+      </aside>
+
+      <section class="feed" aria-label="微博列表">
+        <header class="feed-header">
+          <h2 id="current-filter">全部微博</h2>
+          <span id="feed-count" class="feed-count"></span>
+        </header>
+
+        <form class="feed-filters" id="feed-filters">
+          <label>
+            <span>开始日期</span>
+            <input id="filter-start" type="date">
+          </label>
+          <label>
+            <span>结束日期</span>
+            <input id="filter-end" type="date">
+          </label>
+          <label>
+            <span>关键词</span>
+            <input id="filter-keyword" type="search" placeholder="搜索微博正文">
+          </label>
+          <button class="primary-button" type="submit">🔍 查询</button>
+          <button id="filter-reset" type="button">重置</button>
+        </form>
+
+        <div class="posts-shell">
+          <div class="posts" id="posts" aria-live="polite"></div>
+          <div class="posts-feedback">
+            <div class="posts-state" id="posts-state" role="status">正在加载…</div>
+            <button id="retry-posts" type="button" hidden>重试</button>
+          </div>
+          <footer class="pagination" id="pagination" hidden>
+            <button id="page-prev" type="button">⬅️ 上一页</button>
+            <span id="page-info"></span>
+            <button id="page-next" type="button">下一页 ➡️</button>
+          </footer>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <dialog class="image-viewer" id="image-viewer" aria-label="查看原图">
+    <img alt="微博原图">
+    <p id="image-viewer-state" role="status"></p>
+  </dialog>
+</body>
+</html>
