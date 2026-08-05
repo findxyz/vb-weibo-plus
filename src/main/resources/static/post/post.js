@@ -18,6 +18,9 @@
     retryPosts: document.querySelector("#retry-posts"),
     imageViewer: document.querySelector("#image-viewer"),
     imageViewerState: document.querySelector("#image-viewer-state"),
+    viewerPrev: document.querySelector(".viewer-prev"),
+    viewerNext: document.querySelector(".viewer-next"),
+    viewerCounter: document.querySelector("#viewer-counter"),
     windowToggle: document.querySelector(".window-control.toggle"),
     allBloggersRow: document.querySelector(".blogger-row.all-bloggers"),
   };
@@ -27,6 +30,8 @@
     selectedUid: null,
     selectedDate: null,
     loadingPosts: false,
+    viewerImages: [],
+    viewerIndex: 0,
   };
 
   /* ---------- 工具函数 ---------- */
@@ -410,8 +415,8 @@
   function createPostPics(pics, mblogId) {
     const container = document.createElement("div");
     container.className = "post-pics" + (pics.length === 1 ? " one-image" : "");
-    for (const pic of pics) {
-      if (!pic.thumbnailUrl) continue;
+    const validPics = pics.filter((p) => p.thumbnailUrl);
+    validPics.forEach((pic, index) => {
       const picEl = document.createElement("a");
       picEl.className = "post-pic";
       picEl.href = pic.originalUrl || pic.thumbnailUrl;
@@ -423,10 +428,10 @@
       picEl.appendChild(img);
       picEl.addEventListener("click", (e) => {
         e.preventDefault();
-        openImageViewer(pic.originalUrl || pic.thumbnailUrl);
+        openImageViewer(validPics, index);
       });
       container.appendChild(picEl);
-    }
+    });
     return container;
   }
 
@@ -469,25 +474,27 @@
     block.appendChild(content);
 
     if (retweet.pics && retweet.pics.length > 0) {
-      const pics = document.createElement("div");
-      pics.className = "post-retweet-pics";
-      for (const pic of retweet.pics) {
-        if (!pic.thumbnailUrl) continue;
-        const picEl = document.createElement("a");
-        picEl.className = "post-retweet-pic";
-        picEl.href = pic.originalUrl || pic.thumbnailUrl;
-        const img = document.createElement("img");
-        img.src = pic.thumbnailUrl;
-        img.alt = "转发微博图片";
-        img.loading = "lazy";
-        picEl.appendChild(img);
-        picEl.addEventListener("click", (e) => {
-          e.preventDefault();
-          openImageViewer(pic.originalUrl || pic.thumbnailUrl);
+      const validRetweetPics = retweet.pics.filter((p) => p.thumbnailUrl);
+      if (validRetweetPics.length > 0) {
+        const pics = document.createElement("div");
+        pics.className = "post-retweet-pics";
+        validRetweetPics.forEach((pic, index) => {
+          const picEl = document.createElement("a");
+          picEl.className = "post-retweet-pic";
+          picEl.href = "javascript:void(0)";
+          const img = document.createElement("img");
+          img.src = pic.thumbnailUrl;
+          img.alt = "转发微博图片";
+          img.loading = "lazy";
+          picEl.appendChild(img);
+          picEl.addEventListener("click", (e) => {
+            e.preventDefault();
+            openImageViewer(validRetweetPics, index);
+          });
+          pics.appendChild(picEl);
         });
-        pics.appendChild(picEl);
+        block.appendChild(pics);
       }
-      block.appendChild(pics);
     }
 
     return block;
@@ -528,7 +535,17 @@
 
   /* ---------- 图片查看器 ---------- */
 
-  function openImageViewer(url) {
+  function openImageViewer(pics, index) {
+    if (!pics || pics.length === 0) return;
+    state.viewerImages = pics.map((p) => p.originalUrl || p.thumbnailUrl).filter(Boolean);
+    if (state.viewerImages.length === 0) return;
+    state.viewerIndex = Math.max(0, Math.min(index, state.viewerImages.length - 1));
+    showViewerImage(state.viewerIndex);
+    if (!elements.imageViewer.open) elements.imageViewer.showModal();
+  }
+
+  function showViewerImage(index) {
+    const url = state.viewerImages[index];
     if (!url) return;
     const dialog = elements.imageViewer;
     const img = dialog.querySelector("img");
@@ -543,7 +560,28 @@
       showState(elements.imageViewerState, "图片加载失败");
     };
     img.src = url;
-    if (!dialog.open) dialog.showModal();
+
+    const hasMultiple = state.viewerImages.length > 1;
+    elements.viewerPrev.hidden = !hasMultiple;
+    elements.viewerNext.hidden = !hasMultiple;
+    if (hasMultiple) {
+      elements.viewerCounter.hidden = false;
+      elements.viewerCounter.textContent = `${index + 1} / ${state.viewerImages.length}`;
+    } else {
+      elements.viewerCounter.hidden = true;
+    }
+  }
+
+  function showPrevImage() {
+    if (state.viewerImages.length <= 1) return;
+    state.viewerIndex = (state.viewerIndex - 1 + state.viewerImages.length) % state.viewerImages.length;
+    showViewerImage(state.viewerIndex);
+  }
+
+  function showNextImage() {
+    if (state.viewerImages.length <= 1) return;
+    state.viewerIndex = (state.viewerIndex + 1) % state.viewerImages.length;
+    showViewerImage(state.viewerIndex);
   }
 
   function closeImageViewer() {
@@ -598,14 +636,29 @@
   elements.loginQr.addEventListener("click", startQrLogin);
 
   elements.imageViewer.addEventListener("click", (e) => {
-    if (e.target === elements.imageViewer || e.target.tagName === "IMG") {
+    if (e.target === elements.imageViewer) {
       closeImageViewer();
     }
   });
 
+  elements.viewerPrev.addEventListener("click", (e) => {
+    e.stopPropagation();
+    showPrevImage();
+  });
+
+  elements.viewerNext.addEventListener("click", (e) => {
+    e.stopPropagation();
+    showNextImage();
+  });
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && elements.imageViewer.open) {
+    if (!elements.imageViewer.open) return;
+    if (e.key === "Escape") {
       closeImageViewer();
+    } else if (e.key === "ArrowLeft") {
+      showPrevImage();
+    } else if (e.key === "ArrowRight") {
+      showNextImage();
     }
   });
 

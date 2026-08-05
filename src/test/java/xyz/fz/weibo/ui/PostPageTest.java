@@ -97,10 +97,10 @@ class PostPageTest {
             String items;
             int total;
             if (query != null && query.contains("start=2026-08-04")) {
-                items = postJson("post-aug-04", "第一位", "八月四日的内容", 1783612800000L);
+                items = multiPicPostJson("post-aug-04", "第一位", "八月四日的内容", 1783612800000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-08-03")) {
-                items = postJson("post-aug-03", "第二位", "八月三日的微博", 1783526400000L);
+                items = retweetPicPostJson("post-aug-03", "第二位", "八月三日的微博", 1783526400000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-07-10")) {
                 items = postJson("post-jul-10", "第一位", "七月十日的内容", 1783612800000L);
@@ -132,6 +132,23 @@ class PostPageTest {
             }
             loginInvalid.set(false);
             sendJson(exchange, "{\"sub\":\"SUB\",\"subp\":\"SUBP\",\"ssoLoginState\":\"1\",\"alf\":\"1\"}");
+        });
+        server.createContext("/test-img", exchange -> {
+            byte[] body = new byte[]{
+                    (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+                    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                    0x08, 0x02, 0x00, 0x00, 0x00, (byte) 0x90, 0x77, 0x53,
+                    (byte) 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,
+                    0x54, 0x08, (byte) 0xD7, 0x63, (byte) 0xF8, (byte) 0xCF, (byte) 0xC0, 0x00,
+                    0x00, 0x00, 0x03, 0x00, 0x01, (byte) 0x8D, (byte) 0xA2, 0x43,
+                    0x0C, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
+                    0x44, (byte) 0xAE, 0x42, 0x60, (byte) 0x82
+            };
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
         });
         server.createContext("/post/", PostPageTest::sendStaticResource);
         server.start();
@@ -339,6 +356,99 @@ class PostPageTest {
     }
 
     @Test
+    void emoji_avatar_is_not_oversized() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+
+        Object fontSize = page.locator(".blogger-avatar").first().evaluate(
+                "el => getComputedStyle(el).fontSize");
+        org.assertj.core.api.Assertions.assertThat(fontSize).isEqualTo("16px");
+
+        Object lineHeight = page.locator(".blogger-avatar").first().evaluate(
+                "el => getComputedStyle(el).lineHeight");
+        org.assertj.core.api.Assertions.assertThat(lineHeight).isEqualTo("16px");
+
+        page.close();
+    }
+
+    @Test
+    void multi_image_post_opens_viewer_with_prev_next_navigation() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
+                () -> {});
+
+        page.locator(".post-pic").first().click();
+        assertThat(page.locator("#image-viewer")).isVisible();
+        assertThat(page.locator(".viewer-prev")).isVisible();
+        assertThat(page.locator(".viewer-next")).isVisible();
+        assertThat(page.locator("#viewer-counter")).hasText("1 / 3");
+
+        page.locator(".viewer-next").click();
+        assertThat(page.locator("#viewer-counter")).hasText("2 / 3");
+
+        page.locator(".viewer-next").click();
+        assertThat(page.locator("#viewer-counter")).hasText("3 / 3");
+
+        page.locator(".viewer-prev").click();
+        assertThat(page.locator("#viewer-counter")).hasText("2 / 3");
+
+        page.close();
+    }
+
+    @Test
+    void retweet_image_click_opens_viewer_without_navigating_away() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
+                () -> page.locator(".date-item[data-date='2026-08-03']").click());
+
+        String urlBefore = page.url();
+        page.locator(".post-retweet-pic").first().click();
+        assertThat(page.locator("#image-viewer")).isVisible();
+        org.assertj.core.api.Assertions.assertThat(page.url()).isEqualTo(urlBefore);
+
+        page.close();
+    }
+
+    @Test
+    void pic_grid_has_no_gray_background_fill() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
+                () -> {});
+
+        Object bg = page.locator(".post-pic").first().evaluate(
+                "el => getComputedStyle(el).backgroundColor");
+        org.assertj.core.api.Assertions.assertThat(bg).isEqualTo("rgba(0, 0, 0, 0)");
+
+        page.close();
+    }
+
+    @Test
+    void keyboard_arrow_keys_navigate_images_in_viewer() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
+                () -> {});
+
+        page.locator(".post-pic").first().click();
+        assertThat(page.locator("#viewer-counter")).hasText("1 / 3");
+
+        page.keyboard().press("ArrowRight");
+        assertThat(page.locator("#viewer-counter")).hasText("2 / 3");
+
+        page.keyboard().press("ArrowLeft");
+        assertThat(page.locator("#viewer-counter")).hasText("1 / 3");
+
+        page.close();
+    }
+
+    @Test
     void window_toggle_navigates_to_chat_page() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
@@ -388,5 +498,44 @@ class PostPageTest {
                  "createdAt":%d,"savedAt":%d,
                  "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
                 """.formatted(mblogId, content, content, createdAt, createdAt, screenName);
+    }
+
+    private static String multiPicPostJson(String mblogId, String screenName, String content, long createdAt) {
+        return """
+                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
+                 "content":"%s","contentRaw":"%s","source":"微博网页版","region":"广东",
+                 "pics":[
+                   {"pid":"p1","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
+                    "thumbnailUrl":"/test-img?t1","originalUrl":"/test-img?o1"},
+                   {"pid":"p2","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
+                    "thumbnailUrl":"/test-img?t2","originalUrl":"/test-img?o2"},
+                   {"pid":"p3","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
+                    "thumbnailUrl":"/test-img?t3","originalUrl":"/test-img?o3"}
+                 ],
+                 "video":{"coverUrl":"","pageUrl":""},"retweeted":null,
+                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
+                 "createdAt":%d,"savedAt":%d,
+                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
+                """.formatted(mblogId, content, content, createdAt, createdAt, screenName);
+    }
+
+    private static String retweetPicPostJson(String mblogId, String screenName, String content, long createdAt) {
+        return """
+                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
+                 "content":"%s","contentRaw":"%s","source":"微博网页版","region":"广东",
+                 "pics":[],"video":{"coverUrl":"","pageUrl":""},
+                 "retweeted":{"postId":2,"mblogId":"retweet-1","content":"转发的原微博内容",
+                  "contentRaw":"转发的原微博内容","uid":2,"screenName":"原作者","createdAt":%d,
+                  "pics":[
+                    {"pid":"rp1","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
+                     "thumbnailUrl":"/test-img?rt1","originalUrl":"/test-img?ro1"},
+                    {"pid":"rp2","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
+                     "thumbnailUrl":"/test-img?rt2","originalUrl":"/test-img?ro2"}
+                  ],
+                  "video":{"coverUrl":"","pageUrl":""}},
+                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
+                 "createdAt":%d,"savedAt":%d,
+                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
+                """.formatted(mblogId, content, content, createdAt, createdAt, createdAt, screenName);
     }
 }

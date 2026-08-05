@@ -243,7 +243,8 @@ h1 {
   color: #ffffff;
   background: linear-gradient(145deg, #4ba7ec, #0864c6);
   font-weight: 700;
-  font-size: 20px;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .blogger-avatar img {
@@ -523,7 +524,8 @@ h1 {
   color: #ffffff;
   background: linear-gradient(145deg, #4ba7ec, #0864c6);
   font-weight: 700;
-  font-size: 20px;
+  font-size: 16px;
+  line-height: 1;
   text-decoration: none;
 }
 
@@ -628,11 +630,10 @@ h1 {
   overflow: hidden;
   border: 1px solid #c5d5e3;
   border-radius: var(--radius-sm);
-  background: #f0f4f8;
 }
 
 .post-pics.one-image .post-pic {
-  width: auto;
+  width: fit-content;
   height: auto;
   max-width: 320px;
   max-height: 320px;
@@ -735,7 +736,6 @@ h1 {
   overflow: hidden;
   border: 1px solid #c5d5e3;
   border-radius: var(--radius-sm);
-  background: #f0f4f8;
 }
 
 .post-retweet-pic img {
@@ -851,6 +851,49 @@ h1 {
   transform: translate(-50%, -50%);
   color: #ffffff;
   pointer-events: none;
+}
+
+.viewer-prev,
+.viewer-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 50%);
+  color: #ffffff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.viewer-prev {
+  left: 16px;
+}
+
+.viewer-next {
+  right: 16px;
+}
+
+.viewer-prev[hidden],
+.viewer-next[hidden] {
+  display: none;
+}
+
+.viewer-counter {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffffff;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.viewer-counter[hidden] {
+  display: none;
 }
 
 /* 无障碍辅助 */
