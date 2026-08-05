@@ -503,6 +503,28 @@ class PostPageTest {
     }
 
     @Test
+    void post_content_width_is_constrained_and_not_overly_wide() {
+        Page page = browser.newPage();
+        page.setViewportSize(1600, 900);
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
+                () -> {});
+
+        Object postsWidth = page.locator(".posts").evaluate(
+                "el => el.clientWidth");
+        Object postCardWidth = page.locator(".post-card").first().evaluate(
+                "el => el.clientWidth");
+        double pw = ((Number) postsWidth).doubleValue();
+        double cw = ((Number) postCardWidth).doubleValue();
+
+        org.assertj.core.api.Assertions.assertThat(cw).isLessThanOrEqualTo(760.0);
+        org.assertj.core.api.Assertions.assertThat(cw).isLessThan(pw);
+
+        page.close();
+    }
+
+    @Test
     void window_toggle_navigates_to_chat_page() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
