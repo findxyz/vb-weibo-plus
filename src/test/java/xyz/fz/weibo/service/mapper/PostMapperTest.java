@@ -18,7 +18,9 @@ import xyz.fz.weibo.entity.PostEntity;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MblogResponse;
+import xyz.fz.weibo.model.response.MixMediaInfoResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
+import xyz.fz.weibo.model.response.PageInfoResponse;
 import xyz.fz.weibo.model.response.PicInfoResponse;
 
 import java.io.InputStream;
@@ -144,7 +146,8 @@ class PostMapperTest {
         MblogResponse invalid = new MblogResponse(source.id(), source.mblogId(), "not-a-date", source.text(),
                 source.textRaw(), source.source(), source.regionName(), source.isLongText(),
                 source.picNum(), source.repostsCount(), source.commentsCount(), source.attitudesCount(),
-                source.user(), source.picInfos(), source.pageInfo(), source.retweetedStatus());
+                source.user(), source.picInfos(), source.pageInfo(), source.retweetedStatus(),
+                source.mixMediaInfo());
 
         assertThatThrownBy(() -> postMapper.toPostEntity(invalid,
                 longText("全文", "纯文本"), longText("转发全文", "转发纯文本"), 2000))
@@ -182,7 +185,7 @@ class PostMapperTest {
                         "largest", new PicInfoResponse(thumbnail, large, original, largest),
                         "original", new PicInfoResponse(thumbnail, large, original, null),
                         "large", new PicInfoResponse(thumbnail, large, null, null)),
-                source.pageInfo(), null);
+                source.pageInfo(), null, null);
 
         PostRecord record = postMapper.toPostRecord(
                 postMapper.toPostEntity(post, null, null, 2000));
@@ -197,6 +200,27 @@ class PostMapperTest {
             assertThat(pic.pid()).isEqualTo("large");
             assertThat(pic.original().url()).isEqualTo("large");
         });
+    }
+
+    @Test
+    void falls_back_to_mix_media_video_when_page_info_missing() throws Exception {
+        // 混合发布（多视频、图文混合）的微博没有 page_info，视频在 mix_media_info.items 里
+        MblogResponse source = readPost();
+        PageInfoResponse mixedVideo = new PageInfoResponse("https://image/mixed-cover.jpg", null,
+                new PageInfoResponse.ApiMediaInfo("https://video.weibo.com/show?fid=mixed", null));
+        MixMediaInfoResponse mixMediaInfo = new MixMediaInfoResponse(List.of(
+                new MixMediaInfoResponse.Item("image", null),
+                new MixMediaInfoResponse.Item("video", mixedVideo)));
+        MblogResponse post = new MblogResponse(source.id(), source.mblogId(), source.createdAt(),
+                source.text(), source.textRaw(), source.source(), source.regionName(), false,
+                0, source.repostsCount(), source.commentsCount(), source.attitudesCount(),
+                source.user(), null, null, null, mixMediaInfo);
+
+        PostRecord record = postMapper.toPostRecord(
+                postMapper.toPostEntity(post, null, null, 2000));
+
+        assertThat(record.video().coverUrl()).isEqualTo("https://image/mixed-cover.jpg");
+        assertThat(record.video().pageUrl()).isEqualTo("https://video.weibo.com/show?fid=mixed");
     }
 
     @Test

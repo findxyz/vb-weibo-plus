@@ -1294,7 +1294,7 @@
   new MutationObserver(() => scrollToBottom())
     .observe(elements.messages, {childList: true, subtree: true});
 
-  elements.windowToggle.addEventListener("click", () => { location.href = "/post/"; });
+  elements.windowToggle.addEventListener("click", () => { location.href = "/post/index.html"; });
 
   initialize();
   checkLoginStatus();

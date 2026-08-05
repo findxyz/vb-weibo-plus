@@ -221,6 +221,21 @@ public class PostService {
         return postMapper.toBloggerRecords(bloggerRepository.findAllOrdered());
     }
 
+    public BloggerRecord addBlogger(long uid) {
+        if (uid <= 0) {
+            throw new InvalidRequestException("uid 必须大于 0。");
+        }
+        if (bloggerRepository.existsById(uid)) {
+            throw new InvalidRequestException("该博主已在列表中。");
+        }
+        // 首次添加复用增量同步：拉取最新一页微博，同时写入博主元数据
+        saveIncremental(uid);
+        BloggerEntity blogger = bloggerRepository.findById(uid)
+                .orElseThrow(() -> new InvalidRequestException(
+                        "没有拉到该博主的微博，请确认 UID 是否正确。"));
+        return postMapper.toBloggerRecord(blogger);
+    }
+
     public CalendarView queryCalendar(Long uid) {
         List<DailyPostCount> dailyCounts = postRepository.findDailyCounts(uid);
         Map<String, List<CalendarView.DayCount>> byMonth = new LinkedHashMap<>();

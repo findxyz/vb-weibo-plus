@@ -2,6 +2,7 @@ package xyz.fz.weibo.ui;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
@@ -75,11 +76,12 @@ class PostPageTest {
             }
             sendJson(exchange, """
                     {"months":[
-                      {"month":"2026-08","count":4,"days":[
+                      {"month":"2026-08","count":5,"days":[
                         {"date":"2026-08-05","count":1},
                         {"date":"2026-08-04","count":1},
                         {"date":"2026-08-03","count":1},
-                        {"date":"2026-08-02","count":1}
+                        {"date":"2026-08-02","count":1},
+                        {"date":"2026-08-01","count":1}
                       ]},
                       {"month":"2026-07","count":1,"days":[
                         {"date":"2026-07-10","count":1}
@@ -109,6 +111,9 @@ class PostPageTest {
                 total = 1;
             } else if (query != null && query.contains("start=2026-08-02")) {
                 items = pureRetweetPostJson("post-aug-02", "第一位", 1783440000000L);
+                total = 1;
+            } else if (query != null && query.contains("start=2026-08-01")) {
+                items = videoPostJson("aug-01", "第二位", "八月一日的视频微博", 1783353600000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-07-10")) {
                 items = multiPicPostJson("post-jul-10", "第一位", "七月十日的内容", 1783612800000L);
@@ -507,6 +512,85 @@ class PostPageTest {
     }
 
     @Test
+    void post_pic_uses_original_url_for_display() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.locator(".month-group[data-month='2026-07'] .month-header").click();
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
+                () -> page.locator(".date-item[data-date='2026-07-10']").click());
+
+        String src = page.locator(".post-pic img").first().getAttribute("src");
+        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?o1");
+
+        page.close();
+    }
+
+    @Test
+    void retweet_pic_uses_original_url_for_display() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
+                () -> page.locator(".date-item[data-date='2026-08-03']").click());
+
+        String src = page.locator(".post-retweet-pic img").first().getAttribute("src");
+        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?ro1");
+
+        page.close();
+    }
+
+    @Test
+    void video_play_button_is_centered_on_cover() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-01"),
+                () -> page.locator(".date-item[data-date='2026-08-01']").click());
+        page.waitForTimeout(500);
+
+        assertThat(page.locator("#post-aug-01")).hasCount(1);
+        assertThat(page.locator("#post-aug-01 .post-video")).hasCount(2);
+        Locator topVideo = page.locator("#post-aug-01 > .post-body > .post-video");
+        assertThat(topVideo).hasCount(1);
+        assertThat(topVideo.locator("img")).hasCount(1);
+        // 播放按钮存在
+        assertThat(topVideo.locator(".post-video-play")).hasCount(1);
+
+        // 播放按钮居中：其中心点应接近封面图中心点
+        String diff = (String) topVideo.evaluate(
+                "el => { const img = el.querySelector('img'); const play = el.querySelector('.post-video-play');" +
+                "if (!img || !play) return '999,999';" +
+                "const ir = img.getBoundingClientRect(); const pr = play.getBoundingClientRect();" +
+                "return Math.abs((ir.x + ir.width / 2) - (pr.x + pr.width / 2)) + ',' +" +
+                "Math.abs((ir.y + ir.height / 2) - (pr.y + pr.height / 2)); }");
+        String[] parts = diff.split(",");
+        org.assertj.core.api.Assertions.assertThat(Double.parseDouble(parts[0])).isLessThan(3.0);
+        org.assertj.core.api.Assertions.assertThat(Double.parseDouble(parts[1])).isLessThan(3.0);
+
+        page.close();
+    }
+
+    @Test
+    void retweet_block_renders_video_cover_with_play_button() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-01"),
+                () -> page.locator(".date-item[data-date='2026-08-01']").click());
+
+        // 转发块中有视频封面和播放按钮
+        assertThat(page.locator("#post-aug-01 .post-retweet .post-video img")).hasCount(1);
+        assertThat(page.locator("#post-aug-01 .post-retweet .post-video-play")).hasCount(1);
+
+        // 转发视频链接指向正确的 pageUrl
+        String href = page.locator("#post-aug-01 .post-retweet .post-video").getAttribute("href");
+        org.assertj.core.api.Assertions.assertThat(href).isEqualTo("https://video.weibo.com/show?fid=rttest");
+
+        page.close();
+    }
+
+    @Test
     void post_content_width_is_constrained_and_not_overly_wide() {
         Page page = browser.newPage();
         page.setViewportSize(1600, 900);
@@ -658,6 +742,22 @@ class PostPageTest {
                      "thumbnailUrl":"/test-img?rt2","originalUrl":"/test-img?ro2"}
                   ],
                   "video":{"coverUrl":"","pageUrl":""}},
+                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
+                 "createdAt":%d,"savedAt":%d,
+                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
+                """.formatted(mblogId, content, content, createdAt, createdAt, createdAt, screenName);
+    }
+
+    private static String videoPostJson(String mblogId, String screenName, String content, long createdAt) {
+        return """
+                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
+                 "content":"%s","contentRaw":"%s","source":"微博网页版","region":"广东",
+                 "pics":[],
+                 "video":{"coverUrl":"/test-img?vcover","pageUrl":"https://video.weibo.com/show?fid=test"},
+                 "retweeted":{"postId":2,"mblogId":"retweet-vid","content":"转发的视频微博",
+                  "contentRaw":"转发的视频微博","uid":2,"screenName":"视频原作者","createdAt":%d,
+                  "pics":[],
+                  "video":{"coverUrl":"/test-img?rtvcover","pageUrl":"https://video.weibo.com/show?fid=rttest"}},
                  "repostsCount":0,"commentsCount":0,"attitudesCount":0,
                  "createdAt":%d,"savedAt":%d,
                  "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}

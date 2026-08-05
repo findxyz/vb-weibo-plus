@@ -23,6 +23,12 @@
     viewerCounter: document.querySelector("#viewer-counter"),
     windowToggle: document.querySelector(".window-control.toggle"),
     allBloggersRow: document.querySelector(".blogger-row.all-bloggers"),
+    bloggerAdd: document.querySelector("#blogger-add"),
+    addBloggerDialog: document.querySelector("#add-blogger"),
+    addBloggerInput: document.querySelector("#add-blogger-input"),
+    addBloggerError: document.querySelector("#add-blogger-error"),
+    addBloggerCancel: document.querySelector("#add-blogger-cancel"),
+    addBloggerSubmit: document.querySelector("#add-blogger-submit"),
   };
 
   const state = {
@@ -195,6 +201,63 @@
     }
   }
 
+  /* ---------- 添加博主 ---------- */
+
+  // 支持纯 UID、weibo.com/u/xxx、weibo.com/xxx 三种输入，返回 uid 字符串
+  function parseBloggerUid(input) {
+    const value = input.trim();
+    if (/^\d{4,}$/.test(value)) {
+      return value;
+    }
+    const match = value.match(/weibo\.com\/(?:u\/)?(\d{4,})/);
+    return match ? match[1] : null;
+  }
+
+  function openAddBloggerDialog() {
+    elements.addBloggerInput.value = "";
+    showState(elements.addBloggerError, "");
+    elements.addBloggerSubmit.disabled = false;
+    elements.addBloggerDialog.showModal();
+    elements.addBloggerInput.focus();
+  }
+
+  async function submitAddBlogger() {
+    if (elements.addBloggerSubmit.disabled) {
+      return;
+    }
+    const uid = parseBloggerUid(elements.addBloggerInput.value);
+    if (!uid) {
+      showState(elements.addBloggerError,
+        "无法识别，请输入 UID 或 weibo.com/u/ 开头的主页链接。");
+      return;
+    }
+    elements.addBloggerSubmit.disabled = true;
+    showState(elements.addBloggerError, "正在添加并拉取微博…");
+    try {
+      await fetchJson(`/post/bloggers?uid=${uid}`, {method: "POST"});
+      elements.addBloggerDialog.close();
+      await reloadBloggersAndSelect(Number(uid));
+    } catch (error) {
+      if (error.status === 401) {
+        elements.addBloggerDialog.close();
+        showLoginExpired();
+      } else {
+        showState(elements.addBloggerError, `添加失败：${error.message}`);
+      }
+    } finally {
+      elements.addBloggerSubmit.disabled = false;
+    }
+  }
+
+  async function reloadBloggersAndSelect(uid) {
+    // loadBloggers 默认选中「全部博主」，这里在它的基础上改选新添加的博主
+    await loadBloggers();
+    const blogger = state.bloggers.find((b) => Number(b.uid) === uid);
+    if (blogger) {
+      selectBlogger(blogger);
+    }
+  }
+
   /* ---------- 日期时间轴 ---------- */
 
   async function loadDates() {
@@ -318,10 +381,15 @@
     elements.posts.appendChild(fragment);
   }
 
+  // 只有同时拿到视频页地址和封面图，才展示视频卡片
+  function hasPlayableVideo(video) {
+    return Boolean(video && video.pageUrl && video.coverUrl);
+  }
+
   function createPostCard(post) {
     const isPureRetweet = !post.content
       && (!post.pics || post.pics.length === 0)
-      && (!post.video || !post.video.coverUrl)
+      && !hasPlayableVideo(post.video)
       && post.retweeted;
 
     const card = document.createElement("article");
@@ -344,7 +412,14 @@
       body.appendChild(createPostPics(post.pics, post.mblogId));
     }
 
-    if (post.video && post.video.coverUrl) {
+    // 外层视频与转发视频指向同一地址时，只保留转发中的那个
+    const retweetVideo = post.retweeted && hasPlayableVideo(post.retweeted.video)
+      ? post.retweeted.video
+      : null;
+    const hideOuterVideo = hasPlayableVideo(post.video)
+      && retweetVideo
+      && post.video.pageUrl === retweetVideo.pageUrl;
+    if (hasPlayableVideo(post.video) && !hideOuterVideo) {
       body.appendChild(createPostVideo(post.video));
     }
 
@@ -416,21 +491,33 @@
   function renderContent(html) {
     if (!html) return "";
     // content 字段是微博富文本 HTML，已是后端处理后的安全内容；
-    // 为其中已有的链接补充新窗口打开属性
-    return html.replace(/<a\s/g, '<a target="_blank" rel="noopener" ');
+    // 这里统一修正链接：相对地址（如 @ 用户的 /n/xxx）补全为微博域名，
+    // 协议相对地址补全 https，并让所有链接在新窗口打开
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    for (const a of doc.querySelectorAll("a")) {
+      const href = a.getAttribute("href") || "";
+      if (href.startsWith("//")) {
+        a.setAttribute("href", "https:" + href);
+      } else if (href.startsWith("/")) {
+        a.setAttribute("href", "https://weibo.com" + href);
+      }
+      a.setAttribute("target", "_blank");
+      a.setAttribute("rel", "noopener");
+    }
+    return doc.body.innerHTML;
   }
 
   function createPostPics(pics, mblogId) {
     const container = document.createElement("div");
     container.className = "post-pics" + (pics.length === 1 ? " one-image" : "");
-    const validPics = pics.filter((p) => p.thumbnailUrl);
+    const validPics = pics.filter((p) => p.thumbnailUrl || p.originalUrl);
     validPics.forEach((pic, index) => {
       const picEl = document.createElement("a");
       picEl.className = "post-pic";
       picEl.href = pic.originalUrl || pic.thumbnailUrl;
       picEl.dataset.mblogId = mblogId;
       const img = document.createElement("img");
-      img.src = pic.thumbnailUrl;
+      img.src = pic.originalUrl || pic.thumbnailUrl;
       img.alt = "微博图片";
       img.loading = "lazy";
       picEl.appendChild(img);
@@ -446,7 +533,7 @@
   function createPostVideo(video) {
     const wrapper = document.createElement("a");
     wrapper.className = "post-video";
-    wrapper.href = video.pageUrl || "#";
+    wrapper.href = video.pageUrl;
     wrapper.target = "_blank";
     wrapper.rel = "noopener";
 
@@ -456,12 +543,11 @@
     img.loading = "lazy";
     wrapper.appendChild(img);
 
-    if (video.pageUrl) {
-      const play = document.createElement("span");
-      play.className = "post-video-play";
-      play.innerHTML = '<span>▶</span>';
-      wrapper.appendChild(play);
-    }
+    // 三角形用 CSS 绘制，避免 ▶ 字符在不同字体下偏移
+    const play = document.createElement("span");
+    play.className = "post-video-play";
+    play.appendChild(document.createElement("span"));
+    wrapper.appendChild(play);
 
     return wrapper;
   }
@@ -482,7 +568,7 @@
     block.appendChild(content);
 
     if (retweet.pics && retweet.pics.length > 0) {
-      const validRetweetPics = retweet.pics.filter((p) => p.thumbnailUrl);
+      const validRetweetPics = retweet.pics.filter((p) => p.thumbnailUrl || p.originalUrl);
       if (validRetweetPics.length > 0) {
         const pics = document.createElement("div");
         pics.className = "post-retweet-pics";
@@ -491,7 +577,7 @@
           picEl.className = "post-retweet-pic";
           picEl.href = "javascript:void(0)";
           const img = document.createElement("img");
-          img.src = pic.thumbnailUrl;
+          img.src = pic.originalUrl || pic.thumbnailUrl;
           img.alt = "转发微博图片";
           img.loading = "lazy";
           picEl.appendChild(img);
@@ -505,27 +591,16 @@
       }
     }
 
+    if (hasPlayableVideo(retweet.video)) {
+      block.appendChild(createPostVideo(retweet.video));
+    }
+
     return block;
   }
 
   function createPostActions(post) {
     const actions = document.createElement("div");
     actions.className = "post-actions";
-
-    const reposts = document.createElement("span");
-    reposts.className = "post-action";
-    reposts.innerHTML = '<span class="post-action-icon">🔁</span>';
-    reposts.append(` ${post.repostsCount || 0}`);
-
-    const comments = document.createElement("span");
-    comments.className = "post-action";
-    comments.innerHTML = '<span class="post-action-icon">💬</span>';
-    comments.append(` ${post.commentsCount || 0}`);
-
-    const attitudes = document.createElement("span");
-    attitudes.className = "post-action";
-    attitudes.innerHTML = '<span class="post-action-icon">❤</span>';
-    attitudes.append(` ${post.attitudesCount || 0}`);
 
     const link = document.createElement("a");
     link.className = "post-link";
@@ -534,9 +609,6 @@
     link.rel = "noopener";
     link.textContent = "查看原文";
 
-    actions.appendChild(reposts);
-    actions.appendChild(comments);
-    actions.appendChild(attitudes);
     actions.appendChild(link);
     return actions;
   }
@@ -633,12 +705,23 @@
 
   elements.allBloggersRow.addEventListener("click", selectAllBloggers);
   elements.bloggerSearch.addEventListener("input", filterBloggers);
+
+  elements.bloggerAdd.addEventListener("click", openAddBloggerDialog);
+  elements.addBloggerCancel.addEventListener("click", () => {
+    elements.addBloggerDialog.close();
+  });
+  elements.addBloggerSubmit.addEventListener("click", submitAddBlogger);
+  elements.addBloggerInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      submitAddBlogger();
+    }
+  });
   elements.retryPosts.addEventListener("click", () => {
     if (state.selectedDate) loadPosts(state.selectedDate);
   });
 
   elements.windowToggle.addEventListener("click", () => {
-    location.href = "/chat/";
+    location.href = "/chat/index.html";
   });
 
   elements.loginQr.addEventListener("click", startQrLogin);

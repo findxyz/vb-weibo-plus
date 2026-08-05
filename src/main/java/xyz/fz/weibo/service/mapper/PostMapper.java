@@ -22,6 +22,7 @@ import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
 import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MblogResponse;
+import xyz.fz.weibo.model.response.MixMediaInfoResponse;
 import xyz.fz.weibo.model.response.PageInfoResponse;
 import xyz.fz.weibo.model.response.PicInfoResponse;
 import xyz.fz.weibo.model.response.UserResponse;
@@ -68,7 +69,7 @@ public class PostMapper {
         Objects.requireNonNull(post.user().id(), "Blogger uid is required");
 
         List<PicInfo> pics = toPics(post.picInfos());
-        VideoInfo video = toVideo(post.pageInfo());
+        VideoInfo video = toVideo(post);
         RetweetInfo retweeted = toRetweetInfo(post.retweetedStatus(), retweetedLongText);
         return new PostEntity(post.mblogId(), post.id(), post.user().id(),
                 content(post, longText, false), content(post, longText, true),
@@ -140,7 +141,7 @@ public class PostMapper {
         Objects.requireNonNull(post.mblogId(), "Retweeted Blogger Blog mblog id is required");
         Objects.requireNonNull(post.user(), "Retweeted Blogger metadata is required");
         Objects.requireNonNull(post.user().id(), "Retweeted Blogger uid is required");
-        VideoInfo video = toVideo(post.pageInfo());
+        VideoInfo video = toVideo(post);
         return new RetweetInfo(post.id(), post.mblogId(), content(post, longText, false),
                 content(post, longText, true), post.user().id(), emptyIfNull(post.user().screenName()),
                 parseCreatedAt(post.createdAt()), toPics(post.picInfos()), video.coverUrl(), video.pageUrl());
@@ -191,6 +192,26 @@ public class PostMapper {
             return new MediaSize("", 0, 0);
         }
         return new MediaSize(emptyIfNull(image.url()), image.width(), image.height());
+    }
+
+    private VideoInfo toVideo(MblogResponse post) {
+        VideoInfo video = toVideo(post.pageInfo());
+        if (!video.coverUrl().isBlank() && !video.pageUrl().isBlank()) {
+            return video;
+        }
+        // 混合发布的微博没有 page_info，视频在 mix_media_info.items 里，取第一个视频条目
+        if (post.mixMediaInfo() == null || post.mixMediaInfo().items() == null) {
+            return video;
+        }
+        for (MixMediaInfoResponse.Item item : post.mixMediaInfo().items()) {
+            if ("video".equals(item.type()) && item.data() != null) {
+                VideoInfo mixed = toVideo(item.data());
+                if (!mixed.coverUrl().isBlank() || !mixed.pageUrl().isBlank()) {
+                    return mixed;
+                }
+            }
+        }
+        return video;
     }
 
     private VideoInfo toVideo(PageInfoResponse pageInfo) {

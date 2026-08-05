@@ -68,6 +68,11 @@ public class PostController {
         return postService.queryBloggers();
     }
 
+    @PostMapping("/bloggers")
+    public BloggerRecord addBlogger(@RequestParam long uid) {
+        return postService.addBlogger(uid);
+    }
+
     @GetMapping("/calendar")
     public CalendarView queryCalendar(@RequestParam(required = false) Long uid) {
         return postService.queryCalendar(uid);

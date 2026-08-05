@@ -761,7 +761,7 @@ class PostServiceTest {
         return new MblogResponse(id, mblogId, "Fri Jul 10 18:18:55 +0800 2026", "正文", "纯文本",
                 "微博网页版", "", longText, 0, 0, 0, 0,
                 new UserResponse(1L, "博主", "", "", "", "/u/1", false),
-                null, null, retweeted);
+                null, null, retweeted, null);
     }
 
     private PostEntity entity(String mblogId, long postId) {

@@ -23,6 +23,7 @@ public record MblogResponse(
         UserResponse user,
         @JsonProperty("pic_infos") Map<String, PicInfoResponse> picInfos,
         @JsonProperty("page_info") PageInfoResponse pageInfo,
-        @JsonProperty("retweeted_status") MblogResponse retweetedStatus
+        @JsonProperty("retweeted_status") MblogResponse retweetedStatus,
+        @JsonProperty("mix_media_info") MixMediaInfoResponse mixMediaInfo
 ) {
 }

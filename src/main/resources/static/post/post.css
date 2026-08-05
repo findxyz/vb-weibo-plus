@@ -31,7 +31,11 @@ body {
   overflow: auto;
   color: var(--text);
   background: #b9d8f2;
-  font-family: Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
+  font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Source Han Sans SC", system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -90,6 +94,23 @@ input:disabled {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* 三个面板的标题样式统一 */
+.bloggers-heading h2,
+.dates-heading h2,
+.feed-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* 标题旁的辅助信息统一 */
+.bloggers-heading span,
+.dates-heading span,
+.feed-count {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 h1 {
@@ -151,7 +172,7 @@ h1 {
 .bloggers-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: 64px 54px minmax(0, 1fr) auto;
+  grid-template-rows: 48px 54px minmax(0, 1fr) auto;
   border-right: 1px solid var(--border-strong);
   color: #16375a;
   background: linear-gradient(90deg, #dcefff, #bedcf3);
@@ -166,15 +187,158 @@ h1 {
   background: linear-gradient(#fafdff, #d8eafa);
 }
 
-.bloggers-heading h2 {
-  margin: 0;
-  font-size: 17px;
-}
-
 .bloggers-heading span {
   margin-left: auto;
+}
+
+/* 与标题栏 window-control 同族的渐变图标按钮 */
+.blogger-add {
+  flex: none;
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 94%);
+  border-radius: 5px;
+  color: #ffffff;
+  background: linear-gradient(#70bcf8, #176fce 72%);
+  box-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
+}
+
+.blogger-add::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 1v10M1 6h10' stroke='%23fff' stroke-width='2.4' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 1px #074b9a);
+}
+
+.blogger-add:hover {
+  filter: brightness(1.08);
+}
+
+/* 添加博主弹窗：与群聊记录弹窗一致的窗口风格 */
+
+.add-blogger {
+  width: 420px;
+  padding: 0;
+  border: 2px solid #075fd2;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 12px 36px rgb(0 35 85 / 38%);
+}
+
+.add-blogger::backdrop {
+  background: rgb(18 48 76 / 38%);
+}
+
+.add-blogger-window {
+  display: grid;
+  grid-template-rows: 38px auto;
+}
+
+.add-blogger-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 10px;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
+    linear-gradient(#1394fa 0, #0879ed 28%, #0060d8 72%, #006bea 100%);
+  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+}
+
+.add-blogger-titlebar h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 1px #003692;
+}
+
+.add-blogger-title-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M7 1.5v11M1.5 7h11' stroke='%23fff' stroke-width='2.2' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 1px 1px #003692);
+}
+
+.add-blogger-titlebar button {
+  width: 28px;
+  height: 26px;
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 94%);
+  border-radius: 5px;
+  color: #ffffff;
+  background: linear-gradient(#ff9a73, #e63c20 72%);
+  box-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
+}
+
+.add-blogger-titlebar button::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23fff' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 1px #074b9a);
+}
+
+.add-blogger-titlebar button:hover {
+  filter: brightness(1.08);
+}
+
+.add-blogger-body {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.add-blogger-tip {
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.6;
+}
+
+.add-blogger input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #8badca;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 2px rgb(35 77 110 / 12%);
+}
+
+.add-blogger-error {
+  min-height: 18px;
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.add-blogger-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.add-blogger-actions button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid #7f9fba;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(#ffffff, #dceaf5);
 }
 
 .search-box {
@@ -292,13 +456,7 @@ h1 {
 
 .panel-state {
   color: var(--danger);
-  font-size: 15px;
-  animation: panel-blink 1.5s ease-in-out infinite;
-}
-
-@keyframes panel-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  font-size: 13px;
 }
 
 .panel-feedback:has(.panel-state:empty) {
@@ -322,7 +480,7 @@ h1 {
 .dates-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr);
   border-right: 1px solid var(--border-strong);
   color: #16375a;
   background: linear-gradient(90deg, #f3f8fc, #e3effa);
@@ -332,20 +490,13 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(#fafdff, #e1effa);
 }
 
-.dates-heading h2 {
-  margin: 0;
-  font-size: 15px;
-}
-
 .dates-heading span {
   margin-left: auto;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .dates-list {
@@ -383,6 +534,7 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 .month-days {
@@ -397,14 +549,15 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 24px;
+  padding: 5px 16px 5px 24px;
   cursor: pointer;
   font-size: 13px;
-  color: #555;
+  color: #3a4a5a;
   background: transparent;
   border: 0;
   width: 100%;
   text-align: left;
+  font-variant-numeric: tabular-nums;
 }
 
 .date-item:hover {
@@ -419,8 +572,9 @@ h1 {
 }
 
 .date-item .date-count {
-  color: #bbb;
+  color: var(--muted);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 全部博主行 */
@@ -460,16 +614,12 @@ h1 {
 
 .feed-header h2 {
   min-width: 0;
-  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 20px;
 }
 
 .feed-count {
-  color: var(--muted);
-  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -575,6 +725,7 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .post-region {
@@ -657,6 +808,12 @@ h1 {
   height: 100%;
   object-fit: cover;
   cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.post-pic:hover img,
+.post-video:hover img {
+  filter: brightness(0.92);
 }
 
 .post-pics.one-image .post-pic img {
@@ -672,6 +829,7 @@ h1 {
 .post-video {
   position: relative;
   display: inline-block;
+  justify-self: start;
   margin-top: 4px;
 }
 
@@ -699,12 +857,19 @@ h1 {
   place-items: center;
   width: 48px;
   height: 48px;
-  padding-left: 3px;
   border: 2px solid #ffffff;
   border-radius: 50%;
-  color: #ffffff;
   background: rgb(0 0 0 / 58%);
-  font-size: 20px;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 35%);
+}
+
+/* 用 border 画三角形，避免 ▶ 字符在不同字体下偏移 */
+.post-video-play span::before {
+  content: "";
+  margin-left: 4px;
+  border-left: 14px solid #ffffff;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
 }
 
 /* 转发微博 */
@@ -720,14 +885,14 @@ h1 {
 }
 
 .post-retweet-author {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: #46627d;
 }
 
 .post-retweet-content {
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.6;
   color: #3a4a5a;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -765,25 +930,13 @@ h1 {
   cursor: pointer;
 }
 
-/* 互动数据 */
+/* 互动数据（仅保留查看原文链接） */
 
 .post-actions {
   display: flex;
   align-items: center;
-  gap: 24px;
   margin-top: 4px;
-  color: var(--muted);
   font-size: 13px;
-}
-
-.post-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.post-action-icon {
-  font-size: 16px;
 }
 
 .post-link {

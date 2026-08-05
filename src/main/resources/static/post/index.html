@@ -25,6 +25,7 @@
         <header class="bloggers-heading">
           <h2>博主列表</h2>
           <span id="bloggers-count">正在加载…</span>
+          <button id="blogger-add" class="blogger-add" type="button" title="添加博主" aria-label="添加博主"></button>
         </header>
         <label class="search-box">
           <span class="visually-hidden">搜索博主</span>
@@ -71,6 +72,24 @@
       </section>
     </div>
   </main>
+
+  <dialog class="add-blogger" id="add-blogger" aria-labelledby="add-blogger-title">
+    <div class="add-blogger-window">
+      <header class="add-blogger-titlebar">
+        <span class="add-blogger-title-icon" aria-hidden="true"></span>
+        <h2 id="add-blogger-title">添加博主</h2>
+        <button id="add-blogger-cancel" type="button" aria-label="关闭添加博主"></button>
+      </header>
+      <div class="add-blogger-body">
+        <p class="add-blogger-tip">输入博主 UID 或主页链接，例如 https://weibo.com/u/1234567890，添加后会立即拉取最新一页微博。</p>
+        <input id="add-blogger-input" type="text" placeholder="UID 或主页链接" autocomplete="off">
+        <p class="add-blogger-error" id="add-blogger-error" role="alert"></p>
+        <div class="add-blogger-actions">
+          <button id="add-blogger-submit" type="button">添加</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <dialog class="image-viewer" id="image-viewer" aria-label="查看原图">
     <img alt="微博原图">
