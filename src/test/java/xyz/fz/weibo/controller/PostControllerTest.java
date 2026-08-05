@@ -268,9 +268,9 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest());
         verify(postService, never()).queryPosts(List.of(1L, 2L), null, null, null, 1, 100);
 
-        when(postService.queryPosts(null, null, null, null, 1, 101))
-                .thenThrow(new InvalidRequestException("size 必须介于 1 和 100 之间。"));
-        mockMvc.perform(get("/post/list").param("size", "101"))
+        when(postService.queryPosts(null, null, null, null, 1, 10000))
+                .thenThrow(new InvalidRequestException("size 必须介于 1 和 9999 之间。"));
+        mockMvc.perform(get("/post/list").param("size", "10000"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
     }

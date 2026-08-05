@@ -219,6 +219,51 @@ class PostRepositoryTest {
         assertThat(bloggerRepository.findAllOrdered()).extracting(BloggerEntity::getUid).containsExactly(1L);
     }
 
+    @Test
+    void daily_counts_aggregate_all_bloggers_by_cst_day_in_descending_order() {
+        postRepository.insertIfAbsent(post("d1", 10, 1, 1783612800000L, "day1"));
+        postRepository.insertIfAbsent(post("d2", 20, 1, 1783612800000L, "day1-second"));
+        postRepository.insertIfAbsent(post("d3", 30, 2, 1783699200000L, "day2-other-blogger"));
+
+        List<DailyPostCount> counts = postRepository.findDailyCounts(null);
+
+        assertThat(counts).extracting(DailyPostCount::getDate)
+                .containsExactly("2026-07-11", "2026-07-10");
+        assertThat(counts.get(0).getDate()).isEqualTo("2026-07-11");
+        assertThat(counts.get(0).getCount()).isEqualTo(1L);
+        assertThat(counts.get(1).getDate()).isEqualTo("2026-07-10");
+        assertThat(counts.get(1).getCount()).isEqualTo(2L);
+    }
+
+    @Test
+    void daily_counts_filter_by_uid() {
+        postRepository.insertIfAbsent(post("d1", 10, 1, 1783612800000L, "day1-blogger1"));
+        postRepository.insertIfAbsent(post("d2", 20, 2, 1783612800000L, "day1-blogger2"));
+        postRepository.insertIfAbsent(post("d3", 30, 1, 1783699200000L, "day2-blogger1"));
+
+        List<DailyPostCount> counts = postRepository.findDailyCounts(1L);
+
+        assertThat(counts).extracting(DailyPostCount::getDate)
+                .containsExactly("2026-07-11", "2026-07-10");
+        assertThat(counts.get(0).getCount()).isEqualTo(1L);
+        assertThat(counts.get(1).getCount()).isEqualTo(1L);
+    }
+
+    @Test
+    void daily_counts_use_cst_timezone_for_utc_midnight_boundary() {
+        // UTC 2026-07-10T15:59:59 = CST 2026-07-10T23:59:59（同日）
+        postRepository.insertIfAbsent(post("late", 10, 1, 1783699199000L, "同日末尾"));
+        // UTC 2026-07-10T16:00:00 = CST 2026-07-11T00:00:00（次日）
+        postRepository.insertIfAbsent(post("next", 20, 1, 1783699200000L, "次日开头"));
+
+        List<DailyPostCount> counts = postRepository.findDailyCounts(1L);
+
+        assertThat(counts).extracting(DailyPostCount::getDate)
+                .containsExactly("2026-07-11", "2026-07-10");
+        assertThat(counts.get(0).getCount()).isEqualTo(1L);
+        assertThat(counts.get(1).getCount()).isEqualTo(1L);
+    }
+
     private static BloggerEntity blogger(long uid, String screenName, long cursor, long createdAt, long updatedAt) {
         return new BloggerEntity(uid, screenName, "avatar", "/u/" + uid, 1,
                 cursor, createdAt, updatedAt);

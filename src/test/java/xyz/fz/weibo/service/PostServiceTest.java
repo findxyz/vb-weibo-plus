@@ -732,7 +732,7 @@ class PostServiceTest {
         assertThat(result.total()).isEqualTo(1);
         assertThatThrownBy(() -> postService.queryPosts(null, null, null, null, 0, 100))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> postService.queryPosts(null, null, null, null, 1, 101))
+        assertThatThrownBy(() -> postService.queryPosts(null, null, null, null, 1, 10000))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> postService.queryPosts(null, 20L, 10L, null, 1, 100))
                 .isInstanceOf(IllegalArgumentException.class);

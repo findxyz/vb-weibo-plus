@@ -30,7 +30,14 @@
           <span class="visually-hidden">搜索博主</span>
           <input id="blogger-search" type="search" placeholder="搜索博主">
         </label>
-        <div class="bloggers-list" id="bloggers-list" aria-live="polite"></div>
+        <div class="bloggers-list" id="bloggers-list" aria-live="polite">
+          <button class="blogger-row all-bloggers" type="button" data-uid="">
+            <span class="blogger-avatar all-avatar">微</span>
+            <div class="blogger-info">
+              <div class="blogger-name">全部博主</div>
+            </div>
+          </button>
+        </div>
         <div class="panel-feedback">
           <div class="panel-state" id="bloggers-state" role="status"></div>
         </div>
@@ -40,28 +47,19 @@
         </div>
       </aside>
 
+      <aside class="dates-panel" aria-label="日期时间轴">
+        <header class="dates-heading">
+          <h2>日期</h2>
+          <span id="dates-state"></span>
+        </header>
+        <div class="dates-list" id="dates-list" aria-live="polite"></div>
+      </aside>
+
       <section class="feed" aria-label="微博列表">
         <header class="feed-header">
           <h2 id="current-filter">全部微博</h2>
           <span id="feed-count" class="feed-count"></span>
         </header>
-
-        <form class="feed-filters" id="feed-filters">
-          <label>
-            <span>开始日期</span>
-            <input id="filter-start" type="date">
-          </label>
-          <label>
-            <span>结束日期</span>
-            <input id="filter-end" type="date">
-          </label>
-          <label>
-            <span>关键词</span>
-            <input id="filter-keyword" type="search" placeholder="搜索微博正文">
-          </label>
-          <button class="primary-button" type="submit">🔍 查询</button>
-          <button id="filter-reset" type="button">重置</button>
-        </form>
 
         <div class="posts-shell">
           <div class="posts" id="posts" aria-live="polite"></div>
@@ -69,11 +67,6 @@
             <div class="posts-state" id="posts-state" role="status">正在加载…</div>
             <button id="retry-posts" type="button" hidden>重试</button>
           </div>
-          <footer class="pagination" id="pagination" hidden>
-            <button id="page-prev" type="button">⬅️ 上一页</button>
-            <span id="page-info"></span>
-            <button id="page-next" type="button">下一页 ➡️</button>
-          </footer>
         </div>
       </section>
     </div>

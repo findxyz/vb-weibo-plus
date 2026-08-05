@@ -1,8 +1,7 @@
 (() => {
   "use strict";
 
-  const PAGE_SIZE = 20;
-  const LAST_BLOGGER_KEY = "weibo-page:last-uid";
+  const DAY_PAGE_SIZE = 9999;
   const elements = {
     bloggersCount: document.querySelector("#bloggers-count"),
     bloggersList: document.querySelector("#bloggers-list"),
@@ -12,29 +11,22 @@
     loginQr: document.querySelector("#login-qr"),
     currentFilter: document.querySelector("#current-filter"),
     feedCount: document.querySelector("#feed-count"),
-    feedFilters: document.querySelector("#feed-filters"),
-    filterStart: document.querySelector("#filter-start"),
-    filterEnd: document.querySelector("#filter-end"),
-    filterKeyword: document.querySelector("#filter-keyword"),
-    filterReset: document.querySelector("#filter-reset"),
+    datesState: document.querySelector("#dates-state"),
+    datesList: document.querySelector("#dates-list"),
     posts: document.querySelector("#posts"),
     postsState: document.querySelector("#posts-state"),
     retryPosts: document.querySelector("#retry-posts"),
-    pagination: document.querySelector("#pagination"),
-    pagePrev: document.querySelector("#page-prev"),
-    pageInfo: document.querySelector("#page-info"),
-    pageNext: document.querySelector("#page-next"),
     imageViewer: document.querySelector("#image-viewer"),
     imageViewerState: document.querySelector("#image-viewer-state"),
     windowToggle: document.querySelector(".window-control.toggle"),
+    allBloggersRow: document.querySelector(".blogger-row.all-bloggers"),
   };
 
   const state = {
     bloggers: [],
     selectedUid: null,
-    page: 1,
-    total: 0,
-    loading: false,
+    selectedDate: null,
+    loadingPosts: false,
   };
 
   /* ---------- 工具函数 ---------- */
@@ -44,11 +36,6 @@
     const d = new Date(epochMillis);
     const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
-
-  function localDateValue(date) {
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   }
 
   function toQueryDateTime(dateStr) {
@@ -92,7 +79,7 @@
       state.bloggers = list;
       renderBloggers(list);
       elements.bloggersCount.textContent = `${list.length} 位博主`;
-      restoreSelectedBlogger();
+      selectAllBloggers();
     } catch (error) {
       if (error.status === 401) {
         showLoginExpired();
@@ -104,10 +91,12 @@
   }
 
   function renderBloggers(list) {
-    elements.bloggersList.innerHTML = "";
+    // 保留顶部的「全部博主」行，只重建其后的博主行
+    for (const row of elements.bloggersList.querySelectorAll(".blogger-row:not(.all-bloggers)")) {
+      row.remove();
+    }
     for (const blogger of list) {
-      const row = createBloggerRow(blogger);
-      elements.bloggersList.appendChild(row);
+      elements.bloggersList.appendChild(createBloggerRow(blogger));
     }
   }
 
@@ -151,71 +140,155 @@
     return row;
   }
 
-  function selectBlogger(blogger) {
-    state.selectedUid = blogger.uid;
-    localStorage.setItem(LAST_BLOGGER_KEY, String(blogger.uid));
-    for (const row of elements.bloggersList.children) {
-      row.classList.toggle("active", row.dataset.uid === String(blogger.uid));
-    }
-    elements.currentFilter.textContent = `${blogger.screenName} 的微博`;
-    state.page = 1;
-    loadPosts();
+  function selectAllBloggers() {
+    state.selectedUid = null;
+    setActiveBloggerRow(elements.allBloggersRow);
+    elements.currentFilter.textContent = "全部微博";
+    onBloggerChanged();
   }
 
-  function restoreSelectedBlogger() {
-    const savedUid = Number(localStorage.getItem(LAST_BLOGGER_KEY));
-    if (savedUid) {
-      const blogger = state.bloggers.find((b) => b.uid === savedUid);
-      if (blogger) {
-        selectBlogger(blogger);
-        return;
-      }
+  function selectBlogger(blogger) {
+    state.selectedUid = blogger.uid;
+    const row = elements.bloggersList.querySelector(
+      `.blogger-row:not(.all-bloggers)[data-uid="${blogger.uid}"]`);
+    setActiveBloggerRow(row);
+    elements.currentFilter.textContent = `${blogger.screenName} 的微博`;
+    onBloggerChanged();
+  }
+
+  function setActiveBloggerRow(row) {
+    for (const r of elements.bloggersList.querySelectorAll(".blogger-row")) {
+      r.classList.toggle("active", r === row);
     }
-    if (state.bloggers.length > 0) {
-      selectBlogger(state.bloggers[0]);
+  }
+
+  async function onBloggerChanged() {
+    state.selectedDate = null;
+    elements.posts.innerHTML = "";
+    showState(elements.postsState, "");
+    elements.feedCount.textContent = "";
+    await loadDates();
+      const firstMonth = elements.datesList.querySelector(".month-group");
+      if (firstMonth) {
+        toggleMonth(firstMonth);
+      const firstDay = firstMonth.querySelector(".date-item");
+      if (firstDay) {
+        selectDate(firstDay.dataset.date, firstDay);
+      } else {
+        showState(elements.postsState, "该月无微博");
+      }
     } else {
-      showState(elements.postsState, "暂无博主数据");
+      showState(elements.postsState, "无微博数据");
     }
   }
 
   function filterBloggers() {
     const keyword = elements.bloggerSearch.value.trim().toLowerCase();
-    for (const row of elements.bloggersList.children) {
+    for (const row of elements.bloggersList.querySelectorAll(".blogger-row:not(.all-bloggers)")) {
       const name = (row.dataset.name || "").toLowerCase();
       row.hidden = keyword && !name.includes(keyword);
     }
   }
 
-  /* ---------- 微博列表 ---------- */
+  /* ---------- 日期时间轴 ---------- */
 
-  async function loadPosts() {
-    if (state.loading) return;
-    state.loading = true;
+  async function loadDates() {
+    showState(elements.datesState, "加载中…");
+    elements.datesList.innerHTML = "";
+    const params = new URLSearchParams();
+    if (state.selectedUid) {
+      params.set("uid", String(state.selectedUid));
+    }
+    try {
+      const result = await fetchJson(`/post/calendar?${params}`);
+      renderDates(result.months);
+      showState(elements.datesState, result.months.length ? "" : "无数据");
+    } catch (error) {
+      if (error.status === 401) {
+        showLoginExpired();
+      }
+      showState(elements.datesState, "加载失败");
+    }
+  }
+
+  function renderDates(months) {
+    elements.datesList.innerHTML = "";
+    for (const month of months) {
+      const group = document.createElement("div");
+      group.className = "month-group";
+      group.dataset.month = month.month;
+
+      const header = document.createElement("div");
+      header.className = "month-header";
+      header.textContent = month.month;
+      const count = document.createElement("span");
+      count.className = "month-count";
+      count.textContent = `${month.count} 条`;
+      header.appendChild(count);
+      header.addEventListener("click", () => toggleMonth(group));
+      group.appendChild(header);
+
+      const days = document.createElement("div");
+      days.className = "month-days";
+      for (const day of month.days) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "date-item";
+        item.dataset.date = day.date;
+        const label = document.createElement("span");
+        label.textContent = day.date.slice(5);
+        const dayCount = document.createElement("span");
+        dayCount.className = "date-count";
+        dayCount.textContent = day.count;
+        item.appendChild(label);
+        item.appendChild(dayCount);
+        item.addEventListener("click", () => selectDate(day.date, item));
+        days.appendChild(item);
+      }
+      group.appendChild(days);
+      elements.datesList.appendChild(group);
+    }
+  }
+
+  function toggleMonth(group) {
+    group.classList.toggle("open");
+  }
+
+  /* ---------- 微博列表（按日加载） ---------- */
+
+  async function selectDate(date, itemEl) {
+    if (state.loadingPosts) return;
+    for (const el of elements.datesList.querySelectorAll(".date-item.active")) {
+      el.classList.remove("active");
+    }
+    if (itemEl) itemEl.classList.add("active");
+    state.selectedDate = date;
+    await loadPosts(date);
+  }
+
+  async function loadPosts(date) {
+    state.loadingPosts = true;
     showState(elements.postsState, "正在加载…");
     elements.retryPosts.hidden = true;
-    elements.pagination.hidden = true;
     elements.posts.innerHTML = "";
 
     const params = new URLSearchParams();
-    params.set("page", String(state.page));
-    params.set("size", String(PAGE_SIZE));
+    params.set("page", "1");
+    params.set("size", String(DAY_PAGE_SIZE));
     if (state.selectedUid) {
       params.set("uids", String(state.selectedUid));
     }
-    const start = toQueryDateTime(elements.filterStart.value);
-    const end = toQueryEndTime(elements.filterEnd.value);
-    const keyword = elements.filterKeyword.value.trim();
+    const start = toQueryDateTime(date);
+    const end = toQueryEndTime(date);
     if (start) params.set("start", start);
     if (end) params.set("end", end);
-    if (keyword) params.set("keyword", keyword);
 
     try {
       const result = await fetchJson(`/post/list?${params}`);
-      state.total = result.total;
       renderPosts(result.items);
-      updatePagination();
+      elements.feedCount.textContent = `共 ${result.total} 条`;
       if (result.items.length === 0) {
-        showState(elements.postsState, "没有匹配的微博");
+        showState(elements.postsState, "该日无微博");
       } else {
         showState(elements.postsState, "");
       }
@@ -227,7 +300,7 @@
         elements.retryPosts.hidden = false;
       }
     } finally {
-      state.loading = false;
+      state.loadingPosts = false;
     }
   }
 
@@ -243,6 +316,7 @@
   function createPostCard(post) {
     const card = document.createElement("article");
     card.className = "post-card";
+    card.id = "post-" + post.mblogId;
 
     const avatar = createAvatar(post.blogger);
     card.appendChild(avatar);
@@ -452,21 +526,6 @@
     return actions;
   }
 
-  /* ---------- 分页 ---------- */
-
-  function updatePagination() {
-    const totalPages = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
-    if (totalPages <= 1) {
-      elements.pagination.hidden = true;
-      return;
-    }
-    elements.pagination.hidden = false;
-    elements.pageInfo.textContent = `第 ${state.page} / ${totalPages} 页（共 ${state.total} 条）`;
-    elements.pagePrev.disabled = state.page <= 1;
-    elements.pageNext.disabled = state.page >= totalPages;
-    elements.feedCount.textContent = `共 ${state.total} 条`;
-  }
-
   /* ---------- 图片查看器 ---------- */
 
   function openImageViewer(url) {
@@ -526,37 +585,10 @@
 
   /* ---------- 事件绑定 ---------- */
 
+  elements.allBloggersRow.addEventListener("click", selectAllBloggers);
   elements.bloggerSearch.addEventListener("input", filterBloggers);
-
-  elements.feedFilters.addEventListener("submit", (e) => {
-    e.preventDefault();
-    state.page = 1;
-    loadPosts();
-  });
-
-  elements.filterReset.addEventListener("click", () => {
-    elements.filterStart.value = "";
-    elements.filterEnd.value = "";
-    elements.filterKeyword.value = "";
-    state.page = 1;
-    loadPosts();
-  });
-
-  elements.retryPosts.addEventListener("click", loadPosts);
-
-  elements.pagePrev.addEventListener("click", () => {
-    if (state.page > 1) {
-      state.page--;
-      loadPosts();
-    }
-  });
-
-  elements.pageNext.addEventListener("click", () => {
-    const totalPages = Math.ceil(state.total / PAGE_SIZE);
-    if (state.page < totalPages) {
-      state.page++;
-      loadPosts();
-    }
+  elements.retryPosts.addEventListener("click", () => {
+    if (state.selectedDate) loadPosts(state.selectedDate);
   });
 
   elements.windowToggle.addEventListener("click", () => {
@@ -580,12 +612,6 @@
   /* ---------- 初始化 ---------- */
 
   function init() {
-    const today = new Date();
-    const monthAgo = new Date();
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
-    elements.filterEnd.value = localDateValue(today);
-    elements.filterStart.value = localDateValue(monthAgo);
-
     checkLoginStatus();
     loadBloggers();
   }

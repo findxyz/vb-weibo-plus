@@ -143,7 +143,7 @@ h1 {
 .workspace {
   min-height: 0;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 280px 200px minmax(0, 1fr);
 }
 
 /* 左侧博主列表面板 */
@@ -316,13 +316,134 @@ h1 {
   padding: 10px 12px;
 }
 
+/* 日期时间轴面板 */
+
+.dates-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr);
+  border-right: 1px solid var(--border-strong);
+  color: #16375a;
+  background: linear-gradient(90deg, #f3f8fc, #e3effa);
+}
+
+.dates-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(#fafdff, #e1effa);
+}
+
+.dates-heading h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.dates-heading span {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dates-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.month-group {
+  border-bottom: 1px solid #d2e1ec;
+}
+
+.month-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: #16375a;
+  user-select: none;
+}
+
+.month-header::before {
+  content: "▸ ";
+  font-size: 10px;
+}
+
+.month-group.open .month-header::before {
+  content: "▾ ";
+}
+
+.month-header .month-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.month-days {
+  display: none;
+}
+
+.month-group.open .month-days {
+  display: block;
+}
+
+.date-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 24px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #555;
+  background: transparent;
+  border: 0;
+  width: 100%;
+  text-align: left;
+}
+
+.date-item:hover {
+  background: rgb(255 255 255 / 48%);
+}
+
+.date-item.active {
+  background: linear-gradient(90deg, #ffffff, #eaf6ff);
+  box-shadow: inset 4px 0 0 #f4a51d;
+  color: #16375a;
+  font-weight: 600;
+}
+
+.date-item .date-count {
+  color: #bbb;
+  font-size: 12px;
+}
+
+/* 全部博主行 */
+
+.blogger-row.all-bloggers {
+  border-bottom: 1px solid #aac4da;
+  background: #e8f3fb;
+}
+
+.blogger-row.all-bloggers.active {
+  background: linear-gradient(90deg, #ffffff, #eaf6ff);
+}
+
+.all-avatar {
+  background: linear-gradient(145deg, #f4a51d, #d97000);
+}
+
 /* 右侧微博 Feed 面板 */
 
 .feed {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 48px auto minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr);
   background: var(--surface);
 }
 
@@ -351,64 +472,15 @@ h1 {
   white-space: nowrap;
 }
 
-/* 筛选栏 */
+/* 按钮基础样式 */
 
-.feed-filters {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  background: #f3f8fc;
-}
-
-.feed-filters label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #355b7c;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.feed-filters input {
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #8badca;
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  background: #ffffff;
-  box-shadow: inset 0 1px 2px rgb(35 77 110 / 12%);
-}
-
-.feed-filters input[type="search"] {
-  width: 200px;
-}
-
-.feed-filters input[type="date"] {
-  width: 150px;
-}
-
-.feed-filters .primary-button,
-.feed-filters #filter-reset,
 .panel-feedback button,
-.login-expired button,
-.pagination button {
+.login-expired button {
   min-height: 32px;
   padding: 0 14px;
   border: 1px solid #7f9fba;
   border-radius: var(--radius-sm);
   background: linear-gradient(#ffffff, #dceaf5);
-}
-
-.feed-filters .primary-button {
-  border-color: var(--accent-strong);
-  color: #ffffff;
-  background: linear-gradient(var(--accent), var(--accent-strong));
-}
-
-#filter-reset {
-  margin-left: auto;
 }
 
 /* 微博列表 */
@@ -734,29 +806,6 @@ h1 {
   border-radius: var(--radius-sm);
   background: #ffffff;
   pointer-events: auto;
-}
-
-/* 分页 */
-
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--border);
-  background: #edf6fc;
-}
-
-.pagination[hidden] {
-  display: none;
-}
-
-.pagination span {
-  min-width: 150px;
-  color: #355b7c;
-  text-align: center;
-  font-size: 13px;
 }
 
 /* 图片查看器 dialog */

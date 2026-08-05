@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.CalendarView;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
@@ -65,6 +66,11 @@ public class PostController {
     @GetMapping("/bloggers")
     public List<BloggerRecord> queryBloggers() {
         return postService.queryBloggers();
+    }
+
+    @GetMapping("/calendar")
+    public CalendarView queryCalendar(@RequestParam(required = false) Long uid) {
+        return postService.queryCalendar(uid);
     }
 
     @GetMapping("/list")

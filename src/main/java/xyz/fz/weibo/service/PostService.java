@@ -13,6 +13,7 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.BloggerRecord;
+import xyz.fz.weibo.domain.CalendarView;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PicInfo;
 import xyz.fz.weibo.domain.PostQueryResult;
@@ -29,6 +30,7 @@ import xyz.fz.weibo.model.response.MblogResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
+import xyz.fz.weibo.repository.DailyPostCount;
 import xyz.fz.weibo.repository.PostRepository;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
@@ -38,7 +40,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
@@ -216,6 +221,24 @@ public class PostService {
         return postMapper.toBloggerRecords(bloggerRepository.findAllOrdered());
     }
 
+    public CalendarView queryCalendar(Long uid) {
+        List<DailyPostCount> dailyCounts = postRepository.findDailyCounts(uid);
+        Map<String, List<CalendarView.DayCount>> byMonth = new LinkedHashMap<>();
+        Map<String, Long> monthTotals = new LinkedHashMap<>();
+        for (DailyPostCount daily : dailyCounts) {
+            String date = daily.getDate();
+            String month = date.substring(0, 7);
+            byMonth.computeIfAbsent(month, k -> new ArrayList<>())
+                    .add(new CalendarView.DayCount(date, daily.getCount()));
+            monthTotals.merge(month, daily.getCount(), Long::sum);
+        }
+        List<CalendarView.MonthGroup> months = byMonth.entrySet().stream()
+                .map(entry -> new CalendarView.MonthGroup(
+                        entry.getKey(), monthTotals.get(entry.getKey()), entry.getValue()))
+                .toList();
+        return new CalendarView(months);
+    }
+
     public PostQueryResult queryPosts(
             List<Long> uids, Long start, Long end, String keyword, int page, int size) {
         validateQuery(start, end, page, size);
@@ -347,8 +370,8 @@ public class PostService {
         if (page < 1) {
             throw new InvalidRequestException("page 必须大于等于 1。");
         }
-        if (size < 1 || size > 100) {
-            throw new InvalidRequestException("size 必须介于 1 和 100 之间。");
+        if (size < 1 || size > 9999) {
+            throw new InvalidRequestException("size 必须介于 1 和 9999 之间。");
         }
         if (start != null && end != null && start > end) {
             throw new InvalidRequestException("start 不能晚于 end。");

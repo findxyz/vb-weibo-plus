@@ -23,6 +23,16 @@ public interface PostRepository extends JpaRepository<PostEntity, String>,
     @Query("select coalesce(max(p.postId), 0) from PostEntity p where p.uid = :uid")
     long findMaxPostIdByUid(@Param("uid") long uid);
 
+    @Query(value = """
+            select strftime('%Y-%m-%d', created_at / 1000, 'unixepoch', '+8 hours') as date,
+                   count(*) as count
+            from posts
+            where (:uid is null or uid = :uid)
+            group by date
+            order by date desc
+            """, nativeQuery = true)
+    List<DailyPostCount> findDailyCounts(@Param("uid") Long uid);
+
     @SuppressWarnings("DuplicatedCode")
     default Page<PostEntity> findPage(
             List<Long> uids, Long start, Long end, String keyword, Pageable pageable) {
