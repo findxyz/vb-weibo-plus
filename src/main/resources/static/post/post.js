@@ -319,18 +319,26 @@
   }
 
   function createPostCard(post) {
+    const isPureRetweet = !post.content
+      && (!post.pics || post.pics.length === 0)
+      && (!post.video || !post.video.coverUrl)
+      && post.retweeted;
+
     const card = document.createElement("article");
-    card.className = "post-card";
+    card.className = "post-card" + (isPureRetweet ? " pure-retweet" : "");
     card.id = "post-" + post.mblogId;
 
-    const avatar = createAvatar(post.blogger);
-    card.appendChild(avatar);
+    if (!isPureRetweet) {
+      card.appendChild(createAvatar(post.blogger));
+    }
 
     const body = document.createElement("div");
     body.className = "post-body";
 
     body.appendChild(createPostHeader(post));
-    body.appendChild(createPostContent(post));
+    if (post.content) {
+      body.appendChild(createPostContent(post));
+    }
 
     if (post.pics && post.pics.length > 0) {
       body.appendChild(createPostPics(post.pics, post.mblogId));

@@ -75,10 +75,11 @@ class PostPageTest {
             }
             sendJson(exchange, """
                     {"months":[
-                      {"month":"2026-08","count":3,"days":[
+                      {"month":"2026-08","count":4,"days":[
                         {"date":"2026-08-05","count":1},
                         {"date":"2026-08-04","count":1},
-                        {"date":"2026-08-03","count":1}
+                        {"date":"2026-08-03","count":1},
+                        {"date":"2026-08-02","count":1}
                       ]},
                       {"month":"2026-07","count":1,"days":[
                         {"date":"2026-07-10","count":1}
@@ -105,6 +106,9 @@ class PostPageTest {
                 total = 1;
             } else if (query != null && query.contains("start=2026-08-03")) {
                 items = retweetPicPostJson("post-aug-03", "第二位", "八月三日的微博", 1783526400000L);
+                total = 1;
+            } else if (query != null && query.contains("start=2026-08-02")) {
+                items = pureRetweetPostJson("post-aug-02", "第一位", 1783440000000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-07-10")) {
                 items = multiPicPostJson("post-jul-10", "第一位", "七月十日的内容", 1783612800000L);
@@ -525,6 +529,26 @@ class PostPageTest {
     }
 
     @Test
+    void pure_retweet_post_hides_blogger_avatar() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
+                () -> {});
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-02"),
+                () -> page.locator(".date-item[data-date='2026-08-02']").click());
+
+        assertThat(page.locator(".post-card")).hasCount(1);
+        assertThat(page.locator(".post-card.pure-retweet")).hasCount(1);
+        assertThat(page.locator(".post-card .post-avatar")).hasCount(0);
+        assertThat(page.locator(".post-retweet")).hasCount(1);
+        assertThat(page.locator(".post-retweet-author")).hasText("@原作者");
+
+        page.close();
+    }
+
+    @Test
     void window_toggle_navigates_to_chat_page() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
@@ -638,5 +662,19 @@ class PostPageTest {
                  "createdAt":%d,"savedAt":%d,
                  "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
                 """.formatted(mblogId, content, content, createdAt, createdAt, createdAt, screenName);
+    }
+
+    private static String pureRetweetPostJson(String mblogId, String screenName, long createdAt) {
+        return """
+                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
+                 "content":"","contentRaw":"","source":"微博网页版","region":"广东",
+                 "pics":[],"video":{"coverUrl":"","pageUrl":""},
+                 "retweeted":{"postId":2,"mblogId":"retweet-1","content":"转发的原微博内容",
+                  "contentRaw":"转发的原微博内容","uid":2,"screenName":"原作者","createdAt":%d,
+                  "pics":[],"video":{"coverUrl":"","pageUrl":""}},
+                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
+                 "createdAt":%d,"savedAt":%d,
+                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
+                """.formatted(mblogId, createdAt, createdAt, createdAt, screenName);
     }
 }

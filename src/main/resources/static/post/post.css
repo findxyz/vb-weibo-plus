@@ -513,6 +513,10 @@ h1 {
   border-bottom: 1px solid #e4ecf2;
 }
 
+.post-card.pure-retweet {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .post-avatar {
   width: 48px;
   height: 48px;
