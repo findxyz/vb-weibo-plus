@@ -103,7 +103,7 @@ class PostPageTest {
                 items = retweetPicPostJson("post-aug-03", "第二位", "八月三日的微博", 1783526400000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-07-10")) {
-                items = postJson("post-jul-10", "第一位", "七月十日的内容", 1783612800000L);
+                items = multilinePostJson("post-jul-10", "第一位", 1783612800000L);
                 total = 1;
             } else {
                 items = postJson("post-default", "第一位", "默认内容", 1783612800000L);
@@ -449,6 +449,31 @@ class PostPageTest {
     }
 
     @Test
+    void preserves_line_breaks_in_post_content() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.locator(".month-group[data-month='2026-07'] .month-header").click();
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
+                () -> page.locator(".date-item[data-date='2026-07-10']").click());
+
+        assertThat(page.locator(".post-content")).containsText("第一行");
+        assertThat(page.locator(".post-content")).containsText("第二行");
+        assertThat(page.locator(".post-content")).containsText("第三行");
+
+        Object whiteSpace = page.locator(".post-content").evaluate(
+                "el => getComputedStyle(el).whiteSpace");
+        org.assertj.core.api.Assertions.assertThat(whiteSpace).isEqualTo("pre-wrap");
+
+        Object renderedText = page.locator(".post-content").evaluate(
+                "el => el.textContent");
+        org.assertj.core.api.Assertions.assertThat(renderedText.toString())
+                .contains("第一行\n第二行\n第三行");
+
+        page.close();
+    }
+
+    @Test
     void window_toggle_navigates_to_chat_page() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
@@ -487,6 +512,18 @@ class PostPageTest {
         exchange.sendResponseHeaders(200, body.length);
         exchange.getResponseBody().write(body);
         exchange.close();
+    }
+
+    private static String multilinePostJson(String mblogId, String screenName, long createdAt) {
+        return """
+                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
+                 "content":"第一行\\n第二行\\n第三行","contentRaw":"第一行\\n第二行\\n第三行",
+                 "source":"微博网页版","region":"广东",
+                 "pics":[],"video":{"coverUrl":"","pageUrl":""},"retweeted":null,
+                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
+                 "createdAt":%d,"savedAt":%d,
+                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
+                """.formatted(mblogId, createdAt, createdAt, screenName);
     }
 
     private static String postJson(String mblogId, String screenName, String content, long createdAt) {

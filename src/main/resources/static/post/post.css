@@ -598,6 +598,7 @@ h1 {
   line-height: 1.6;
   overflow-wrap: anywhere;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .post-content a {
@@ -719,6 +720,7 @@ h1 {
   color: #3a4a5a;
   overflow-wrap: anywhere;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .post-retweet-pics {
