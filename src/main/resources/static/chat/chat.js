@@ -67,7 +67,8 @@
     videoPickerOpen: document.querySelector("#video-picker-open"),
     videoInput: document.querySelector("#video-input"),
     loginExpired: document.querySelector("#login-expired"),
-    loginQr: document.querySelector("#login-qr")
+    loginQr: document.querySelector("#login-qr"),
+    windowToggle: document.querySelector(".window-control.toggle")
   };
   const state = {
     groups: [],
@@ -1292,6 +1293,8 @@
   // ResizeObserver 监听固定高度 overflow 容器不会因 children 撑开触发，故改用 MutationObserver
   new MutationObserver(() => scrollToBottom())
     .observe(elements.messages, {childList: true, subtree: true});
+
+  elements.windowToggle.addEventListener("click", () => { location.href = "/post/"; });
 
   initialize();
   checkLoginStatus();
