@@ -75,7 +75,8 @@ class PostPageTest {
             }
             sendJson(exchange, """
                     {"months":[
-                      {"month":"2026-08","count":2,"days":[
+                      {"month":"2026-08","count":3,"days":[
+                        {"date":"2026-08-05","count":1},
                         {"date":"2026-08-04","count":1},
                         {"date":"2026-08-03","count":1}
                       ]},
@@ -96,17 +97,20 @@ class PostPageTest {
             String query = exchange.getRequestURI().getRawQuery();
             String items;
             int total;
-            if (query != null && query.contains("start=2026-08-04")) {
-                items = multiPicPostJson("post-aug-04", "第一位", "八月四日的内容", 1783612800000L);
+            if (query != null && query.contains("start=2026-08-05")) {
+                items = multilinePostJson("post-aug-05", "第一位", 1783612800000L);
+                total = 1;
+            } else if (query != null && query.contains("start=2026-08-04")) {
+                items = emojiPostJson("post-aug-04", "第一位", 1783612800000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-08-03")) {
                 items = retweetPicPostJson("post-aug-03", "第二位", "八月三日的微博", 1783526400000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-07-10")) {
-                items = multilinePostJson("post-jul-10", "第一位", 1783612800000L);
+                items = multiPicPostJson("post-jul-10", "第一位", "七月十日的内容", 1783612800000L);
                 total = 1;
             } else {
-                items = postJson("post-default", "第一位", "默认内容", 1783612800000L);
+                items = multilinePostJson("post-default", "第一位", 1783612800000L);
                 total = 1;
             }
             sendJson(exchange, """
@@ -197,7 +201,7 @@ class PostPageTest {
         assertThat(page.locator(".month-group")).hasCount(2);
         assertThat(page.locator(".month-group.open")).hasCount(1);
         assertThat(page.locator(".date-item.active")).hasCount(1);
-        assertThat(page.locator(".date-item.active")).hasAttribute("data-date", "2026-08-04");
+        assertThat(page.locator(".date-item.active")).hasAttribute("data-date", "2026-08-05");
 
         page.close();
     }
@@ -208,11 +212,11 @@ class PostPageTest {
         page.navigate(baseUrl + "/post/index.html");
 
         page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
                 () -> {});
 
         assertThat(page.locator(".post-card")).hasCount(1);
-        assertThat(page.locator(".post-content")).containsText("八月四日的内容");
+        assertThat(page.locator(".post-content")).containsText("第一行");
         assertThat(page.locator("#feed-count")).hasText("共 1 条");
         assertThat(page.locator("#pagination")).hasCount(0);
         assertThat(page.locator(".feed-filters")).hasCount(0);
@@ -225,16 +229,16 @@ class PostPageTest {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
         page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
                 () -> {});
 
         page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
-                () -> page.locator(".date-item[data-date='2026-08-03']").click());
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
+                () -> page.locator(".date-item[data-date='2026-08-04']").click());
 
-        assertThat(page.locator(".date-item[data-date='2026-08-03']")).hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator(".date-item[data-date='2026-08-04']")).not().hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator(".post-content")).containsText("八月三日的微博");
+        assertThat(page.locator(".date-item[data-date='2026-08-04']")).hasClass(java.util.regex.Pattern.compile("active"));
+        assertThat(page.locator(".date-item[data-date='2026-08-05']")).not().hasClass(java.util.regex.Pattern.compile("active"));
+        assertThat(page.locator(".post-content")).containsText("加油");
 
         page.close();
     }
@@ -375,9 +379,10 @@ class PostPageTest {
     void multi_image_post_opens_viewer_with_prev_next_navigation() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
+        page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
-                () -> {});
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
+                () -> page.locator(".date-item[data-date='2026-07-10']").click());
 
         page.locator(".post-pic").first().click();
         assertThat(page.locator("#image-viewer")).isVisible();
@@ -417,9 +422,10 @@ class PostPageTest {
     void pic_grid_has_no_gray_background_fill() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
+        page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
-                () -> {});
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
+                () -> page.locator(".date-item[data-date='2026-07-10']").click());
 
         Object bg = page.locator(".post-pic").first().evaluate(
                 "el => getComputedStyle(el).backgroundColor");
@@ -432,9 +438,10 @@ class PostPageTest {
     void keyboard_arrow_keys_navigate_images_in_viewer() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
+        page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
-                () -> {});
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
+                () -> page.locator(".date-item[data-date='2026-07-10']").click());
 
         page.locator(".post-pic").first().click();
         assertThat(page.locator("#viewer-counter")).hasText("1 / 3");
@@ -452,10 +459,9 @@ class PostPageTest {
     void preserves_line_breaks_in_post_content() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html");
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
-                () -> page.locator(".date-item[data-date='2026-07-10']").click());
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
+                () -> page.locator(".date-item[data-date='2026-08-05']").click());
 
         assertThat(page.locator(".post-content")).containsText("第一行");
         assertThat(page.locator(".post-content")).containsText("第二行");
@@ -469,6 +475,29 @@ class PostPageTest {
                 "el => el.textContent");
         org.assertj.core.api.Assertions.assertThat(renderedText.toString())
                 .contains("第一行\n第二行\n第三行");
+
+        page.close();
+    }
+
+    @Test
+    void inline_emoji_images_are_sized_like_chat_emoji() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
+                () -> page.locator(".date-item[data-date='2026-08-04']").click());
+
+        assertThat(page.locator(".post-content img")).hasCount(1);
+        Object fontSize = page.locator(".post-content").evaluate(
+                "el => parseFloat(getComputedStyle(el).fontSize)");
+        Object imgWidth = page.locator(".post-content img").evaluate(
+                "img => getComputedStyle(img).width");
+        Object imgHeight = page.locator(".post-content img").evaluate(
+                "img => getComputedStyle(img).height");
+
+        double fs = ((Number) fontSize).doubleValue();
+        org.assertj.core.api.Assertions.assertThat(imgWidth).isEqualTo(fs * 1.3 + "px");
+        org.assertj.core.api.Assertions.assertThat(imgHeight).isEqualTo(fs * 1.3 + "px");
 
         page.close();
     }
@@ -518,6 +547,19 @@ class PostPageTest {
         return """
                 {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
                  "content":"第一行\\n第二行\\n第三行","contentRaw":"第一行\\n第二行\\n第三行",
+                 "source":"微博网页版","region":"广东",
+                 "pics":[],"video":{"coverUrl":"","pageUrl":""},"retweeted":null,
+                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
+                 "createdAt":%d,"savedAt":%d,
+                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
+                """.formatted(mblogId, createdAt, createdAt, screenName);
+    }
+
+    private static String emojiPostJson(String mblogId, String screenName, long createdAt) {
+        return """
+                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
+                 "content":"加油 <img src=\\"https://face.t.sinajs.cn/t4/appstyle/expression/ext/normal/0d/2022_Keepgoing_mobile.png\\" alt=\\"[加油]\\"> 冲啊",
+                 "contentRaw":"加油 [加油] 冲啊",
                  "source":"微博网页版","region":"广东",
                  "pics":[],"video":{"coverUrl":"","pageUrl":""},"retweeted":null,
                  "repostsCount":0,"commentsCount":0,"attitudesCount":0,
