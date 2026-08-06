@@ -209,10 +209,8 @@ public class PostService {
                     }
                     page++;
                 }
-                if (dayFetched > 0) {
-                    log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条",
-                            uid, date, dayFetched, dayInserted);
-                }
+                log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条",
+                        uid, date, dayFetched, dayInserted);
             }
             if (inserted > 0) {
                 log.info("博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
