@@ -574,7 +574,7 @@ h1#app-title {
 .post-source:not(:empty)::before { content: " \00B7\0020\6765\81EA\0020"; }
 
 .post-content {
-  font: 16px/1.55 var(--hand);
+  font: 17px/1.55 var(--hand);
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: pre-wrap;
