@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface BloggerRepository extends JpaRepository<BloggerEntity, Long> {
 
-    @Query("select b from BloggerEntity b order by b.updatedAt desc, b.uid desc")
+    @Query("select b from BloggerEntity b order by b.uid asc")
     List<BloggerEntity> findAllOrdered();
 
     default long findLatestPostId(long uid) {
