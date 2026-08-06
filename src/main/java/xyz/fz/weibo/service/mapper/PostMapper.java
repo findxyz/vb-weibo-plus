@@ -137,14 +137,19 @@ public class PostMapper {
         if (post == null) {
             return null;
         }
-        Objects.requireNonNull(post.id(), "Retweeted Blogger Blog post id is required");
-        Objects.requireNonNull(post.mblogId(), "Retweeted Blogger Blog mblog id is required");
-        Objects.requireNonNull(post.user(), "Retweeted Blogger metadata is required");
-        Objects.requireNonNull(post.user().id(), "Retweeted Blogger uid is required");
+        // 搜索接口返回的原微博可能已被删除：缺少 id、user、created_at，
+        // 这里用占位值兜底，保留「此微博已删除」之类的提示正文
+        UserResponse user = post.user();
         VideoInfo video = toVideo(post);
-        return new RetweetInfo(post.id(), post.mblogId(), content(post, longText, false),
-                content(post, longText, true), post.user().id(), emptyIfNull(post.user().screenName()),
-                parseCreatedAt(post.createdAt()), toPics(post.picInfos()), video.coverUrl(), video.pageUrl());
+        return new RetweetInfo(
+                post.id() == null ? 0 : post.id(),
+                emptyIfNull(post.mblogId()),
+                content(post, longText, false),
+                content(post, longText, true),
+                user == null || user.id() == null ? 0 : user.id(),
+                user == null ? "" : emptyIfNull(user.screenName()),
+                post.createdAt() == null ? 0 : parseCreatedAt(post.createdAt()),
+                toPics(post.picInfos()), video.coverUrl(), video.pageUrl());
     }
 
     private String content(MblogResponse post, LongTextResponse longText, boolean raw) {

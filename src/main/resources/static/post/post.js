@@ -29,6 +29,14 @@
     addBloggerError: document.querySelector("#add-blogger-error"),
     addBloggerCancel: document.querySelector("#add-blogger-cancel"),
     addBloggerSubmit: document.querySelector("#add-blogger-submit"),
+    syncHistoryOpen: document.querySelector("#sync-history-open"),
+    syncHistoryDialog: document.querySelector("#sync-history"),
+    syncHistoryBlogger: document.querySelector("#sync-history-blogger"),
+    syncHistoryStart: document.querySelector("#sync-history-start"),
+    syncHistoryEnd: document.querySelector("#sync-history-end"),
+    syncHistoryStatus: document.querySelector("#sync-history-status"),
+    syncHistoryCancel: document.querySelector("#sync-history-cancel"),
+    syncHistorySubmit: document.querySelector("#sync-history-submit"),
   };
 
   const state = {
@@ -57,6 +65,12 @@
   function toQueryEndTime(dateStr) {
     if (!dateStr) return null;
     return `${dateStr} 23:59:59`;
+  }
+
+  // date 输入框需要的本地日期格式（YYYY-MM-DD）
+  function toLocalDateValue(date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   }
 
   async function fetchJson(url, options) {
@@ -155,6 +169,7 @@
     state.selectedUid = null;
     setActiveBloggerRow(elements.allBloggersRow);
     elements.currentFilter.textContent = "全部微博";
+    elements.syncHistoryOpen.hidden = true;
     onBloggerChanged();
   }
 
@@ -164,6 +179,7 @@
       `.blogger-row:not(.all-bloggers)[data-uid="${blogger.uid}"]`);
     setActiveBloggerRow(row);
     elements.currentFilter.textContent = `${blogger.screenName} 的微博`;
+    elements.syncHistoryOpen.hidden = false;
     onBloggerChanged();
   }
 
@@ -255,6 +271,68 @@
     const blogger = state.bloggers.find((b) => Number(b.uid) === uid);
     if (blogger) {
       selectBlogger(blogger);
+    }
+  }
+
+  /* ---------- 同步历史微博 ---------- */
+
+  function openSyncHistoryDialog() {
+    const blogger = state.bloggers.find(
+      (b) => Number(b.uid) === Number(state.selectedUid));
+    if (!blogger) return;
+    elements.syncHistoryBlogger.textContent = `@${blogger.screenName}`;
+    // 与群聊页保持一致：默认同步最近两年到今天
+    const end = new Date();
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 2);
+    elements.syncHistoryStart.value = toLocalDateValue(start);
+    elements.syncHistoryEnd.value = toLocalDateValue(end);
+    showSyncHistoryStatus("", false);
+    elements.syncHistorySubmit.disabled = false;
+    elements.syncHistoryDialog.showModal();
+  }
+
+  function showSyncHistoryStatus(message, ok) {
+    elements.syncHistoryStatus.textContent = message || "";
+    elements.syncHistoryStatus.classList.toggle("ok", Boolean(ok));
+  }
+
+  function submitSyncHistory() {
+    const start = elements.syncHistoryStart.value;
+    const end = elements.syncHistoryEnd.value;
+    if (!start || !end) {
+      showSyncHistoryStatus("请选择开始与结束日期。", false);
+      return;
+    }
+    if (start > end) {
+      showSyncHistoryStatus("开始日期不能晚于结束日期。", false);
+      return;
+    }
+    // 同步在服务端执行，发起后立即关闭弹窗，由后台任务接管
+    elements.syncHistoryDialog.close();
+    runSyncHistory(Number(state.selectedUid), start, end);
+  }
+
+  async function runSyncHistory(uid, start, end) {
+    elements.syncHistoryOpen.disabled = true;
+    const params = new URLSearchParams({
+      uid: String(uid),
+      start: `${start} 00:00:00`,
+      end: `${end} 23:59:59`,
+    });
+    try {
+      const result = await fetchJson(`/post/range?${params}`, {method: "POST"});
+      // 刷新日期时间轴，让新同步的日期出现在面板里
+      await loadDates();
+      showState(elements.datesState, "同步完成");
+    } catch (error) {
+      if (error.status === 401) {
+        showLoginExpired();
+      } else {
+        showState(elements.datesState, `同步失败：${error.message}`);
+      }
+    } finally {
+      elements.syncHistoryOpen.disabled = false;
     }
   }
 
@@ -520,6 +598,8 @@
       img.src = pic.originalUrl || pic.thumbnailUrl;
       img.alt = "微博图片";
       img.loading = "lazy";
+      // 加载失败时隐藏整个格子，避免碎图图标与 alt 文字
+      img.onerror = () => { picEl.hidden = true; };
       picEl.appendChild(img);
       picEl.addEventListener("click", (e) => {
         e.preventDefault();
@@ -541,6 +621,8 @@
     img.src = video.coverUrl;
     img.alt = "视频封面";
     img.loading = "lazy";
+    // 封面加载失败时只隐藏图片，保留可点击的播放占位
+    img.onerror = () => { img.hidden = true; };
     wrapper.appendChild(img);
 
     // 三角形用 CSS 绘制，避免 ▶ 字符在不同字体下偏移
@@ -580,6 +662,8 @@
           img.src = pic.originalUrl || pic.thumbnailUrl;
           img.alt = "转发微博图片";
           img.loading = "lazy";
+          // 加载失败时隐藏整个格子，避免碎图图标与 alt 文字
+          img.onerror = () => { picEl.hidden = true; };
           picEl.appendChild(img);
           picEl.addEventListener("click", (e) => {
             e.preventDefault();
@@ -719,6 +803,12 @@
   elements.retryPosts.addEventListener("click", () => {
     if (state.selectedDate) loadPosts(state.selectedDate);
   });
+
+  elements.syncHistoryOpen.addEventListener("click", openSyncHistoryDialog);
+  elements.syncHistoryCancel.addEventListener("click", () => {
+    elements.syncHistoryDialog.close();
+  });
+  elements.syncHistorySubmit.addEventListener("click", submitSyncHistory);
 
   elements.windowToggle.addEventListener("click", () => {
     location.href = "/chat/index.html";

@@ -165,6 +165,8 @@ public class PostService {
                     .atZone(REQUEST_TIME_ZONE).toLocalDate();
             LocalDate lastDate = Instant.ofEpochMilli(endMillis)
                     .atZone(REQUEST_TIME_ZONE).toLocalDate();
+            log.info("博主 {} 历史同步开始：范围 {} ~ {}",
+                    uid, firstDate, lastDate);
             for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
                 long dayStartMillis = date.equals(firstDate)
                         ? startMillis
@@ -172,6 +174,8 @@ public class PostService {
                 long dayEndMillis = date.equals(lastDate)
                         ? endMillis
                         : date.plusDays(1).atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli() - 1;
+                int dayFetched = 0;
+                int dayInserted = 0;
                 int page = 1;
                 while (true) {
                     if (!firstRequest) {
@@ -192,16 +196,22 @@ public class PostService {
                     bloggerRepository.upsertMetadata(blogger);
                     for (MblogResponse post : posts) {
                         fetched++;
+                        dayFetched++;
                         long postTime = postMapper.parseCreatedAt(post.createdAt());
                         oldestTime = Math.min(oldestTime, postTime);
                         newestTime = Math.max(newestTime, postTime);
                         if (capturePost(post, capturedAt)) {
                             inserted++;
+                            dayInserted++;
                         } else {
                             ignored++;
                         }
                     }
                     page++;
+                }
+                if (dayFetched > 0) {
+                    log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条",
+                            uid, date, dayFetched, dayInserted);
                 }
             }
             if (inserted > 0) {

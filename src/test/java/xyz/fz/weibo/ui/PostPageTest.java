@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.options.WaitUntilState;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
@@ -29,6 +30,10 @@ class PostPageTest {
     private static Playwright playwright;
     private static Browser browser;
     private static String baseUrl;
+    // 不等待 load 事件：index.html 引用的 Google Fonts 外链在测试环境无外网时会挂起 load，
+    // 导致依赖 navigate 阶段自发请求的 waitForResponse 超时。DOMCONTENTLOADED 后 defer 脚本已执行。
+    private static final Page.NavigateOptions NAVIGATE_OPTIONS =
+            new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED);
     private static final AtomicInteger bloggersRequests = new AtomicInteger();
     private static final AtomicInteger calendarRequests = new AtomicInteger();
     private static final AtomicInteger listRequests = new AtomicInteger();
@@ -202,7 +207,7 @@ class PostPageTest {
     @Test
     void defaults_to_all_bloggers_and_loads_the_latest_day() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         assertThat(page.locator(".blogger-row.all-bloggers")).hasClass(java.util.regex.Pattern.compile("active"));
         assertThat(page.locator("#current-filter")).hasText("全部微博");
@@ -218,7 +223,7 @@ class PostPageTest {
     @Test
     void loads_posts_for_the_selected_day_without_pagination() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
@@ -236,7 +241,7 @@ class PostPageTest {
     @Test
     void switching_a_day_reloads_the_feed_with_the_new_date_range() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
                 () -> {});
@@ -255,7 +260,7 @@ class PostPageTest {
     @Test
     void switching_a_blogger_refreshes_the_date_tree() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/calendar") && item.url().contains("uid=2"),
                 () -> page.getByText("第二位", new Page.GetByTextOptions().setExact(true)).click());
@@ -271,7 +276,7 @@ class PostPageTest {
     @Test
     void all_bloggers_row_is_always_visible_and_not_filtered_by_search() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         page.locator("#blogger-search").fill("不存在");
         assertThat(page.locator(".blogger-row.all-bloggers")).isVisible();
@@ -286,7 +291,7 @@ class PostPageTest {
     @Test
     void clicking_all_bloggers_returns_to_aggregated_view() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.getByText("第二位", new Page.GetByTextOptions().setExact(true)).click();
         page.waitForResponse(
                 item -> item.url().contains("/post/calendar") && !item.url().contains("uid=2"),
@@ -302,7 +307,7 @@ class PostPageTest {
     @Test
     void month_toggle_expands_and_collapses_the_day_list() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         assertThat(page.locator(".month-group[data-month='2026-07']")).not().hasClass(java.util.regex.Pattern.compile("open"));
         page.locator(".month-group[data-month='2026-07'] .month-header").click();
@@ -318,7 +323,7 @@ class PostPageTest {
     void keeps_the_bloggers_visible_and_allows_retrying_when_posts_fail() {
         failList.set(true);
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list"),
                 () -> {});
@@ -340,7 +345,7 @@ class PostPageTest {
     void shows_login_expired_prompt_and_starts_qr_login_on_click() {
         loginInvalid.set(true);
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         assertThat(page.locator("#login-expired")).isVisible();
         assertThat(page.locator("#login-qr")).isEnabled();
@@ -358,7 +363,7 @@ class PostPageTest {
         loginInvalid.set(true);
         failQrLogin.set(true);
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         assertThat(page.locator("#login-expired")).isVisible();
         page.locator("#login-qr").click();
@@ -371,15 +376,15 @@ class PostPageTest {
     @Test
     void emoji_avatar_is_not_oversized() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         Object fontSize = page.locator(".blogger-avatar").first().evaluate(
                 "el => getComputedStyle(el).fontSize");
-        org.assertj.core.api.Assertions.assertThat(fontSize).isEqualTo("16px");
+        org.assertj.core.api.Assertions.assertThat(fontSize).isEqualTo("18px");
 
         Object lineHeight = page.locator(".blogger-avatar").first().evaluate(
                 "el => getComputedStyle(el).lineHeight");
-        org.assertj.core.api.Assertions.assertThat(lineHeight).isEqualTo("16px");
+        org.assertj.core.api.Assertions.assertThat(lineHeight).isEqualTo("18px");
 
         page.close();
     }
@@ -387,7 +392,7 @@ class PostPageTest {
     @Test
     void multi_image_post_opens_viewer_with_prev_next_navigation() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
@@ -414,7 +419,7 @@ class PostPageTest {
     @Test
     void retweet_image_click_opens_viewer_without_navigating_away() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
                 () -> page.locator(".date-item[data-date='2026-08-03']").click());
@@ -430,7 +435,7 @@ class PostPageTest {
     @Test
     void pic_grid_has_no_gray_background_fill() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
@@ -438,7 +443,8 @@ class PostPageTest {
 
         Object bg = page.locator(".post-pic").first().evaluate(
                 "el => getComputedStyle(el).backgroundColor");
-        org.assertj.core.api.Assertions.assertThat(bg).isEqualTo("rgba(0, 0, 0, 0)");
+        // 新设计有意给图片格填充纸色背景（--paper-tint），断言为纸色而非透明或旧版灰底
+        org.assertj.core.api.Assertions.assertThat(bg).isEqualTo("rgb(245, 238, 223)");
 
         page.close();
     }
@@ -446,7 +452,7 @@ class PostPageTest {
     @Test
     void keyboard_arrow_keys_navigate_images_in_viewer() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
@@ -467,7 +473,7 @@ class PostPageTest {
     @Test
     void preserves_line_breaks_in_post_content() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
                 () -> page.locator(".date-item[data-date='2026-08-05']").click());
@@ -491,7 +497,7 @@ class PostPageTest {
     @Test
     void inline_emoji_images_are_sized_like_chat_emoji() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
                 () -> page.locator(".date-item[data-date='2026-08-04']").click());
@@ -500,13 +506,17 @@ class PostPageTest {
         Object fontSize = page.locator(".post-content").evaluate(
                 "el => parseFloat(getComputedStyle(el).fontSize)");
         Object imgWidth = page.locator(".post-content img").evaluate(
-                "img => getComputedStyle(img).width");
+                "img => parseFloat(getComputedStyle(img).width)");
         Object imgHeight = page.locator(".post-content img").evaluate(
-                "img => getComputedStyle(img).height");
+                "img => parseFloat(getComputedStyle(img).height)");
 
         double fs = ((Number) fontSize).doubleValue();
-        org.assertj.core.api.Assertions.assertThat(imgWidth).isEqualTo(fs * 1.3 + "px");
-        org.assertj.core.api.Assertions.assertThat(imgHeight).isEqualTo(fs * 1.3 + "px");
+        double expected = fs * 1.3;
+        // 浏览器亚像素布局会使 1.3em 解析为 20.7969px 而非 20.8px，用容差比较
+        org.assertj.core.api.Assertions.assertThat(((Number) imgWidth).doubleValue())
+                .isCloseTo(expected, org.assertj.core.data.Offset.offset(0.5));
+        org.assertj.core.api.Assertions.assertThat(((Number) imgHeight).doubleValue())
+                .isCloseTo(expected, org.assertj.core.data.Offset.offset(0.5));
 
         page.close();
     }
@@ -514,7 +524,7 @@ class PostPageTest {
     @Test
     void post_pic_uses_original_url_for_display() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.locator(".month-group[data-month='2026-07'] .month-header").click();
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
@@ -529,7 +539,7 @@ class PostPageTest {
     @Test
     void retweet_pic_uses_original_url_for_display() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
                 () -> page.locator(".date-item[data-date='2026-08-03']").click());
@@ -543,7 +553,7 @@ class PostPageTest {
     @Test
     void video_play_button_is_centered_on_cover() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-01"),
                 () -> page.locator(".date-item[data-date='2026-08-01']").click());
@@ -574,7 +584,7 @@ class PostPageTest {
     @Test
     void retweet_block_renders_video_cover_with_play_button() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-01"),
                 () -> page.locator(".date-item[data-date='2026-08-01']").click());
@@ -594,7 +604,7 @@ class PostPageTest {
     void post_content_width_is_constrained_and_not_overly_wide() {
         Page page = browser.newPage();
         page.setViewportSize(1600, 900);
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
                 () -> {});
@@ -615,7 +625,7 @@ class PostPageTest {
     @Test
     void pure_retweet_post_hides_blogger_avatar() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
                 () -> {});
@@ -635,7 +645,7 @@ class PostPageTest {
     @Test
     void window_toggle_navigates_to_chat_page() {
         Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html");
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         page.locator(".window-control.toggle").click();
         org.assertj.core.api.Assertions.assertThat(page.url()).contains("/chat/");

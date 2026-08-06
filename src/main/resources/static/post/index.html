@@ -7,10 +7,13 @@
   <title>本地微博</title>
   <link rel="stylesheet" href="post.css">
   <script src="post.js" defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
   <main class="app" aria-labelledby="app-title">
-    <header class="titlebar">
+    <header class="titlebar" data-od-id="titlebar">
       <span class="title-logo" aria-hidden="true">
         <img src="assets/weibo-logo.svg" alt="">
       </span>
@@ -20,8 +23,8 @@
       </div>
     </header>
 
-    <div class="workspace">
-      <aside class="bloggers-panel" aria-label="博主列表">
+    <div class="workspace" data-od-id="workspace">
+      <aside class="bloggers-panel" aria-label="博主列表" data-od-id="bloggers-panel">
         <header class="bloggers-heading">
           <h2>博主列表</h2>
           <span id="bloggers-count">正在加载…</span>
@@ -44,11 +47,11 @@
         </div>
         <div class="login-expired" id="login-expired" role="status" hidden>
           <span class="panel-state">登录已失效</span>
-          <button id="login-qr" type="button">📱 扫码登录</button>
+          <button id="login-qr" type="button">扫码登录</button>
         </div>
       </aside>
 
-      <aside class="dates-panel" aria-label="日期时间轴">
+      <aside class="dates-panel" aria-label="日期时间轴" data-od-id="dates-panel">
         <header class="dates-heading">
           <h2>日期</h2>
           <span id="dates-state"></span>
@@ -56,10 +59,11 @@
         <div class="dates-list" id="dates-list" aria-live="polite"></div>
       </aside>
 
-      <section class="feed" aria-label="微博列表">
+      <section class="feed" aria-label="微博列表" data-od-id="feed-panel">
         <header class="feed-header">
           <h2 id="current-filter">全部微博</h2>
           <span id="feed-count" class="feed-count"></span>
+          <button id="sync-history-open" class="sync-history-open" type="button" hidden>同步历史</button>
         </header>
 
         <div class="posts-shell">
@@ -86,6 +90,29 @@
         <p class="add-blogger-error" id="add-blogger-error" role="alert"></p>
         <div class="add-blogger-actions">
           <button id="add-blogger-submit" type="button">添加</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="sync-history" id="sync-history" aria-labelledby="sync-history-title">
+    <div class="sync-history-window">
+      <header class="sync-history-titlebar">
+        <span class="sync-history-title-icon" aria-hidden="true"></span>
+        <h2 id="sync-history-title">同步历史微博</h2>
+        <button id="sync-history-cancel" type="button" aria-label="关闭同步历史微博"></button>
+      </header>
+      <div class="sync-history-body">
+        <p class="sync-history-tip">按天拉取 <b id="sync-history-blogger"></b> 在选定范围内的微博，已存在的会自动跳过；范围越大耗时越久，同步在服务端执行，发起后弹窗会自动关闭，完成后日期面板自动刷新。若已有同步任务在运行，本次请求会被跳过。</p>
+        <label class="sync-history-field">开始日期
+          <input id="sync-history-start" type="date">
+        </label>
+        <label class="sync-history-field">结束日期
+          <input id="sync-history-end" type="date">
+        </label>
+        <p class="sync-history-status" id="sync-history-status" role="alert"></p>
+        <div class="sync-history-actions">
+          <button id="sync-history-submit" type="button">开始同步</button>
         </div>
       </div>
     </div>
