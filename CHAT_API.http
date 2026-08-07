@@ -76,3 +76,15 @@ Range: bytes=0-1048575
 
 ### 图片反代
 GET {{host}}/chat/image?url=https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/007jTov8ly8i573potjwgj30u00u0n8s.jpg
+
+### 群聊 AI 分析（同步）
+POST {{host}}/chat/analyses?gid=4761715839862414&date=2026-08-07&prompt=分析一下
+
+### 群聊 AI 分析（SSE 流式）
+POST {{host}}/chat/analyses/stream?gid=4761715839862414&date=2026-08-07&prompt=分析一下
+
+### 分页查询历史分析记录
+GET {{host}}/chat/analyses?gid=4761715839862414&page=1&size=20
+
+### 查询单条分析记录
+GET {{host}}/chat/analyses/9
