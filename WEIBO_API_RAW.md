@@ -24,7 +24,7 @@
 
 ```mermaid
 flowchart TD
-    Start([开始登录]) --> QR["扫码登录<br/>Playwright 有头 Chromium 打开 api.weibo.com/chat"]
+    Start([开始登录]) --> QR["扫码登录<br/>Playwright headless Chromium 打开 api.weibo.com/chat<br/>二维码内嵌页面展示"]
     QR --> Scan[用户微博 App 扫码确认]
     Scan --> SSO[微博网页自动完成 SSO 登录]
     SSO --> Extract[提取 .weibo.com 域 Cookie<br/>SUB / SUBP / SSOLoginState / ALF]
@@ -42,7 +42,7 @@ flowchart TD
 | 参数 | 值 | 说明 |
 |------|-----|------|
 | URL | https://api.weibo.com/chat | 扫码登录页 |
-| 方式 | 浏览器打开 | Playwright 有头 Chromium |
+| 方式 | 浏览器打开 | Playwright headless Chromium |
 
 响应
 
@@ -60,7 +60,7 @@ SUB=_2A25HVz7MDeRhGedJ4lcS8CbOyjiIHXVkLT4ErDV8PUNbmtAbLVrmkW9NUYY1E2drJMYiuMg6Vm
 ```
 
 说明
-用 Playwright 启动有头 Chromium 打开 https://api.weibo.com/chat 页面，用户用微博 App 扫码确认后，微博网页内部自动完成 SSO 登录流程，浏览器落入 .weibo.com 域 Cookie。提取 SUB、SUBP、SSOLoginState、ALF 四个字段。SUB/SUBP 为微博唯一登录凭证，扫码登录时获得，后续不刷新。SSOLoginState 为登录时间戳（秒级），ALF 为有效期截止时间（秒级）。后续所有微博接口请求都依赖这四个 Cookie。
+用 Playwright 启动 headless Chromium 打开 https://api.weibo.com/chat 页面，二维码截图内嵌到本地页面展示，用户用微博 App 扫码确认后，微博网页内部自动完成 SSO 登录流程，浏览器落入 .weibo.com 域 Cookie。提取 SUB、SUBP、SSOLoginState、ALF 四个字段。SUB/SUBP 为微博唯一登录凭证，扫码登录时获得，后续不刷新。SSOLoginState 为登录时间戳（秒级），ALF 为有效期截止时间（秒级）。后续所有微博接口请求都依赖这四个 Cookie。
 
 
 # 微博

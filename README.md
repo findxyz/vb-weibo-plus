@@ -30,19 +30,6 @@ mvn spring-boot:run
 
 应用默认监听 `http://localhost:8080`。HTTP 接口集合见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
 
-## 群聊 AI 分析
-
-对本地已同步的群聊消息按日期进行 AI 分析，支持同步调用与 SSE 流式输出。需在配置中填入 OpenAI 兼容的 API 地址和密钥（见下方配置表），否则调用时返回「AI 未配置」错误。
-
-接口前缀 `/chat/analyses`：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/chat/analyses` | 同步分析，返回完整结果 |
-| `POST` | `/chat/analyses/stream` | SSE 流式分析，逐段推送 `delta` 事件，完成后推送 `done` 事件 |
-| `GET` | `/chat/analyses?gid={gid}&page={page}&size={size}` | 分页查询历史分析记录 |
-| `GET` | `/chat/analyses/{id}` | 查询单条分析记录 |
-
 ## 配置
 
 主要配置项在 `src/main/resources/application.yml`，均可通过环境变量覆盖：
