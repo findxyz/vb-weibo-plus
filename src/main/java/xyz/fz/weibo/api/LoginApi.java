@@ -3,9 +3,11 @@ package xyz.fz.weibo.api;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.Cookie;
+import com.microsoft.playwright.options.WaitForSelectorState;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import xyz.fz.weibo.client.WeiboCookieHolder;
@@ -15,7 +17,8 @@ import xyz.fz.weibo.model.response.LoginResponse;
 import java.util.List;
 
 /**
- * 扫码登录：Playwright 有头 Chromium 打开 chat 页，轮询 SUB cookie 直到用户扫码确认。
+ * 扫码登录：Playwright headless Chromium 打开 chat 页，轮询 SUB cookie 直到用户扫码确认。
+ * 登录期间浏览器 Page 暴露为实例字段，供取图端点截图二维码。
  */
 @Component
 public class LoginApi {
@@ -27,16 +30,20 @@ public class LoginApi {
     @Value("${weibo.qr-timeout-seconds:300}")
     private int qrTimeoutSeconds;
 
+    // 登录运行期间持有的页面引用，供取图端点访问。单用户本地工具下无需并发保护。
+    private volatile Page currentPage;
+
     public LoginApi(WeiboCookieHolder holder) {
         this.holder = holder;
     }
 
     public LoginResponse qrLogin() {
         try (Playwright pw = Playwright.create();
-             Browser browser = pw.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false))) {
+             Browser browser = pw.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true))) {
             BrowserContext ctx = browser.newContext();
             Page page = ctx.newPage();
             page.navigate(CHAT_URL);
+            currentPage = page;
 
             long deadline = System.currentTimeMillis() + qrTimeoutSeconds * 1000L;
             while (System.currentTimeMillis() < deadline) {
@@ -78,6 +85,28 @@ public class LoginApi {
             throw e;
         } catch (Exception e) {
             throw new WeiboException("Playwright 浏览器未安装，请先执行：mvn exec:java -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args=\"install chromium\"", e);
+        } finally {
+            currentPage = null;
+        }
+    }
+
+    /**
+     * 截取当前登录页面的二维码图片。
+     *
+     * @return PNG 图片字节；若登录未进行中或二维码暂不可用（轮换中），返回 null
+     */
+    public byte[] captureQrImage() {
+        Page page = currentPage;
+        if (page == null) {
+            return null;
+        }
+        try {
+            Locator img = page.locator("img");
+            img.first().waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE).setTimeout(2000));
+            return img.first().screenshot();
+        } catch (Exception e) {
+            // 二维码轮换中元素短暂失效，返回 null 让前端保持旧图
+            return null;
         }
     }
 }

@@ -1,0 +1,3 @@
+# 扫码登录改为 headless，二维码内嵌页面展示
+
+Credential 失效后的扫码登录，由 Playwright 有头 Chromium（弹出真实浏览器窗口、用户扫窗口里的码）改为 headless 模式 + 后端定位页面二维码 `<img>` 元素截图、经新增的 `GET /weibo/login/qr/image` 端点回传 base64，前端在现有登录失效提示区域内嵌 `<img>` 展示并每 10 秒轮询刷新。不弹浏览器窗口。关键决策与权衡：取码方式选「元素截图」而非「直传 img 的 src URL」——后者依赖微博不对 localhost Referer 做防盗链，无法稳定保证，截图则后端闭环、消除该不确定性；沿用同步阻塞模型（`qrLogin()` 仍阻塞最多 300 秒），浏览器 Page 提升为 `LoginApi` 实例字段由两个端点共享，而非引入异步会话/服务端推送——这是单用户本地工具（见 ADR-0001）下的合理简化；不提供主动取消，等超时；headless 渲染已用项目真实 Playwright Java SDK 1.49.0 实测可行（`api.weibo.com/chat` 在 headless 下正常渲染二维码 `<img>`，`element.screenshot()` 截到约 13KB 真实二维码）。已知验证项：10 秒轮询节奏下真机扫码能否稳定成功，若出现扫码不成功需调短间隔或改后端检测 src 变化时主动重推。改回有头模式需恢复弹窗、移除取图端点与前端轮询。

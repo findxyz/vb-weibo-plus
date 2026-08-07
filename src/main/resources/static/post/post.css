@@ -409,6 +409,12 @@ h1#app-title {
   padding: 10px 12px;
 }
 
+.login-expired img {
+  width: 180px;
+  height: 180px;
+  align-self: center;
+}
+
 /* ---------- dates timeline panel ---------- */
 
 .dates-panel {

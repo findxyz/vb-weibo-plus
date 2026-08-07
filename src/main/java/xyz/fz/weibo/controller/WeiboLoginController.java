@@ -1,5 +1,8 @@
 package xyz.fz.weibo.controller;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +31,15 @@ public class WeiboLoginController {
     @PostMapping("/qr")
     public LoginResponse qr() {
         return loginApi.qrLogin();
+    }
+
+    @GetMapping(value = "/qr/image", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> qrImage() {
+        byte[] image = loginApi.captureQrImage();
+        if (image == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(image);
     }
 
     @GetMapping("/status")

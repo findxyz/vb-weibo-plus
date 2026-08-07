@@ -68,6 +68,7 @@
     videoInput: document.querySelector("#video-input"),
     loginExpired: document.querySelector("#login-expired"),
     loginQr: document.querySelector("#login-qr"),
+    loginQrImg: document.querySelector("#login-qr-img"),
     windowToggle: document.querySelector(".window-control.toggle")
   };
   const state = {
@@ -901,6 +902,31 @@
 
   const LOGIN_CHECK_INTERVAL = 60;
   const QR_LOGIN_LOADING_TEXT = "📱 扫码中…";
+  const QR_IMAGE_INTERVAL = 10000;
+
+  let qrImageTimer = null;
+
+  function refreshQrImage() {
+    const img = new Image();
+    img.onload = () => {
+      elements.loginQrImg.src = img.src;
+      elements.loginQrImg.hidden = false;
+    };
+    img.src = `/weibo/login/qr/image?t=${Date.now()}`;
+  }
+
+  function startQrImagePolling() {
+    qrImageTimer = setInterval(refreshQrImage, QR_IMAGE_INTERVAL);
+    setTimeout(refreshQrImage, 3000);
+  }
+
+  function stopQrImagePolling() {
+    if (qrImageTimer) {
+      clearInterval(qrImageTimer);
+      qrImageTimer = null;
+    }
+    elements.loginQrImg.hidden = true;
+  }
 
   function maybeCheckLoginStatus() {
     if (document.hidden || state.loginPending) return;
@@ -929,6 +955,7 @@
     state.loginPending = true;
     elements.loginQr.disabled = true;
     elements.loginQr.textContent = QR_LOGIN_LOADING_TEXT;
+    startQrImagePolling();
     try {
       const response = await fetch("/weibo/login/qr", {method: "POST"});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -938,6 +965,7 @@
       elements.groupsState.textContent = "扫码登录失败，请稍后重试。";
       elements.retryGroups.hidden = false;
     } finally {
+      stopQrImagePolling();
       state.loginPending = false;
       elements.loginQr.disabled = false;
       elements.loginQr.textContent = "📱 扫码登录";

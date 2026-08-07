@@ -316,6 +316,12 @@ h1 {
   padding: 10px 12px;
 }
 
+.login-expired img {
+  width: 180px;
+  height: 180px;
+  align-self: center;
+}
+
 .conversation {
   min-width: 0;
   min-height: 0;
