@@ -69,6 +69,24 @@
     loginExpired: document.querySelector("#login-expired"),
     loginQr: document.querySelector("#login-qr"),
     loginQrImg: document.querySelector("#login-qr-img"),
+    analysisOpen: document.querySelector("#analysis-open"),
+    analysisDialog: document.querySelector("#analysis-dialog"),
+    analysisClose: document.querySelector("#analysis-close"),
+    analysisTitle: document.querySelector("#analysis-title"),
+    analysisForm: document.querySelector("#analysis-form"),
+    analysisDate: document.querySelector("#analysis-date"),
+    analysisPrompt: document.querySelector("#analysis-prompt"),
+    analysisSubmit: document.querySelector("#analysis-submit"),
+    analysisFeedback: document.querySelector("#analysis-feedback"),
+    analysisEmpty: document.querySelector("#analysis-empty"),
+    analysisResults: document.querySelector("#analysis-results"),
+    analysisList: document.querySelector("#analysis-list"),
+    analysisPrev: document.querySelector("#analysis-prev"),
+    analysisNext: document.querySelector("#analysis-next"),
+    analysisPageState: document.querySelector("#analysis-page-state"),
+    analysisDetail: document.querySelector("#analysis-detail"),
+    analysisBack: document.querySelector("#analysis-back"),
+    analysisDetailContent: document.querySelector("#analysis-detail-content"),
     windowToggle: document.querySelector(".window-control.toggle")
   };
   const state = {
@@ -93,6 +111,14 @@
     lastMessageCount: null,
     loginCheckTick: 0,
     loginPending: false
+  };
+  const analysisState = {
+    gid: null,
+    page: 1,
+    total: 0,
+    size: 20,
+    requestVersion: 0,
+    loading: false
   };
   const historyState = {
     gid: null,
@@ -728,10 +754,12 @@
     updateCurrentGroupHeader();
     elements.currentId.textContent = String(group.gid);
     elements.historyOpen.disabled = false;
+    elements.analysisOpen.disabled = false;
     elements.emojiPickerOpen.disabled = false;
     elements.imagePickerOpen.disabled = false;
     elements.videoPickerOpen.disabled = false;
     elements.historyTitle.textContent = `聊天记录 - ${group.name || `群聊 ${group.gid}`}`;
+    elements.analysisTitle.textContent = `群聊分析 - ${group.name || `群聊 ${group.gid}`}`;
     elements.currentAvatar.replaceWith(avatar(group, "main-group-avatar"));
     elements.currentAvatar = document.querySelector(".main-group-avatar");
     elements.appTitle.textContent = `微博群聊 - ${elements.currentGroup.textContent}`;
@@ -1239,6 +1267,200 @@
   elements.historyOpen.addEventListener("click", () => {
     resetHistory(state.currentGid);
     elements.historyDialog.showModal();
+  });
+
+  /* ---------- 群聊分析 ---------- */
+
+  const ANALYSIS_DEFAULT_PROMPT = "请总结今天群聊的主要讨论话题和参与者";
+
+  function resetAnalysis(gid) {
+    analysisState.requestVersion++;
+    analysisState.gid = gid;
+    analysisState.page = 1;
+    analysisState.total = 0;
+    elements.analysisDate.value = localDateValue(new Date());
+    elements.analysisPrompt.value = ANALYSIS_DEFAULT_PROMPT;
+    elements.analysisList.replaceChildren();
+    elements.analysisPageState.textContent = "";
+    elements.analysisResults.hidden = true;
+    elements.analysisDetail.hidden = true;
+    elements.analysisEmpty.hidden = false;
+    elements.analysisEmpty.textContent = "设置分析条件后点击分析";
+    elements.analysisFeedback.textContent = "";
+    elements.analysisSubmit.disabled = false;
+    elements.analysisSubmit.textContent = "🤖 分析";
+  }
+
+  async function queryAnalysisList(page) {
+    const requestVersion = ++analysisState.requestVersion;
+    const gid = analysisState.gid;
+    elements.analysisEmpty.hidden = true;
+    elements.analysisDetail.hidden = true;
+    const params = new URLSearchParams({
+      gid: String(gid),
+      page: String(page),
+      size: String(analysisState.size)
+    });
+    try {
+      const result = await fetchJson(`/chat/analyses?${params}`, {cache: "no-store"});
+      if (requestVersion !== analysisState.requestVersion) return;
+      analysisState.page = result.page;
+      analysisState.total = result.total;
+      renderAnalysisResults(result.items);
+      elements.analysisFeedback.textContent = result.items.length ? "" : "暂无历史分析记录。";
+    } catch {
+      if (requestVersion !== analysisState.requestVersion) return;
+      elements.analysisResults.hidden = true;
+      elements.analysisFeedback.textContent = "查询历史分析失败，请稍后重试。";
+    }
+  }
+
+  function renderAnalysisResults(items) {
+    elements.analysisList.replaceChildren(...items.map(item => {
+      const row = document.createElement("button");
+      row.className = "analysis-item";
+      row.type = "button";
+      const date = document.createElement("span");
+      date.className = "analysis-item-date";
+      date.textContent = item.date;
+      const prompt = document.createElement("span");
+      prompt.className = "analysis-item-prompt";
+      prompt.textContent = item.promptPreview || "";
+      const count = document.createElement("span");
+      count.className = "analysis-item-count";
+      count.textContent = `${item.messageCount} 条`;
+      const time = document.createElement("span");
+      time.className = "analysis-item-time";
+      time.textContent = item.createdAt;
+      row.append(date, prompt, count, time);
+      row.addEventListener("click", () => loadAnalysisDetail(item.id));
+      return row;
+    }));
+    const pageCount = Math.max(1, Math.ceil(analysisState.total / analysisState.size));
+    elements.analysisPageState.textContent =
+      `第 ${analysisState.page} / ${pageCount} 页，共 ${analysisState.total} 条`;
+    elements.analysisPrev.disabled = analysisState.page <= 1;
+    elements.analysisNext.disabled = analysisState.page >= pageCount;
+    elements.analysisEmpty.hidden = true;
+    elements.analysisDetail.hidden = true;
+    elements.analysisResults.hidden = false;
+    elements.analysisList.scrollTop = 0;
+  }
+
+  async function loadAnalysisDetail(id) {
+    elements.analysisResults.hidden = true;
+    elements.analysisDetail.hidden = false;
+    elements.analysisFeedback.textContent = "";
+    try {
+      const result = await fetchJson(`/chat/analyses/${id}`, {cache: "no-store"});
+      elements.analysisDetailContent.innerHTML = window.marked
+        ? window.marked.parse(result.result)
+        : result.result;
+      elements.analysisDetailContent.scrollTop = 0;
+    } catch {
+      elements.analysisFeedback.textContent = "加载分析详情失败。";
+    }
+  }
+
+  function parseSseEvent(block) {
+    let event = "message";
+    const dataLines = [];
+    for (const rawLine of block.split("\n")) {
+      const line = rawLine.replace(/\r$/, "");
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+    }
+    return dataLines.length ? {event, data: dataLines.join("\n")} : null;
+  }
+
+  async function submitAnalysis() {
+    elements.analysisSubmit.disabled = true;
+    elements.analysisSubmit.textContent = "分析中…";
+    elements.analysisEmpty.hidden = true;
+    elements.analysisResults.hidden = true;
+    elements.analysisDetail.hidden = false;
+    elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在分析，请稍候…</div>';
+    elements.analysisFeedback.textContent = "";
+    let streamed = "";
+    const renderStream = () => {
+      elements.analysisDetailContent.innerHTML = window.marked
+        ? window.marked.parse(streamed)
+        : streamed;
+      elements.analysisDetailContent.scrollTop = elements.analysisDetailContent.scrollHeight;
+    };
+    try {
+      const params = new URLSearchParams({
+        gid: String(analysisState.gid),
+        date: elements.analysisDate.value,
+        prompt: elements.analysisPrompt.value
+      });
+      const response = await fetch("/chat/analyses/stream", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: params
+      });
+      if (!response.ok || !response.body) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.msg || `HTTP ${response.status}`);
+      }
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = "";
+      let doneView = null;
+      for (;;) {
+        const {value, done} = await reader.read();
+        if (done) break;
+        buffer += value;
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop();
+        for (const block of blocks) {
+          const parsed = parseSseEvent(block);
+          if (!parsed) continue;
+          if (parsed.event === "delta") {
+            streamed += parsed.data;
+            renderStream();
+          } else if (parsed.event === "done") {
+            doneView = JSON.parse(parsed.data);
+          } else if (parsed.event === "error") {
+            throw new Error(parsed.data);
+          }
+        }
+      }
+      elements.analysisFeedback.textContent = "分析完成。";
+      await queryAnalysisList(1);
+      if (doneView) {
+        loadAnalysisDetail(doneView.id);
+      } else {
+        elements.analysisResults.hidden = true;
+        elements.analysisDetail.hidden = false;
+        renderStream();
+      }
+    } catch (error) {
+      elements.analysisDetail.hidden = true;
+      elements.analysisResults.hidden = false;
+      elements.analysisFeedback.textContent = `分析失败：${error.message}`;
+    } finally {
+      elements.analysisSubmit.disabled = false;
+      elements.analysisSubmit.textContent = "🤖 分析";
+    }
+  }
+
+  elements.analysisOpen.addEventListener("click", () => {
+    resetAnalysis(state.currentGid);
+    elements.analysisDialog.showModal();
+    queryAnalysisList(1);
+  });
+  elements.analysisClose.addEventListener("click", () => elements.analysisDialog.close());
+  elements.analysisForm.addEventListener("submit", event => {
+    event.preventDefault();
+    submitAnalysis();
+  });
+  elements.analysisPrev.addEventListener("click", () => queryAnalysisList(analysisState.page - 1));
+  elements.analysisNext.addEventListener("click", () => queryAnalysisList(analysisState.page + 1));
+  elements.analysisBack.addEventListener("click", () => {
+    analysisState.requestVersion += 1;
+    elements.analysisDetail.hidden = true;
+    elements.analysisFeedback.textContent = "";
+    elements.analysisResults.hidden = false;
   });
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
   elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());

@@ -7,6 +7,7 @@
   <title>微博群聊</title>
   <link rel="stylesheet" href="chat.css">
   <script src="weibo-emoji.js" defer></script>
+  <script src="marked.min.js" defer></script>
   <script src="chat.js" defer></script>
 </head>
 <body>
@@ -61,7 +62,7 @@
           <div class="messages" id="messages" aria-live="polite"></div>
           <div class="messages-feedback">
             <div class="messages-state" id="messages-state" role="status">请选择群聊</div>
-            <button id="retry-messages" type="button" hidden>重试</button>
+            <button id="retry-messages" type="button" hidden>🔄 重试</button>
           </div>
           <button class="new-messages-button" id="new-messages" type="button" hidden>有新消息</button>
         </div>
@@ -80,6 +81,7 @@
             </button>
             <input id="video-input" type="file" accept="video/mp4" hidden>
             <button id="history-open" type="button" disabled>📜 聊天记录</button>
+            <button id="analysis-open" type="button" disabled>🤖 群聊分析</button>
           </div>
           <div class="composer-attachment" id="composer-attachment" hidden tabindex="0">
             <img class="composer-attachment-preview" id="composer-attachment-preview" alt="">
@@ -146,6 +148,44 @@
             </div>
           </div>
           <div class="history-feedback" id="history-feedback" role="status"></div>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="analysis-dialog" id="analysis-dialog" aria-labelledby="analysis-title">
+    <div class="analysis-window">
+      <header class="analysis-titlebar">
+        <span class="analysis-title-icon" aria-hidden="true">🤖</span>
+        <h2 id="analysis-title">群聊分析</h2>
+        <button id="analysis-close" type="button" aria-label="关闭群聊分析"></button>
+      </header>
+      <div class="analysis-layout">
+        <form class="analysis-filters" id="analysis-form">
+          <h3>分析条件</h3>
+          <label for="analysis-date">分析日期</label>
+          <input id="analysis-date" type="date" required>
+          <label for="analysis-prompt">提示词</label>
+          <textarea id="analysis-prompt" rows="5" required>请总结今天群聊的主要讨论话题和参与者</textarea>
+          <button class="primary-button" id="analysis-submit" type="submit">🤖 分析</button>
+        </form>
+        <section class="analysis-content" aria-label="群聊分析结果">
+          <div class="analysis-empty" id="analysis-empty">设置分析条件后点击分析</div>
+          <div class="analysis-results" id="analysis-results" hidden>
+            <div class="analysis-results-list" id="analysis-list"></div>
+            <footer class="analysis-pagination">
+              <button id="analysis-prev" type="button">⬅️ 上一页</button>
+              <span id="analysis-page-state"></span>
+              <button id="analysis-next" type="button">下一页 ➡️</button>
+            </footer>
+          </div>
+          <div class="analysis-detail" id="analysis-detail" hidden>
+            <header class="analysis-detail-toolbar">
+              <button id="analysis-back" type="button">🚩 返回分析列表</button>
+            </header>
+            <div class="analysis-detail-content" id="analysis-detail-content"></div>
+          </div>
+          <div class="analysis-feedback" id="analysis-feedback" role="status"></div>
         </section>
       </div>
     </div>

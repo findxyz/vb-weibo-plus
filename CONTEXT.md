@@ -47,3 +47,7 @@ _Avoid_: sync, capture, remote refresh
 **Media Send**:
 Posting an image or video into a Weibo group chat by orchestrating Weibo's multi-step upload (init -> upload -> send_message). Unlike Media Proxy which is read-only download, Media Send uploads local bytes upstream to Weibo using the current Credential.
 _Avoid_: media upload, file send, media post
+
+**Analysis**:
+An AI-generated analysis of locally captured Group Messages for one group on a specific date, driven by a user-supplied prompt. The prompt, result (Markdown), message count, and timestamp are persisted for later retrieval.
+_Avoid_: chat summary, AI report, message analysis

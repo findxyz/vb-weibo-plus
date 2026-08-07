@@ -22,6 +22,13 @@ weibo:
     sync-group-fixed-delay: ${WEIBO_SYNC_GROUP_FIXED_DELAY:20s}
   media:
     ffmpeg-path: ${WEIBO_FFMPEG_PATH:ffmpeg}
+  ai:
+    # base-url：OpenAI 兼容 API 地址，如 https://api.openai.com 或 https://dashscope.aliyuncs.com/compatible-mode
+    base-url: ${WEIBO_AI_BASE_URL:}
+    api-key: ${WEIBO_AI_API_KEY:}
+    model: ${WEIBO_AI_MODEL:deepseek-v4-flash}
+    timeout-seconds: ${WEIBO_AI_TIMEOUT:120}
+    system-prompt: ${WEIBO_AI_SYSTEM_PROMPT:请用中文回复分析结果。}
 
 spring:
   servlet:

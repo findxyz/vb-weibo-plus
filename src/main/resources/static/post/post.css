@@ -825,7 +825,11 @@ h1#app-title {
   pointer-events: none;
 }
 .posts-state {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
   color: var(--pencil);
+  background: rgba(251, 246, 236, 0.92);
+  box-shadow: 0 1px 4px rgba(43, 38, 32, 0.16);
   font: 16px/1.3 var(--hand);
   font-style: italic;
 }
