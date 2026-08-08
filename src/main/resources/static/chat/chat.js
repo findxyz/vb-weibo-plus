@@ -23,8 +23,6 @@
     currentId: document.querySelector("#current-id"),
     currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"),
-    messagesState: document.querySelector("#messages-state"),
-    retryMessages: document.querySelector("#retry-messages"),
     loadEarlier: document.querySelector("#load-earlier"),
     newMessages: document.querySelector("#new-messages"),
     historyOpen: document.querySelector("#history-open"),
@@ -103,8 +101,6 @@
     refreshing: false,
     loadingEarlier: false,
     followingLatest: true,
-    failedBeforeCreatedAt: null,
-    failedBeforeMid: null,
     sending: false,
     pendingImage: null,
     pendingImageUrl: null,
@@ -816,9 +812,6 @@
   async function loadMessages(beforeCreatedAt = null, beforeMid = null) {
     const isLatestPage = beforeCreatedAt === null && beforeMid === null;
     const anchor = isLatestPage ? null : captureScrollAnchor();
-    state.failedBeforeCreatedAt = beforeCreatedAt;
-    state.failedBeforeMid = beforeMid;
-    elements.retryMessages.hidden = true;
     const gid = state.currentGid;
     const query = new URLSearchParams({
       gid: String(gid), size: String(PAGE_SIZE)
@@ -836,7 +829,6 @@
       state.hasMore = result.hasMore;
       if (isLatestPage) state.followingLatest = true;
       renderMessages(isLatestPage);
-      elements.messagesState.textContent = state.messages.size ? "" : "暂无消息";
       elements.loadEarlier.disabled = !state.hasMore;
       if (isLatestPage) {
         scrollToBottom(true);
@@ -844,9 +836,6 @@
         restoreScrollAnchor(anchor);
       }
     } catch {
-      if (state.currentGid !== gid) return;
-      elements.messagesState.textContent = "消息加载失败，请稍后重试。";
-      elements.retryMessages.hidden = false;
     }
   }
 
@@ -1270,8 +1259,6 @@
   };
   elements.composer.addEventListener("paste", handlePaste);
   elements.composerAttachment.addEventListener("paste", handlePaste);
-  elements.retryMessages.addEventListener("click", () =>
-    loadMessages(state.failedBeforeCreatedAt, state.failedBeforeMid));
   elements.newMessages.addEventListener("click", async () => {
     await refreshMessages();
     state.followingLatest = true;

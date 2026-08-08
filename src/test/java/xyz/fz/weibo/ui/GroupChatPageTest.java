@@ -1191,16 +1191,18 @@ class GroupChatPageTest {
     }
 
     @Test
-    void keeps_the_group_visible_when_messages_fail_and_allows_retrying_them() {
+    void keeps_the_group_visible_when_messages_fail_and_recovers_by_polling() {
         failMessages.set(true);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
+        // 消息加载失败时群仍可见，且中间无失败提示（不展示 messages-state / retry-messages）
         assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-        assertThat(page.locator("#messages-state")).containsText("消息加载失败");
-        assertThat(page.locator("#retry-messages")).isVisible();
+        assertThat(page.locator("#messages-state")).hasCount(0);
+        assertThat(page.locator("#retry-messages")).hasCount(0);
+
         failMessages.set(false);
-        page.locator("#retry-messages").click();
+        // 每秒轮询自动恢复消息，无需手动重试
         assertThat(page.locator(".message")).hasCount(2);
 
         page.close();

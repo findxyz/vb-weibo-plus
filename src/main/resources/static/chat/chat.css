@@ -329,6 +329,10 @@ h1 {
   align-self: center;
 }
 
+.qr-loading[hidden] {
+  display: none !important;
+}
+
 .qr-loading {
   width: 180px;
   height: 180px;
@@ -539,37 +543,6 @@ h1 {
 .admin-message .bubble {
   background: #fff3e0;
   border-color: #f0c78a;
-}
-
-.messages-feedback {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.messages-state {
-  padding: 6px 12px;
-  border-radius: var(--radius-md);
-  color: var(--text);
-  background: rgb(255 255 255 / 92%);
-  box-shadow: 0 1px 4px rgb(31 63 89 / 16%);
-  font-size: 14px;
-}
-
-.messages-feedback:has(.messages-state:empty) {
-  display: none;
-}
-
-.messages-feedback button {
-  padding: 4px 9px;
-  border: 1px solid #8badca;
-  border-radius: var(--radius-sm);
-  background: #ffffff;
-  pointer-events: auto;
 }
 
 .new-messages-button {

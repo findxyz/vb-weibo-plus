@@ -84,11 +84,17 @@ graph TB
 
 | 配置项 | 环境变量 | 默认值 | 说明 |
 |--------|----------|--------|------|
+| `server.port` | - | `18080` | 应用监听端口，改端口需直接修改 yml |
 | `weibo.cookie-file` | - | `.weibo_cookie.txt` | 登录态 cookie 文件路径 |
+| `weibo.qr-timeout-seconds` | - | `300` | 扫码登录等待确认的超时秒数，超时后报「扫码登录超时」 |
 | `weibo.database-path` | `WEIBO_DATABASE_PATH` | `weibo.db` | 本地 SQLite 数据库路径 |
+| `weibo.chat.auto-sync-gids` | `WEIBO_AUTO_SYNC_GIDS` | `4761715839862414,5046020575330655` | 定时增量同步的群号，逗号分隔，留空则不同步任何群 |
+| `weibo.chat.sync-group-fixed-delay` | `WEIBO_SYNC_GROUP_FIXED_DELAY` | `20s` | 群消息增量同步间隔，支持 `20s` / `30000ms` 等 Duration 写法 |
 | `weibo.media.ffmpeg-path` | `WEIBO_FFMPEG_PATH` | `ffmpeg` | ffmpeg 可执行文件路径 |
 | `weibo.ai.base-url` | `WEIBO_AI_BASE_URL` | 空 | OpenAI 兼容 API 地址，留空则禁用 AI 分析 |
 | `weibo.ai.api-key` | `WEIBO_AI_API_KEY` | 空 | AI API 密钥 |
 | `weibo.ai.model` | `WEIBO_AI_MODEL` | `deepseek-v4-flash` | 模型名称 |
 | `weibo.ai.timeout-seconds` | `WEIBO_AI_TIMEOUT` | `120` | AI 请求超时秒数 |
 | `weibo.ai.system-prompt` | `WEIBO_AI_SYSTEM_PROMPT` | `请用中文回复分析结果。` | 系统提示词 |
+| `spring.servlet.multipart.max-file-size` | - | `20MB` | 群聊发图/发视频的单文件上传上限，需容纳手机原图 |
+| `spring.servlet.multipart.max-request-size` | - | `21MB` | 整个 multipart 请求上限，略大于文件上限即可 |
