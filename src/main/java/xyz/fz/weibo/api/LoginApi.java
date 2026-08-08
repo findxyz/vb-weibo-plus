@@ -33,6 +33,9 @@ public class LoginApi {
     // 登录运行期间持有的页面引用，供取图端点访问。单用户本地工具下无需并发保护。
     private volatile Page currentPage;
 
+    // 登录运行期间持有的浏览器上下文，供取图端点判断登录是否已完成。单用户本地工具下无需并发保护。
+    private volatile BrowserContext currentContext;
+
     public LoginApi(WeiboCookieHolder holder) {
         this.holder = holder;
     }
@@ -41,6 +44,7 @@ public class LoginApi {
         try (Playwright pw = Playwright.create();
              Browser browser = pw.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true))) {
             BrowserContext ctx = browser.newContext();
+            currentContext = ctx;
             Page page = ctx.newPage();
             page.navigate(CHAT_URL);
             currentPage = page;
@@ -48,7 +52,7 @@ public class LoginApi {
             long deadline = System.currentTimeMillis() + qrTimeoutSeconds * 1000L;
             while (System.currentTimeMillis() < deadline) {
                 //noinspection BusyWait
-                Thread.sleep(2000);
+                Thread.sleep(500);
                 List<Cookie> cookies = ctx.cookies();
                 String sub = null;
                 String subp = null;
@@ -75,6 +79,8 @@ public class LoginApi {
                     if (ssoLoginState == null) {
                         throw new WeiboException("扫码登录不完整，缺少 SSOLoginState");
                     }
+                    // 登录已成：立即切断取图，避免登录成功后页面跳转、截图端截到非二维码图片
+                    currentPage = null;
                     String cookie = "SUBP=" + subp + "; ALF=" + alf + "; SSOLoginState=" + ssoLoginState + "; SUB=" + sub;
                     holder.set(cookie);
                     return new LoginResponse(sub, subp, ssoLoginState, alf);
@@ -86,6 +92,7 @@ public class LoginApi {
         } catch (Exception e) {
             throw new WeiboException("Playwright 浏览器未安装，请先执行：mvn exec:java -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args=\"install chromium\"", e);
         } finally {
+            currentContext = null;
             currentPage = null;
         }
     }
@@ -93,11 +100,23 @@ public class LoginApi {
     /**
      * 截取当前登录页面的二维码图片。
      *
-     * @return PNG 图片字节；若登录未进行中或二维码暂不可用（轮换中），返回 null
+     * @return PNG 图片字节；若登录未进行中、登录已完成或二维码暂不可用（轮换中），返回 null
      */
     public byte[] captureQrImage() {
         Page page = currentPage;
         if (page == null) {
+            return null;
+        }
+        // 登录确认后页面会立即跳转，第一个 img 变成头像不再是二维码；
+        // 一旦读到 SUB cookie 即视为登录已成，不再截图，避免前端展示误图
+        try {
+            for (Cookie c : currentContext.cookies()) {
+                if (".weibo.com".equals(c.domain) && "SUB".equals(c.name) && c.value != null && !c.value.isEmpty()) {
+                    return null;
+                }
+            }
+        } catch (Exception e) {
+            // 上下文已关闭等异常，等同于登录结束，返回 null 让前端保持旧图
             return null;
         }
         try {
