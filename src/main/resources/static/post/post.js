@@ -99,7 +99,7 @@
 
   /* ---------- 博主列表 ---------- */
 
-  async function loadBloggers() {
+  async function loadBloggers(selectAll = true) {
     showState(elements.bloggersState, "");
     elements.bloggersCount.textContent = "正在加载…";
     try {
@@ -107,7 +107,9 @@
       state.bloggers = list;
       renderBloggers(list);
       elements.bloggersCount.textContent = `${list.length} 位博主`;
-      selectAllBloggers();
+      if (selectAll) {
+        selectAllBloggers();
+      }
     } catch (error) {
       if (error.status === 401) {
         showLoginExpired();
@@ -269,8 +271,8 @@
   }
 
   async function reloadBloggersAndSelect(uid) {
-    // loadBloggers 默认选中「全部博主」，这里在它的基础上改选新添加的博主
-    await loadBloggers();
+    // 跳过 loadBloggers 默认的「全部博主」选中，避免与新博主的选中产生竞态
+    await loadBloggers(false);
     const blogger = state.bloggers.find((b) => Number(b.uid) === uid);
     if (blogger) {
       selectBlogger(blogger);
