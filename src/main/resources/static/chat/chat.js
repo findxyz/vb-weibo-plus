@@ -87,6 +87,7 @@
     analysisDetail: document.querySelector("#analysis-detail"),
     analysisBack: document.querySelector("#analysis-back"),
     analysisDetailContent: document.querySelector("#analysis-detail-content"),
+    analysisDetailMeta: document.querySelector("#analysis-detail-meta"),
     windowToggle: document.querySelector(".window-control.toggle")
   };
   const state = {
@@ -1326,6 +1327,9 @@
       const prompt = document.createElement("span");
       prompt.className = "analysis-item-prompt";
       prompt.textContent = item.promptPreview || "";
+      if (item.promptPreview) {
+        prompt.title = item.promptPreview;
+      }
       const count = document.createElement("span");
       count.className = "analysis-item-count";
       count.textContent = `${item.messageCount} 条`;
@@ -1347,12 +1351,43 @@
     elements.analysisList.scrollTop = 0;
   }
 
+  function renderAnalysisMeta(view) {
+    const meta = elements.analysisDetailMeta;
+    meta.replaceChildren();
+    const fields = [
+      {label: "分析日期", value: view.date},
+      {label: "分析条数", value: view.messageCount != null ? `${view.messageCount} 条` : ""},
+      {label: "分析时间", value: view.createdAt},
+      {label: "提示词", value: view.prompt || ""}
+    ];
+    for (const field of fields) {
+      if (!field.value) continue;
+      const item = document.createElement("span");
+      item.className = "analysis-meta-field";
+      const label = document.createElement("span");
+      label.className = "analysis-meta-label";
+      label.textContent = `${field.label}：`;
+      const value = document.createElement("span");
+      value.className = "analysis-meta-value";
+      value.textContent = field.value;
+      if (field.value.length > 48) {
+        value.title = field.value;
+      }
+      item.append(label, value);
+      meta.append(item);
+    }
+    meta.hidden = meta.children.length === 0;
+  }
+
   async function loadAnalysisDetail(id) {
     elements.analysisResults.hidden = true;
     elements.analysisDetail.hidden = false;
     elements.analysisFeedback.textContent = "";
+    elements.analysisDetailMeta.hidden = true;
+    elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在加载…</div>';
     try {
       const result = await fetchJson(`/chat/analyses/${id}`, {cache: "no-store"});
+      renderAnalysisMeta(result);
       elements.analysisDetailContent.innerHTML = window.marked
         ? window.marked.parse(result.result)
         : result.result;
@@ -1379,6 +1414,7 @@
     elements.analysisEmpty.hidden = true;
     elements.analysisResults.hidden = true;
     elements.analysisDetail.hidden = false;
+    elements.analysisDetailMeta.hidden = true;
     elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在分析，请稍候…</div>';
     elements.analysisFeedback.textContent = "";
     let streamed = "";

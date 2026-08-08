@@ -200,7 +200,7 @@ class AnalysisServiceTest {
     }
 
     @Test
-    void list_summary_truncates_prompt_over_30_chars() {
+    void list_summary_returns_full_prompt() {
         String longPrompt = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十超过";
         AnalysisEntity entity = new AnalysisEntity(GID, 0L, longPrompt, "结果", 1, 100L);
         ReflectionTestUtils.setField(entity, "id", 1L);
@@ -209,7 +209,7 @@ class AnalysisServiceTest {
 
         AnalysisPageResult result = analysisService.list(GID, 1, 20);
 
-        assertThat(result.items().get(0).promptPreview()).hasSize(30);
+        assertThat(result.items().get(0).promptPreview()).isEqualTo(longPrompt);
     }
 
     @Test

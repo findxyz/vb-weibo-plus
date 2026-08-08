@@ -1014,7 +1014,7 @@ h1 {
 .analysis-detail {
   height: 100%;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: 48px auto minmax(0, 1fr);
 }
 
 .history-context[hidden],
@@ -1259,6 +1259,42 @@ h1 {
   font-size: 14px;
   line-height: 1.7;
   word-wrap: break-word;
+}
+
+.analysis-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  padding: 6px 20px;
+  border-bottom: 1px solid var(--border);
+  background: #f7fafd;
+  font-size: 12px;
+  color: #486b88;
+}
+
+.analysis-detail-meta[hidden] {
+  display: none;
+}
+
+.analysis-meta-field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.analysis-meta-label {
+  color: #6b8aa3;
+}
+
+.analysis-meta-value {
+  min-width: 0;
+  max-width: 48ch;
+  color: #214f78;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .analysis-detail-content h1,
