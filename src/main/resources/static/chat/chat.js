@@ -69,6 +69,7 @@
     loginExpired: document.querySelector("#login-expired"),
     loginQr: document.querySelector("#login-qr"),
     loginQrImg: document.querySelector("#login-qr-img"),
+    qrLoading: document.querySelector("#qr-loading"),
     analysisOpen: document.querySelector("#analysis-open"),
     analysisDialog: document.querySelector("#analysis-dialog"),
     analysisClose: document.querySelector("#analysis-close"),
@@ -939,6 +940,7 @@
   function refreshQrImage() {
     const img = new Image();
     img.onload = () => {
+      elements.qrLoading.hidden = true;
       elements.loginQrImg.src = img.src;
       elements.loginQrImg.hidden = false;
     };
@@ -946,6 +948,8 @@
   }
 
   function startQrImagePolling() {
+    elements.loginQrImg.hidden = true;
+    elements.qrLoading.hidden = false;
     qrImageTimer = setInterval(refreshQrImage, QR_IMAGE_INTERVAL);
     setTimeout(refreshQrImage, 3000);
   }
@@ -956,6 +960,7 @@
       qrImageTimer = null;
     }
     elements.loginQrImg.hidden = true;
+    elements.qrLoading.hidden = true;
   }
 
   function maybeCheckLoginStatus() {
