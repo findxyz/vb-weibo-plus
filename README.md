@@ -28,7 +28,55 @@ export WEIBO_FFMPEG_PATH=/path/to/ffmpeg
 mvn spring-boot:run
 ```
 
-应用默认监听 `http://localhost:8080`。HTTP 接口集合见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
+应用默认监听 `http://localhost:18080`。HTTP 接口集合见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
+
+## 系统架构
+
+### 整体分层
+
+```mermaid
+graph TB
+    subgraph Browser["浏览器前端（纯静态）"]
+        ChatUI["chat/index.html + chat.js<br/>群聊查看 · 发消息 · AI 分析"]
+        PostUI["post/index.html + post.js<br/>微博浏览 · 日历 · 博主管理"]
+    end
+
+    subgraph SpringBoot["Spring Boot :18080"]
+        Controller["Controller 层<br/>8 个 REST 控制器"]
+        Service["Service 层<br/>ChatService · PostService<br/>AnalysisService · ImageProxyService"]
+        API["API 适配层<br/>8 个微博端点封装"]
+        Client["Client 层<br/>WeiboHttpClient · AiClient"]
+        Repo["Repository 层<br/>5 个 JPA Repository"]
+        SyncTask["SyncTask<br/>CommandLineRunner + @Scheduled"]
+    end
+
+    subgraph Storage["本地存储"]
+        SQLite[("SQLite weibo.db<br/>5 张表 · WAL 模式")]
+        CookieFile[".weibo_cookie.txt<br/>登录态文件"]
+    end
+
+    subgraph External["外部服务"]
+        Weibo["微博 Web/API<br/>api.weibo.com · weibo.com/ajax · 图床 CDN"]
+        AiAPI["OpenAI 兼容 AI API<br/>可选"]
+        FFmpeg["ffmpeg / ffprobe<br/>HEIC 转码 · 视频封面 · 可选"]
+        Playwright["Playwright Chromium<br/>扫码登录"]
+    end
+
+    ChatUI -->|HTTP / SSE| Controller
+    PostUI -->|HTTP| Controller
+    Controller --> Service
+    Service --> API
+    Service --> Repo
+    API --> Client
+    Client -->|带 Cookie HTTP| Weibo
+    Client -->|SSE / 同步| AiAPI
+    API --> Playwright
+    Service --> FFmpeg
+    Repo --> SQLite
+    SyncTask -->|定时增量同步| Service
+    Playwright -.->|写入 Cookie| CookieFile
+    CookieFile -.->|启动恢复| Client
+```
 
 ## 配置
 
