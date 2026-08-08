@@ -62,6 +62,7 @@
     </dependencies>
 
     <build>
+        <finalName>weibo-plus</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
