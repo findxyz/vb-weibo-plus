@@ -347,6 +347,33 @@ class PostServiceTest {
     }
 
     @Test
+    void saveByRange_skips_day_with_no_posts_and_continues_to_next_day() {
+        MblogResponse post = post(100, "day2-post", false, null);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
+        PostEntity postEntity = entity("day2-post", 100);
+        SearchProfileRequest dayOnePage1 = new SearchProfileRequest(
+                1L, 1, 1783652523L, 1783699199L);
+        SearchProfileRequest dayTwoPage1 = new SearchProfileRequest(
+                1L, 1, 1783699200L, 1783785599L);
+        SearchProfileRequest dayTwoPage2 = new SearchProfileRequest(
+                1L, 2, 1783699200L, 1783785599L);
+        when(searchProfileApi.searchProfile(dayOnePage1)).thenReturn(searchPage(List.of()));
+        when(searchProfileApi.searchProfile(dayTwoPage1)).thenReturn(searchPage(List.of(post)));
+        when(searchProfileApi.searchProfile(dayTwoPage2)).thenReturn(searchPage(List.of()));
+        when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
+        when(postMapper.toPostEntity(eq(post), any(), any(), anyLong())).thenReturn(postEntity);
+        when(postRepository.insertIfAbsent(postEntity)).thenReturn(true);
+
+        assertThat(postService.saveByRange(1, 1783652523000L, 1783785599000L))
+                .isEqualTo(new SaveResult(1, 1, 0));
+
+        verify(searchProfileApi).searchProfile(dayOnePage1);
+        verify(searchProfileApi).searchProfile(dayTwoPage1);
+        verify(searchProfileApi).searchProfile(dayTwoPage2);
+        verifyNoMoreInteractions(searchProfileApi);
+    }
+
+    @Test
     void ignores_concurrent_range_save_and_accepts_another_after_unlock() throws Exception {
         CountDownLatch requestStarted = new CountDownLatch(1);
         CountDownLatch releaseRequest = new CountDownLatch(1);

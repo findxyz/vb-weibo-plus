@@ -2,16 +2,18 @@ package xyz.fz.weibo.api;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboHttpClient;
-import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.SearchProfileRequest;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,6 +21,8 @@ import java.util.Map;
  */
 @Component
 public class SearchProfileApi {
+
+    private static final Logger log = LoggerFactory.getLogger(SearchProfileApi.class);
 
     private static final String SEARCH_PROFILE_URL = "https://weibo.com/ajax/statuses/searchProfile";
 
@@ -40,7 +44,9 @@ public class SearchProfileApi {
         try {
             return objectMapper.readValue(resp.getBody(), SearchProfileResponse.class);
         } catch (JsonProcessingException e) {
-            throw new WeiboException("响应反序列化失败：" + e.getMessage(), e);
+            log.warn("搜索微博响应非 JSON，按空结果处理：{}", e.getMessage());
+            return new SearchProfileResponse(
+                    new SearchProfileResponse.SearchProfileData(List.of(), 0, ""), 1);
         }
     }
 }
