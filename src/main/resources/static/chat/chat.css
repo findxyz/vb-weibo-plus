@@ -202,6 +202,13 @@ h1 {
   overflow-y: auto;
 }
 
+.groups-empty {
+  padding: 24px 16px;
+  color: #7a8a99;
+  font-size: 14px;
+  text-align: center;
+}
+
 .group-row {
   width: 100%;
   min-height: 70px;

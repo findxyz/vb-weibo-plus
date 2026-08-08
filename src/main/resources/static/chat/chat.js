@@ -1199,7 +1199,14 @@
       state.groups = await fetchJson("/chat/groups", {cache: "no-store"});
       renderGroups();
       if (!state.groups.length) {
-        elements.groupsState.textContent = "本地还没有群聊数据。";
+        elements.groupsState.textContent = "";
+        elements.groupsCount.textContent = "暂无群聊";
+        elements.groupsList.replaceChildren(
+          Object.assign(document.createElement("div"), {
+            className: "groups-empty",
+            textContent: "暂无群聊数据，扫码登录后会自动同步。",
+          }),
+        );
         return;
       }
       const savedGid = Number(localStorage.getItem(LAST_GROUP_KEY));
