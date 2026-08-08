@@ -31,6 +31,28 @@ if not exist "%~dp0%JAR%" (
     exit /b 1
 )
 
+rem ===== JDK 版本检查（要求 21 或以上）=====
+java -version >nul 2>&1
+if errorlevel 1 (
+    echo 未找到 java 命令，请先安装 JDK 21 或以上版本并配置 PATH。
+    pause
+    exit /b 1
+)
+for /f tokens^=2delims^=^" %%v in ('java -version 2^>^&1') do (
+    set JAVA_VER=%%v
+    goto :check_ver
+)
+:check_ver
+for /f "tokens=1 delims=." %%a in ("%JAVA_VER%") do set JAVA_MAJOR=%%a
+if %JAVA_MAJOR% LSS 21 (
+    echo JDK 版本过低：当前 %JAVA_VER%，要求 21 或以上。
+    echo 请升级 JDK 后重试。
+    pause
+    exit /b 1
+)
+echo JDK 版本：%JAVA_VER%
+echo.
+
 echo 正在启动 vb-weibo-plus...
 echo 端口：%WEIBO_PORT%
 echo 数据库：%WEIBO_DATABASE_PATH%
