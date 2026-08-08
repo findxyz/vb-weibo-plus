@@ -46,7 +46,7 @@ for /f tokens^=2delims^=^" %%v in ('java -version 2^>^&1') do (
 for /f "tokens=1 delims=." %%a in ("%JAVA_VER%") do set JAVA_MAJOR=%%a
 if %JAVA_MAJOR% LSS 21 (
     echo JDK 版本过低：当前 %JAVA_VER%，要求 21 或以上。
-    echo 请升级 JDK 后重试。
+    echo 请前往 Oracle JDK 下载页安装：https://www.oracle.com/java/technologies/downloads/
     pause
     exit /b 1
 )
