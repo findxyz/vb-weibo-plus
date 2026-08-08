@@ -1297,6 +1297,32 @@ h1 {
   white-space: nowrap;
 }
 
+.analysis-meta-prompt {
+  width: 100%;
+}
+
+.analysis-meta-prompt .analysis-meta-value {
+  max-width: 80ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.analysis-meta-copy {
+  flex-shrink: 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.analysis-meta-copy:hover {
+  background: #e1ecf4;
+}
+
 .analysis-detail-content h1,
 .analysis-detail-content h2,
 .analysis-detail-content h3 {

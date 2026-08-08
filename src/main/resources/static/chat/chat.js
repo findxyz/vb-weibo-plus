@@ -86,6 +86,7 @@
     analysisPageState: document.querySelector("#analysis-page-state"),
     analysisDetail: document.querySelector("#analysis-detail"),
     analysisBack: document.querySelector("#analysis-back"),
+    analysisDownload: document.querySelector("#analysis-download"),
     analysisDetailContent: document.querySelector("#analysis-detail-content"),
     analysisDetailMeta: document.querySelector("#analysis-detail-meta"),
     windowToggle: document.querySelector(".window-control.toggle")
@@ -1357,8 +1358,7 @@
     const fields = [
       {label: "分析日期", value: view.date},
       {label: "分析条数", value: view.messageCount != null ? `${view.messageCount} 条` : ""},
-      {label: "分析时间", value: view.createdAt},
-      {label: "提示词", value: view.prompt || ""}
+      {label: "分析时间", value: view.createdAt}
     ];
     for (const field of fields) {
       if (!field.value) continue;
@@ -1370,24 +1370,54 @@
       const value = document.createElement("span");
       value.className = "analysis-meta-value";
       value.textContent = field.value;
-      if (field.value.length > 48) {
-        value.title = field.value;
-      }
       item.append(label, value);
+      meta.append(item);
+    }
+    if (view.prompt) {
+      const item = document.createElement("span");
+      item.className = "analysis-meta-field analysis-meta-prompt";
+      const label = document.createElement("span");
+      label.className = "analysis-meta-label";
+      label.textContent = "提示词：";
+      const value = document.createElement("span");
+      value.className = "analysis-meta-value";
+      value.textContent = view.prompt;
+      value.title = view.prompt;
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "analysis-meta-copy";
+      copyBtn.type = "button";
+      copyBtn.textContent = "📋";
+      copyBtn.title = "复制提示词";
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(view.prompt);
+          copyBtn.textContent = "✅";
+          setTimeout(() => { copyBtn.textContent = "📋"; }, 1500);
+        } catch {
+          copyBtn.textContent = "❌";
+          setTimeout(() => { copyBtn.textContent = "📋"; }, 1500);
+        }
+      });
+      item.append(label, value, copyBtn);
       meta.append(item);
     }
     meta.hidden = meta.children.length === 0;
   }
+
+  let currentAnalysisView = null;
 
   async function loadAnalysisDetail(id) {
     elements.analysisResults.hidden = true;
     elements.analysisDetail.hidden = false;
     elements.analysisFeedback.textContent = "";
     elements.analysisDetailMeta.hidden = true;
+    elements.analysisDownload.disabled = true;
     elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在加载…</div>';
     try {
       const result = await fetchJson(`/chat/analyses/${id}`, {cache: "no-store"});
+      currentAnalysisView = result;
       renderAnalysisMeta(result);
+      elements.analysisDownload.disabled = false;
       elements.analysisDetailContent.innerHTML = window.marked
         ? window.marked.parse(result.result)
         : result.result;
@@ -1494,9 +1524,22 @@
   elements.analysisNext.addEventListener("click", () => queryAnalysisList(analysisState.page + 1));
   elements.analysisBack.addEventListener("click", () => {
     analysisState.requestVersion += 1;
+    currentAnalysisView = null;
+    elements.analysisDownload.disabled = true;
     elements.analysisDetail.hidden = true;
     elements.analysisFeedback.textContent = "";
     elements.analysisResults.hidden = false;
+  });
+  elements.analysisDownload.addEventListener("click", () => {
+    if (!currentAnalysisView) return;
+    const header = `# 群聊分析报告\n\n- 分析日期：${currentAnalysisView.date}\n- 分析条数：${currentAnalysisView.messageCount} 条\n- 分析时间：${currentAnalysisView.createdAt}\n- 提示词：${currentAnalysisView.prompt}\n\n---\n\n`;
+    const blob = new Blob([header + currentAnalysisView.result], {type: "text/markdown;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `群聊分析_${currentAnalysisView.createdAt.replace(/[: ]/g, "-")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   });
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
   elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());
