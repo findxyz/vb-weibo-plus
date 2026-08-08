@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.LoginApi;
 import xyz.fz.weibo.model.response.LoginResponse;
+import xyz.fz.weibo.service.ChatService;
 
 import java.util.Map;
 
@@ -22,15 +23,20 @@ public class WeiboLoginController {
 
     private final LoginApi loginApi;
     private final GroupListApi groupListApi;
+    private final ChatService chatService;
 
-    public WeiboLoginController(LoginApi loginApi, GroupListApi groupListApi) {
+    public WeiboLoginController(LoginApi loginApi, GroupListApi groupListApi, ChatService chatService) {
         this.loginApi = loginApi;
         this.groupListApi = groupListApi;
+        this.chatService = chatService;
     }
 
     @PostMapping("/qr")
     public LoginResponse qr() {
-        return loginApi.qrLogin();
+        LoginResponse response = loginApi.qrLogin();
+        // 登录成功后立即同步群列表，避免前端拿到空列表
+        chatService.syncGroups();
+        return response;
     }
 
     @GetMapping(value = "/qr/image", produces = MediaType.IMAGE_PNG_VALUE)
