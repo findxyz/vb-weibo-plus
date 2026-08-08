@@ -142,11 +142,7 @@ public class AnalysisService {
     private AnalysisSummary toSummary(AnalysisEntity entity) {
         String dateStr = Instant.ofEpochMilli(entity.getDate()).atZone(ZONE).toLocalDate().format(DATE_FMT);
         String createdAtStr = Instant.ofEpochMilli(entity.getCreatedAt()).atZone(ZONE).format(DATETIME_FMT);
-        String preview = entity.getPrompt();
-        if (preview != null && preview.length() > 30) {
-            preview = preview.substring(0, 30);
-        }
-        return new AnalysisSummary(entity.getId(), dateStr, preview, entity.getMessageCount(), createdAtStr);
+        return new AnalysisSummary(entity.getId(), dateStr, entity.getPrompt(), entity.getMessageCount(), createdAtStr);
     }
 
     private void validateGid(long gid) {
