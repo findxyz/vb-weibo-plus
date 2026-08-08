@@ -62,8 +62,8 @@ echo   JDK: %JAVA_VER%
 echo ============================================
 echo.
 
-rem 后台轮询等待服务就绪后自动打开浏览器
-start "" /b powershell -NoProfile -WindowStyle Hidden -Command "for($i=0;$i -lt 60;$i++){Start-Sleep -Seconds 1;try{if((Invoke-WebRequest -Uri 'http://localhost:%WEIBO_PORT%/post/index.html' -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200){Start-Process 'http://localhost:%WEIBO_PORT%/post/index.html';break}}catch{}}"
+rem 延迟 5 秒后自动打开浏览器
+start "" /b cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:%WEIBO_PORT%/post/index.html"
 
 java -jar "%~dp0%JAR%" --server.port=%WEIBO_PORT%
 
