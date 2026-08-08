@@ -9,6 +9,7 @@ import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.LoginApi;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.LoginResponse;
+import xyz.fz.weibo.service.ChatService;
 
 import java.util.List;
 
@@ -31,6 +32,9 @@ class WeiboLoginControllerTest {
 
     @MockitoBean
     private GroupListApi groupListApi;
+
+    @MockitoBean
+    private ChatService chatService;
 
     @Test
     void status_returns_true_when_group_list_succeeds() throws Exception {
