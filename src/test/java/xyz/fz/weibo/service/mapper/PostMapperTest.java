@@ -155,6 +155,28 @@ class PostMapperTest {
     }
 
     @Test
+    void retweet_info_tolerates_blank_created_at_from_deleted_source() throws Exception {
+        // 搜索接口返回的已删除原微博 created_at 可能为空字符串，
+        // toPostEntity 经 toRetweetInfo 解析空串会抛 DateTimeParseException，中断整批历史同步
+        MblogResponse source = readPost();
+        MblogResponse deleted = new MblogResponse(source.id(), source.mblogId(), "",
+                source.text(), source.textRaw(), source.source(), source.regionName(),
+                false, source.picNum(), source.repostsCount(), source.commentsCount(),
+                source.attitudesCount(), source.user(), source.picInfos(), source.pageInfo(),
+                null, null);
+        MblogResponse retweeting = new MblogResponse(source.id(), source.mblogId(),
+                source.createdAt(), source.text(), source.textRaw(), source.source(),
+                source.regionName(), false, source.picNum(), source.repostsCount(),
+                source.commentsCount(), source.attitudesCount(), source.user(),
+                source.picInfos(), source.pageInfo(), deleted, null);
+
+        PostEntity entity = postMapper.toPostEntity(retweeting, null, null, 2000);
+        PostRecord record = postMapper.toPostRecord(entity);
+
+        assertThat(record.retweeted().createdAt()).isZero();
+    }
+
+    @Test
     void maps_only_media_bytes_and_content_type_with_binary_fallback() {
         MediaBinary image = postMapper.toMediaBinary(ResponseEntity.ok()
                 .header("Content-Type", "image/png")

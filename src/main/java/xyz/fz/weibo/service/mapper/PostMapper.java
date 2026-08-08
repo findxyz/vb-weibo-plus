@@ -152,7 +152,7 @@ public class PostMapper {
                 content(post, longText, true),
                 user == null || user.id() == null ? 0 : user.id(),
                 user == null ? "" : emptyIfNull(user.screenName()),
-                post.createdAt() == null ? 0 : parseCreatedAt(post.createdAt()),
+                post.createdAt() == null || post.createdAt().isBlank() ? 0 : parseCreatedAt(post.createdAt()),
                 toPics(post.picInfos()), video.coverUrl(), video.pageUrl());
     }
 
