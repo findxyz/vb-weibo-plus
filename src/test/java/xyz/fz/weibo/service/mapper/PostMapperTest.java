@@ -224,6 +224,23 @@ class PostMapperTest {
     }
 
     @Test
+    void skips_posts_whose_blogger_metadata_is_missing_instead_of_throwing() {
+        // posts.uid 没有匹配的 bloggers 行时，toPostViews 不应整体崩溃，而应跳过该条
+        PostEntity withBlogger = new PostEntity("m1", 100, 1, "", "", "", "",
+                "[]", "", "", "", 0, 0, 0, 100, 200);
+        PostEntity orphan = new PostEntity("m2", 101, 999, "", "", "", "",
+                "[]", "", "", "", 0, 0, 0, 100, 200);
+        BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 100, 200);
+
+        List<PostView> views = postMapper.toPostViews(List.of(withBlogger, orphan), List.of(blogger));
+
+        assertThat(views).singleElement().satisfies(view -> {
+            assertThat(view.mblogId()).isEqualTo("m1");
+            assertThat(view.blogger().uid()).isEqualTo(1);
+        });
+    }
+
+    @Test
     void encodes_controlled_media_url_query_parameters() throws Exception {
         String pictures = objectMapper.writeValueAsString(List.of(
                 new PicInfo("p 1&?", new MediaSize("thumbnail", 1, 2),

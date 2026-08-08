@@ -107,8 +107,12 @@ public class PostMapper {
         List<PostView> views = new ArrayList<>(posts.size());
         for (PostEntity entity : posts) {
             PostRecord post = toPostRecord(entity);
-            BloggerRecord blogger = Objects.requireNonNull(bloggerByUid.get(post.uid()),
-                    "Blogger metadata is missing");
+            // 本地可能存在没有博主元数据的孤儿微博（历史抓取或手动清理），
+            // 跳过这些条目而不是整体崩溃，保证列表页可用
+            BloggerRecord blogger = bloggerByUid.get(post.uid());
+            if (blogger == null) {
+                continue;
+            }
             views.add(toPostView(post, blogger));
         }
         return List.copyOf(views);
