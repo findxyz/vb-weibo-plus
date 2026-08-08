@@ -62,8 +62,8 @@ echo   JDK: %JAVA_VER%
 echo ============================================
 echo.
 
-rem 延迟 3 秒后自动打开浏览器
-start "" cmd /c "timeout /t 3 /nobreak >nul && start http://localhost:%WEIBO_PORT%/post/index.html"
+rem 等待服务就绪后自动打开浏览器
+start "" /b "%~dp0open-browser.bat" %WEIBO_PORT%
 
 java -jar "%~dp0%JAR%" --server.port=%WEIBO_PORT%
 
