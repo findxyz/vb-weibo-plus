@@ -43,3 +43,6 @@ desktop.ini
 
 # OpenCode（临时会话文件）
 .omo/
+
+# 运行脚本（本地分发用，不进版本控制）
+run-target.bat
