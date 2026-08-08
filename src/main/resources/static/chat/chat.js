@@ -1204,7 +1204,7 @@
         elements.groupsList.replaceChildren(
           Object.assign(document.createElement("div"), {
             className: "groups-empty",
-            textContent: "暂无群聊数据，扫码登录后会自动同步。",
+            textContent: "暂无群聊数据",
           }),
         );
         return;
