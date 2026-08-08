@@ -63,7 +63,7 @@ echo ============================================
 echo.
 
 rem 延迟 5 秒后自动打开浏览器
-start "" /b cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:%WEIBO_PORT%/post/index.html"
+start "" /b cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:%WEIBO_PORT%/chat/index.html"
 
 java -jar "%~dp0%JAR%" --server.port=%WEIBO_PORT%
 
