@@ -98,3 +98,9 @@ graph TB
 | `weibo.ai.system-prompt` | `WEIBO_AI_SYSTEM_PROMPT` | `请用中文回复分析结果。` | 系统提示词 |
 | `spring.servlet.multipart.max-file-size` | - | `20MB` | 群聊发图/发视频的单文件上传上限，需容纳手机原图 |
 | `spring.servlet.multipart.max-request-size` | - | `21MB` | 整个 multipart 请求上限，略大于文件上限即可 |
+
+> 通过 `run.bat` 启动时，会以命令行参数注入以下默认值（优先级高于 yml，可直接改 `run.bat` 里的值）：
+>
+> - `--weibo.ai.base-url=https://api.deepseek.com`：AI 分析默认指向 DeepSeek
+> - `--weibo.ai.api-key=sk-xxx`：AI 密钥占位符，**使用前必须替换为真实 key**
+> - `--weibo.chat.auto-sync-gids=4761715839862414,5046020575330655`：与 yml 默认一致

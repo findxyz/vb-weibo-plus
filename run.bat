@@ -10,7 +10,7 @@ if not exist "%~dp0%JAR%" (
     exit /b 1
 )
 
-rem ===== JDK version check (requires 21+) =====
+rem ===== JDK 版本检查（要求 21 及以上） =====
 java -version >nul 2>&1
 if errorlevel 1 (
     echo [错误] 未找到 java 命令，请先安装 JDK 21 或以上版本并配置 PATH。
@@ -41,30 +41,25 @@ if !JAVA_MAJOR! LSS 21 (
     exit /b 1
 )
 
-rem ===== Optional parameters (override via env vars before running) =====
-rem WEIBO_PORT            - server port, default 18080
-rem WEIBO_DATABASE_PATH   - database file path, default weibo.db
-rem WEIBO_FFMPEG_PATH     - ffmpeg path for HEIC transcoding, empty to skip
-rem WEIBO_AI_BASE_URL      - OpenAI compatible API base URL, empty to disable
-rem WEIBO_AI_API_KEY       - AI API key
-rem WEIBO_AI_MODEL         - AI model name
-rem WEIBO_AUTO_SYNC_GIDS   - group IDs for auto sync, comma separated, empty to skip
-
-if not defined WEIBO_PORT set "WEIBO_PORT=18080"
-if not defined WEIBO_DATABASE_PATH set "WEIBO_DATABASE_PATH=weibo.db"
+rem ===== 启动参数（如需调整，直接修改下方 java 命令中的值） =====
+rem --server.port                     - 服务端口，默认 18080
+rem --weibo.database-path             - 数据库文件路径，默认 weibo.db
+rem --weibo.chat.auto-sync-gids       - 定时增量同步的群号，逗号分隔，默认 4761715839862414,5046020575330655
+rem --weibo.ai.base-url               - OpenAI 兼容 API 地址，默认 https://api.deepseek.com
+rem --weibo.ai.api-key                - AI API 密钥，默认 sk-xxx（请替换为真实 key）
 
 echo ============================================
 echo   vb-weibo-plus
 echo ============================================
-echo   端口: %WEIBO_PORT%
-echo   数据库: %WEIBO_DATABASE_PATH%
+echo   端口: 18080
+echo   数据库: weibo.db
 echo   JDK: %JAVA_VER%
 echo ============================================
 echo.
 
 rem 延迟 5 秒后自动打开浏览器
-start "" /b cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:%WEIBO_PORT%/chat/index.html"
+start "" /b cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:18080/chat/index.html"
 
-java -jar "%~dp0%JAR%" --server.port=%WEIBO_PORT%
+java -jar "%~dp0%JAR%" --server.port=18080 --weibo.database-path=weibo.db --weibo.chat.auto-sync-gids=4761715839862414,5046020575330655 --weibo.ai.base-url=https://api.deepseek.com --weibo.ai.api-key=sk-xxx
 
 pause
