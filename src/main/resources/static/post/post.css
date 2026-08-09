@@ -1002,14 +1002,18 @@ h1#app-title {
 
 .search-overlay {
   width: 100vw;
-  max-width: 100vw;
-  max-height: 100vh;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  color: var(--ink);
+  max-width: none;
+  height: 100vh;
+  max-height: none;
+  margin: 0;
+  padding: 32px;
+  border: 0;
   background: rgba(18,48,76,0.32);
-  box-shadow: none;
+}
+.search-overlay[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .search-overlay::backdrop { background: transparent; }
 .search-overlay-window {
@@ -1017,7 +1021,6 @@ h1#app-title {
   grid-template-rows: 40px auto;
   max-height: 80vh;
   width: 520px;
-  margin: auto;
   border: 2px solid var(--ink);
   border-radius: var(--radius-md);
   background: var(--paper);
