@@ -698,8 +698,16 @@
   }
 
   function createAvatar(blogger) {
-    const avatar = document.createElement("span");
+    // 有 UID 时头像渲染为链接，点击跳转到博主微博首页
+    const hasHomepage = blogger && blogger.uid;
+    const avatar = document.createElement(hasHomepage ? "a" : "span");
     avatar.className = "post-avatar";
+    if (hasHomepage) {
+      avatar.href = `https://weibo.com/u/${blogger.uid}`;
+      avatar.target = "_blank";
+      avatar.rel = "noopener";
+      avatar.title = `前往 ${blogger.screenName || "博主"} 的微博首页`;
+    }
     if (blogger && blogger.avatar) {
       const img = document.createElement("img");
       img.src = blogger.avatar;
