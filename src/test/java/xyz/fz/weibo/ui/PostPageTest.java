@@ -849,15 +849,15 @@ class PostPageTest {
     }
 
     @Test
-    void clicking_overlay_backdrop_closes_overlay() {
+    void clicking_overlay_backdrop_does_not_close_overlay() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
 
         page.locator("#search-open").click();
         assertThat(page.locator("#search-overlay")).isVisible();
-        // 点击浮层 window 之外的遮罩区域关闭浮层
+        // 点击遮罩区域不关闭浮层，与添加博主、同步历史一致
         page.mouse().click(5, 5);
-        assertThat(page.locator("#search-overlay")).isHidden();
+        assertThat(page.locator("#search-overlay")).isVisible();
 
         page.close();
     }

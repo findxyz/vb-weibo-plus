@@ -1033,12 +1033,6 @@
       submitSearch();
     }
   });
-  // 点击浮层背景遮罩（window 之外区域）关闭
-  elements.searchDialog.addEventListener("click", (e) => {
-    if (e.target === elements.searchDialog) {
-      elements.searchDialog.close();
-    }
-  });
 
   elements.windowToggle.addEventListener("click", () => {
     location.href = "/chat/index.html";
