@@ -17,7 +17,7 @@ weibo:
   database-path: ${WEIBO_DATABASE_PATH:weibo.db}
   chat:
     # auto-sync-gids：定时增量同步的群号，逗号分割，留空则不同步
-    auto-sync-gids: ${WEIBO_AUTO_SYNC_GIDS:4761715839862414,5046020575330655}
+    auto-sync-gids: ${WEIBO_AUTO_SYNC_GIDS:4761715839862414}
     # sync-group-fixed-delay：群消息增量同步间隔，支持 20s / 30000ms 等 Duration 写法
     sync-group-fixed-delay: ${WEIBO_SYNC_GROUP_FIXED_DELAY:20s}
   media:
