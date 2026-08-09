@@ -484,6 +484,21 @@ class PostPageTest {
     }
 
     @Test
+    void post_picture_reserves_its_intrinsic_size_before_lazy_loading() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+        page.locator(".month-group[data-month='2026-07'] .month-header").click();
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
+                () -> page.locator(".date-item[data-date='2026-07-10']").click());
+
+        assertThat(page.locator(".post-pic img").first()).hasAttribute("width", "1200");
+        assertThat(page.locator(".post-pic img").first()).hasAttribute("height", "675");
+
+        page.close();
+    }
+
+    @Test
     void keyboard_arrow_keys_navigate_images_in_viewer() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
@@ -933,7 +948,7 @@ class PostPageTest {
                 {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
                  "content":"%s","contentRaw":"%s","source":"微博网页版","region":"广东",
                  "pics":[
-                   {"pid":"p1","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
+                   {"pid":"p1","thumbnailWidth":300,"thumbnailHeight":169,"originalWidth":1200,"originalHeight":675,
                     "thumbnailUrl":"/test-img?t1","originalUrl":"/test-img?o1"},
                    {"pid":"p2","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
                     "thumbnailUrl":"/test-img?t2","originalUrl":"/test-img?o2"},

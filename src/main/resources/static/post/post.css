@@ -543,10 +543,7 @@ h1#app-title {
   border: 2px solid var(--pencil);
   border-radius: 10px;
   background: var(--paper);
-  box-shadow: 4px 5px 0 -2px rgba(43,38,32,0.18);
 }
-.post-card:nth-child(even) { transform: rotate(0.3deg); }
-.post-card:nth-child(odd)  { transform: rotate(-0.3deg); }
 .post-card.pure-retweet { grid-template-columns: minmax(0, 1fr); }
 
 .post-avatar {
@@ -652,9 +649,7 @@ h1#app-title {
   overflow: hidden;
   border: 1.5px solid var(--ink);
   border-radius: var(--radius-sm);
-  background:
-    repeating-linear-gradient(45deg, var(--grid) 0 4px, transparent 4px 8px),
-    var(--paper-tint);
+  background: var(--paper-tint);
 }
 .post-pics.one-image .post-pic {
   width: fit-content;

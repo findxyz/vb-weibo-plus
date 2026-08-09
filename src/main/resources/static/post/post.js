@@ -783,6 +783,12 @@
       img.src = pic.originalUrl || pic.thumbnailUrl;
       img.alt = "微博图片";
       img.loading = "lazy";
+      const width = pic.originalWidth || pic.thumbnailWidth;
+      const height = pic.originalHeight || pic.thumbnailHeight;
+      if (width > 0 && height > 0) {
+        img.width = width;
+        img.height = height;
+      }
       // 加载失败时隐藏整个格子，避免碎图图标与 alt 文字
       img.onerror = () => { picEl.hidden = true; };
       picEl.appendChild(img);
