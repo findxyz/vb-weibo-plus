@@ -31,7 +31,7 @@ class PostPageTest {
     private static Playwright playwright;
     private static Browser browser;
     private static String baseUrl;
-    // 不等待 load 事件：index.html 引用的 Google Fonts 外链在测试环境无外网时会挂起 load，
+    // 不等待 load 事件：页面曾引用外部字体资源，在测试环境无外网时会挂起 load，
     // 导致依赖 navigate 阶段自发请求的 waitForResponse 超时。DOMCONTENTLOADED 后 defer 脚本已执行。
     private static final Page.NavigateOptions NAVIGATE_OPTIONS =
             new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED);
@@ -379,6 +379,27 @@ class PostPageTest {
     }
 
     @Test
+    void dates_are_grouped_by_year_then_month_then_day() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        // 两个月都属于 2026 年，聚合为一个年分组
+        assertThat(page.locator(".year-group")).hasCount(1);
+        assertThat(page.locator(".year-group[data-year='2026'] .month-group")).hasCount(2);
+        // 最新年份与最新月份自动展开
+        assertThat(page.locator(".year-group.open")).hasCount(1);
+        assertThat(page.locator(".month-group.open")).hasCount(1);
+
+        // 年份可独立折叠、展开
+        page.locator(".year-group[data-year='2026'] .year-header").click();
+        assertThat(page.locator(".year-group[data-year='2026']")).not().hasClass(java.util.regex.Pattern.compile("open"));
+        page.locator(".year-group[data-year='2026'] .year-header").click();
+        assertThat(page.locator(".year-group[data-year='2026']")).hasClass(java.util.regex.Pattern.compile("open"));
+
+        page.close();
+    }
+
+    @Test
     void keeps_the_bloggers_visible_and_allows_retrying_when_posts_fail() {
         failList.set(true);
         Page page = browser.newPage();
@@ -517,8 +538,9 @@ class PostPageTest {
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
                 () -> page.locator(".date-item[data-date='2026-07-10']").click());
 
-        assertThat(page.locator(".post-pic img").first()).hasAttribute("width", "1200");
-        assertThat(page.locator(".post-pic img").first()).hasAttribute("height", "675");
+        // 列表展示缩略图，预占位尺寸取缩略图的固有宽高（300x169）
+        assertThat(page.locator(".post-pic img").first()).hasAttribute("width", "300");
+        assertThat(page.locator(".post-pic img").first()).hasAttribute("height", "169");
 
         page.close();
     }
@@ -596,7 +618,7 @@ class PostPageTest {
     }
 
     @Test
-    void post_pic_uses_original_url_for_display() {
+    void post_pic_uses_thumbnail_url_for_display() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.locator(".month-group[data-month='2026-07'] .month-header").click();
@@ -604,22 +626,24 @@ class PostPageTest {
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
                 () -> page.locator(".date-item[data-date='2026-07-10']").click());
 
+        // 列表展示缩略图，点击查看时才加载原图
         String src = page.locator(".post-pic img").first().getAttribute("src");
-        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?o1");
+        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?t1");
 
         page.close();
     }
 
     @Test
-    void retweet_pic_uses_original_url_for_display() {
+    void retweet_pic_uses_thumbnail_url_for_display() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
         page.waitForResponse(
                 item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
                 () -> page.locator(".date-item[data-date='2026-08-03']").click());
 
+        // 列表展示缩略图，点击查看时才加载原图
         String src = page.locator(".post-retweet-pic img").first().getAttribute("src");
-        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?ro1");
+        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?rt1");
 
         page.close();
     }

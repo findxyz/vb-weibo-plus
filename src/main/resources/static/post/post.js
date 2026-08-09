@@ -226,6 +226,10 @@
     await loadDates();
       const firstMonth = elements.datesList.querySelector(".month-group");
       if (firstMonth) {
+        const firstYear = firstMonth.closest(".year-group");
+        if (firstYear) {
+          firstYear.classList.add("open");
+        }
         toggleMonth(firstMonth);
       const firstDay = firstMonth.querySelector(".date-item");
       if (firstDay) {
@@ -502,11 +506,17 @@
   async function jumpToPost(post) {
     elements.searchDialog.close();
     const dateStr = epochToDateStr(post.createdAt);
-    // 选中日期树对应日（必要时先展开月份）
+    // 选中日期树对应日（必要时先展开年份与月份）
     const monthKey = dateStr.slice(0, 7);
     const monthGroup = elements.datesList.querySelector(`.month-group[data-month="${monthKey}"]`);
-    if (monthGroup && !monthGroup.classList.contains("open")) {
-      toggleMonth(monthGroup);
+    if (monthGroup) {
+      const yearGroup = monthGroup.closest(".year-group");
+      if (yearGroup && !yearGroup.classList.contains("open")) {
+        toggleYear(yearGroup);
+      }
+      if (!monthGroup.classList.contains("open")) {
+        toggleMonth(monthGroup);
+      }
     }
     const dayItem = elements.datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
     if (dayItem) {
@@ -558,41 +568,83 @@
 
   function renderDates(months) {
     elements.datesList.innerHTML = "";
+    // 按 年 → 月 → 日 三级聚合，月份字符串为 YYYY-MM
+    const byYear = new Map();
     for (const month of months) {
-      const group = document.createElement("div");
-      group.className = "month-group";
-      group.dataset.month = month.month;
-
-      const header = document.createElement("div");
-      header.className = "month-header";
-      header.textContent = month.month;
-      const count = document.createElement("span");
-      count.className = "month-count";
-      count.textContent = `${month.count} 条`;
-      header.appendChild(count);
-      header.addEventListener("click", () => toggleMonth(group));
-      group.appendChild(header);
-
-      const days = document.createElement("div");
-      days.className = "month-days";
-      for (const day of month.days) {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "date-item";
-        item.dataset.date = day.date;
-        const label = document.createElement("span");
-        label.textContent = day.date.slice(5);
-        const dayCount = document.createElement("span");
-        dayCount.className = "date-count";
-        dayCount.textContent = day.count;
-        item.appendChild(label);
-        item.appendChild(dayCount);
-        item.addEventListener("click", () => selectDate(day.date, item));
-        days.appendChild(item);
+      const year = month.month.slice(0, 4);
+      if (!byYear.has(year)) {
+        byYear.set(year, []);
       }
-      group.appendChild(days);
-      elements.datesList.appendChild(group);
+      byYear.get(year).push(month);
     }
+    for (const [year, yearMonths] of byYear) {
+      elements.datesList.appendChild(createYearGroup(year, yearMonths));
+    }
+  }
+
+  function createYearGroup(year, months) {
+    const group = document.createElement("div");
+    group.className = "year-group";
+    group.dataset.year = year;
+
+    const header = document.createElement("div");
+    header.className = "year-header";
+    header.textContent = year + " 年";
+    const count = document.createElement("span");
+    count.className = "year-count";
+    const total = months.reduce((sum, m) => sum + m.count, 0);
+    count.textContent = `${total} 条`;
+    header.appendChild(count);
+    header.addEventListener("click", () => toggleYear(group));
+    group.appendChild(header);
+
+    const monthsEl = document.createElement("div");
+    monthsEl.className = "year-months";
+    for (const month of months) {
+      monthsEl.appendChild(createMonthGroup(month));
+    }
+    group.appendChild(monthsEl);
+    return group;
+  }
+
+  function createMonthGroup(month) {
+    const group = document.createElement("div");
+    group.className = "month-group";
+    group.dataset.month = month.month;
+
+    const header = document.createElement("div");
+    header.className = "month-header";
+    header.textContent = month.month.slice(5) + " 月";
+    const count = document.createElement("span");
+    count.className = "month-count";
+    count.textContent = `${month.count} 条`;
+    header.appendChild(count);
+    header.addEventListener("click", () => toggleMonth(group));
+    group.appendChild(header);
+
+    const days = document.createElement("div");
+    days.className = "month-days";
+    for (const day of month.days) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "date-item";
+      item.dataset.date = day.date;
+      const label = document.createElement("span");
+      label.textContent = day.date.slice(8) + " 日";
+      const dayCount = document.createElement("span");
+      dayCount.className = "date-count";
+      dayCount.textContent = day.count;
+      item.appendChild(label);
+      item.appendChild(dayCount);
+      item.addEventListener("click", () => selectDate(day.date, item));
+      days.appendChild(item);
+    }
+    group.appendChild(days);
+    return group;
+  }
+
+  function toggleYear(group) {
+    group.classList.toggle("open");
   }
 
   function toggleMonth(group) {

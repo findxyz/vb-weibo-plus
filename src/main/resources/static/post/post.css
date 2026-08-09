@@ -408,6 +408,32 @@ h1#app-title {
   background: transparent;
 }
 
+/* 年 → 月 → 日 三级聚合 */
+.year-group { border-bottom: 1.5px solid var(--rule); }
+.year-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font: 700 18px/1.2 var(--hand-b);
+  color: var(--ink);
+  user-select: none;
+}
+.year-header::before { content: "\25B8\0020"; font-size: 11px; color: var(--accent); }
+.year-group.open .year-header::before { content: "\25BE "; }
+.year-header .year-count {
+  margin-left: auto;
+  color: var(--pencil);
+  font: 12px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.year-months { display: none; }
+.year-group.open .year-months { display: block; }
+/* 月、日相对年份逐级缩进（月份行有箭头占位，日期需额外让出约 17px） */
+.year-months .month-header { padding-left: 24px; }
+.year-months .date-item { padding-left: 48px; }
+
 .month-group { border-bottom: 1.5px dashed var(--rule); }
 .month-header {
   display: flex;
