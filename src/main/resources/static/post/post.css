@@ -698,9 +698,7 @@ h1#app-title {
   padding: 10px 12px;
   border: 1.5px dashed var(--pencil);
   border-radius: var(--radius-md);
-  background:
-    repeating-linear-gradient(0deg, transparent 0 22px, rgba(77,71,61,0.07) 22px 23px),
-    var(--paper-tint);
+  background: var(--paper-tint);
   display: grid;
   gap: 6px;
 }
