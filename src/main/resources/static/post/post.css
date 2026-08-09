@@ -195,16 +195,13 @@ h1#app-title {
   display: grid;
   grid-template-columns: 280px 200px minmax(0, 1fr);
 }
-/* graph-paper canvas spanning the whole workspace behind the panels */
+/* workspace canvas: 只保留纸色底纹，去除虚线田字格 */
 .workspace::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 24px),
-    repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px),
-    var(--paper-tint);
+  background: var(--paper-tint);
   opacity: 0.55;
   z-index: 0;
 }
@@ -287,9 +284,7 @@ h1#app-title {
 .bloggers-list {
   min-height: 0;
   overflow-y: auto;
-  /* faint hatched placeholder so empty state reads as wireframe */
-  background:
-    repeating-linear-gradient(0deg, transparent 0 23px, rgba(77,71,61,0.10) 23px 24px);
+  background: transparent;
 }
 
 .blogger-row {
@@ -436,8 +431,7 @@ h1#app-title {
 .dates-list {
   min-height: 0;
   overflow-y: auto;
-  background:
-    repeating-linear-gradient(0deg, transparent 0 23px, rgba(77,71,61,0.10) 23px 24px);
+  background: transparent;
 }
 
 .month-group { border-bottom: 1.5px dashed var(--rule); }
@@ -447,7 +441,7 @@ h1#app-title {
   gap: 6px;
   padding: 8px 12px;
   cursor: pointer;
-  font: 600 15px/1.2 var(--hand-b);
+  font: 600 17px/1.2 var(--hand-b);
   color: var(--ink);
   user-select: none;
 }
@@ -468,7 +462,7 @@ h1#app-title {
   align-items: center;
   padding: 5px 16px 5px 24px;
   cursor: pointer;
-  font: 14px/1.2 var(--hand);
+  font: 16px/1.2 var(--hand);
   color: var(--pencil);
   background: transparent;
   border: 0;
@@ -624,7 +618,7 @@ h1#app-title {
 .post-source:not(:empty)::before { content: " \00B7\0020\6765\81EA\0020"; }
 
 .post-content {
-  font: 17px/1.55 var(--hand);
+  font: 19px/1.55 Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: pre-wrap;
@@ -760,7 +754,7 @@ h1#app-title {
   color: var(--ink);
 }
 .post-retweet-content {
-  font: 15px/1.55 var(--hand);
+  font: 17px/1.55 Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
   color: var(--pencil);
   overflow-wrap: anywhere;
   word-break: break-word;
