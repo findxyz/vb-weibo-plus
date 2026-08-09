@@ -40,6 +40,16 @@
     syncHistoryStatus: document.querySelector("#sync-history-status"),
     syncHistoryCancel: document.querySelector("#sync-history-cancel"),
     syncHistorySubmit: document.querySelector("#sync-history-submit"),
+    searchOpen: document.querySelector("#search-open"),
+    searchDialog: document.querySelector("#search-overlay"),
+    searchScopeTip: document.querySelector("#search-scope-tip"),
+    searchKeyword: document.querySelector("#search-keyword"),
+    searchStart: document.querySelector("#search-start"),
+    searchEnd: document.querySelector("#search-end"),
+    searchStatus: document.querySelector("#search-status"),
+    searchCancel: document.querySelector("#search-cancel"),
+    searchSubmit: document.querySelector("#search-submit"),
+    searchResults: document.querySelector("#search-results"),
   };
 
   const state = {
@@ -49,6 +59,7 @@
     loadingPosts: false,
     viewerImages: [],
     viewerIndex: 0,
+    searching: false,
   };
 
   /* ---------- 工具函数 ---------- */
@@ -339,6 +350,175 @@
     } finally {
       elements.syncHistoryOpen.disabled = false;
     }
+  }
+
+  /* ---------- 高级搜索 ---------- */
+
+  const SEARCH_SIZE_LIMIT = 1000;
+
+  function currentScopeLabel() {
+    if (!state.selectedUid) return "全部博主";
+    const blogger = state.bloggers.find((b) => Number(b.uid) === Number(state.selectedUid));
+    return blogger ? `@${blogger.screenName}` : "当前博主";
+  }
+
+  function openSearchDialog() {
+    elements.searchScopeTip.textContent = `在「${currentScopeLabel()}」范围内搜索。`;
+    elements.searchKeyword.value = "";
+    // 首次打开填默认起止：起 2010-01-01 至今
+    elements.searchStart.value = "2010-01-01";
+    elements.searchEnd.value = toLocalDateValue(new Date());
+    showState(elements.searchStatus, "");
+    elements.searchResults.innerHTML = "";
+    elements.searchSubmit.disabled = false;
+    elements.searchDialog.showModal();
+    elements.searchKeyword.focus();
+  }
+
+  async function submitSearch() {
+    if (state.searching) return;
+    const keyword = elements.searchKeyword.value.trim();
+    if (!keyword) {
+      showState(elements.searchStatus, "请输入关键词。");
+      return;
+    }
+    const start = elements.searchStart.value;
+    const end = elements.searchEnd.value;
+    if (start && end && start > end) {
+      showState(elements.searchStatus, "开始日期不能晚于结束日期。");
+      return;
+    }
+    state.searching = true;
+    elements.searchSubmit.disabled = true;
+    showState(elements.searchStatus, "搜索中…");
+    elements.searchResults.innerHTML = "";
+
+    const params = new URLSearchParams();
+    params.set("keyword", keyword);
+    params.set("page", "1");
+    params.set("size", String(SEARCH_SIZE_LIMIT));
+    if (state.selectedUid) {
+      params.set("uids", String(state.selectedUid));
+    }
+    if (start) params.set("start", `${start} 00:00:00`);
+    if (end) params.set("end", `${end} 23:59:59`);
+
+    try {
+      const result = await fetchJson(`/post/list?${params}`);
+      renderSearchResults(result, keyword);
+    } catch (error) {
+      if (error.status === 401) {
+        elements.searchDialog.close();
+        showLoginExpired();
+      } else {
+        showState(elements.searchStatus, `搜索失败：${error.message}`);
+      }
+    } finally {
+      state.searching = false;
+      elements.searchSubmit.disabled = false;
+    }
+  }
+
+  function renderSearchResults(result, keyword) {
+    elements.searchResults.innerHTML = "";
+    if (!result.items || result.items.length === 0) {
+      showState(elements.searchStatus, "");
+      const empty = document.createElement("p");
+      empty.className = "search-empty";
+      empty.textContent = "未找到匹配微博";
+      elements.searchResults.appendChild(empty);
+      return;
+    }
+    if (result.total > SEARCH_SIZE_LIMIT) {
+      showState(elements.searchStatus, `已达上限（${result.total} 条），请缩小范围`);
+    } else {
+      showState(elements.searchStatus, `找到 ${result.total} 条结果`);
+    }
+    for (const post of result.items) {
+      elements.searchResults.appendChild(createSearchResultItem(post, keyword));
+    }
+  }
+
+  // 在正文纯文本里找命中词位置，截取前后文并用 <mark> 包裹
+  function buildSnippet(post, keyword) {
+    const text = (post.contentRaw || stripHtml(post.content || "")).trim();
+    if (!text) return "";
+    const lower = text.toLowerCase();
+    const idx = lower.indexOf(keyword.toLowerCase());
+    if (idx < 0) return escapeHtml(text.slice(0, 80));
+    const radius = 30;
+    const start = Math.max(0, idx - radius);
+    const end = Math.min(text.length, idx + keyword.length + radius);
+    const prefix = (start > 0 ? "…" : "") + text.slice(start, idx);
+    const match = text.slice(idx, idx + keyword.length);
+    const suffix = text.slice(idx + keyword.length, end) + (end < text.length ? "…" : "");
+    return escapeHtml(prefix) + `<mark>${escapeHtml(match)}</mark>` + escapeHtml(suffix);
+  }
+
+  function stripHtml(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return doc.body.textContent || "";
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function createSearchResultItem(post, keyword) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "search-result";
+
+    const meta = document.createElement("div");
+    meta.className = "search-result-meta";
+    const dateText = formatDate(post.createdAt);
+    const author = post.blogger ? post.blogger.screenName : "未知博主";
+    meta.textContent = `${dateText} · ${author}`;
+
+    const snippet = document.createElement("div");
+    snippet.className = "search-result-snippet";
+    snippet.innerHTML = buildSnippet(post, keyword);
+
+    item.appendChild(meta);
+    item.appendChild(snippet);
+    item.addEventListener("click", () => jumpToPost(post));
+    return item;
+  }
+
+  async function jumpToPost(post) {
+    elements.searchDialog.close();
+    const dateStr = epochToDateStr(post.createdAt);
+    // 选中日期树对应日（必要时先展开月份）
+    const monthKey = dateStr.slice(0, 7);
+    const monthGroup = elements.datesList.querySelector(`.month-group[data-month="${monthKey}"]`);
+    if (monthGroup && !monthGroup.classList.contains("open")) {
+      toggleMonth(monthGroup);
+    }
+    const dayItem = elements.datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
+    if (dayItem) {
+      // 直接走 loadPosts，避免 selectDate 的 loadingPosts 早退保护
+      for (const el of elements.datesList.querySelectorAll(".date-item.active")) {
+        el.classList.remove("active");
+      }
+      dayItem.classList.add("active");
+      state.selectedDate = dateStr;
+    }
+    await loadPosts(dateStr);
+    requestAnimationFrame(() => {
+      const card = document.querySelector(`#post-${post.mblogId}`);
+      if (card) {
+        card.scrollIntoView({behavior: "smooth", block: "center"});
+        card.classList.add("flash-highlight");
+        setTimeout(() => card.classList.remove("flash-highlight"), 1600);
+      }
+    });
+  }
+
+  // 与后端 Asia/Shanghai 时区保持一致，避免本地时区导致日期错位
+  function epochToDateStr(epochMillis) {
+    const d = new Date(epochMillis + 8 * 3600 * 1000);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   }
 
   /* ---------- 日期时间轴 ---------- */
@@ -843,6 +1023,23 @@
   });
   elements.syncHistorySubmit.addEventListener("click", submitSyncHistory);
 
+  elements.searchOpen.addEventListener("click", openSearchDialog);
+  elements.searchCancel.addEventListener("click", () => {
+    elements.searchDialog.close();
+  });
+  elements.searchSubmit.addEventListener("click", submitSearch);
+  elements.searchKeyword.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      submitSearch();
+    }
+  });
+  // 点击浮层背景遮罩（window 之外区域）关闭
+  elements.searchDialog.addEventListener("click", (e) => {
+    if (e.target === elements.searchDialog) {
+      elements.searchDialog.close();
+    }
+  });
+
   elements.windowToggle.addEventListener("click", () => {
     location.href = "/chat/index.html";
   });
@@ -866,13 +1063,17 @@
   });
 
   document.addEventListener("keydown", (e) => {
-    if (!elements.imageViewer.open) return;
     if (e.key === "Escape") {
-      closeImageViewer();
-    } else if (e.key === "ArrowLeft") {
-      showPrevImage();
-    } else if (e.key === "ArrowRight") {
-      showNextImage();
+      if (elements.imageViewer.open) {
+        closeImageViewer();
+      }
+      // 搜索浮层由原生 dialog 处理 Esc，无需额外逻辑
+    } else if (elements.imageViewer.open) {
+      if (e.key === "ArrowLeft") {
+        showPrevImage();
+      } else if (e.key === "ArrowRight") {
+        showNextImage();
+      }
     }
   });
 

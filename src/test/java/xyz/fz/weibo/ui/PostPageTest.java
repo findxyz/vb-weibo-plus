@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -105,7 +106,31 @@ class PostPageTest {
             String query = exchange.getRequestURI().getRawQuery();
             String items;
             int total;
-            if (query != null && query.contains("start=2026-08-05")) {
+            if (query != null && query.contains("keyword=")) {
+                String decoded = URLDecoder.decode(query, StandardCharsets.UTF_8);
+                int kwIdx = decoded.indexOf("keyword=");
+                String keyword = decoded.substring(kwIdx + "keyword=".length());
+                int ampIdx = keyword.indexOf('&');
+                if (ampIdx >= 0) keyword = keyword.substring(0, ampIdx);
+                keyword = keyword.trim();
+                if (keyword.equals("不存在的内容关键字")) {
+                    items = "";
+                    total = 0;
+                } else if (keyword.equals("八月三日")) {
+                    items = postJson("post-aug-03", "第一位", "八月三日的内容，命中搜索词", 1785686400000L);
+                    total = 1;
+                } else if (keyword.equals("多条结果")) {
+                    items = postJson("post-search-2", "第一位", "多条结果的第一条", 1785686400000L);
+                    items = items + "," + postJson("post-search-3", "第二位", "多条结果的第二条", 1785600000000L);
+                    total = 2;
+                } else if (keyword.equals("超限")) {
+                    items = postJson("post-search-4", "第一位", "超限内容", 1785686400000L);
+                    total = 1001;
+                } else {
+                    items = "";
+                    total = 0;
+                }
+            } else if (query != null && query.contains("start=2026-08-05")) {
                 items = multilinePostJson("post-aug-05", "第一位", 1783612800000L);
                 total = 1;
             } else if (query != null && query.contains("start=2026-08-04")) {
@@ -649,6 +674,152 @@ class PostPageTest {
 
         page.locator(".window-control.toggle").click();
         org.assertj.core.api.Assertions.assertThat(page.url()).contains("/chat/");
+
+        page.close();
+    }
+
+    @Test
+    void search_button_opens_overlay_with_default_date_range() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        assertThat(page.locator("#search-open")).isVisible();
+        page.locator("#search-open").click();
+        assertThat(page.locator("#search-overlay")).isVisible();
+
+        // 默认起止：2010-01-01 至今
+        assertThat(page.locator("#search-start")).hasValue("2010-01-01");
+        String today = java.time.LocalDate.now().toString();
+        assertThat(page.locator("#search-end")).hasValue(today);
+
+        page.close();
+    }
+
+    @Test
+    void search_sends_keyword_uids_and_date_range_to_post_list() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        page.locator("#search-keyword").fill("八月三日");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
+                () -> page.locator("#search-submit").click());
+
+        String query = lastListQuery.get();
+        org.assertj.core.api.Assertions.assertThat(query).contains("keyword=");
+        org.assertj.core.api.Assertions.assertThat(query).contains("start=2010-01-01");
+        org.assertj.core.api.Assertions.assertThat(query).contains("page=1");
+        org.assertj.core.api.Assertions.assertThat(query).contains("size=1000");
+        // 默认「全部博主」时 uids 不传
+        org.assertj.core.api.Assertions.assertThat(query).doesNotContain("uids");
+
+        page.close();
+    }
+
+    @Test
+    void search_results_show_highlighted_snippet() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        page.locator("#search-keyword").fill("八月三日");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
+                () -> page.locator("#search-submit").click());
+
+        assertThat(page.locator(".search-result")).hasCount(1);
+        // 片段中命中词被 <mark> 包裹
+        assertThat(page.locator(".search-result mark")).hasCount(1);
+        assertThat(page.locator(".search-result mark")).hasText("八月三日");
+
+        page.close();
+    }
+
+    @Test
+    void clicking_result_closes_overlay_and_jumps_to_card() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        page.locator("#search-keyword").fill("八月三日");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
+                () -> page.locator("#search-submit").click());
+
+        // 结果 createdAt=1785686400000L 对应 2026-08-03，点击后应加载该日并高亮卡片
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
+                () -> page.locator(".search-result").first().click());
+
+        assertThat(page.locator("#search-overlay")).isHidden();
+        assertThat(page.locator(".date-item.active")).hasAttribute("data-date", "2026-08-03");
+        // 该日微博已加载（卡片 id 为 post- + mblogId）
+        assertThat(page.locator("#post-post-aug-03")).hasCount(1);
+        // 卡片被添加闪烁高亮 class（requestAnimationFrame 后触发，需等待）
+        page.waitForFunction(
+                "el => el && el.classList.contains('flash-highlight')",
+                page.locator("#post-post-aug-03").elementHandle());
+
+        page.close();
+    }
+
+    @Test
+    void empty_search_results_show_no_match_message() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        page.locator("#search-keyword").fill("不存在的内容关键字");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
+                () -> page.locator("#search-submit").click());
+
+        assertThat(page.locator(".search-result")).hasCount(0);
+        assertThat(page.locator("#search-results")).containsText("未找到匹配微博");
+
+        page.close();
+    }
+
+    @Test
+    void over_limit_results_show_limit_message() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        page.locator("#search-keyword").fill("超限");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
+                () -> page.locator("#search-submit").click());
+
+        assertThat(page.locator("#search-status")).containsText("已达上限");
+
+        page.close();
+    }
+
+    @Test
+    void esc_closes_search_overlay() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        assertThat(page.locator("#search-overlay")).isVisible();
+        page.keyboard().press("Escape");
+        assertThat(page.locator("#search-overlay")).isHidden();
+
+        page.close();
+    }
+
+    @Test
+    void clicking_overlay_backdrop_closes_overlay() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        assertThat(page.locator("#search-overlay")).isVisible();
+        // 点击浮层 window 之外的遮罩区域关闭浮层
+        page.mouse().click(5, 5);
+        assertThat(page.locator("#search-overlay")).isHidden();
 
         page.close();
     }

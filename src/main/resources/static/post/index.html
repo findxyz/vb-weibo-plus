@@ -62,6 +62,7 @@
           <h2 id="current-filter">全部微博</h2>
           <span id="feed-count" class="feed-count"></span>
           <button id="sync-history-open" class="sync-history-open" type="button" hidden>同步历史</button>
+          <button id="search-open" class="search-open" type="button" title="高级搜索">🔍 高级搜索</button>
         </header>
 
         <div class="posts-shell">
@@ -112,6 +113,35 @@
         <div class="sync-history-actions">
           <button id="sync-history-submit" type="button">开始同步</button>
         </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="search-overlay" id="search-overlay" aria-labelledby="search-overlay-title">
+    <div class="search-overlay-window">
+      <header class="search-overlay-titlebar">
+        <span class="search-overlay-title-icon" aria-hidden="true"></span>
+        <h2 id="search-overlay-title">高级搜索</h2>
+        <button id="search-cancel" type="button" aria-label="关闭高级搜索"></button>
+      </header>
+      <div class="search-overlay-body">
+        <p class="search-overlay-tip" id="search-scope-tip">在「全部博主」范围内搜索。</p>
+        <label class="search-field">关键词
+          <input id="search-keyword" type="search" placeholder="输入关键词" autocomplete="off">
+        </label>
+        <div class="search-date-row">
+          <label class="search-field">起止日期
+            <input id="search-start" type="date">
+          </label>
+          <label class="search-field">至
+            <input id="search-end" type="date">
+          </label>
+        </div>
+        <p class="search-status" id="search-status" role="alert"></p>
+        <div class="search-actions">
+          <button id="search-submit" type="button">搜索</button>
+        </div>
+        <div class="search-results" id="search-results" aria-live="polite"></div>
       </div>
     </div>
   </dialog>
