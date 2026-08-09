@@ -13,56 +13,13 @@
   --highlight:    #f9d27c;
   --danger:       #b42318;
   --focus:        #d8482b;
-  --serif:    'DM Serif Display', 'Iowan Old Style', Georgia, serif;
-  --hand:     'Patrick Hand', 'Caveat', ui-serif, cursive;
-  --hand-b:   'Caveat', 'Patrick Hand', cursive;
-  --mono:     'IBM Plex Mono', ui-monospace, monospace;
+  /* 不使用任何网络/本地字体文件，中英文统一用微软雅黑 */
+  --serif:    'Microsoft YaHei', serif;
+  --hand:     'Microsoft YaHei', cursive;
+  --hand-b:   'Microsoft YaHei', cursive;
+  --mono:     'Microsoft YaHei', monospace;
   --radius-sm: 4px;
   --radius-md: 8px;
-}
-
-/* 本地字体：替代 Google Fonts 外链，避免加载闪烁（FOUT） */
-@font-face {
-  font-family: 'Caveat';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('assets/fonts/caveat-latin-500-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Caveat';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('assets/fonts/caveat-latin-700-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Patrick Hand';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('assets/fonts/patrick-hand-latin-400-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'DM Serif Display';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('assets/fonts/dm-serif-display-latin-400-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('assets/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('assets/fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
 }
 
 * { box-sizing: border-box; }
@@ -543,6 +500,9 @@ h1#app-title {
   border: 2px solid var(--pencil);
   border-radius: 10px;
   background: var(--paper);
+  /* 跳过屏外卡片的渲染，300px 为占位估计高度 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
 }
 .post-card.pure-retweet { grid-template-columns: minmax(0, 1fr); }
 

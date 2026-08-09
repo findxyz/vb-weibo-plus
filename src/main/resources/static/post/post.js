@@ -155,6 +155,7 @@
       img.src = blogger.avatar;
       img.alt = "";
       img.loading = "lazy";
+      img.decoding = "async";
       avatar.appendChild(img);
     } else {
       avatar.textContent = (blogger.screenName || "?").charAt(0);
@@ -704,6 +705,7 @@
       img.src = blogger.avatar;
       img.alt = "";
       img.loading = "lazy";
+      img.decoding = "async";
       avatar.appendChild(img);
     } else if (blogger) {
       avatar.textContent = (blogger.screenName || "?").charAt(0);
@@ -780,11 +782,13 @@
       picEl.href = pic.originalUrl || pic.thumbnailUrl;
       picEl.dataset.mblogId = mblogId;
       const img = document.createElement("img");
-      img.src = pic.originalUrl || pic.thumbnailUrl;
+      // 列表只加载缩略图，与群聊页一致；点击查看时才加载原图
+      img.src = pic.thumbnailUrl || pic.originalUrl;
       img.alt = "微博图片";
       img.loading = "lazy";
-      const width = pic.originalWidth || pic.thumbnailWidth;
-      const height = pic.originalHeight || pic.thumbnailHeight;
+      img.decoding = "async";
+      const width = pic.thumbnailWidth || pic.originalWidth;
+      const height = pic.thumbnailHeight || pic.originalHeight;
       if (width > 0 && height > 0) {
         img.width = width;
         img.height = height;
@@ -812,6 +816,7 @@
     img.src = video.coverUrl;
     img.alt = "视频封面";
     img.loading = "lazy";
+    img.decoding = "async";
     // 封面加载失败时只隐藏图片，保留可点击的播放占位
     img.onerror = () => { img.hidden = true; };
     wrapper.appendChild(img);
@@ -850,9 +855,11 @@
           picEl.className = "post-retweet-pic";
           picEl.href = "javascript:void(0)";
           const img = document.createElement("img");
-          img.src = pic.originalUrl || pic.thumbnailUrl;
+          // 列表只加载缩略图，与群聊页一致；点击查看时才加载原图
+          img.src = pic.thumbnailUrl || pic.originalUrl;
           img.alt = "转发微博图片";
           img.loading = "lazy";
+          img.decoding = "async";
           // 加载失败时隐藏整个格子，避免碎图图标与 alt 文字
           img.onerror = () => { picEl.hidden = true; };
           picEl.appendChild(img);
