@@ -988,14 +988,13 @@ h1#app-title {
 /* feed 头部的「高级搜索」入口按钮 */
 .search-open {
   flex: none;
-  margin-left: auto;
   min-height: 28px;
   padding: 0 12px;
   border: 1.5px solid var(--ink);
   border-radius: var(--radius-sm);
   background: var(--paper);
   font: 14px/1 var(--hand);
-  transform: rotate(0.5deg);
+  transform: rotate(-0.5deg);
 }
 .search-open:hover { background: var(--highlight); }
 
