@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -33,6 +34,7 @@ import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -463,6 +465,39 @@ class ChatControllerTest {
 
         assertThatCode(() -> chatController.queryMessageMedia(
                 101, 100, "video", "bytes=0-1", response))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void video_stops_normally_when_the_upstream_disconnects_during_streaming() throws Exception {
+        ClientHttpResponse upstream = mock(ClientHttpResponse.class);
+        when(upstream.getStatusCode()).thenReturn(HttpStatus.OK);
+        HttpHeaders upstreamHeaders = new HttpHeaders();
+        upstreamHeaders.setContentType(MediaType.valueOf("video/mp4"));
+        upstreamHeaders.setContentLength(4);
+        upstreamHeaders.set(HttpHeaders.CONTENT_RANGE, "bytes 0-3/4");
+        when(upstream.getHeaders()).thenReturn(upstreamHeaders);
+        when(upstream.getBody()).thenReturn(new InputStream() {
+            @Override
+            public int read() {
+                return 0;
+            }
+
+            @Override
+            public int read(byte[] b) throws IOException {
+                throw new IOException("Premature end of Content-Length delimited message body");
+            }
+        });
+        doAnswer(invocation -> {
+            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+            return extractor.extractData(upstream);
+        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+        ServletOutputStream output = mock(ServletOutputStream.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(response.getOutputStream()).thenReturn(output);
+
+        assertThatCode(() -> chatController.queryMessageMedia(
+                101, 100, "video", "bytes=0-3", response))
                 .doesNotThrowAnyException();
     }
 

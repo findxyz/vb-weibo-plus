@@ -1,6 +1,8 @@
 package xyz.fz.weibo.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
@@ -38,6 +40,7 @@ import java.util.regex.Pattern;
 @RequestMapping("/chat")
 public class ChatController {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
     private static final ZoneId REQUEST_TIME_ZONE = ZoneId.of("Asia/Shanghai");
     private static final Pattern CONTENT_RANGE_PATTERN =
             Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)");
@@ -234,16 +237,15 @@ public class ChatController {
         });
     }
 
-    private void streamUntilClientDisconnects(InputStream input, OutputStream output)
-            throws IOException {
+    private void streamUntilClientDisconnects(InputStream input, OutputStream output) {
         byte[] buffer = new byte[8192];
         int read;
-        while ((read = input.read(buffer)) != -1) {
-            try {
+        try {
+            while ((read = input.read(buffer)) != -1) {
                 output.write(buffer, 0, read);
-            } catch (IOException e) {
-                return;
             }
+        } catch (IOException e) {
+            log.warn("视频流式传输中断：{}", e.getMessage());
         }
     }
 
