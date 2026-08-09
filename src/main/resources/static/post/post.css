@@ -628,13 +628,16 @@ h1#app-title {
   height: 1.3em;
   vertical-align: -0.25em;
 }
-.post-content a {
+.post-content a,
+.post-retweet-content a {
   color: var(--accent);
   text-decoration: underline;
   text-decoration-style: wavy;
   text-underline-offset: 3px;
+  word-break: break-all;
 }
-.post-content a:hover { text-decoration-style: solid; }
+.post-content a:hover,
+.post-retweet-content a:hover { text-decoration-style: solid; }
 
 /* nine-grid image = hatched sketch cells */
 .post-pics {

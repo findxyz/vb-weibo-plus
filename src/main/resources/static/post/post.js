@@ -830,8 +830,10 @@
     if (!html) return "";
     // content 字段是微博富文本 HTML，已是后端处理后的安全内容；
     // 这里统一修正链接：相对地址（如 @ 用户的 /n/xxx）补全为微博域名，
-    // 协议相对地址补全 https，并让所有链接在新窗口打开
+    // 协议相对地址补全 https，并让所有链接在新窗口打开；
+    // 纯文本里的 http/https 地址自动转为可点击链接
     const doc = new DOMParser().parseFromString(html, "text/html");
+    linkifyUrls(doc.body);
     for (const a of doc.querySelectorAll("a")) {
       const href = a.getAttribute("href") || "";
       if (href.startsWith("//")) {
@@ -843,6 +845,54 @@
       a.setAttribute("rel", "noopener");
     }
     return doc.body.innerHTML;
+  }
+
+  // 匹配 http/https 地址，字符类里排除空白、引号（含中文弯引号）、尖括号与常见中文标点
+  const URL_TEXT_RE = /https?:\/\/[^\s<>"'“”‘’（）【】《》，。；：、！？…]+/gi;
+  // 地址末尾容易粘带的英文标点，链接化时剥掉
+  const URL_TRAILING_RE = /[.,;:!?)\]}'"]/;
+
+  function linkifyUrls(root) {
+    const doc = root.ownerDocument;
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const targets = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      // 已在 <a> 内的文本不重复处理
+      if (node.parentElement && node.parentElement.closest("a")) continue;
+      if (/https?:\/\//i.test(node.nodeValue)) targets.push(node);
+    }
+    for (const node of targets) {
+      const text = node.nodeValue;
+      const frag = doc.createDocumentFragment();
+      let last = 0;
+      let matched = false;
+      URL_TEXT_RE.lastIndex = 0;
+      let m;
+      while ((m = URL_TEXT_RE.exec(text))) {
+        let url = m[0];
+        while (url && URL_TRAILING_RE.test(url[url.length - 1])) {
+          const tail = url[url.length - 1];
+          // 成对括号只剥不成对的（如 wiki/A_(B) 的右括号保留）
+          if (tail === ")" && (url.split("(").length - 1) >= (url.split(")").length - 1)) break;
+          if (tail === "]" && (url.split("[").length - 1) >= (url.split("]").length - 1)) break;
+          url = url.slice(0, -1);
+        }
+        if (!url) continue;
+        matched = true;
+        if (m.index > last) {
+          frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
+        }
+        const a = doc.createElement("a");
+        a.setAttribute("href", url);
+        a.textContent = url;
+        frag.appendChild(a);
+        last = m.index + url.length;
+      }
+      if (!matched) continue;
+      frag.appendChild(doc.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    }
   }
 
   function createPostPics(pics, mblogId) {
