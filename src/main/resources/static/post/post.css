@@ -1018,9 +1018,10 @@ h1#app-title {
 .search-overlay::backdrop { background: transparent; }
 .search-overlay-window {
   display: grid;
-  grid-template-rows: 40px auto;
+  grid-template-rows: 40px minmax(0, 1fr);
   max-height: 80vh;
   width: 520px;
+  min-height: 0;
   border: 2px solid var(--ink);
   border-radius: var(--radius-md);
   background: var(--paper);

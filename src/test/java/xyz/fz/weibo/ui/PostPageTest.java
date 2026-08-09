@@ -123,6 +123,15 @@ class PostPageTest {
                     items = postJson("post-search-2", "第一位", "多条结果的第一条", 1785686400000L);
                     items = items + "," + postJson("post-search-3", "第二位", "多条结果的第二条", 1785600000000L);
                     total = 2;
+                } else if (keyword.equals("大量结果")) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < 30; i++) {
+                        if (i > 0) sb.append(",");
+                        sb.append(postJson("post-many-" + i, "第一位",
+                                "大量结果第" + i + "条，内容较长以便撑高浮层验证滚动与高度限制", 1785686400000L - (long) i * 1000));
+                    }
+                    items = sb.toString();
+                    total = 30;
                 } else if (keyword.equals("超限")) {
                     items = postJson("post-search-4", "第一位", "超限内容", 1785686400000L);
                     total = 1001;
@@ -793,6 +802,35 @@ class PostPageTest {
                 () -> page.locator("#search-submit").click());
 
         assertThat(page.locator("#search-status")).containsText("已达上限");
+
+        page.close();
+    }
+
+    @Test
+    void many_results_do_not_overflow_viewport() {
+        Page page = browser.newPage();
+        page.setViewportSize(1280, 800);
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        page.locator("#search-open").click();
+        page.locator("#search-keyword").fill("大量结果");
+        page.waitForResponse(
+                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
+                () -> page.locator("#search-submit").click());
+
+        assertThat(page.locator(".search-result")).hasCount(30);
+
+        // 浮层 window 不应超出视口高度
+        double winHeight = ((Number) page.locator(".search-overlay-window").evaluate(
+                "el => el.getBoundingClientRect().height")).doubleValue();
+        org.assertj.core.api.Assertions.assertThat(winHeight).isLessThanOrEqualTo(800.0);
+
+        // body 区域应可滚动（scrollHeight > clientHeight），而非把浮层撑高
+        double scrollH = ((Number) page.locator(".search-overlay-body").evaluate(
+                "el => el.scrollHeight")).doubleValue();
+        double clientH = ((Number) page.locator(".search-overlay-body").evaluate(
+                "el => el.clientHeight")).doubleValue();
+        org.assertj.core.api.Assertions.assertThat(scrollH).isGreaterThan(clientH);
 
         page.close();
     }
