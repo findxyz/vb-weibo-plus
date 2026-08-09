@@ -21,6 +21,7 @@
         <java.version>21</java.version>
         <playwright.version>1.49.0</playwright.version>
         <springdoc.version>2.8.17</springdoc.version>
+        <sevenzip.executable>${project.basedir}/scripts/7-Zip/7z.exe</sevenzip.executable>
     </properties>
 
     <dependencies>
@@ -67,6 +68,29 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>pack-7z</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <exec executable="${sevenzip.executable}" dir="${project.build.directory}" failonerror="true">
+                                    <arg value="a"/>
+                                    <arg value="weibo-plus.7z"/>
+                                    <arg value="weibo-plus.jar"/>
+                                    <arg value="../run.bat"/>
+                                </exec>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
