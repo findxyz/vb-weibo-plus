@@ -44,7 +44,7 @@ public class SearchProfileApi {
         try {
             return objectMapper.readValue(resp.getBody(), SearchProfileResponse.class);
         } catch (JsonProcessingException e) {
-            log.warn("搜索微博响应非 JSON，按空结果处理：{}", e.getMessage());
+            log.warn("搜索微博响应非 JSON，按空结果处理：原始响应 = {}，解析错误 = {}", resp.getBody(), e.getMessage());
             return new SearchProfileResponse(
                     new SearchProfileResponse.SearchProfileData(List.of(), 0, ""), 1);
         }
