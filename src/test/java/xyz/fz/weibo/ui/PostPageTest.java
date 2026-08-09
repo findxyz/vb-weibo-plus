@@ -46,6 +46,10 @@ class PostPageTest {
     private static final AtomicInteger loginStatusRequests = new AtomicInteger();
     private static final AtomicInteger qrLoginRequests = new AtomicInteger();
     private static final AtomicBoolean failQrLogin = new AtomicBoolean();
+    // 模拟服务端历史同步失败：返回真实服务端在 WeiboExceptionHandler 中生成的 502 错误体，
+    // 其 msg 正是 LongTextApi/MyBlogApi 抛出的「响应反序列化失败：...」。
+    private static final AtomicBoolean failSyncRange = new AtomicBoolean();
+    private static final AtomicInteger rangeRequests = new AtomicInteger();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -165,6 +169,25 @@ class PostPageTest {
                     {"items":[%s],"page":1,"size":9999,"total":%d}
                     """.formatted(items, total));
         });
+        server.createContext("/post/range", exchange -> {
+            rangeRequests.incrementAndGet();
+            if (failSyncRange.get()) {
+                // 复刻真实服务端行为：历史同步中微博返回 HTML 登录页而非 JSON，
+                // LongTextApi 抛出「响应反序列化失败：Unexpected character ('<'...)」，
+                // 经 WeiboExceptionHandler.handleWeibo 映射为 502 + {"msg":...}。
+                String msg = "响应反序列化失败：Unexpected character ('<' (code 60)):"
+                        + " expected a valid value (JSON String, Number, Array, Object"
+                        + " or token 'null', 'true' or 'false')";
+                String body = "{\"code\":502,\"msg\":\"" + msg + "\"}";
+                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+                exchange.sendResponseHeaders(502, bytes.length);
+                exchange.getResponseBody().write(bytes);
+                exchange.close();
+                return;
+            }
+            sendJson(exchange, "{\"fetched\":0,\"inserted\":0,\"ignored\":0}");
+        });
         server.createContext("/weibo/login/status", exchange -> {
             loginStatusRequests.incrementAndGet();
             boolean valid = !loginInvalid.get();
@@ -236,6 +259,8 @@ class PostPageTest {
         loginStatusRequests.set(0);
         qrLoginRequests.set(0);
         failQrLogin.set(false);
+        failSyncRange.set(false);
+        rangeRequests.set(0);
     }
 
     @Test
@@ -873,6 +898,33 @@ class PostPageTest {
         // 点击遮罩区域不关闭浮层，与添加博主、同步历史一致
         page.mouse().click(5, 5);
         assertThat(page.locator("#search-overlay")).isVisible();
+
+        page.close();
+    }
+
+    @Test
+    void sync_history_failure_shows_global_tip_in_top_right() {
+        failSyncRange.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+
+        // 选中具体博主后才会显示「同步历史」按钮
+        page.locator(".blogger-row[data-uid='1']").click();
+        assertThat(page.locator("#sync-history-open")).isVisible();
+        page.locator("#sync-history-open").click();
+        assertThat(page.locator("#sync-history")).isVisible();
+        page.waitForResponse(
+                item -> item.url().contains("/post/range"),
+                () -> page.locator("#sync-history-submit").click());
+
+        // 同步失败信息显示在主窗口右上角的 #global-tip（role=alert），
+        // 携带服务端反序列化失败原文；不再写进日期标题旁的 #dates-state 造成重影。
+        assertThat(page.locator("#global-tip")).isVisible();
+        assertThat(page.locator("#global-tip")).hasAttribute("role", "alert");
+        assertThat(page.locator("#global-tip")).containsText("同步历史微博失败");
+        assertThat(page.locator("#global-tip")).containsText("响应反序列化失败");
+        assertThat(page.locator("#global-tip")).containsText("'<'");
+        assertThat(page.locator("#dates-state")).not().containsText("同步失败");
 
         page.close();
     }

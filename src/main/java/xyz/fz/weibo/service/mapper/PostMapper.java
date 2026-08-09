@@ -157,11 +157,10 @@ public class PostMapper {
     }
 
     private String content(MblogResponse post, LongTextResponse longText, boolean raw) {
-        if (!post.isLongText()) {
+        // 非长文，或长文数据缺失（如微博返回非 JSON 已容错为无长文）时，
+        // 回退到微博列表里的短文本，保证正文不丢。
+        if (!post.isLongText() || longText == null || longText.ok() != 1 || longText.data() == null) {
             return emptyIfNull(raw ? post.textRaw() : post.text());
-        }
-        if (longText == null || longText.ok() != 1 || longText.data() == null) {
-            throw new IllegalArgumentException("Complete Long Text response is required");
         }
         return emptyIfNull(raw
                 ? longText.data().longTextContentRaw()

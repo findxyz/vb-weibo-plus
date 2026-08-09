@@ -99,6 +99,18 @@ class PostMapperTest {
     }
 
     @Test
+    void long_text_falls_back_to_short_text_when_long_text_data_is_missing() throws Exception {
+        MblogResponse post = readPost();
+        // 长文响应解析失败已容错为无长文（data=null），正文回退到微博列表里的短文本。
+        LongTextResponse empty = new LongTextResponse(null, 1);
+
+        PostEntity entity = postMapper.toPostEntity(post, empty, null, 2000);
+
+        assertThat(entity.getContent()).isEqualTo("截断正文");
+        assertThat(entity.getContentRaw()).isEqualTo("截断纯文本");
+    }
+
+    @Test
     void maps_blogger_and_local_query_view_to_controlled_media_urls() throws Exception {
         MblogResponse post = readPost();
         BloggerEntity blogger = postMapper.toBloggerEntity(post.user(), 2000);

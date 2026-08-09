@@ -91,55 +91,60 @@ public class PostService {
         int ignored = 0;
         long oldestTime = Long.MAX_VALUE;
         long newestTime = Long.MIN_VALUE;
-        while (true) {
-            MyBlogResponse response = myBlogApi.myBlog(new MyBlogRequest(uid, page, sinceId));
-            List<MblogResponse> posts = requirePosts(response);
-            if (posts.isEmpty()) {
-                break;
-            }
-
-            long capturedAt = System.currentTimeMillis();
-            BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
-            bloggerRepository.upsertMetadata(blogger);
-
-            boolean reachedBoundary = false;
-            for (MblogResponse post : posts) {
-                fetched++;
-                if (latestPostId > 0 && post.id() <= latestPostId) {
-                    ignored++;
-                    reachedBoundary = true;
-                    continue;
+        try {
+            while (true) {
+                MyBlogResponse response = myBlogApi.myBlog(new MyBlogRequest(uid, page, sinceId));
+                List<MblogResponse> posts = requirePosts(response);
+                if (posts.isEmpty()) {
+                    break;
                 }
-                long postTime = postMapper.parseCreatedAt(post.createdAt());
-                oldestTime = Math.min(oldestTime, postTime);
-                newestTime = Math.max(newestTime, postTime);
-                if (capturePost(post, capturedAt)) {
-                    inserted++;
-                } else {
-                    ignored++;
+
+                long capturedAt = System.currentTimeMillis();
+                BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
+                bloggerRepository.upsertMetadata(blogger);
+
+                boolean reachedBoundary = false;
+                for (MblogResponse post : posts) {
+                    fetched++;
+                    if (latestPostId > 0 && post.id() <= latestPostId) {
+                        ignored++;
+                        reachedBoundary = true;
+                        continue;
+                    }
+                    long postTime = postMapper.parseCreatedAt(post.createdAt());
+                    oldestTime = Math.min(oldestTime, postTime);
+                    newestTime = Math.max(newestTime, postTime);
+                    if (capturePost(post, capturedAt)) {
+                        inserted++;
+                    } else {
+                        ignored++;
+                    }
                 }
+
+                if (latestPostId == 0 || reachedBoundary) {
+                    break;
+                }
+                if (response.data().sinceId() == null || response.data().sinceId().isBlank()) {
+                    throw new WeiboException("微博列表响应缺少 data.since_id。", -1);
+                }
+                page++;
+                sinceId = response.data().sinceId();
             }
 
-            if (latestPostId == 0 || reachedBoundary) {
-                break;
+            if (fetched > 0 || latestPostId > 0) {
+                long currentLatestPostId = postRepository.findMaxPostIdByUid(uid);
+                bloggerRepository.refreshLatestPostId(uid, currentLatestPostId);
             }
-            if (response.data().sinceId() == null || response.data().sinceId().isBlank()) {
-                throw new WeiboException("微博列表响应缺少 data.since_id。", -1);
+            if (inserted > 0) {
+                log.info("博主 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                        uid, fetched, inserted, ignored,
+                        formatTimestamp(oldestTime), formatTimestamp(newestTime));
             }
-            page++;
-            sinceId = response.data().sinceId();
+            return new SaveResult(fetched, inserted, ignored);
+        } catch (RuntimeException e) {
+            log.warn("博主 {} 增量同步失败：error = {}", uid, e.getMessage(), e);
+            throw e;
         }
-
-        if (fetched > 0 || latestPostId > 0) {
-            long currentLatestPostId = postRepository.findMaxPostIdByUid(uid);
-            bloggerRepository.refreshLatestPostId(uid, currentLatestPostId);
-        }
-        if (inserted > 0) {
-            log.info("博主 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
-                    uid, fetched, inserted, ignored,
-                    formatTimestamp(oldestTime), formatTimestamp(newestTime));
-        }
-        return new SaveResult(fetched, inserted, ignored);
     }
 
     public SaveResult saveByRange(long uid, long startMillis, long endMillis) {
@@ -167,59 +172,65 @@ public class PostService {
                     .atZone(REQUEST_TIME_ZONE).toLocalDate();
             log.info("博主 {} 历史同步开始：范围 {} ~ {}",
                     uid, firstDate, lastDate);
-            for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
-                long dayStartMillis = date.equals(firstDate)
-                        ? startMillis
-                        : date.atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli();
-                long dayEndMillis = date.equals(lastDate)
-                        ? endMillis
-                        : date.plusDays(1).atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli() - 1;
-                int dayFetched = 0;
-                int dayInserted = 0;
-                int page = 1;
-                while (true) {
-                    if (!firstRequest) {
-                        sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
-                    }
-                    firstRequest = false;
-                    SearchProfileResponse response = searchProfileApi.searchProfile(
-                            new SearchProfileRequest(uid, page,
-                                    Math.floorDiv(dayStartMillis, 1000),
-                                    Math.floorDiv(dayEndMillis, 1000)));
-                    List<MblogResponse> posts = requirePosts(response);
-                    if (posts.isEmpty()) {
-                        break;
-                    }
-
-                    long capturedAt = System.currentTimeMillis();
-                    BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
-                    bloggerRepository.upsertMetadata(blogger);
-                    for (MblogResponse post : posts) {
-                        fetched++;
-                        dayFetched++;
-                        long postTime = postMapper.parseCreatedAt(post.createdAt());
-                        oldestTime = Math.min(oldestTime, postTime);
-                        newestTime = Math.max(newestTime, postTime);
-                        if (capturePost(post, capturedAt)) {
-                            inserted++;
-                            dayInserted++;
-                        } else {
-                            ignored++;
+            try {
+                for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
+                    long dayStartMillis = date.equals(firstDate)
+                            ? startMillis
+                            : date.atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli();
+                    long dayEndMillis = date.equals(lastDate)
+                            ? endMillis
+                            : date.plusDays(1).atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli() - 1;
+                    int dayFetched = 0;
+                    int dayInserted = 0;
+                    int page = 1;
+                    while (true) {
+                        if (!firstRequest) {
+                            sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
                         }
+                        firstRequest = false;
+                        SearchProfileResponse response = searchProfileApi.searchProfile(
+                                new SearchProfileRequest(uid, page,
+                                        Math.floorDiv(dayStartMillis, 1000),
+                                        Math.floorDiv(dayEndMillis, 1000)));
+                        List<MblogResponse> posts = requirePosts(response);
+                        if (posts.isEmpty()) {
+                            break;
+                        }
+
+                        long capturedAt = System.currentTimeMillis();
+                        BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
+                        bloggerRepository.upsertMetadata(blogger);
+                        for (MblogResponse post : posts) {
+                            fetched++;
+                            dayFetched++;
+                            long postTime = postMapper.parseCreatedAt(post.createdAt());
+                            oldestTime = Math.min(oldestTime, postTime);
+                            newestTime = Math.max(newestTime, postTime);
+                            if (capturePost(post, capturedAt)) {
+                                inserted++;
+                                dayInserted++;
+                            } else {
+                                ignored++;
+                            }
+                        }
+                        page++;
                     }
-                    page++;
+                    log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条",
+                            uid, date, dayFetched, dayInserted);
                 }
-                log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条",
-                        uid, date, dayFetched, dayInserted);
+                if (inserted > 0) {
+                    log.info("博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                            uid, fetched, inserted, ignored,
+                            formatTimestamp(oldestTime), formatTimestamp(newestTime));
+                } else {
+                    log.info("博主 {} 历史同步完成：拉取 {} 条，无新增。", uid, fetched);
+                }
+                return new SaveResult(fetched, inserted, ignored);
+            } catch (RuntimeException e) {
+                log.warn("博主 {} 历史同步失败：范围 {} ~ {}，error = {}",
+                        uid, firstDate, lastDate, e.getMessage(), e);
+                throw e;
             }
-            if (inserted > 0) {
-                log.info("博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
-                        uid, fetched, inserted, ignored,
-                        formatTimestamp(oldestTime), formatTimestamp(newestTime));
-            } else {
-                log.info("博主 {} 历史同步完成：拉取 {} 条，无新增。", uid, fetched);
-            }
-            return new SaveResult(fetched, inserted, ignored);
         } finally {
             saveByRangeLock.unlock();
         }
@@ -366,9 +377,14 @@ public class PostService {
             return null;
         }
         LongTextResponse response = longTextApi.longText(new LongTextRequest(post.mblogId()));
-        if (response == null || response.ok() != 1 || response.data() == null) {
+        if (response == null || response.ok() != 1) {
             int errorCode = response == null || response.ok() == 0 ? -1 : response.ok();
             throw new WeiboException("长文响应失败：mblogId = " + post.mblogId() + "。", errorCode);
+        }
+        // data 为 null 表示长文解析失败已容错（见 LongTextApi），按「无长文」处理，
+        // 正文回退到微博列表里的短文本。
+        if (response.data() == null) {
+            return null;
         }
         return response;
     }

@@ -5,6 +5,7 @@
   const QR_IMAGE_INTERVAL = 10000;
   const QR_LOGIN_LOADING_TEXT = "扫码中…";
   const elements = {
+    globalTip: document.querySelector("#global-tip"),
     bloggersCount: document.querySelector("#bloggers-count"),
     bloggersList: document.querySelector("#bloggers-list"),
     bloggersState: document.querySelector("#bloggers-state"),
@@ -106,6 +107,17 @@
 
   function showState(el, message) {
     el.textContent = message || "";
+  }
+
+  let globalTipTimer = null;
+  function showGlobalTip(message) {
+    elements.globalTip.textContent = message;
+    elements.globalTip.hidden = false;
+    if (globalTipTimer) clearTimeout(globalTipTimer);
+    globalTipTimer = setTimeout(() => {
+      elements.globalTip.hidden = true;
+      globalTipTimer = null;
+    }, 6000);
   }
 
   /* ---------- 博主列表 ---------- */
@@ -346,7 +358,8 @@
       if (error.status === 401) {
         showLoginExpired();
       } else {
-        showState(elements.datesState, `同步失败：${error.message}`);
+        // 错误在主窗口右上角醒目提示，不再写进日期标题旁的 #dates-state 造成重影
+        showGlobalTip(`同步历史微博失败：${error.message}`);
       }
     } finally {
       elements.syncHistoryOpen.disabled = false;

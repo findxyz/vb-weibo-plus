@@ -164,6 +164,23 @@ h1#app-title {
 }
 .workspace > * { position: relative; z-index: 1; }
 
+/* 主窗口右上角全局提示：同步失败等错误在此醒目提示，不占用博文布局 */
+.global-tip {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  z-index: 50;
+  max-width: 360px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--paper);
+  background: var(--danger);
+  font: 13px/1.3 var(--hand);
+  box-shadow: 2px 2px 0 -1px rgba(43,38,32,0.18);
+  pointer-events: none;
+}
+.global-tip[hidden] { display: none; }
+
 /* shared panel heading typography */
 .bloggers-heading h2,
 .dates-heading h2,
