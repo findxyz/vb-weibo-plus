@@ -872,7 +872,8 @@
     if (!state.currentGid || state.refreshing || state.loadingEarlier || document.hidden) return;
     state.refreshing = true;
     const gid = state.currentGid;
-    const followedLatest = isNearBottom();
+    // 标签页隐藏期间视为未在阅读，回来后不自动贴底，保留上次阅读位置
+    const followedLatest = state.followingLatest && isNearBottom();
     const knownMids = new Set(state.messages.keys());
     const query = new URLSearchParams({
       gid: String(gid), size: String(PAGE_SIZE)
@@ -1612,7 +1613,12 @@
   });
   window.addEventListener("focus", refreshView);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) refreshView();
+    if (document.hidden) {
+      // 离开当前标签页，挂起跟随最新，回来后由滚动或点击新消息恢复
+      state.followingLatest = false;
+      return;
+    }
+    refreshView();
   });
   setInterval(refreshView, 1_000);
 
