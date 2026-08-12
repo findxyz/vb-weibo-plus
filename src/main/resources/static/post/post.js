@@ -834,6 +834,7 @@
     // 纯文本里的 http/https 地址自动转为可点击链接
     const doc = new DOMParser().parseFromString(html, "text/html");
     linkifyUrls(doc.body);
+    linkifyMentions(doc.body);
     for (const a of doc.querySelectorAll("a")) {
       const href = a.getAttribute("href") || "";
       if (href.startsWith("//")) {
@@ -888,6 +889,46 @@
         a.textContent = url;
         frag.appendChild(a);
         last = m.index + url.length;
+      }
+      if (!matched) continue;
+      frag.appendChild(doc.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    }
+  }
+
+  // 转发链里的 @用户名: 形式（如 //@tombkeeper: 文本），纯文本时无链接；
+  // 仅匹配后跟冒号的 @用户名，避免误伤邮箱与普通提及
+  const MENTION_RE = /@[A-Za-z0-9_\-\u4e00-\u9fff]+(?=:)/g;
+
+  function linkifyMentions(root) {
+    const doc = root.ownerDocument;
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const targets = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      // 已在 <a> 内的文本不重复处理
+      if (node.parentElement && node.parentElement.closest("a")) continue;
+      if (/@[A-Za-z0-9_\-\u4e00-\u9fff]+:/.test(node.nodeValue)) targets.push(node);
+    }
+    for (const node of targets) {
+      const text = node.nodeValue;
+      const frag = doc.createDocumentFragment();
+      let last = 0;
+      let matched = false;
+      MENTION_RE.lastIndex = 0;
+      let m;
+      while ((m = MENTION_RE.exec(text))) {
+        const mention = m[0];
+        const name = mention.slice(1);
+        matched = true;
+        if (m.index > last) {
+          frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
+        }
+        const a = doc.createElement("a");
+        a.setAttribute("href", "https://weibo.com/n/" + name);
+        a.textContent = mention;
+        frag.appendChild(a);
+        last = m.index + mention.length;
       }
       if (!matched) continue;
       frag.appendChild(doc.createTextNode(text.slice(last)));
