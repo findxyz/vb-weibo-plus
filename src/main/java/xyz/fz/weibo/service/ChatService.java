@@ -56,6 +56,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
@@ -79,6 +81,7 @@ public class ChatService {
     private final HeicConverter heicConverter;
     private final VideoProbe videoProbe;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
+    private final Set<Long> incrementalSyncingGids = ConcurrentHashMap.newKeySet();
 
     public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
                        GroupMediaApi groupMediaApi, MessageMapper messageMapper,
@@ -138,6 +141,15 @@ public class ChatService {
 
     public SaveResult saveIncremental(long gid) {
         validateGid(gid);
+        incrementalSyncingGids.add(gid);
+        try {
+            return doSaveIncremental(gid);
+        } finally {
+            incrementalSyncingGids.remove(gid);
+        }
+    }
+
+    private SaveResult doSaveIncremental(long gid) {
         long capturedAt = System.currentTimeMillis();
         groupRepository.ensurePlaceholderExists(gid, capturedAt);
         long boundaryMid = groupRepository.findMaxMid(gid);
@@ -195,6 +207,12 @@ public class ChatService {
             long gid, Long beforeCreatedAt, Long beforeMid,
             Long afterCreatedAt, Long afterMid, int size) {
         validateGid(gid);
+        if (incrementalSyncingGids.contains(gid)) {
+            GroupRecord group = groupRepository.findById(gid)
+                    .map(messageMapper::toGroupRecord)
+                    .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
+            return new MessageCursorResult(group, List.of(), size, false, null, null, null, null);
+        }
         validateCursorQuery(beforeCreatedAt, beforeMid, afterCreatedAt, afterMid, size);
         boolean loadingAfter = afterCreatedAt != null;
         List<MessageEntity> result = loadingAfter
@@ -372,22 +390,25 @@ public class ChatService {
     private PageCapture capturePage(List<GroupMessagesResponse.Message> messages,
                                     long gid, long capturedAt,
                                     Predicate<GroupMessagesResponse.Message> reachedBoundary) {
-        int inserted = 0;
+        List<MessageEntity> collected = new ArrayList<>();
         int ignored = 0;
-        for (int index = messages.size() - 1; index >= 0; index--) {
-            GroupMessagesResponse.Message message = messages.get(index);
+        boolean reached = false;
+        for (GroupMessagesResponse.Message message : messages) {
             requireMid(message);
             if (reachedBoundary.test(message)) {
-                return new PageCapture(inserted, ignored + index + 1, true);
-            }
-            var entity = messageMapper.toMessageEntity(message, gid, capturedAt);
-            if (entity.isPresent() && messageRepository.insertIfAbsent(entity.orElseThrow())) {
-                inserted++;
-            } else {
+                reached = true;
                 ignored++;
+            } else {
+                var entity = messageMapper.toMessageEntity(message, gid, capturedAt);
+                if (entity.isPresent()) {
+                    collected.add(entity.orElseThrow());
+                } else {
+                    ignored++;
+                }
             }
         }
-        return new PageCapture(inserted, ignored, false);
+        int inserted = messageRepository.insertAllIfAbsent(collected);
+        return new PageCapture(inserted, ignored + (collected.size() - inserted), reached);
     }
 
     public MediaBinary queryMessageMedia(long gid, long mid, String variant) {

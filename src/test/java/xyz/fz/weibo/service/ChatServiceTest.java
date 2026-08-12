@@ -163,8 +163,7 @@ class ChatServiceTest {
                 .thenReturn(Optional.of(duplicateEntity));
         when(messageMapper.toMessageEntity(eq(filtered), eq(1L), anyLong()))
                 .thenReturn(Optional.empty());
-        when(messageRepository.insertIfAbsent(insertedEntity)).thenReturn(true);
-        when(messageRepository.insertIfAbsent(duplicateEntity)).thenReturn(false);
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(1);
 
         assertThat(chatService.saveIncremental(1)).isEqualTo(new SaveResult(3, 1, 2));
 
@@ -323,14 +322,18 @@ class ChatServiceTest {
                 .thenReturn(messagePage(
                         message(90, 321, 990), message(100, 321, 1_000), message(110, 321, 1_010)));
         mapEveryMessage();
-        when(messageRepository.insertIfAbsent(any())).thenReturn(true);
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(2, 1);
 
         assertThat(chatService.saveIncremental(1)).isEqualTo(new SaveResult(5, 3, 2));
 
-        ArgumentCaptor<MessageEntity> saved = ArgumentCaptor.forClass(MessageEntity.class);
-        verify(messageRepository, times(3)).insertIfAbsent(saved.capture());
-        assertThat(saved.getAllValues()).extracting(MessageEntity::getMid)
-                .containsExactly(130L, 120L, 110L);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MessageEntity>> saved = ArgumentCaptor.forClass(List.class);
+        verify(messageRepository, times(2)).insertAllIfAbsent(saved.capture());
+        List<Long> savedMids = saved.getAllValues().stream()
+                .flatMap(List::stream)
+                .map(MessageEntity::getMid)
+                .toList();
+        assertThat(savedMids).containsExactly(120L, 130L, 110L);
         verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 120L));
         verifyNoMoreInteractions(groupMessagesApi);
         verify(messageRepository).refreshGroupRange(1);
@@ -344,7 +347,7 @@ class ChatServiceTest {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
                 .thenReturn(messagePage());
         mapEveryMessage();
-        when(messageRepository.insertIfAbsent(any())).thenReturn(true);
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(2);
 
         assertThat(chatService.saveIncremental(1)).isEqualTo(new SaveResult(2, 2, 0));
 
@@ -352,36 +355,34 @@ class ChatServiceTest {
     }
 
     @Test
-    void paging_failure_preserves_captured_messages_and_the_old_group_cursor() {
+    void paging_failure_preserves_captured_messages_and_keeps_the_old_group_cursor() {
         when(groupRepository.findMaxMid(1)).thenReturn(100L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_010), message(120, 321, 1_020)));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
                 .thenThrow(new WeiboException("上游分页失败。", -1));
         mapEveryMessage();
-        when(messageRepository.insertIfAbsent(any())).thenReturn(true);
 
         assertThatThrownBy(() -> chatService.saveIncremental(1))
                 .isInstanceOf(WeiboException.class);
 
-        verify(messageRepository, times(2)).insertIfAbsent(any());
+        verify(messageRepository, times(1)).insertAllIfAbsent(anyList());
         verify(messageRepository, never()).refreshGroupRange(1);
     }
 
     @Test
-    void repository_failure_preserves_earlier_messages_and_the_old_group_cursor() {
+    void repository_failure_writes_nothing_and_keeps_the_old_group_cursor() {
         when(groupRepository.findMaxMid(1)).thenReturn(100L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_010), message(120, 321, 1_020)));
         mapEveryMessage();
-        when(messageRepository.insertIfAbsent(any()))
-                .thenReturn(true)
+        when(messageRepository.insertAllIfAbsent(anyList()))
                 .thenThrow(new IllegalStateException("Database write failed"));
 
         assertThatThrownBy(() -> chatService.saveIncremental(1))
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(messageRepository, times(2)).insertIfAbsent(any());
+        verify(messageRepository).insertAllIfAbsent(anyList());
         verify(messageRepository, never()).refreshGroupRange(1);
     }
 
@@ -398,8 +399,7 @@ class ChatServiceTest {
                 .thenThrow(new WeiboException("上游分页失败。", -1))
                 .thenReturn(boundaryPage);
         mapEveryMessage();
-        when(messageRepository.insertIfAbsent(any()))
-                .thenReturn(true, true, false, false, true);
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(2, 0, 1);
 
         assertThatThrownBy(() -> chatService.saveIncremental(1))
                 .isInstanceOf(WeiboException.class);
@@ -409,20 +409,46 @@ class ChatServiceTest {
     }
 
     @Test
+    void saveIncremental_in_progress_hides_messages_from_cursor_query() {
+        when(groupRepository.findMaxMid(1)).thenReturn(100L);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenReturn(messagePage(message(110, 321, 1_010)));
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
+                .thenReturn(messagePage());
+        mapEveryMessage();
+        when(groupRepository.findById(1L)).thenReturn(Optional.empty());
+        when(messageRepository.insertAllIfAbsent(anyList())).thenAnswer(invocation -> {
+            // saveIncremental 正在运行时，cursor 查询应返回空列表
+            MessageCursorResult result = chatService.queryMessagesByCursor(
+                    1, null, null, null, null, 20);
+            assertThat(result.items()).isEmpty();
+            return 1;
+        });
+
+        SaveResult result = chatService.saveIncremental(1);
+
+        assertThat(result).isEqualTo(new SaveResult(1, 1, 0));
+    }
+
+    @Test
     void backfill_from_newest_includes_the_exact_time_boundary_across_pages() {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_001), message(120, 321, 1_002)));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
                 .thenReturn(messagePage(message(90, 321, 999), message(100, 321, 1_000)));
         mapEveryMessageWithTime();
-        when(messageRepository.insertIfAbsent(any())).thenReturn(true);
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(2, 1);
 
         chatService.saveBySince(1, 1_000, null);
 
-        ArgumentCaptor<MessageEntity> saved = ArgumentCaptor.forClass(MessageEntity.class);
-        verify(messageRepository, times(3)).insertIfAbsent(saved.capture());
-        assertThat(saved.getAllValues()).extracting(MessageEntity::getMid)
-                .containsExactly(120L, 110L, 100L);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MessageEntity>> saved = ArgumentCaptor.forClass(List.class);
+        verify(messageRepository, times(2)).insertAllIfAbsent(saved.capture());
+        List<Long> savedMids = saved.getAllValues().stream()
+                .flatMap(List::stream)
+                .map(MessageEntity::getMid)
+                .toList();
+        assertThat(savedMids).containsExactly(110L, 120L, 100L);
         verify(messageRepository).refreshGroupRange(1);
     }
 
@@ -441,7 +467,7 @@ class ChatServiceTest {
                     return messagePage();
                 });
         mapEveryMessageWithTime();
-        when(messageRepository.insertIfAbsent(any())).thenReturn(true);
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(1);
 
         chatService.saveBySince(1, 900, null);
 
@@ -512,8 +538,8 @@ class ChatServiceTest {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 100L)))
                 .thenReturn(messagePage());
         mapEveryMessageWithTime();
-        when(messageRepository.insertIfAbsent(any()))
-                .thenReturn(true, true, false, false, true);
+        when(messageRepository.insertAllIfAbsent(anyList()))
+                .thenReturn(2, 0, 1);
 
         assertThatThrownBy(() -> chatService.saveBySince(1, 1_000, null))
                 .isInstanceOf(WeiboException.class);
