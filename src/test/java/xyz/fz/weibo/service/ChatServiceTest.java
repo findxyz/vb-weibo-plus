@@ -409,28 +409,6 @@ class ChatServiceTest {
     }
 
     @Test
-    void saveIncremental_in_progress_hides_messages_from_cursor_query() {
-        when(groupRepository.findMaxMid(1)).thenReturn(100L);
-        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenReturn(messagePage(message(110, 321, 1_010)));
-        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
-                .thenReturn(messagePage());
-        mapEveryMessage();
-        when(groupRepository.findById(1L)).thenReturn(Optional.empty());
-        when(messageRepository.insertAllIfAbsent(anyList())).thenAnswer(invocation -> {
-            // saveIncremental 正在运行时，cursor 查询应返回空列表
-            MessageCursorResult result = chatService.queryMessagesByCursor(
-                    1, null, null, null, null, 20);
-            assertThat(result.items()).isEmpty();
-            return 1;
-        });
-
-        SaveResult result = chatService.saveIncremental(1);
-
-        assertThat(result).isEqualTo(new SaveResult(1, 1, 0));
-    }
-
-    @Test
     void backfill_from_newest_includes_the_exact_time_boundary_across_pages() {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(110, 321, 1_001), message(120, 321, 1_002)));

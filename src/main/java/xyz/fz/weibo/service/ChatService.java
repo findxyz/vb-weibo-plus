@@ -56,8 +56,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
@@ -81,7 +79,6 @@ public class ChatService {
     private final HeicConverter heicConverter;
     private final VideoProbe videoProbe;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
-    private final Set<Long> incrementalSyncingGids = ConcurrentHashMap.newKeySet();
 
     public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
                        GroupMediaApi groupMediaApi, MessageMapper messageMapper,
@@ -141,15 +138,6 @@ public class ChatService {
 
     public SaveResult saveIncremental(long gid) {
         validateGid(gid);
-        incrementalSyncingGids.add(gid);
-        try {
-            return doSaveIncremental(gid);
-        } finally {
-            incrementalSyncingGids.remove(gid);
-        }
-    }
-
-    private SaveResult doSaveIncremental(long gid) {
         long capturedAt = System.currentTimeMillis();
         groupRepository.ensurePlaceholderExists(gid, capturedAt);
         long boundaryMid = groupRepository.findMaxMid(gid);
@@ -207,12 +195,6 @@ public class ChatService {
             long gid, Long beforeCreatedAt, Long beforeMid,
             Long afterCreatedAt, Long afterMid, int size) {
         validateGid(gid);
-        if (incrementalSyncingGids.contains(gid)) {
-            GroupRecord group = groupRepository.findById(gid)
-                    .map(messageMapper::toGroupRecord)
-                    .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
-            return new MessageCursorResult(group, List.of(), size, false, null, null, null, null);
-        }
         validateCursorQuery(beforeCreatedAt, beforeMid, afterCreatedAt, afterMid, size);
         boolean loadingAfter = afterCreatedAt != null;
         List<MessageEntity> result = loadingAfter
