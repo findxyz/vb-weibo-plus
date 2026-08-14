@@ -66,17 +66,27 @@ textarea:disabled {
   background: var(--surface);
 }
 
-.titlebar {
+.titlebar,
+.history-titlebar,
+.analysis-titlebar {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px 0 10px;
   color: #ffffff;
   background:
     linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
     linear-gradient(#1394fa 0, #0879ed 28%, #0060d8 72%, #006bea 100%);
   box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+}
+
+.titlebar {
+  padding: 0 12px 0 10px;
+}
+
+.history-titlebar,
+.analysis-titlebar {
+  padding: 0 8px 0 10px;
 }
 
 .title-logo {
@@ -417,12 +427,12 @@ h1 {
   font-size: 13px;
 }
 
-#current-message-count {
+.current-message-count {
   padding: 1px 0;
   border-radius: var(--radius-sm);
 }
 
-#current-message-count.size-flash {
+.current-message-count.size-flash {
   animation: size-flash 3s ease-out;
 }
 
@@ -746,12 +756,6 @@ h1 {
 
 .emoji-panel[hidden] {
   display: none;
-}
-
-.emoji-panel-tabs {
-  display: flex;
-  gap: 5px;
-  padding: 6px 8px 0;
 }
 
 .emoji-panel-grid {

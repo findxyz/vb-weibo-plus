@@ -10,6 +10,8 @@
   const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
   const EMOJI_IMAGE_BASE = "https://img.t.sinajs.cn/t4/appstyle/expression/emimage";
   const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
+  const SYSTEM_SENDER_NAME = "粉丝群";
+  const RED_PACKET_TEXT = "收到红包消息";
   const WEIBO_EMOJI_MAP = (typeof window !== "undefined" && window.WEIBO_EMOJI_MAP) || {};
   const elements = {
     appTitle: document.querySelector("#app-title"),
@@ -93,18 +95,14 @@
     groups: [],
     currentGid: null,
     messages: new Map(),
-    nextBeforeCreatedAt: null,
-    nextBeforeMid: null,
+    beforeCursor: null,
     hasMore: false,
     refreshingGroups: false,
     refreshing: false,
     loadingEarlier: false,
     followingLatest: true,
     sending: false,
-    pendingImage: null,
-    pendingImageUrl: null,
-    pendingVideo: null,
-    pendingVideoUrl: null,
+    pendingAttachment: null,
     lastSizeGid: null,
     lastMessageCount: null,
     loginCheckTick: 0,
@@ -374,56 +372,56 @@
   }
 
   function messageElement(message, targetMid, onMediaLoad = null) {
-      const article = document.createElement("article");
-      article.className = "message";
-      article.dataset.mid = String(message.mid);
-      if (message.mid === targetMid) article.classList.add("target-message");
-      if (isAdminSender(message.senderId)) article.classList.add("admin-message");
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      if (message.fileUrl) {
-        const link = document.createElement("a");
-        link.className = "file-download";
-        link.href = message.fileUrl;
-        link.download = message.text || "";
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = message.text || "下载文件";
-        bubble.append(link);
-      } else if (message.mediaType === MEDIA_TYPE.WEIBO_CARD && message.urlObjects?.[0]?.status) {
-        appendWeiboCard(bubble, message.urlObjects[0]);
-      } else {
-        appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
-      }
-      if (message.senderName?.trim() === "粉丝群") {
-        article.classList.add("system-message");
-        article.append(bubble);
-        return article;
-      }
-      article.append(avatar({
-        name: message.senderName,
-        avatar: message.senderAvatar
-      }, "message-avatar", Number.isSafeInteger(message.senderId) && message.senderId > 0
-        ? `https://weibo.com/u/${message.senderId}`
-        : ""));
-      const content = document.createElement("div");
-      content.className = "message-content";
-      const meta = document.createElement("div");
-      meta.className = "message-meta";
-      meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
-      const media = messageMedia(message, onMediaLoad);
-      const hidesMediaLabel = media
-        && ["分享图片", "分享视频", "[动画表情]"].includes(message.text?.trim());
-      content.append(meta);
-      if (!hidesMediaLabel) content.append(bubble);
-      if (media) content.append(media);
-      article.append(content);
+    const article = document.createElement("article");
+    article.className = "message";
+    article.dataset.mid = String(message.mid);
+    if (message.mid === targetMid) article.classList.add("target-message");
+    if (isAdminSender(message.senderId)) article.classList.add("admin-message");
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    if (message.fileUrl) {
+      const link = document.createElement("a");
+      link.className = "file-download";
+      link.href = message.fileUrl;
+      link.download = message.text || "";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = message.text || "下载文件";
+      bubble.append(link);
+    } else if (message.mediaType === MEDIA_TYPE.WEIBO_CARD && message.urlObjects?.[0]?.status) {
+      appendWeiboCard(bubble, message.urlObjects[0]);
+    } else {
+      appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
+    }
+    if (message.senderName?.trim() === SYSTEM_SENDER_NAME) {
+      article.classList.add("system-message");
+      article.append(bubble);
       return article;
+    }
+    article.append(avatar({
+      name: message.senderName,
+      avatar: message.senderAvatar
+    }, "message-avatar", Number.isSafeInteger(message.senderId) && message.senderId > 0
+      ? `https://weibo.com/u/${message.senderId}`
+      : ""));
+    const content = document.createElement("div");
+    content.className = "message-content";
+    const meta = document.createElement("div");
+    meta.className = "message-meta";
+    meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
+    const media = messageMedia(message, onMediaLoad);
+    const hidesBubbleText = media
+      && ["分享图片", "分享视频", "[动画表情]"].includes(message.text?.trim());
+    content.append(meta);
+    if (!hidesBubbleText) content.append(bubble);
+    if (media) content.append(media);
+    article.append(content);
+    return article;
   }
 
   function renderMessages(forceFollow = false) {
     const ordered = [...state.messages.values()].sort(compareMessages);
-    const onLoad = forceFollow ? () => scrollToBottom(true) : stickToBottom;
+    const onLoad = forceFollow ? () => scrollToBottom(true) : () => scrollToBottom();
 
     // 已渲染的消息元素按 mid 索引
     const existingByMid = new Map();
@@ -470,7 +468,7 @@
     const button = document.createElement("button");
     button.type = "button";
     const image = document.createElement("img");
-    // 首页/刷新的图片需要立即加载以触发 stickToBottom，懒加载会让 load 回调无法及时跟随到底部
+    // 首页/刷新的图片需要立即加载以触发 scrollToBottom，懒加载会让 load 回调无法及时跟随到底部
     image.loading = onLoad ? "eager" : "lazy";
     image.alt = "";
     // 先注册 load 再设 src，避免缓存命中时 load 在监听前触发而漏掉跟随到底部
@@ -533,11 +531,15 @@
     return dateTimeFormatter.format(new Date(timestamp));
   }
 
+  function isVideoMessage(message) {
+    if (message.videoUrl) return true;
+    if (message.mediaType === MEDIA_TYPE.VIDEO) return true;
+    return message.mediaType === MEDIA_TYPE.VIDEO_OR_REDPACKET
+      && !(message.text || "").includes(RED_PACKET_TEXT);
+  }
+
   function historySummary(message) {
-    const text = message.text?.trim() || "";
-    const video = message.mediaType === MEDIA_TYPE.VIDEO
-      || (message.mediaType === MEDIA_TYPE.VIDEO_OR_REDPACKET && !text.includes("收到红包消息"));
-    if (video || message.videoUrl) return "[视频]";
+    if (isVideoMessage(message)) return "[视频]";
     if (message.mediaType === MEDIA_TYPE.WEIBO_CARD) return "[微博]";
     if (message.mediaType === MEDIA_TYPE.IMAGE || message.previewUrl) return "[图片]";
     return message.text?.trim() || `[${message.msgTypeName || "消息"}]`;
@@ -780,8 +782,7 @@
     if (historyState.gid !== gid) resetHistory(gid);
     state.currentGid = gid;
     state.messages.clear();
-    state.nextBeforeCreatedAt = null;
-    state.nextBeforeMid = null;
+    state.beforeCursor = null;
     state.hasMore = false;
     elements.newMessages.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
@@ -815,12 +816,12 @@
     const hasCount = typeof group.messageCount === "number";
     if (hasCount) {
       const prefix = `${group.maxMember || group.memberCount} 人群 + `;
-      let countEl = elements.currentSize.querySelector("#current-message-count");
+      let countEl = elements.currentSize.querySelector(".current-message-count");
       if (!countEl) {
         countEl = document.createElement("span");
-        countEl.id = "current-message-count";
+        countEl.className = "current-message-count";
         elements.currentSize.replaceChildren(document.createTextNode(prefix), countEl,
-                document.createTextNode(" 条消息"));
+          document.createTextNode(" 条消息"));
       } else {
         elements.currentSize.firstChild.textContent = prefix;
       }
@@ -845,23 +846,25 @@
     el.classList.add("size-flash");
   }
 
-  async function loadMessages(beforeCreatedAt = null, beforeMid = null) {
-    const isLatestPage = beforeCreatedAt === null && beforeMid === null;
+  async function loadMessages(beforeCursor = null) {
+    const isLatestPage = beforeCursor === null;
     const anchor = isLatestPage ? null : captureScrollAnchor();
     const gid = state.currentGid;
     const query = new URLSearchParams({
       gid: String(gid), size: String(PAGE_SIZE)
     });
     if (!isLatestPage) {
-      query.set("beforeCreatedAt", String(beforeCreatedAt));
-      query.set("beforeMid", String(beforeMid));
+      query.set("beforeCreatedAt", String(beforeCursor.createdAt));
+      query.set("beforeMid", String(beforeCursor.mid));
     }
     try {
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (state.currentGid !== gid) return;
       result.items.forEach(message => state.messages.set(message.mid, message));
-      state.nextBeforeCreatedAt = result.nextBeforeCreatedAt;
-      state.nextBeforeMid = result.nextBeforeMid;
+      state.beforeCursor = result.hasMore && result.nextBeforeCreatedAt !== null
+        && result.nextBeforeMid !== null
+        ? {createdAt: result.nextBeforeCreatedAt, mid: result.nextBeforeMid}
+        : null;
       state.hasMore = result.hasMore;
       if (isLatestPage) state.followingLatest = true;
       renderMessages(isLatestPage);
@@ -881,10 +884,6 @@
     }
   }
 
-  function stickToBottom() {
-    scrollToBottom();
-  }
-
   function isNearBottom() {
     return elements.messages.scrollHeight
       - elements.messages.scrollTop
@@ -895,10 +894,10 @@
     if (!state.currentGid || !state.hasMore || state.loadingEarlier || state.refreshing) return;
     if (elements.messages.scrollTop > EARLIER_LOAD_THRESHOLD
       || elements.messages.scrollHeight <= elements.messages.clientHeight) return;
-    if (state.nextBeforeCreatedAt === null || state.nextBeforeMid === null) return;
+    if (!state.beforeCursor) return;
     state.loadingEarlier = true;
     try {
-      await loadMessages(state.nextBeforeCreatedAt, state.nextBeforeMid);
+      await loadMessages(state.beforeCursor);
     } finally {
       state.loadingEarlier = false;
     }
@@ -1066,59 +1065,35 @@
   const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
   const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 
-  function setPendingImage(file) {
+  function setPendingAttachment(kind, file) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setComposerHint("仅支持图片文件。", "error");
+    const isImage = kind === "image";
+    const validType = isImage ? file.type.startsWith("image/") : file.type === "video/mp4";
+    if (!validType) {
+      setComposerHint(isImage ? "仅支持图片文件。" : "仅支持 MP4 视频文件。", "error");
       return;
     }
-    if (file.size > MAX_IMAGE_SIZE) {
-      setComposerHint("图片不能超过 20MB。", "error");
+    const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
+    if (file.size > maxSize) {
+      setComposerHint(isImage ? "图片不能超过 20MB。" : "视频不能超过 100MB。", "error");
       return;
     }
     clearPendingAttachment();
-    state.pendingImage = file;
-    state.pendingImageUrl = URL.createObjectURL(file);
-    elements.composerAttachmentPreview.src = state.pendingImageUrl;
-    elements.composerAttachmentPreview.hidden = false;
-    elements.composerAttachmentPreviewVideo.hidden = true;
+    state.pendingAttachment = {kind, file, url: URL.createObjectURL(file)};
+    elements.composerAttachmentPreview.src = isImage ? state.pendingAttachment.url : "";
+    elements.composerAttachmentPreview.hidden = !isImage;
+    elements.composerAttachmentPreviewVideo.src = isImage ? "" : state.pendingAttachment.url;
+    elements.composerAttachmentPreviewVideo.hidden = isImage;
     elements.composerAttachment.hidden = false;
     elements.composerAttachment.focus();
-    setComposerHint("按下 Enter 发送图片");
-  }
-
-  function setPendingVideo(file) {
-    if (!file) return;
-    if (file.type !== "video/mp4") {
-      setComposerHint("仅支持 MP4 视频文件。", "error");
-      return;
-    }
-    if (file.size > MAX_VIDEO_SIZE) {
-      setComposerHint("视频不能超过 100MB。", "error");
-      return;
-    }
-    clearPendingAttachment();
-    state.pendingVideo = file;
-    state.pendingVideoUrl = URL.createObjectURL(file);
-    elements.composerAttachmentPreviewVideo.src = state.pendingVideoUrl;
-    elements.composerAttachmentPreviewVideo.hidden = false;
-    elements.composerAttachmentPreview.hidden = true;
-    elements.composerAttachment.hidden = false;
-    elements.composerAttachment.focus();
-    setComposerHint("按下 Enter 发送视频");
+    setComposerHint(isImage ? "按下 Enter 发送图片" : "按下 Enter 发送视频");
   }
 
   function clearPendingAttachment() {
-    if (state.pendingImageUrl) {
-      URL.revokeObjectURL(state.pendingImageUrl);
+    if (state.pendingAttachment) {
+      URL.revokeObjectURL(state.pendingAttachment.url);
     }
-    if (state.pendingVideoUrl) {
-      URL.revokeObjectURL(state.pendingVideoUrl);
-    }
-    state.pendingImage = null;
-    state.pendingImageUrl = null;
-    state.pendingVideo = null;
-    state.pendingVideoUrl = null;
+    state.pendingAttachment = null;
     elements.composerAttachment.hidden = true;
     elements.composerAttachmentPreview.src = "";
     elements.composerAttachmentPreview.hidden = false;
@@ -1141,8 +1116,10 @@
     }
   }
 
-  async function sendImage() {
-    if (state.sending || !state.currentGid || !state.pendingImage) return;
+  async function sendAttachment() {
+    if (state.sending || !state.currentGid || !state.pendingAttachment) return;
+    const kind = state.pendingAttachment.kind;
+    const endpoint = kind === "image" ? "/chat/messages/sendImage" : "/chat/messages/sendVideo";
     state.sending = true;
     elements.composer.disabled = true;
     elements.imagePickerOpen.disabled = true;
@@ -1151,13 +1128,14 @@
     try {
       const formData = new FormData();
       formData.append("gid", String(state.currentGid));
-      formData.append("file", state.pendingImage);
-      const response = await fetch("/chat/messages/sendImage", {
+      formData.append("file", state.pendingAttachment.file);
+      const response = await fetch(endpoint, {
         method: "POST",
         body: formData
       });
       if (!response.ok) {
-        await handleSendError(response, "图片发送失败，请稍后重试。");
+        await handleSendError(response,
+          kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。");
         return;
       }
       clearPendingAttachment();
@@ -1165,41 +1143,8 @@
       await refreshMessages();
       setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
     } catch {
-      setComposerHint("图片发送失败，请稍后重试。", "error");
-    } finally {
-      state.sending = false;
-      elements.composer.disabled = false;
-      elements.imagePickerOpen.disabled = !state.currentGid;
-      elements.videoPickerOpen.disabled = !state.currentGid;
-      elements.composer.focus();
-    }
-  }
-
-  async function sendVideo() {
-    if (state.sending || !state.currentGid || !state.pendingVideo) return;
-    state.sending = true;
-    elements.composer.disabled = true;
-    elements.imagePickerOpen.disabled = true;
-    elements.videoPickerOpen.disabled = true;
-    setComposerHint("发送中…", "sending");
-    try {
-      const formData = new FormData();
-      formData.append("gid", String(state.currentGid));
-      formData.append("file", state.pendingVideo);
-      const response = await fetch("/chat/messages/sendVideo", {
-        method: "POST",
-        body: formData
-      });
-      if (!response.ok) {
-        await handleSendError(response, "视频发送失败，请稍后重试。");
-        return;
-      }
-      clearPendingAttachment();
-      state.followingLatest = true;
-      await refreshMessages();
-      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
-    } catch {
-      setComposerHint("视频发送失败，请稍后重试。", "error");
+      setComposerHint(kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。",
+        "error");
     } finally {
       state.sending = false;
       elements.composer.disabled = false;
@@ -1211,12 +1156,8 @@
 
   async function sendMessage() {
     if (state.sending || !state.currentGid) return;
-    if (state.pendingImage) {
-      await sendImage();
-      return;
-    }
-    if (state.pendingVideo) {
-      await sendVideo();
+    if (state.pendingAttachment) {
+      await sendAttachment();
       return;
     }
     const content = elements.composer.value.trim();
@@ -1308,12 +1249,12 @@
     for (const item of items) {
       if (item.kind === "file" && item.type.startsWith("image/")) {
         event.preventDefault();
-        setPendingImage(item.getAsFile());
+        setPendingAttachment("image", item.getAsFile());
         return;
       }
       if (item.kind === "file" && item.type.startsWith("video/")) {
         event.preventDefault();
-        setPendingVideo(item.getAsFile());
+        setPendingAttachment("video", item.getAsFile());
         return;
       }
     }
@@ -1615,13 +1556,13 @@
   elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());
   elements.imageInput.addEventListener("change", () => {
     if (elements.imageInput.files?.[0]) {
-      setPendingImage(elements.imageInput.files[0]);
+      setPendingAttachment("image", elements.imageInput.files[0]);
     }
   });
   elements.videoPickerOpen.addEventListener("click", () => elements.videoInput.click());
   elements.videoInput.addEventListener("change", () => {
     if (elements.videoInput.files?.[0]) {
-      setPendingVideo(elements.videoInput.files[0]);
+      setPendingAttachment("video", elements.videoInput.files[0]);
     }
   });
   elements.composerAttachmentRemove.addEventListener("click", clearPendingAttachment);
