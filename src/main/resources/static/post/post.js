@@ -65,10 +65,11 @@
 
   /* ---------- 工具函数 ---------- */
 
+  const pad = (n) => String(n).padStart(2, "0");
+
   function formatDate(epochMillis) {
     if (!epochMillis) return "";
     const d = new Date(epochMillis);
-    const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
@@ -84,7 +85,6 @@
 
   // date 输入框需要的本地日期格式（YYYY-MM-DD）
   function toLocalDateValue(date) {
-    const pad = (n) => String(n).padStart(2, "0");
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   }
 
@@ -107,6 +107,29 @@
 
   function showState(el, message) {
     el.textContent = message || "";
+  }
+
+  // 统一处理接口错误：登录失效时展示登录过期提示并返回 true，其余错误交给调用方处理
+  function handleApiError(error, onError) {
+    if (error.status === 401) {
+      showLoginExpired();
+      return true;
+    }
+    onError(error);
+    return false;
+  }
+
+  // 起止日期都已填时校验先后顺序
+  function isDateRangeValid(start, end) {
+    return !(start && end && start > end);
+  }
+
+  // 认证用户小蓝标（无文本，仅 aria 标签）
+  function createVerifiedBadge() {
+    const badge = document.createElement("span");
+    badge.className = "verified-badge";
+    badge.setAttribute("aria-label", "认证用户");
+    return badge;
   }
 
   let globalTipTimer = null;
@@ -134,11 +157,7 @@
         selectAllBloggers();
       }
     } catch (error) {
-      if (error.status === 401) {
-        showLoginExpired();
-      } else {
-        showState(elements.bloggersState, `加载失败：${error.message}`);
-      }
+      handleApiError(error, (e) => showState(elements.bloggersState, `加载失败：${e.message}`));
       elements.bloggersCount.textContent = "加载失败";
     }
   }
@@ -180,10 +199,7 @@
     name.className = "blogger-name";
     name.textContent = blogger.screenName;
     if (blogger.verified) {
-      const badge = document.createElement("span");
-      badge.className = "verified-badge";
-      badge.setAttribute("aria-label", "认证用户");
-      name.appendChild(badge);
+      name.appendChild(createVerifiedBadge());
     }
 
     info.appendChild(name);
@@ -224,13 +240,13 @@
     showState(elements.postsState, "");
     elements.feedCount.textContent = "";
     await loadDates();
-      const firstMonth = elements.datesList.querySelector(".month-group");
-      if (firstMonth) {
-        const firstYear = firstMonth.closest(".year-group");
-        if (firstYear) {
-          firstYear.classList.add("open");
-        }
-        toggleMonth(firstMonth);
+    const firstMonth = elements.datesList.querySelector(".month-group");
+    if (firstMonth) {
+      const firstYear = firstMonth.closest(".year-group");
+      if (firstYear) {
+        firstYear.classList.add("open");
+      }
+      toggleGroup(firstMonth);
       const firstDay = firstMonth.querySelector(".date-item");
       if (firstDay) {
         selectDate(firstDay.dataset.date, firstDay);
@@ -287,11 +303,8 @@
       elements.addBloggerDialog.close();
       await reloadBloggersAndSelect(Number(uid));
     } catch (error) {
-      if (error.status === 401) {
+      if (handleApiError(error, (e) => showState(elements.addBloggerError, `添加失败：${e.message}`))) {
         elements.addBloggerDialog.close();
-        showLoginExpired();
-      } else {
-        showState(elements.addBloggerError, `添加失败：${error.message}`);
       }
     } finally {
       elements.addBloggerSubmit.disabled = false;
@@ -337,7 +350,7 @@
       showSyncHistoryStatus("请选择开始与结束日期。", false);
       return;
     }
-    if (start > end) {
+    if (!isDateRangeValid(start, end)) {
       showSyncHistoryStatus("开始日期不能晚于结束日期。", false);
       return;
     }
@@ -359,12 +372,8 @@
       await loadDates();
       showState(elements.datesState, "同步完成");
     } catch (error) {
-      if (error.status === 401) {
-        showLoginExpired();
-      } else {
-        // 错误在主窗口右上角醒目提示，不再写进日期标题旁的 #dates-state 造成重影
-        showGlobalTip(`同步历史微博失败：${error.message}`);
-      }
+      // 错误在主窗口右上角醒目提示，不再写进日期标题旁的 #dates-state 造成重影
+      handleApiError(error, (e) => showGlobalTip(`同步历史微博失败：${e.message}`));
     } finally {
       elements.syncHistoryOpen.disabled = false;
     }
@@ -402,7 +411,7 @@
     }
     const start = elements.searchStart.value;
     const end = elements.searchEnd.value;
-    if (start && end && start > end) {
+    if (!isDateRangeValid(start, end)) {
       showState(elements.searchStatus, "开始日期不能晚于结束日期。");
       return;
     }
@@ -425,11 +434,8 @@
       const result = await fetchJson(`/post/list?${params}`);
       renderSearchResults(result, keyword);
     } catch (error) {
-      if (error.status === 401) {
+      if (handleApiError(error, (e) => showState(elements.searchStatus, `搜索失败：${e.message}`))) {
         elements.searchDialog.close();
-        showLoginExpired();
-      } else {
-        showState(elements.searchStatus, `搜索失败：${error.message}`);
       }
     } finally {
       state.searching = false;
@@ -512,10 +518,10 @@
     if (monthGroup) {
       const yearGroup = monthGroup.closest(".year-group");
       if (yearGroup && !yearGroup.classList.contains("open")) {
-        toggleYear(yearGroup);
+        toggleGroup(yearGroup);
       }
       if (!monthGroup.classList.contains("open")) {
-        toggleMonth(monthGroup);
+        toggleGroup(monthGroup);
       }
     }
     const dayItem = elements.datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
@@ -541,7 +547,6 @@
   // 与后端 Asia/Shanghai 时区保持一致，避免本地时区导致日期错位
   function epochToDateStr(epochMillis) {
     const d = new Date(epochMillis + 8 * 3600 * 1000);
-    const pad = (n) => String(n).padStart(2, "0");
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   }
 
@@ -559,10 +564,7 @@
       renderDates(result.months);
       showState(elements.datesState, result.months.length ? "" : "无数据");
     } catch (error) {
-      if (error.status === 401) {
-        showLoginExpired();
-      }
-      showState(elements.datesState, "加载失败");
+      handleApiError(error, (e) => showState(elements.datesState, "加载失败"));
     }
   }
 
@@ -595,7 +597,7 @@
     const total = months.reduce((sum, m) => sum + m.count, 0);
     count.textContent = `${total} 条`;
     header.appendChild(count);
-    header.addEventListener("click", () => toggleYear(group));
+    header.addEventListener("click", () => toggleGroup(group));
     group.appendChild(header);
 
     const monthsEl = document.createElement("div");
@@ -619,7 +621,7 @@
     count.className = "month-count";
     count.textContent = `${month.count} 条`;
     header.appendChild(count);
-    header.addEventListener("click", () => toggleMonth(group));
+    header.addEventListener("click", () => toggleGroup(group));
     group.appendChild(header);
 
     const days = document.createElement("div");
@@ -643,11 +645,7 @@
     return group;
   }
 
-  function toggleYear(group) {
-    group.classList.toggle("open");
-  }
-
-  function toggleMonth(group) {
+  function toggleGroup(group) {
     group.classList.toggle("open");
   }
 
@@ -690,12 +688,10 @@
         showState(elements.postsState, "");
       }
     } catch (error) {
-      if (error.status === 401) {
-        showLoginExpired();
-      } else {
-        showState(elements.postsState, `加载失败：${error.message}`);
+      handleApiError(error, (e) => {
+        showState(elements.postsState, `加载失败：${e.message}`);
         elements.retryPosts.hidden = false;
-      }
+      });
     } finally {
       state.loadingPosts = false;
     }
@@ -794,10 +790,7 @@
     author.className = "post-author";
     author.textContent = post.blogger ? post.blogger.screenName : "未知博主";
     if (post.blogger && post.blogger.verified) {
-      const badge = document.createElement("span");
-      badge.className = "verified-badge";
-      badge.setAttribute("aria-label", "认证用户");
-      author.appendChild(badge);
+      author.appendChild(createVerifiedBadge());
     }
 
     const time = document.createElement("span");
@@ -853,7 +846,8 @@
   // 地址末尾容易粘带的英文标点，链接化时剥掉
   const URL_TRAILING_RE = /[.,;:!?)\]}'"]/;
 
-  function linkifyUrls(root) {
+  // 在文本节点里按正则替换：跳过已在 <a> 内的文本，命中处由 buildReplacement 生成替换节点
+  function replaceTextMatches(root, testRe, matchRe, buildReplacement) {
     const doc = root.ownerDocument;
     const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const targets = [];
@@ -861,39 +855,47 @@
       const node = walker.currentNode;
       // 已在 <a> 内的文本不重复处理
       if (node.parentElement && node.parentElement.closest("a")) continue;
-      if (/https?:\/\//i.test(node.nodeValue)) targets.push(node);
+      if (testRe.test(node.nodeValue)) targets.push(node);
     }
     for (const node of targets) {
       const text = node.nodeValue;
       const frag = doc.createDocumentFragment();
       let last = 0;
       let matched = false;
-      URL_TEXT_RE.lastIndex = 0;
+      matchRe.lastIndex = 0;
       let m;
-      while ((m = URL_TEXT_RE.exec(text))) {
-        let url = m[0];
-        while (url && URL_TRAILING_RE.test(url[url.length - 1])) {
-          const tail = url[url.length - 1];
-          // 成对括号只剥不成对的（如 wiki/A_(B) 的右括号保留）
-          if (tail === ")" && (url.split("(").length - 1) >= (url.split(")").length - 1)) break;
-          if (tail === "]" && (url.split("[").length - 1) >= (url.split("]").length - 1)) break;
-          url = url.slice(0, -1);
-        }
-        if (!url) continue;
+      while ((m = matchRe.exec(text))) {
+        const replacement = buildReplacement(m, text, doc);
+        if (!replacement) continue;
         matched = true;
         if (m.index > last) {
           frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
         }
-        const a = doc.createElement("a");
-        a.setAttribute("href", url);
-        a.textContent = url;
-        frag.appendChild(a);
-        last = m.index + url.length;
+        frag.appendChild(replacement.node);
+        last = m.index + replacement.length;
       }
       if (!matched) continue;
       frag.appendChild(doc.createTextNode(text.slice(last)));
       node.parentNode.replaceChild(frag, node);
     }
+  }
+
+  function linkifyUrls(root) {
+    replaceTextMatches(root, /https?:\/\//i, URL_TEXT_RE, (m, _text, doc) => {
+      let url = m[0];
+      while (url && URL_TRAILING_RE.test(url[url.length - 1])) {
+        const tail = url[url.length - 1];
+        // 成对括号只剥不成对的（如 wiki/A_(B) 的右括号保留）
+        if (tail === ")" && (url.split("(").length - 1) >= (url.split(")").length - 1)) break;
+        if (tail === "]" && (url.split("[").length - 1) >= (url.split("]").length - 1)) break;
+        url = url.slice(0, -1);
+      }
+      if (!url) return null;
+      const a = doc.createElement("a");
+      a.setAttribute("href", url);
+      a.textContent = url;
+      return {node: a, length: url.length};
+    });
   }
 
   // 转发链里的 @用户名: 形式（如 //@tombkeeper: 文本），纯文本时无链接；
@@ -901,65 +903,46 @@
   const MENTION_RE = /@[A-Za-z0-9_\-\u4e00-\u9fff]+(?=:)/g;
 
   function linkifyMentions(root) {
-    const doc = root.ownerDocument;
-    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const targets = [];
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      // 已在 <a> 内的文本不重复处理
-      if (node.parentElement && node.parentElement.closest("a")) continue;
-      if (/@[A-Za-z0-9_\-\u4e00-\u9fff]+:/.test(node.nodeValue)) targets.push(node);
-    }
-    for (const node of targets) {
-      const text = node.nodeValue;
-      const frag = doc.createDocumentFragment();
-      let last = 0;
-      let matched = false;
-      MENTION_RE.lastIndex = 0;
-      let m;
-      while ((m = MENTION_RE.exec(text))) {
-        const mention = m[0];
-        const name = mention.slice(1);
-        matched = true;
-        if (m.index > last) {
-          frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
-        }
-        const a = doc.createElement("a");
-        a.setAttribute("href", "https://weibo.com/n/" + name);
-        a.textContent = mention;
-        frag.appendChild(a);
-        last = m.index + mention.length;
-      }
-      if (!matched) continue;
-      frag.appendChild(doc.createTextNode(text.slice(last)));
-      node.parentNode.replaceChild(frag, node);
-    }
+    replaceTextMatches(root, /@[A-Za-z0-9_\-\u4e00-\u9fff]+:/, MENTION_RE, (m, _text, doc) => {
+      const a = doc.createElement("a");
+      a.setAttribute("href", "https://weibo.com/n/" + m[0].slice(1));
+      a.textContent = m[0];
+      return {node: a, length: m[0].length};
+    });
   }
 
-  function createPostPics(pics, mblogId) {
-    const container = document.createElement("div");
-    container.className = "post-pics" + (pics.length === 1 ? " one-image" : "");
-    const validPics = pics.filter((p) => p.thumbnailUrl || p.originalUrl);
-    validPics.forEach((pic, index) => {
-      const picEl = document.createElement("a");
-      picEl.className = "post-pic";
-      picEl.href = pic.originalUrl || pic.thumbnailUrl;
-      picEl.dataset.mblogId = mblogId;
-      const img = document.createElement("img");
-      // 列表只加载缩略图，与群聊页一致；点击查看时才加载原图
-      img.src = pic.thumbnailUrl || pic.originalUrl;
-      img.alt = "微博图片";
-      img.loading = "lazy";
-      img.decoding = "async";
+  // 单个微博图片格子：列表只加载缩略图，点击查看时才加载原图（本微博与转发共用）
+  function createPicEl(pic, mblogId, className, alt, href, setSize) {
+    const picEl = document.createElement("a");
+    picEl.className = className;
+    picEl.href = href;
+    picEl.dataset.mblogId = mblogId;
+    const img = document.createElement("img");
+    img.src = pic.thumbnailUrl || pic.originalUrl;
+    img.alt = alt;
+    img.loading = "lazy";
+    img.decoding = "async";
+    if (setSize) {
       const width = pic.thumbnailWidth || pic.originalWidth;
       const height = pic.thumbnailHeight || pic.originalHeight;
       if (width > 0 && height > 0) {
         img.width = width;
         img.height = height;
       }
-      // 加载失败时隐藏整个格子，避免碎图图标与 alt 文字
-      img.onerror = () => { picEl.hidden = true; };
-      picEl.appendChild(img);
+    }
+    // 加载失败时隐藏整个格子，避免碎图图标与 alt 文字
+    img.onerror = () => { picEl.hidden = true; };
+    picEl.appendChild(img);
+    return picEl;
+  }
+
+  function createPostPics(pics, mblogId) {
+    const validPics = pics.filter((p) => p.thumbnailUrl || p.originalUrl);
+    const container = document.createElement("div");
+    container.className = "post-pics" + (pics.length === 1 ? " one-image" : "");
+    validPics.forEach((pic, index) => {
+      const picEl = createPicEl(pic, mblogId, "post-pic", "微博图片",
+        pic.originalUrl || pic.thumbnailUrl, true);
       picEl.addEventListener("click", (e) => {
         e.preventDefault();
         openImageViewer(validPics, index);
@@ -1015,18 +998,7 @@
         const pics = document.createElement("div");
         pics.className = "post-retweet-pics";
         validRetweetPics.forEach((pic, index) => {
-          const picEl = document.createElement("a");
-          picEl.className = "post-retweet-pic";
-          picEl.href = "javascript:void(0)";
-          const img = document.createElement("img");
-          // 列表只加载缩略图，与群聊页一致；点击查看时才加载原图
-          img.src = pic.thumbnailUrl || pic.originalUrl;
-          img.alt = "转发微博图片";
-          img.loading = "lazy";
-          img.decoding = "async";
-          // 加载失败时隐藏整个格子，避免碎图图标与 alt 文字
-          img.onerror = () => { picEl.hidden = true; };
-          picEl.appendChild(img);
+          const picEl = createPicEl(pic, mblogId, "post-retweet-pic", "转发微博图片", "javascript:void(0)", false);
           picEl.addEventListener("click", (e) => {
             e.preventDefault();
             openImageViewer(validRetweetPics, index);
