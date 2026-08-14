@@ -450,29 +450,6 @@ h1 {
   scrollbar-gutter: stable;
 }
 
-.messages-shell:has(.load-earlier-button:not(:disabled):not([hidden])) .messages {
-  padding-top: 58px;
-}
-
-.load-earlier-button {
-  position: absolute;
-  z-index: 1;
-  top: 12px;
-  left: 50%;
-  height: 32px;
-  padding: 0 14px;
-  transform: translateX(-50%);
-  border: 1px solid #7fabc9;
-  border-radius: 16px;
-  color: #194d80;
-  background: linear-gradient(#ffffff, #d9eaf6);
-  box-shadow: 0 2px 8px rgb(17 67 115 / 16%);
-}
-
-.load-earlier-button:disabled {
-  display: none;
-}
-
 .message {
   width: 100%;
   display: grid;

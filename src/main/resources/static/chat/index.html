@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="chat.css">
   <script src="weibo-emoji.js" defer></script>
   <script src="marked.min.js" defer></script>
+  <script src="dompurify.min.js" defer></script>
   <script src="chat.js" defer></script>
 </head>
 <body>
@@ -58,8 +59,6 @@
         </header>
 
         <div class="messages-shell">
-          <button class="load-earlier-button" id="load-earlier" type="button"
-                  disabled hidden>加载更早消息</button>
           <div class="messages" id="messages" aria-live="polite"></div>
           <button class="new-messages-button" id="new-messages" type="button" hidden>有新消息</button>
         </div>

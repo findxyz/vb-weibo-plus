@@ -23,7 +23,6 @@
     currentId: document.querySelector("#current-id"),
     currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"),
-    loadEarlier: document.querySelector("#load-earlier"),
     newMessages: document.querySelector("#new-messages"),
     historyOpen: document.querySelector("#history-open"),
     emojiPickerOpen: document.querySelector("#emoji-picker-open"),
@@ -423,11 +422,47 @@
   }
 
   function renderMessages(forceFollow = false) {
-    const ordered = [...state.messages.values()].sort((left, right) =>
-      left.createdAt - right.createdAt || left.mid - right.mid);
+    const ordered = [...state.messages.values()].sort(compareMessages);
     const onLoad = forceFollow ? () => scrollToBottom(true) : stickToBottom;
-    elements.messages.replaceChildren(...ordered.map(message => messageElement(
-      message, null, onLoad)));
+
+    // 已渲染的消息元素按 mid 索引
+    const existingByMid = new Map();
+    for (const el of elements.messages.children) {
+      if (el.dataset.mid) existingByMid.set(Number(el.dataset.mid), el);
+    }
+    const desiredMids = new Set(ordered.map(message => message.mid));
+
+    // 无交集时直接全量重建（切换群聊、首次加载）
+    const hasCommon = ordered.some(message => existingByMid.has(message.mid));
+    if (!hasCommon) {
+      elements.messages.replaceChildren(...ordered.map(message => messageElement(
+        message, null, onLoad)));
+      return;
+    }
+
+    // 移除不再存在的消息
+    for (const [mid, el] of existingByMid) {
+      if (!desiredMids.has(mid)) el.remove();
+    }
+
+    // 按顺序插入新消息、校正位置
+    let prevEl = null;
+    for (const message of ordered) {
+      let el = existingByMid.get(message.mid);
+      if (el) {
+        const expectedNext = prevEl ? prevEl.nextElementSibling
+          : elements.messages.firstElementChild;
+        if (el !== expectedNext) {
+          if (prevEl) prevEl.after(el);
+          else elements.messages.prepend(el);
+        }
+      } else {
+        el = messageElement(message, null, onLoad);
+        if (prevEl) prevEl.after(el);
+        else elements.messages.prepend(el);
+      }
+      prevEl = el;
+    }
   }
 
   function messageMedia(message, onLoad) {
@@ -456,7 +491,7 @@
         video.setAttribute("aria-label", "群聊视频");
         button.replaceWith(video);
         video.play().catch(() => {
-          video.controls = true;
+          // 自动播放被浏览器阻止时静默处理，controls 已开启供用户手动播放
         });
       }, {once: true});
     } else {
@@ -481,18 +516,21 @@
     elements.imageViewer.showModal();
   }
 
+  const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    hour12: false
+  });
+  const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false
+  });
+
   function formatTime(timestamp) {
-    return new Intl.DateTimeFormat("zh-CN", {
-      month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
-      hour12: false
-    }).format(new Date(timestamp));
+    return timeFormatter.format(new Date(timestamp));
   }
 
   function formatDateTime(timestamp) {
-    return new Intl.DateTimeFormat("zh-CN", {
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hour12: false
-    }).format(new Date(timestamp));
+    return dateTimeFormatter.format(new Date(timestamp));
   }
 
   function historySummary(message) {
@@ -746,8 +784,6 @@
     state.nextBeforeMid = null;
     state.hasMore = false;
     elements.newMessages.hidden = true;
-    elements.loadEarlier.disabled = true;
-    elements.loadEarlier.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     updateCurrentGroupHeader();
@@ -829,13 +865,13 @@
       state.hasMore = result.hasMore;
       if (isLatestPage) state.followingLatest = true;
       renderMessages(isLatestPage);
-      elements.loadEarlier.disabled = !state.hasMore;
       if (isLatestPage) {
         scrollToBottom(true);
       } else {
         restoreScrollAnchor(anchor);
       }
-    } catch {
+    } catch (error) {
+      console.warn("加载消息失败：", error);
     }
   }
 
@@ -869,7 +905,7 @@
   }
 
   async function refreshMessages() {
-    if (!state.currentGid || state.refreshing || state.loadingEarlier || document.hidden) return;
+    if (!state.currentGid || state.refreshing || document.hidden) return;
     state.refreshing = true;
     const gid = state.currentGid;
     // 标签页隐藏期间视为未在阅读，回来后不自动贴底，保留上次阅读位置
@@ -892,12 +928,34 @@
           elements.newMessages.hidden = false;
         }
       }
-      elements.loadEarlier.disabled = !state.hasMore;
-    } catch {
+    } catch (error) {
+      console.warn("刷新消息失败：", error);
     } finally {
       state.refreshing = false;
       if (state.currentGid === gid) maybeLoadEarlierMessages();
     }
+  }
+
+  function groupsEqual(prev, next) {
+    if (prev.length !== next.length) return false;
+    return prev.every((group, i) => {
+      const other = next[i];
+      return group.gid === other.gid
+        && group.name === other.name
+        && group.avatar === other.avatar
+        && group.latestMessage === other.latestMessage
+        && group.latestSenderName === other.latestSenderName
+        && group.messageCount === other.messageCount
+        && group.memberCount === other.memberCount
+        && group.maxMember === other.maxMember
+        && sameAdmins(group.admins, other.admins);
+    });
+  }
+
+  function sameAdmins(a, b) {
+    if (a === b) return true;
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((v, i) => v === b[i]);
   }
 
   async function refreshGroups() {
@@ -905,11 +963,12 @@
     state.refreshingGroups = true;
     try {
       const groups = await fetchJson("/chat/groups", {cache: "no-store"});
-      if (JSON.stringify(groups) === JSON.stringify(state.groups)) return;
+      if (groupsEqual(state.groups, groups)) return;
       state.groups = groups;
       renderGroups();
       updateCurrentGroupHeader();
-    } catch {
+    } catch (error) {
+      console.warn("刷新群聊列表失败：", error);
     } finally {
       state.refreshingGroups = false;
     }
@@ -971,7 +1030,8 @@
       } else {
         elements.loginExpired.hidden = true;
       }
-    } catch {
+    } catch (error) {
+      console.warn("检查登录状态失败：", error);
     }
   }
 
@@ -1406,6 +1466,11 @@
 
   let currentAnalysisView = null;
 
+  function renderMarkdown(text) {
+    const html = window.marked ? window.marked.parse(text) : text;
+    return window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
+  }
+
   async function loadAnalysisDetail(id) {
     elements.analysisResults.hidden = true;
     elements.analysisDetail.hidden = false;
@@ -1418,9 +1483,7 @@
       currentAnalysisView = result;
       renderAnalysisMeta(result);
       elements.analysisDownload.disabled = false;
-      elements.analysisDetailContent.innerHTML = window.marked
-        ? window.marked.parse(result.result)
-        : result.result;
+      elements.analysisDetailContent.innerHTML = renderMarkdown(result.result);
       elements.analysisDetailContent.scrollTop = 0;
     } catch {
       elements.analysisFeedback.textContent = "加载分析详情失败。";
@@ -1448,11 +1511,18 @@
     elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在分析，请稍候…</div>';
     elements.analysisFeedback.textContent = "";
     let streamed = "";
+    let renderScheduled = false;
     const renderStream = () => {
-      elements.analysisDetailContent.innerHTML = window.marked
-        ? window.marked.parse(streamed)
-        : streamed;
+      elements.analysisDetailContent.innerHTML = renderMarkdown(streamed);
       elements.analysisDetailContent.scrollTop = elements.analysisDetailContent.scrollHeight;
+    };
+    const scheduleRender = () => {
+      if (renderScheduled) return;
+      renderScheduled = true;
+      requestAnimationFrame(() => {
+        renderScheduled = false;
+        renderStream();
+      });
     };
     try {
       const params = new URLSearchParams({
@@ -1483,7 +1553,7 @@
           if (!parsed) continue;
           if (parsed.event === "delta") {
             streamed += parsed.data;
-            renderStream();
+            scheduleRender();
           } else if (parsed.event === "done") {
             doneView = JSON.parse(parsed.data);
           } else if (parsed.event === "error") {
@@ -1620,13 +1690,21 @@
     }
     refreshView();
   });
-  setInterval(refreshView, 1_000);
+  setInterval(refreshView, 3_000);
 
   // 监听消息子树变化（renderMessages 重建 DOM 等）跟随到底部
   // 图片异步加载撑开由 messageMedia 的 load 回调（stickToBottom）处理
   // ResizeObserver 监听固定高度 overflow 容器不会因 children 撑开触发，故改用 MutationObserver
-  new MutationObserver(() => scrollToBottom())
-    .observe(elements.messages, {childList: true, subtree: true});
+  // rAF 防抖：同一帧内多次子树变更只触发一次 scrollToBottom
+  let scrollScheduled = false;
+  new MutationObserver(() => {
+    if (scrollScheduled) return;
+    scrollScheduled = true;
+    requestAnimationFrame(() => {
+      scrollScheduled = false;
+      scrollToBottom();
+    });
+  }).observe(elements.messages, {childList: true, subtree: true});
 
   elements.windowToggle.addEventListener("click", () => { location.href = "/post/index.html"; });
 

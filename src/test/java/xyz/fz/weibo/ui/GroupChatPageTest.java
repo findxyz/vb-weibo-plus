@@ -861,8 +861,6 @@ class GroupChatPageTest {
         assertThat(page.locator(".message .bubble"))
                 .hasText(new String[]{"最早消息", "较早消息", "较新消息"});
         Assertions.assertThat(earlierPageRequests.get()).isEqualTo(1);
-        assertThat(page.locator("#load-earlier")).isDisabled();
-        assertThat(page.locator("#load-earlier")).isHidden();
 
         page.close();
     }
