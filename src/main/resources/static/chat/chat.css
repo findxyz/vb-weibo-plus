@@ -545,6 +545,50 @@ h1 {
   box-shadow: 0 2px 8px rgb(17 67 115 / 28%);
 }
 
+.follow-indicator {
+  position: absolute;
+  right: 26px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: rgb(255 255 255 / 85%);
+  box-shadow: 0 2px 8px rgb(17 67 115 / 18%);
+  pointer-events: none;
+}
+
+.follow-indicator svg {
+  width: 17px;
+  height: 17px;
+}
+
+.follow-indicator path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.follow-indicator .follow-slash {
+  display: none;
+}
+
+.follow-indicator.paused {
+  border-color: var(--focus);
+  color: #9a6200;
+  background: #fff7e6;
+}
+
+.follow-indicator.paused .follow-slash {
+  display: block;
+  stroke-width: 2.4;
+}
+
+
 .media-preview,
 .message video {
   width: min(320px, 70vw);

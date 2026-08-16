@@ -60,6 +60,13 @@
 
         <div class="messages-shell">
           <div class="messages" id="messages" aria-live="polite"></div>
+          <div class="follow-indicator" id="follow-indicator" role="status" aria-label="正在跟随最新消息">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v10.5M7.5 10.5 12 15l4.5-4.5"/>
+              <path d="M5.5 19.5h13"/>
+              <path class="follow-slash" d="M4.5 4.5 19.5 19.5"/>
+            </svg>
+          </div>
           <button class="new-messages-button" id="new-messages" type="button" hidden>有新消息</button>
         </div>
 

@@ -26,6 +26,7 @@
     currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"),
     newMessages: document.querySelector("#new-messages"),
+    followIndicator: document.querySelector("#follow-indicator"),
     historyOpen: document.querySelector("#history-open"),
     emojiPickerOpen: document.querySelector("#emoji-picker-open"),
     emojiPanel: document.querySelector("#emoji-panel"),
@@ -91,6 +92,8 @@
     analysisDetailMeta: document.querySelector("#analysis-detail-meta"),
     windowToggle: document.querySelector(".window-control.toggle")
   };
+  // followingLatest 用存取器驱动跟随状态图标，所有赋值点自动同步视图
+  let followingLatest = true;
   const state = {
     groups: [],
     currentGid: null,
@@ -100,7 +103,13 @@
     refreshingGroups: false,
     refreshing: false,
     loadingEarlier: false,
-    followingLatest: true,
+    get followingLatest() {
+      return followingLatest;
+    },
+    set followingLatest(value) {
+      followingLatest = value;
+      updateFollowIndicator();
+    },
     sending: false,
     pendingAttachment: null,
     lastSizeGid: null,
@@ -884,6 +893,14 @@
     }
   }
 
+  function updateFollowIndicator() {
+    const following = state.followingLatest;
+    elements.followIndicator.classList.toggle("paused", !following);
+    elements.followIndicator.setAttribute("aria-label", following
+      ? "正在跟随最新消息"
+      : "已暂停跟随最新消息，新消息不会自动滚动");
+  }
+
   function isNearBottom() {
     return elements.messages.scrollHeight
       - elements.messages.scrollTop
@@ -1649,6 +1666,7 @@
 
   elements.windowToggle.addEventListener("click", () => { location.href = "/post/index.html"; });
 
+  updateFollowIndicator();
   initialize();
   checkLoginStatus();
 })();
