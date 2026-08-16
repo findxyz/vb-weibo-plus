@@ -46,3 +46,6 @@ desktop.ini
 
 # 运行脚本（本地分发用，不进版本控制）
 run-target.bat
+
+# 调试脚本与本地 playwright 依赖（浏览器复现回路，不进版本控制）
+.scratch/debug/
