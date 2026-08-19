@@ -110,7 +110,7 @@ class SyncTaskTest {
         assertThat(scheduled).isNotNull();
         assertThat(scheduled.fixedDelayString())
                 .isEqualTo("${weibo.chat.sync-group-fixed-delay:20s}");
-        assertThat(scheduled.initialDelay()).isEqualTo(3_000);
+        assertThat(scheduled.initialDelay()).isEqualTo(5_000);
         assertThat(WeiboApplication.class).hasAnnotation(EnableScheduling.class);
     }
 
@@ -143,7 +143,7 @@ class SyncTaskTest {
 
         assertThat(scheduled).isNotNull();
         assertThat(scheduled.fixedDelay()).isEqualTo(600_000);
-        assertThat(scheduled.initialDelay()).isEqualTo(600_000);
+        assertThat(scheduled.initialDelay()).isEqualTo(5_000);
     }
 
     private GroupRecord group(long gid) {

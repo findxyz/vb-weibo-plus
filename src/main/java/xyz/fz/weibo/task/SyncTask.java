@@ -51,7 +51,7 @@ public class SyncTask implements CommandLineRunner {
         }
     }
 
-    @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:20s}", initialDelay = 3_000)
+    @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:20s}", initialDelay = 5_000)
     public void syncGroupMessages() {
         if (autoSyncGids.isEmpty()) {
             return;
@@ -68,7 +68,7 @@ public class SyncTask implements CommandLineRunner {
         }
     }
 
-    @Scheduled(fixedDelay = 600_000, initialDelay = 600_000)
+    @Scheduled(fixedDelay = 600_000, initialDelay = 5_000)
     public void syncBloggerBlogs() {
         for (var blogger : postService.queryBloggers()) {
             try {
