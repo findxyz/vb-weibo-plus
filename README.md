@@ -1,3 +1,5 @@
+
+
 # vb-weibo-plus
 
 本机单用户微博客户端。用一个微博账号扫码登录后，服务在后台将群聊与博主发布的最新微博增量同步到本地 SQLite，并提供两个网页界面：
@@ -69,6 +71,7 @@ graph TB
 
 - **JDK 21**
 - **Maven 3.9+**
+- **Playwright Chromium**：首次扫码登录前需执行 `mvn exec:java -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install chromium"` 安装浏览器。
 - **ffmpeg**（可选，但推荐安装）：群聊图片预览在遇到 HEIC 格式（苹果设备原图，微博会错标为 image/jpeg）时，依赖系统 ffmpeg 将其转码为 JPEG 以便桌面浏览器显示。未安装时 HEIC 图片会原样透传（浏览器无法显示），但不影响其他格式图片和其余功能。
 
 #### ffmpeg 安装
