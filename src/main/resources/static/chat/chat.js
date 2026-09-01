@@ -5,6 +5,7 @@
   const HISTORY_SEARCH_PAGE_SIZE = 20;
   const EARLIER_LOAD_THRESHOLD = 120;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
+  const IMMERSIVE_KEY = "weibo-chat:immersive";
   const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
   const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
   const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
@@ -90,6 +91,8 @@
     analysisDownload: document.querySelector("#analysis-download"),
     analysisDetailContent: document.querySelector("#analysis-detail-content"),
     analysisDetailMeta: document.querySelector("#analysis-detail-meta"),
+    conversation: document.querySelector(".conversation"),
+    immersiveToggle: document.querySelector("#immersive-toggle"),
     windowToggle: document.querySelector(".window-control.toggle")
   };
   // followingLatest 用存取器驱动跟随状态图标，所有赋值点自动同步视图
@@ -1700,6 +1703,23 @@
   }).observe(elements.messages, {childList: true, subtree: true});
 
   elements.windowToggle.addEventListener("click", () => { location.href = "/post/index.html"; });
+
+  // 沉浸阅读：收起群简介栏与输入区，状态持久化，刷新后保持
+  function applyImmersive(enabled) {
+    elements.conversation.classList.toggle("immersive", enabled);
+    elements.immersiveToggle.setAttribute("aria-pressed", String(enabled));
+    const label = enabled ? "退出沉浸阅读" : "进入沉浸阅读";
+    elements.immersiveToggle.setAttribute("aria-label", label);
+    elements.immersiveToggle.setAttribute("title", label);
+  }
+
+  elements.immersiveToggle.addEventListener("click", () => {
+    const enabled = !elements.conversation.classList.contains("immersive");
+    localStorage.setItem(IMMERSIVE_KEY, enabled ? "1" : "0");
+    applyImmersive(enabled);
+  });
+
+  applyImmersive(localStorage.getItem(IMMERSIVE_KEY) === "1");
 
   updateFollowIndicator();
   initialize();

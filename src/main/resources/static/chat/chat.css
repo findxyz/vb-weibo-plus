@@ -150,6 +150,18 @@ h1 {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='14' viewBox='0 0 12 14'%3E%3Cpath d='M1 3h7M6 1l3 2-3 2' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M11 11H4M6 9L3 11l3 2' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
+.window-control.immersive {
+  background: linear-gradient(#7cc6f7, #0f6cbd 72%);
+}
+
+.window-control.immersive::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 1v10M3.5 3.5 6 1l2.5 2.5M3.5 8.5 6 11l2.5-2.5' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.window-control.immersive[aria-pressed="true"] {
+  background: linear-gradient(#fcd34d, #d97706 72%);
+}
+
 .workspace {
   min-height: 0;
   display: grid;
@@ -362,6 +374,16 @@ h1 {
   display: grid;
   grid-template-rows: 104px minmax(0, 1fr) 154px;
   background: var(--surface);
+}
+
+/* 沉浸阅读：收起群简介栏与输入区，消息区独占整列 */
+.conversation.immersive {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.conversation.immersive .group-header,
+.conversation.immersive .composer {
+  display: none;
 }
 
 .composer-tools button,
