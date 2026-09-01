@@ -103,6 +103,7 @@
     refreshingGroups: false,
     refreshing: false,
     loadingEarlier: false,
+    pendingCatchUp: false,
     get followingLatest() {
       return followingLatest;
     },
@@ -793,6 +794,7 @@
     state.messages.clear();
     state.beforeCursor = null;
     state.hasMore = false;
+    state.pendingCatchUp = false;
     elements.newMessages.hidden = true;
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
@@ -924,13 +926,18 @@
     if (!state.currentGid || state.refreshing || document.hidden) return;
     state.refreshing = true;
     const gid = state.currentGid;
-    // 标签页隐藏期间视为未在阅读，回来后不自动贴底，保留上次阅读位置
-    const followedLatest = state.followingLatest && isNearBottom();
-    const knownMids = new Set(state.messages.keys());
-    const query = new URLSearchParams({
-      gid: String(gid), size: String(PAGE_SIZE)
-    });
     try {
+      if (state.pendingCatchUp && state.messages.size > 0) {
+        // 回到页面后追平离开期间的缺口，追平会一直翻到最新，不再走常规刷新
+        if (await catchUpMessages(gid)) state.pendingCatchUp = false;
+        return;
+      }
+      // 标签页隐藏期间视为未在阅读，回来后不自动贴底，保留上次阅读位置
+      const followedLatest = state.followingLatest && isNearBottom();
+      const knownMids = new Set(state.messages.keys());
+      const query = new URLSearchParams({
+        gid: String(gid), size: String(PAGE_SIZE)
+      });
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (state.currentGid !== gid) return;
       result.items.forEach(message => state.messages.set(message.mid, message));
@@ -950,6 +957,33 @@
       state.refreshing = false;
       if (state.currentGid === gid) maybeLoadEarlierMessages();
     }
+  }
+
+  // 回到页面后从已加载的最新一条起，用 after 游标逐页向前补拉，直到追平最新
+  async function catchUpMessages(gid) {
+    const latest = [...state.messages.values()].reduce((left, right) =>
+      compareMessages(left, right) >= 0 ? left : right);
+    let cursor = {createdAt: latest.createdAt, mid: latest.mid};
+    let added = false;
+    while (!document.hidden && state.currentGid === gid) {
+      const query = new URLSearchParams({
+        gid: String(gid), size: String(PAGE_SIZE),
+        afterCreatedAt: String(cursor.createdAt), afterMid: String(cursor.mid)
+      });
+      const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
+      if (state.currentGid !== gid) return false;
+      result.items.forEach(message => state.messages.set(message.mid, message));
+      if (result.items.length > 0) {
+        added = true;
+        renderMessages();
+      }
+      if (!result.hasMore || result.nextAfterCreatedAt === null
+        || result.nextAfterMid === null) break;
+      cursor = {createdAt: result.nextAfterCreatedAt, mid: result.nextAfterMid};
+    }
+    // 追平后不自动贴底，由“新消息”按钮提示，点击恢复跟随
+    if (added && !state.followingLatest) elements.newMessages.hidden = false;
+    return !document.hidden && state.currentGid === gid;
   }
 
   function groupsEqual(prev, next) {
@@ -1642,8 +1676,9 @@
   window.addEventListener("focus", refreshView);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      // 离开当前标签页，挂起跟随最新，回来后由滚动或点击新消息恢复
+      // 离开当前标签页，挂起跟随最新并标记待追平，回来后补齐缺口
       state.followingLatest = false;
+      state.pendingCatchUp = true;
       return;
     }
     refreshView();

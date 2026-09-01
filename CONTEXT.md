@@ -44,6 +44,10 @@ _Avoid_: backfill sync, history sync, UI pull
 Re-reading local data so the browser UI reflects newly captured content. It never calls Weibo or starts Background Capture.
 _Avoid_: sync, capture, remote refresh
 
+**Catch-up**:
+A View Refresh performed when the chat page becomes visible again after being away: paging forward from the last loaded message boundary until reaching the newest captured Group Messages, so no gap remains between what was read and what was captured. It neither calls Weibo nor writes to the store.
+_Avoid_: 回来补拉, backfill sync, catch-up sync
+
 **Media Send**:
 Posting an image or video into a Weibo group chat by orchestrating Weibo's multi-step upload (init -> upload -> send_message). Unlike Media Proxy which is read-only download, Media Send uploads local bytes upstream to Weibo using the current Credential.
 _Avoid_: media upload, file send, media post
