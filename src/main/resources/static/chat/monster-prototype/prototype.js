@@ -59,29 +59,39 @@ function render() {
   const actorY = ground - h;
   const cardX = targetX + 22;
   const awake = t >= 4.65;
-  box(cardX - 32, ground - 131, 64, 64, awake ? '#d6ece6' : '#bde7f5', 20);
-  text([...memberName()][0], cardX, ground - 88, 28, awake ? '#285e78' : '#6e9cad');
+  ctx.save();
+  ctx.globalAlpha = awake ? 1 : 0.92;
+  ctx.fillStyle = awake ? '#d6ece6' : '#bde7f5';
+  ctx.beginPath();
+  ctx.arc(cardX, ground - 105, 34, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  text([...memberName()][0], cardX, ground - 96, 28, awake ? '#285e78' : '#6e9cad');
   if (t < 4.025) {
-    // 半透明冰块包住头像，用裂纹线表现“被冻住”。
+    // 半透明水泡包住头像，用高光表现泡泡表面。
     ctx.save();
-    ctx.globalAlpha = 0.92;
-    box(cardX - 48, ground - 145, 96, 100, '#a9dced', 16);
-    ctx.globalAlpha = 0.8;
-    ctx.strokeStyle = '#f4fdff';
+    ctx.globalAlpha = 0.78;
+    ctx.strokeStyle = '#e9fbff';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(cardX - 28, ground - 125); ctx.lineTo(cardX - 8, ground - 106); ctx.lineTo(cardX - 18, ground - 82);
-    ctx.moveTo(cardX + 26, ground - 132); ctx.lineTo(cardX + 9, ground - 108); ctx.lineTo(cardX + 23, ground - 87);
-    ctx.moveTo(cardX - 2, ground - 143); ctx.lineTo(cardX + 2, ground - 123); ctx.lineTo(cardX - 5, ground - 105);
+    ctx.arc(cardX, ground - 105, 48, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.ellipse(cardX - 20, ground - 137, 9, 14, -0.65, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
-    text('冰封中', cardX, ground - 28, 13, '#4f8a9b');
+    text('泡泡中', cardX, ground - 28, 13, '#4f8a9b');
   } else if (t < 4.65) {
     const p = (t - 4.025) / .625;
     ctx.save();
     ctx.globalAlpha = 1 - p;
-    for (let i = 0; i < 5; i++) {
-      box(cardX - 38 + i * 17 + (i - 2) * p * 20, ground - 116 + p * p * 85 - p * 35, 12, 12, '#9dd8e9', 2);
+    for (let i = 0; i < 7; i++) {
+      const angle = i * 0.9;
+      const radius = 34 + p * 44;
+      const size = 5 + (i % 3) * 2;
+      box(cardX + Math.cos(angle) * radius - size / 2, ground - 105 + Math.sin(angle) * radius - size / 2, size, size, '#9dd8e9', size / 2);
     }
     ctx.restore();
   } else {
@@ -114,7 +124,7 @@ function render() {
     box(x + 15, y + 16, 44, 44, '#d6ece6');
     text([...memberName()][0], x + 37, y + 46, 23, '#285e78');
     text(`${memberName()} 回归了！`, x + 73, y + 34, 17, '#ffffff', 'left', panelWidth - 86);
-    text('冰封解除，欢迎归队', x + 73, y + 58, 12, '#c3dce5', 'left');
+    text('泡泡破裂，欢迎归队', x + 73, y + 58, 12, '#c3dce5', 'left');
     ctx.restore();
   }
 }
