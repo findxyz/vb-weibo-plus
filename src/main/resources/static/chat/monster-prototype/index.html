@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>怪兽回归 · 动画原型</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #eaf0f4; color: #243949; font: 15px/1.6 system-ui, sans-serif; }
+  main { max-width: 1050px; margin: 32px auto; padding: 0 20px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
+  h1 { font-size: 24px; margin: 0; }
+  p { margin: 4px 0; color: #607483; }
+  .badge { font-size: 12px; letter-spacing: 2px; color: #a75822; }
+  button,input { font: inherit; }
+  button { border: 1px solid #c3d1db; border-radius: 9px; padding: 8px 16px; color: inherit; background: white; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: #285e78; color: white; border-color: #285e78; }
+  button:focus-visible,input:focus-visible { outline: 3px solid #de9e53; outline-offset: 3px; }
+  .chat { background: #f7fafc; border: 1px solid #c6d3dd; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 40px #28415112; }
+  .chat-head { padding: 16px 22px; background: white; border-bottom: 1px solid #dbe4eb; }
+  .chat-head small { color: #77909f; margin-left: 12px; }
+  .scene { height: 450px; position: relative; overflow: hidden; }
+  .messages { padding: 24px; }
+  .message { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 22px; }
+  .avatar { width: 36px; height: 36px; background: #d3e6e5; color: #376966; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; }
+  .message small { color: #7c8f9c; }
+  .message p { background: white; border: 1px solid #e0e7ed; border-radius: 0 12px 12px; padding: 8px 12px; color: #435967; margin-top: 4px; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .composer { padding: 15px 22px; background: white; border-top: 1px solid #dbe4eb; color: #94a4b0; }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 18px 0 10px; }
+  input[type=text] { width: 126px; padding: 7px 10px; border: 1px solid #c3d1db; border-radius: 8px; }
+  .timeline { display: flex; align-items: center; gap: 14px; }
+  input[type=range] { flex: 1; min-width: 0; accent-color: #285e78; }
+  output { min-width: 145px; font-variant-numeric: tabular-nums; font-size: 13px; }
+  footer { margin-top: 20px; font-size: 12px; color: #788b99; }
+  a { color: #376b87; }
+  @media(max-width:600px) { main { margin: 16px auto; padding: 0 12px; } header { display: block; } h1 { font-size: 21px; } .messages { padding: 16px; } .scene { height: 440px; } .chat-head small { display: block; margin: 0; } }
+</style>
+<main>
+  <header><div><span class="badge">可播放原型</span><h1>这次回归，动静大一点。</h1><p>怪兽入场 → 指点 → 踢爆潜水卡片 → 欢迎回归 → 雷欧登场、飞离</p></div></header>
+  <section class="chat" aria-label="模拟群聊">
+    <div class="chat-head"><strong>群聊 · 回归庆祝</strong><small>演示消息</small></div>
+    <div class="scene">
+      <div class="messages">
+        <div class="message"><span class="avatar">群</span><div><small>群友 · 14:20</small><p>好久没见你冒泡了。</p></div></div>
+        <div class="message"><span class="avatar" id="member-avatar">小</span><div><small><span id="member-name">小明</span> · 刚刚</small><p>我回来啦！</p></div></div>
+      </div>
+      <canvas aria-label="怪兽回归动画"></canvas>
+    </div>
+    <div class="composer">在这里继续聊天……</div>
+  </section>
+  <div class="controls">
+    <label>成员 <input id="name" type="text" value="小明" maxlength="12"></label>
+    <button id="play" class="primary" disabled>播放回归动画</button>
+    <button id="pause" disabled>暂停</button><button id="skip" disabled>跳过</button>
+  </div>
+  <div class="timeline"><input id="seek" type="range" min="0" max="9" step="0.01" value="0" aria-label="动画进度" disabled><output aria-live="polite">正在加载素材……</output></div>
+  <footer>独立原型 · 不连接聊天数据 · 当前无音效<br>动画素材来源：<a href="https://github.com/531149627/MonsterDeleter">MonsterDeleter</a>（原项目标注仅供娱乐与学习）。</footer>
+</main>
+<script src="prototype.js"></script>
+</html>
