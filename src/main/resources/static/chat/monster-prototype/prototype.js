@@ -56,6 +56,7 @@ function render() {
   const targetX = width * .58;
   const actorX = targetX - actorWidth + 8;
   const ground = height - 28;
+  const targetY = ground - 165;
   const actorY = ground - h;
   const cardX = targetX + 22;
   const awake = t >= 4.65;
@@ -63,10 +64,10 @@ function render() {
   ctx.globalAlpha = awake ? 1 : 0.92;
   ctx.fillStyle = awake ? '#d6ece6' : '#bde7f5';
   ctx.beginPath();
-  ctx.arc(cardX, ground - 105, 34, 0, Math.PI * 2);
+  ctx.arc(cardX, targetY, 34, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  text([...memberName()][0], cardX, ground - 96, 28, awake ? '#285e78' : '#6e9cad');
+  text([...memberName()][0], cardX, targetY + 9, 28, awake ? '#285e78' : '#6e9cad');
   if (t < 4.2) {
     // 半透明水泡包住头像，用高光表现泡泡表面。
     ctx.save();
@@ -74,15 +75,15 @@ function render() {
     ctx.strokeStyle = '#e9fbff';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(cardX, ground - 105, 48, 0, Math.PI * 2);
+    ctx.arc(cardX, targetY, 48, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = '#ffffff';
     ctx.globalAlpha = 0.9;
     ctx.beginPath();
-    ctx.ellipse(cardX - 20, ground - 137, 9, 14, -0.65, 0, Math.PI * 2);
+    ctx.ellipse(cardX - 20, targetY - 32, 9, 14, -0.65, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    text('泡泡中', cardX, ground - 28, 13, '#4f8a9b');
+    text('泡泡中', cardX, targetY + 77, 13, '#4f8a9b');
   } else if (t < 4.65) {
     const p = (t - 4.2) / .45;
     ctx.save();
@@ -91,11 +92,11 @@ function render() {
       const angle = i * 0.9;
       const radius = 34 + p * 44;
       const size = 5 + (i % 3) * 2;
-      box(cardX + Math.cos(angle) * radius - size / 2, ground - 105 + Math.sin(angle) * radius - size / 2, size, size, '#9dd8e9', size / 2);
+      box(cardX + Math.cos(angle) * radius - size / 2, targetY + Math.sin(angle) * radius - size / 2, size, size, '#9dd8e9', size / 2);
     }
     ctx.restore();
   } else {
-    text('已冒泡', cardX, ground - 28, 13, '#376966');
+    text('已冒泡', cardX, targetY + 77, 13, '#376966');
   }
   if (t < 2) sprite('walk', Math.floor(t * 10) % 15, -actorWidth + (actorX + actorWidth) * t / 2, actorY, h);
   else if (t < 3.4) sprite('point', 11 + Math.min(3, Math.floor((t - 2) * 8)), actorX, actorY, h);
