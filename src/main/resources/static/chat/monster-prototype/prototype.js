@@ -59,21 +59,33 @@ function render() {
   const actorY = ground - h;
   const cardX = targetX + 22;
   const awake = t >= 4.65;
-  box(cardX - 32, ground - 131, 64, 64, awake ? '#d6ece6' : '#e1e6ea', 20);
-  text([...memberName()][0], cardX, ground - 88, 28, awake ? '#285e78' : '#95a3ad');
+  box(cardX - 32, ground - 131, 64, 64, awake ? '#d6ece6' : '#bde7f5', 20);
+  text([...memberName()][0], cardX, ground - 88, 28, awake ? '#285e78' : '#6e9cad');
   if (t < 4.025) {
-    box(cardX - 42, ground - 65, 84, 30, '#667987', 8);
-    text('潜水中', cardX, ground - 44, 14, '#ffffff');
+    // 半透明冰块包住头像，用裂纹线表现“被冻住”。
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    box(cardX - 48, ground - 145, 96, 100, '#a9dced', 16);
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = '#f4fdff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cardX - 28, ground - 125); ctx.lineTo(cardX - 8, ground - 106); ctx.lineTo(cardX - 18, ground - 82);
+    ctx.moveTo(cardX + 26, ground - 132); ctx.lineTo(cardX + 9, ground - 108); ctx.lineTo(cardX + 23, ground - 87);
+    ctx.moveTo(cardX - 2, ground - 143); ctx.lineTo(cardX + 2, ground - 123); ctx.lineTo(cardX - 5, ground - 105);
+    ctx.stroke();
+    ctx.restore();
+    text('冰封中', cardX, ground - 28, 13, '#4f8a9b');
   } else if (t < 4.65) {
     const p = (t - 4.025) / .625;
     ctx.save();
     ctx.globalAlpha = 1 - p;
     for (let i = 0; i < 5; i++) {
-      box(cardX - 38 + i * 17 + (i - 2) * p * 20, ground - 60 + p * p * 50 - p * 35, 12, 9, '#667987', 2);
+      box(cardX - 38 + i * 17 + (i - 2) * p * 20, ground - 116 + p * p * 85 - p * 35, 12, 12, '#9dd8e9', 2);
     }
     ctx.restore();
   } else {
-    text('已冒泡', cardX, ground - 44, 13, '#376966');
+    text('已解冻', cardX, ground - 28, 13, '#376966');
   }
   if (t < 2) sprite('walk', Math.floor(t * 10) % 15, -actorWidth + (actorX + actorWidth) * t / 2, actorY, h);
   else if (t < 3.4) sprite('point', 11 + Math.min(3, Math.floor((t - 2) * 8)), actorX, actorY, h);
@@ -102,7 +114,7 @@ function render() {
     box(x + 15, y + 16, 44, 44, '#d6ece6');
     text([...memberName()][0], x + 37, y + 46, 23, '#285e78');
     text(`${memberName()} 回归了！`, x + 73, y + 34, 17, '#ffffff', 'left', panelWidth - 86);
-    text('潜水结束，欢迎归队', x + 73, y + 58, 12, '#c3dce5', 'left');
+    text('冰封解除，欢迎归队', x + 73, y + 58, 12, '#c3dce5', 'left');
     ctx.restore();
   }
 }
