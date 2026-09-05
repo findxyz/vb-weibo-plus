@@ -14,7 +14,7 @@ let last = 0;
 let width = 0;
 let height = 0;
 let loaded = false;
-const phases = ['入场', '指点', '踢击', '欢迎回归', '雷欧登场', '飞离', '播放结束'];
+const phases = ['入场', '指点', '轻戳水泡', '欢迎回归', '雷欧登场', '飞离', '播放结束'];
 
 function memberName() { return nameInput.value.trim() || '小明'; }
 
@@ -47,7 +47,7 @@ function render() {
   ctx.clearRect(0, 0, width, height);
   if (!loaded) return;
   const t = time;
-  const phase = t < 2 ? 0 : t < 3.4 ? 1 : t < 4.025 ? 2 : t < 5.3 ? 3 : t < 7.175 ? 4 : t < 9 ? 5 : 6;
+  const phase = t < 2 ? 0 : t < 3.4 ? 1 : t < 4.2 ? 2 : t < 5.3 ? 3 : t < 7.175 ? 4 : t < 9 ? 5 : 6;
   output.value = `${t.toFixed(1)} / 9.0 秒 · ${phases[phase]}`;
   seek.value = t;
   if (t >= 9) return;
@@ -67,7 +67,7 @@ function render() {
   ctx.fill();
   ctx.restore();
   text([...memberName()][0], cardX, ground - 96, 28, awake ? '#285e78' : '#6e9cad');
-  if (t < 4.025) {
+  if (t < 4.2) {
     // 半透明水泡包住头像，用高光表现泡泡表面。
     ctx.save();
     ctx.globalAlpha = 0.78;
@@ -84,7 +84,7 @@ function render() {
     ctx.restore();
     text('泡泡中', cardX, ground - 28, 13, '#4f8a9b');
   } else if (t < 4.65) {
-    const p = (t - 4.025) / .625;
+    const p = (t - 4.2) / .45;
     ctx.save();
     ctx.globalAlpha = 1 - p;
     for (let i = 0; i < 7; i++) {
@@ -99,7 +99,7 @@ function render() {
   }
   if (t < 2) sprite('walk', Math.floor(t * 10) % 15, -actorWidth + (actorX + actorWidth) * t / 2, actorY, h);
   else if (t < 3.4) sprite('point', 11 + Math.min(3, Math.floor((t - 2) * 8)), actorX, actorY, h);
-  else if (t < 5.3) sprite('kick', Math.floor((t - 3.4) * 8), actorX, actorY, h);
+  else if (t < 5.3) sprite('point', 11 + Math.min(3, Math.floor((t - 3.4) * 8)), actorX, actorY, h);
   else if (t < 7.175) sprite('leo', Math.floor((t - 5.3) * 8), actorX, actorY, h);
   else {
     const p = (t - 7.175) / 1.825;
@@ -109,9 +109,6 @@ function render() {
     const bubbleX = Math.max(14, Math.min(width - 240, actorX - 10));
     box(bubbleX, actorY - 55, 225, 44, '#ffffff');
     text(`${memberName()}，终于冒泡了！`, bubbleX + 112, actorY - 27, 14, '#285e78', 'center', 201);
-  }
-  if (t >= 4.025 && t < 5.525) {
-    sprite('boom', Math.floor((t - 4.025) * 10), cardX - 43, ground - 109, 100);
   }
   if (t >= 4.65) {
     const p = Math.min(1, (t - 4.65) / .4);
