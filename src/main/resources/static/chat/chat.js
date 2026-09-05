@@ -93,7 +93,15 @@
     analysisDetailMeta: document.querySelector("#analysis-detail-meta"),
     conversation: document.querySelector(".conversation"),
     immersiveToggle: document.querySelector("#immersive-toggle"),
-    windowToggle: document.querySelector(".window-control.toggle")
+    windowToggle: document.querySelector(".window-control.toggle"),
+    celebrationStage: document.querySelector("#celebration-stage"),
+    celebrationRoster: document.querySelector("#celebration-roster"),
+    celebrationPopover: document.querySelector("#celebration-popover"),
+    celebrationPopoverTitle: document.querySelector("#celebration-popover-title"),
+    celebrationPopoverClose: document.querySelector("#celebration-popover-close"),
+    celebrationPopoverRemove: document.querySelector("#celebration-popover-remove"),
+    celebrationInterval: document.querySelector("#celebration-interval"),
+    celebrationAnimGrid: document.querySelector("#celebration-anim-grid")
   };
   // followingLatest 用存取器驱动跟随状态图标，所有赋值点自动同步视图
   let followingLatest = true;
@@ -384,7 +392,7 @@
     return Array.isArray(group?.admins) && group.admins.includes(senderId);
   }
 
-  function messageElement(message, targetMid, onMediaLoad = null) {
+  function messageElement(message, targetMid, onMediaLoad = null, gid = null) {
     const article = document.createElement("article");
     article.className = "message";
     article.dataset.mid = String(message.mid);
@@ -421,7 +429,19 @@
     content.className = "message-content";
     const meta = document.createElement("div");
     meta.className = "message-meta";
-    meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
+    if (gid) {
+      // 名字可点击配置回归庆祝；历史浏览等无 gid 场景保持纯文本
+      const sender = document.createElement("button");
+      sender.type = "button";
+      sender.className = "message-sender";
+      sender.textContent = message.senderName || "未知成员";
+      sender.title = "设置回归庆祝";
+      sender.addEventListener("click", () => openCelebrationPopover(
+        gid, message.senderId, message.senderName, message.senderAvatar, sender));
+      meta.append(sender, document.createTextNode(` · ${formatTime(message.createdAt)}`));
+    } else {
+      meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
+    }
     const media = messageMedia(message, onMediaLoad);
     const hidesBubbleText = media
       && ["分享图片", "分享视频", "[动画表情]"].includes(message.text?.trim());
@@ -447,7 +467,7 @@
     const hasCommon = ordered.some(message => existingByMid.has(message.mid));
     if (!hasCommon) {
       elements.messages.replaceChildren(...ordered.map(message => messageElement(
-        message, null, onLoad)));
+        message, null, onLoad, state.currentGid)));
       return;
     }
 
@@ -468,7 +488,7 @@
           else elements.messages.prepend(el);
         }
       } else {
-        el = messageElement(message, null, onLoad);
+        el = messageElement(message, null, onLoad, state.currentGid);
         if (prevEl) prevEl.after(el);
         else elements.messages.prepend(el);
       }
@@ -803,6 +823,7 @@
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     updateCurrentGroupHeader();
     elements.currentId.textContent = String(group.gid);
+    renderCelebrationRoster();
     elements.historyOpen.disabled = false;
     elements.analysisOpen.disabled = false;
     elements.emojiPickerOpen.disabled = false;
@@ -880,12 +901,17 @@
         ? {createdAt: result.nextBeforeCreatedAt, mid: result.nextBeforeMid}
         : null;
       state.hasMore = result.hasMore;
-      if (isLatestPage) state.followingLatest = true;
-      renderMessages(isLatestPage);
       if (isLatestPage) {
+        state.followingLatest = true;
+        renderMessages(isLatestPage);
         scrollToBottom(true);
+        // 首屏只悄悄建立基线，不触发庆祝（全新打开不追溯过去的回归）
+        seedCelebrationSeen(gid, result.items);
       } else {
+        renderMessages();
         restoreScrollAnchor(anchor);
+        // 向上翻页加载的旧消息同样算亲眼见证，垫高基线（只增不减）
+        seedCelebrationSeen(gid, result.items);
       }
     } catch (error) {
       console.warn("加载消息失败：", error);
@@ -943,9 +969,9 @@
       });
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (state.currentGid !== gid) return;
+      const fresh = result.items.filter(message => !knownMids.has(message.mid));
       result.items.forEach(message => state.messages.set(message.mid, message));
-      const added = result.items.some(message => !knownMids.has(message.mid));
-      if (added) {
+      if (fresh.length > 0) {
         state.followingLatest = followedLatest;
         renderMessages();
         if (followedLatest) {
@@ -953,6 +979,7 @@
         } else {
           elements.newMessages.hidden = false;
         }
+        processCelebrationArrivals(gid, fresh);
       }
     } catch (error) {
       console.warn("刷新消息失败：", error);
@@ -979,6 +1006,8 @@
       if (result.items.length > 0) {
         added = true;
         renderMessages();
+        // 追平的缺口同样算亲眼见证，符合条件的回归照常庆祝
+        processCelebrationArrivals(gid, result.items);
       }
       if (!result.hasMore || result.nextAfterCreatedAt === null
         || result.nextAfterMid === null) break;
@@ -1720,6 +1749,337 @@
   });
 
   applyImmersive(localStorage.getItem(IMMERSIVE_KEY) === "1");
+
+  /* ---------- 回归庆祝 ---------- */
+
+  const CELEBRATION_ROSTER_KEY = "weibo-chat:celebration-roster";
+  const CELEBRATION_SEEN_KEY = "weibo-chat:celebration-seen";
+  // 回归间隔默认值，单位秒
+  const CELEBRATION_DEFAULT_INTERVAL = 30;
+  const CELEBRATION_ANIMS = [
+    {id: "cs-patrol", label: "踱步"},
+    {id: "cs-bounce", label: "蹦跳"},
+    {id: "cs-fire", label: "喷火"},
+    {id: "cs-peek", label: "探头"}
+  ];
+
+  function loadCelebrationStore(key) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key));
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  // roster：按群按成员存 { name, avatar, interval, anim }；seen：按「群:成员」存最后见到的发言时间
+  const celebrationRoster = loadCelebrationStore(CELEBRATION_ROSTER_KEY);
+  const celebrationSeen = loadCelebrationStore(CELEBRATION_SEEN_KEY);
+  let celebrationDraft = null;
+
+  function celebrationEntry(gid, senderId) {
+    return celebrationRoster[String(gid)]?.[String(senderId)] || null;
+  }
+
+  function saveCelebrationRoster() {
+    localStorage.setItem(CELEBRATION_ROSTER_KEY, JSON.stringify(celebrationRoster));
+  }
+
+  function saveCelebrationSeen() {
+    localStorage.setItem(CELEBRATION_SEEN_KEY, JSON.stringify(celebrationSeen));
+  }
+
+  // 用当前加载到的消息悄悄垫高基线：刚加入名单的活跃成员不会立刻触发庆祝
+  function seedCelebrationSeen(gid, messages) {
+    const roster = celebrationRoster[String(gid)];
+    if (!roster) return;
+    let changed = false;
+    for (const [senderId] of Object.entries(roster)) {
+      let latest = 0;
+      for (const message of messages) {
+        if (String(message.senderId) === senderId && message.createdAt > latest) {
+          latest = message.createdAt;
+        }
+      }
+      const key = `${gid}:${senderId}`;
+      if (latest > (celebrationSeen[key] || 0)) {
+        celebrationSeen[key] = latest;
+        changed = true;
+      }
+    }
+    if (changed) saveCelebrationSeen();
+  }
+
+  function setCelebrationMember(gid, senderId, data) {
+    const roster = celebrationRoster[String(gid)]
+      || (celebrationRoster[String(gid)] = {});
+    if (data) {
+      roster[String(senderId)] = data;
+      seedCelebrationSeen(gid, state.messages.values());
+    } else {
+      delete roster[String(senderId)];
+    }
+    saveCelebrationRoster();
+    renderCelebrationRoster();
+  }
+
+  // 新到达消息按时间顺序逐条判定：页面没见过其发言，或沉默满间隔即庆祝
+  function processCelebrationArrivals(gid, arrivals) {
+    let changed = false;
+    for (const message of [...arrivals].sort(compareMessages)) {
+      const entry = celebrationEntry(gid, message.senderId);
+      if (!entry) continue;
+      const key = `${gid}:${message.senderId}`;
+      const baseline = celebrationSeen[key] || 0;
+      const interval = entry.interval > 0 ? entry.interval : CELEBRATION_DEFAULT_INTERVAL;
+      if (!baseline || message.createdAt - baseline >= interval * 1000) {
+        spawnCelebration(entry);
+      }
+      celebrationSeen[key] = message.createdAt;
+      changed = true;
+    }
+    if (changed) saveCelebrationSeen();
+  }
+
+  function celebrationAnimLabel(animId) {
+    return CELEBRATION_ANIMS.find(anim => anim.id === animId)?.label || "";
+  }
+
+  function renderCelebrationRoster() {
+    const container = elements.celebrationRoster;
+    container.replaceChildren();
+    const members = Object.entries(celebrationRoster[String(state.currentGid)] || {});
+    container.hidden = members.length === 0;
+    for (const [senderId, entry] of members) {
+      const chip = document.createElement("span");
+      chip.className = "celebration-chip";
+      chip.title = `沉默 ${entry.interval} 秒后回归时播放「${celebrationAnimLabel(entry.anim)}」`;
+      chip.append(avatar(entry, "celebration-chip-avatar"));
+      const name = document.createElement("button");
+      name.type = "button";
+      name.className = "celebration-chip-name";
+      name.textContent = entry.name || "未知成员";
+      name.addEventListener("click", () => openCelebrationPopover(
+        state.currentGid, senderId, entry.name, entry.avatar, name));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "celebration-chip-remove";
+      remove.textContent = "✕";
+      remove.setAttribute("aria-label", `将${entry.name || "未知成员"}移出庆祝名单`);
+      remove.addEventListener("click", () => {
+        setCelebrationMember(state.currentGid, senderId, null);
+        if (celebrationDraft?.senderId === senderId
+          && celebrationDraft?.gid === state.currentGid) {
+          closeCelebrationPopover();
+        }
+      });
+      chip.append(name, remove);
+      container.append(chip);
+    }
+  }
+
+  function buildCelebrationAnimGrid() {
+    for (const anim of CELEBRATION_ANIMS) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "celebration-anim-card";
+      card.dataset.anim = anim.id;
+      card.setAttribute("aria-label", `选择${anim.label}怪兽`);
+      card.append(celebrationCreature(anim.id));
+      const label = document.createElement("span");
+      label.className = "celebration-anim-label";
+      label.textContent = anim.label;
+      card.append(label);
+      card.addEventListener("click", () => {
+        if (!celebrationDraft) return;
+        celebrationDraft.anim = anim.id;
+        commitCelebrationDraft();
+        updateCelebrationAnimGrid();
+        elements.celebrationPopoverRemove.hidden = false;
+      });
+      elements.celebrationAnimGrid.append(card);
+    }
+  }
+
+  function updateCelebrationAnimGrid() {
+    for (const card of elements.celebrationAnimGrid.querySelectorAll(".celebration-anim-card")) {
+      card.classList.toggle("selected", card.dataset.anim === celebrationDraft?.anim);
+    }
+  }
+
+  function commitCelebrationDraft() {
+    if (!celebrationDraft?.anim) return;
+    const text = elements.celebrationInterval.value.trim();
+    const raw = Number(text);
+    // 间隔最小 1 秒，清空或乱填时回退默认值
+    const interval = text !== "" && Number.isFinite(raw)
+      ? Math.max(Math.floor(raw), 1)
+      : CELEBRATION_DEFAULT_INTERVAL;
+    setCelebrationMember(celebrationDraft.gid, celebrationDraft.senderId, {
+      name: celebrationDraft.name,
+      avatar: celebrationDraft.avatar,
+      interval,
+      anim: celebrationDraft.anim
+    });
+  }
+
+  function openCelebrationPopover(gid, senderId, name, avatarUrl, anchor) {
+    if (!gid) return;
+    const entry = celebrationEntry(gid, senderId);
+    celebrationDraft = {
+      gid, senderId,
+      name: name || "未知成员",
+      avatar: avatarUrl || "",
+      anim: entry?.anim || null
+    };
+    elements.celebrationPopoverTitle.textContent = "回归庆祝";
+    elements.celebrationInterval.value =
+      String(entry?.interval > 0 ? entry.interval : CELEBRATION_DEFAULT_INTERVAL);
+    elements.celebrationPopoverRemove.hidden = !entry;
+    updateCelebrationAnimGrid();
+    elements.celebrationPopover.hidden = false;
+    const rect = anchor.getBoundingClientRect();
+    const popRect = elements.celebrationPopover.getBoundingClientRect();
+    let left = Math.max(8, Math.min(rect.left, window.innerWidth - popRect.width - 8));
+    let top = rect.bottom + 6;
+    if (top + popRect.height > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - popRect.height - 6);
+    }
+    elements.celebrationPopover.style.left = `${left}px`;
+    elements.celebrationPopover.style.top = `${top}px`;
+  }
+
+  function closeCelebrationPopover() {
+    elements.celebrationPopover.hidden = true;
+    celebrationDraft = null;
+  }
+
+  function celebrationCreature(animId) {
+    const creature = document.createElement("span");
+    creature.className = `celebration-creature ${animId}`;
+    // 结构固定、不含任何用户数据，innerHTML 安全
+    creature.innerHTML = '<i class="celebration-horn left"></i>'
+      + '<i class="celebration-horn right"></i>'
+      + '<i class="celebration-body"></i>'
+      + '<i class="celebration-eye left"></i>'
+      + '<i class="celebration-eye right"></i>'
+      + '<i class="celebration-flame"></i>';
+    return creature;
+  }
+
+  function spawnCelebration(entry) {
+    const stage = elements.celebrationStage;
+    const width = stage.clientWidth;
+    const height = stage.clientHeight;
+    if (width < 160 || height < 160) return;
+    const wrapper = document.createElement("div");
+    wrapper.className = "celebration";
+    const actor = document.createElement("button");
+    actor.type = "button";
+    actor.className = "celebration-actor";
+    actor.setAttribute("aria-label",
+      `跳过${entry.name || "未知成员"}的回归庆祝`);
+    actor.append(celebrationCreature(entry.anim));
+    const tag = document.createElement("span");
+    tag.className = "celebration-tag";
+    tag.append(avatar(entry, "celebration-tag-avatar"));
+    const tagText = document.createElement("span");
+    tagText.textContent = `${entry.name || "未知成员"} 回归了！`;
+    tag.append(tagText);
+    actor.append(tag);
+    wrapper.append(actor);
+    stage.append(wrapper);
+
+    const margin = 80;
+    const target = {
+      x: margin + Math.random() * (width - margin * 2),
+      y: margin + Math.random() * (height - margin * 2)
+    };
+    // 入场从与落点同侧的边缘走进来，退场随便挑一条边跑掉
+    const side = Math.floor(Math.random() * 4);
+    const start = side === 0 ? {x: -70, y: target.y}
+      : side === 1 ? {x: width + 70, y: target.y}
+      : side === 2 ? {x: target.x, y: -70}
+      : {x: target.x, y: height + 70};
+    const exitSide = Math.floor(Math.random() * 4);
+    const exit = exitSide === 0 ? {x: -70, y: Math.random() * height}
+      : exitSide === 1 ? {x: width + 70, y: Math.random() * height}
+      : exitSide === 2 ? {x: Math.random() * width, y: -70}
+      : {x: Math.random() * width, y: height + 70};
+
+    let current = null;
+    let performResolve = null;
+    let skipped = false;
+    const finish = () => {
+      skipped = true;
+      current?.cancel();
+      // 表演阶段的等待没有对应的 WAAPI，直接放行让清理立即执行
+      performResolve?.();
+    };
+    actor.addEventListener("click", finish);
+
+    const move = (from, to, duration) => {
+      if (skipped) return Promise.resolve();
+      current = wrapper.animate([
+        {transform: `translate(${from.x}px, ${from.y}px)`},
+        {transform: `translate(${to.x}px, ${to.y}px)`}
+      ], {duration, easing: "linear", fill: "both"});
+      return current.finished.catch(() => {});
+    };
+    const perform = () => new Promise(resolve => {
+      if (skipped) {
+        resolve();
+        return;
+      }
+      actor.classList.add("is-acting");
+      performResolve = resolve;
+      setTimeout(resolve, 2400 + Math.random() * 800);
+    });
+
+    wrapper.style.transform = `translate(${start.x}px, ${start.y}px)`;
+    actor.classList.add("is-walking");
+    move(start, target, 1400)
+      .then(() => {
+        actor.classList.remove("is-walking");
+        return perform();
+      })
+      .then(() => {
+        actor.classList.remove("is-acting");
+        actor.classList.add("is-walking");
+        return move(target, exit, 1200);
+      })
+      .finally(() => {
+        current?.cancel();
+        wrapper.remove();
+      });
+  }
+
+  elements.celebrationPopoverClose.addEventListener("click", closeCelebrationPopover);
+  elements.celebrationPopoverRemove.addEventListener("click", () => {
+    if (!celebrationDraft) return;
+    setCelebrationMember(celebrationDraft.gid, celebrationDraft.senderId, null);
+    celebrationDraft.anim = null;
+    elements.celebrationPopoverRemove.hidden = true;
+    updateCelebrationAnimGrid();
+  });
+  elements.celebrationInterval.addEventListener("change", () => {
+    if (celebrationDraft?.anim) commitCelebrationDraft();
+  });
+  document.addEventListener("click", event => {
+    if (elements.celebrationPopover.hidden) return;
+    if (elements.celebrationPopover.contains(event.target)) return;
+    // 点在打开弹层的入口上时不关闭，由入口自己的处理接管
+    if (event.target.closest(".message-sender, .celebration-chip-name")) return;
+    closeCelebrationPopover();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !elements.celebrationPopover.hidden) {
+      closeCelebrationPopover();
+    }
+  });
+
+  buildCelebrationAnimGrid();
+  renderCelebrationRoster();
 
   updateFollowIndicator();
   initialize();

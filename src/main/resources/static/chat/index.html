@@ -57,11 +57,13 @@
             </div>
             <div class="group-number">群号：<span id="current-id">-</span></div>
             <div id="current-size"></div>
+            <div class="celebration-roster" id="celebration-roster" hidden></div>
           </div>
         </header>
 
         <div class="messages-shell">
           <div class="messages" id="messages" aria-live="polite"></div>
+          <div class="celebration-stage" id="celebration-stage"></div>
           <div class="follow-indicator" id="follow-indicator" role="status" aria-label="正在跟随最新消息">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 4v10.5M7.5 10.5 12 15l4.5-4.5"/>
@@ -102,6 +104,23 @@
       </section>
     </div>
   </main>
+
+  <div class="celebration-popover" id="celebration-popover" hidden role="dialog" aria-label="回归庆祝设置">
+    <header class="celebration-popover-titlebar">
+      <span class="celebration-popover-icon" aria-hidden="true">🎉</span>
+      <h2 id="celebration-popover-title">回归庆祝</h2>
+      <button id="celebration-popover-close" type="button" aria-label="关闭回归庆祝设置"></button>
+    </header>
+    <div class="celebration-popover-body">
+      <label class="celebration-popover-row">
+        <span>沉默多少秒算回归</span>
+        <input id="celebration-interval" type="number" min="1" step="1" value="30">
+      </label>
+      <div class="celebration-anim-grid" id="celebration-anim-grid"></div>
+      <span class="celebration-popover-hint">点击怪兽设为专属动画并加入名单</span>
+      <button class="celebration-popover-remove" id="celebration-popover-remove" type="button" hidden>移出庆祝名单</button>
+    </div>
+  </div>
 
   <dialog class="image-viewer" id="image-viewer" aria-label="查看原图">
     <img alt="消息原图">

@@ -55,3 +55,15 @@ _Avoid_: media upload, file send, media post
 **Analysis**:
 An AI-generated analysis of locally captured Group Messages for one group on a specific date, driven by a user-supplied prompt. The prompt, result (Markdown), message count, and timestamp are persisted for later retrieval.
 _Avoid_: chat summary, AI report, message analysis
+
+**Celebration Member**:
+A Group Message sender designated, per group, to receive the Return Celebration. Identified by sender id, configured with an assigned animation and a per-member Celebration Interval. The roster belongs to the group and lives outside the captured content store.
+_Avoid_: specified member, whitelisted user, VIP
+
+**Celebration Interval**:
+The minimum silence span, as known to the chat page's loaded message timeline, between a Celebration Member's previous witnessed Group Message and their next one that qualifies the next message for the Return Celebration. Absent any witnessed predecessor, the member counts as long silent.
+_Avoid_: cooldown, trigger delay
+
+**Return Celebration**:
+A one-shot animation ceremony in the chat view when a Celebration Member speaks again after a silence, as witnessed by the open chat page, no shorter than their Celebration Interval. It fires when the open chat page witnesses the triggering Group Message through View Refresh or Catch-up, and never on a freshly opened page, so past returns are not replayed.
+_Avoid_: member animation, monster animation, return ceremony
