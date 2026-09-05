@@ -95,7 +95,7 @@ function render() {
     }
     ctx.restore();
   } else {
-    text('已解冻', cardX, ground - 28, 13, '#376966');
+    text('已冒泡', cardX, ground - 28, 13, '#376966');
   }
   if (t < 2) sprite('walk', Math.floor(t * 10) % 15, -actorWidth + (actorX + actorWidth) * t / 2, actorY, h);
   else if (t < 3.4) sprite('point', 11 + Math.min(3, Math.floor((t - 2) * 8)), actorX, actorY, h);
