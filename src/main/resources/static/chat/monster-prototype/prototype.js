@@ -37,8 +37,8 @@ function sprite(key, frame, x, y, h) {
   const sw = Math.floor(img.width / 5);
   const sh = Math.floor(img.height / 3);
   const f = Math.max(0, Math.min(14, frame));
-  // 爆炸素材的格子边缘带有分隔线，取帧时略去边缘。
-  const inset = key === 'boom' ? 24 : 0;
+  // 爆炸图集带有分隔线；角色图集内缩 1 像素，避免缩放时采样到相邻帧。
+  const inset = key === 'boom' ? 24 : 1;
   ctx.drawImage(img, (f % 5) * sw + inset, Math.floor(f / 5) * sh + inset,
     sw - inset * 2, sh - inset * 2, x, y, h * sw / sh, h);
 }
@@ -58,11 +58,22 @@ function render() {
   const ground = height - 28;
   const actorY = ground - h;
   const cardX = targetX + 22;
+  const awake = t >= 4.65;
+  box(cardX - 32, ground - 131, 64, 64, awake ? '#d6ece6' : '#e1e6ea', 20);
+  text([...memberName()][0], cardX, ground - 88, 28, awake ? '#285e78' : '#95a3ad');
   if (t < 4.025) {
-    box(cardX - 42, ground - 83, 84, 70, '#e1b461');
-    box(cardX - 42, ground - 92, 37, 19, '#e1b461', 5);
-    box(cardX - 36, ground - 75, 72, 51, '#ffe7b2', 6);
-    text('潜水中', cardX, ground - 44, 14, '#826131');
+    box(cardX - 42, ground - 65, 84, 30, '#667987', 8);
+    text('潜水中', cardX, ground - 44, 14, '#ffffff');
+  } else if (t < 4.65) {
+    const p = (t - 4.025) / .625;
+    ctx.save();
+    ctx.globalAlpha = 1 - p;
+    for (let i = 0; i < 5; i++) {
+      box(cardX - 38 + i * 17 + (i - 2) * p * 20, ground - 60 + p * p * 50 - p * 35, 12, 9, '#667987', 2);
+    }
+    ctx.restore();
+  } else {
+    text('已冒泡', cardX, ground - 44, 13, '#376966');
   }
   if (t < 2) sprite('walk', Math.floor(t * 10) % 15, -actorWidth + (actorX + actorWidth) * t / 2, actorY, h);
   else if (t < 3.4) sprite('point', 11 + Math.min(3, Math.floor((t - 2) * 8)), actorX, actorY, h);
@@ -78,7 +89,7 @@ function render() {
     text(`${memberName()}，终于冒泡了！`, bubbleX + 112, actorY - 27, 14, '#285e78', 'center', 201);
   }
   if (t >= 4.025 && t < 5.525) {
-    sprite('boom', Math.floor((t - 4.025) * 10), cardX - 88, ground - 155, 165);
+    sprite('boom', Math.floor((t - 4.025) * 10), cardX - 43, ground - 109, 100);
   }
   if (t >= 4.65) {
     const p = Math.min(1, (t - 4.65) / .4);
