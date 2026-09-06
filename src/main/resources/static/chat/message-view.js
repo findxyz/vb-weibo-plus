@@ -183,9 +183,12 @@ export function createMessageView({
       article.append(bubble);
       return article;
     }
-    article.append(avatar({name: message.senderName, avatar: message.senderAvatar},
-      "message-avatar", Number.isSafeInteger(message.senderId) && message.senderId > 0
-        ? `https://weibo.com/u/${message.senderId}` : ""));
+    const senderId = Number.isSafeInteger(message.senderId) && message.senderId > 0
+      ? message.senderId : 0;
+    const avatarElement = avatar({name: message.senderName, avatar: message.senderAvatar},
+      "message-avatar", senderId ? `https://weibo.com/u/${senderId}` : "");
+    if (senderId) avatarElement.dataset.senderId = senderId;
+    article.append(avatarElement);
     const content = document.createElement("div");
     content.className = "message-content";
     const meta = document.createElement("div");

@@ -396,7 +396,8 @@ h1 {
 .analysis-detail-toolbar button,
 .panel-feedback button,
 .login-expired button,
-.celebration-popover-body button {
+.celebration-popover-body button,
+.dream-popover-body button {
   min-height: 32px;
   padding: 0 14px;
   border: 1px solid #7f9fba;
@@ -888,7 +889,8 @@ h1 {
 }
 
 .history-dialog,
-.analysis-dialog {
+.analysis-dialog,
+.dream-dialog {
   width: min(1120px, calc(100vw - 64px));
   max-width: none;
   height: min(760px, calc(100vh - 64px));
@@ -902,19 +904,22 @@ h1 {
 }
 
 .history-dialog::backdrop,
-.analysis-dialog::backdrop {
+.analysis-dialog::backdrop,
+.dream-dialog::backdrop {
   background: rgb(18 48 76 / 38%);
 }
 
 .history-window,
-.analysis-window {
+.analysis-window,
+.dream-window {
   height: 100%;
   display: grid;
   grid-template-rows: 38px minmax(0, 1fr);
 }
 
 .history-titlebar,
-.analysis-titlebar {
+.analysis-titlebar,
+.dream-titlebar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -927,7 +932,8 @@ h1 {
 }
 
 .history-titlebar h2,
-.analysis-titlebar h2 {
+.analysis-titlebar h2,
+.dream-titlebar h2 {
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -939,13 +945,15 @@ h1 {
 }
 
 .history-title-icon,
-.analysis-title-icon {
+.analysis-title-icon,
+.dream-title-icon {
   flex: none;
   filter: drop-shadow(0 1px 1px #003692);
 }
 
 .history-titlebar button,
-.analysis-titlebar button {
+.analysis-titlebar button,
+.dream-titlebar button {
   width: 28px;
   height: 26px;
   flex: none;
@@ -961,7 +969,8 @@ h1 {
 }
 
 .history-titlebar button::before,
-.analysis-titlebar button::before {
+.analysis-titlebar button::before,
+.dream-titlebar button::before {
   content: "";
   display: block;
   width: 12px;
@@ -971,7 +980,8 @@ h1 {
 }
 
 .history-titlebar button:hover,
-.analysis-titlebar button:hover {
+.analysis-titlebar button:hover,
+.dream-titlebar button:hover {
   filter: brightness(1.08);
 }
 
@@ -1723,7 +1733,8 @@ h1 {
   display: none;
 }
 
-.celebration-popover {
+.celebration-popover,
+.dream-popover {
   position: fixed;
   z-index: 1000;
   display: grid;
@@ -1738,11 +1749,13 @@ h1 {
   overflow: hidden;
 }
 
-.celebration-popover[hidden] {
+.celebration-popover[hidden],
+.dream-popover[hidden] {
   display: none;
 }
 
-.celebration-popover-titlebar {
+.celebration-popover-titlebar,
+.dream-popover-titlebar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1754,7 +1767,8 @@ h1 {
   box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
-.celebration-popover-titlebar h2 {
+.celebration-popover-titlebar h2,
+.dream-popover-titlebar h2 {
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -1765,7 +1779,8 @@ h1 {
   text-shadow: 0 1px 1px #003692;
 }
 
-.celebration-popover-icon {
+.celebration-popover-icon,
+.dream-popover-icon {
   flex: none;
   filter: drop-shadow(0 1px 1px #003692);
 }
@@ -1798,7 +1813,8 @@ h1 {
   filter: brightness(1.08);
 }
 
-.celebration-popover-body {
+.celebration-popover-body,
+.dream-popover-body {
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -1833,4 +1849,30 @@ h1 {
 
 .celebration-popover-remove:hover {
   border-color: var(--danger);
+}
+
+.dream-dialog {
+  width: min(560px, calc(100vw - 32px));
+  height: auto;
+  max-height: calc(100vh - 32px);
+}
+
+.dream-stage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: #10101c;
+}
+
+.dream-stage iframe {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 512 / 480;
+  border: 0;
+}
+
+.dream-popover-body span {
+  color: var(--muted);
+  font-size: 13px;
 }

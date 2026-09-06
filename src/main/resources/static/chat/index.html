@@ -122,6 +122,17 @@
     </div>
   </div>
 
+  <div class="dream-popover" id="dream-popover" hidden role="dialog" aria-label="盗梦空间入口">
+    <header class="dream-popover-titlebar">
+      <span class="dream-popover-icon" aria-hidden="true">🌀</span>
+      <h2>盗梦空间</h2>
+    </header>
+    <div class="dream-popover-body">
+      <span>是否进入盗梦空间？</span>
+      <button id="dream-enter" type="button">🌀 进入盗梦空间</button>
+    </div>
+  </div>
+
   <dialog class="image-viewer" id="image-viewer" aria-label="查看原图">
     <img alt="消息原图">
     <p id="image-viewer-state" role="status"></p>
@@ -212,6 +223,19 @@
           </div>
           <div class="analysis-feedback" id="analysis-feedback" role="status"></div>
         </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="dream-dialog" id="dream-dialog" aria-labelledby="dream-title">
+    <div class="dream-window">
+      <header class="dream-titlebar">
+        <span class="dream-title-icon" aria-hidden="true">🌀</span>
+        <h2 id="dream-title">盗梦空间 · 迷你米奇</h2>
+        <button id="dream-close" type="button" aria-label="关闭盗梦空间"></button>
+      </header>
+      <div class="dream-stage">
+        <iframe id="dream-frame" title="迷你米奇游戏" allow="autoplay"></iframe>
       </div>
     </div>
   </dialog>

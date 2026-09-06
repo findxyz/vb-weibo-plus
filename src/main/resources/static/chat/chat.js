@@ -11,6 +11,7 @@ import {createCelebration} from "./celebration.js";
 import {createComposer} from "./composer.js";
 import {createGroupList} from "./group-list.js";
 import {createConversationSession} from "./conversation-session.js";
+import {createDream} from "./dream.js";
 
 function bootstrap() {
   "use strict";
@@ -65,7 +66,10 @@ function bootstrap() {
     celebrationRoster: document.querySelector("#celebration-roster"), celebrationPopover: document.querySelector("#celebration-popover"),
     celebrationPopoverTitle: document.querySelector("#celebration-popover-title"), celebrationPopoverClose: document.querySelector("#celebration-popover-close"),
     celebrationPopoverRemove: document.querySelector("#celebration-popover-remove"), celebrationInterval: document.querySelector("#celebration-interval"),
-    celebrationPopoverJoin: document.querySelector("#celebration-popover-join")
+    celebrationPopoverJoin: document.querySelector("#celebration-popover-join"),
+    dreamPopover: document.querySelector("#dream-popover"), dreamEnter: document.querySelector("#dream-enter"),
+    dreamDialog: document.querySelector("#dream-dialog"), dreamFrame: document.querySelector("#dream-frame"),
+    dreamClose: document.querySelector("#dream-close")
   };
   const state = {
     currentGid: null, initializing: false,
@@ -111,6 +115,10 @@ function bootstrap() {
     pageSize: PAGE_SIZE, searchPageSize: HISTORY_SEARCH_PAGE_SIZE, earlierLoadThreshold: 120,
     compareMessages, captureScrollAnchor, restoreScrollAnchor, messageView, formatDateTime,
     mediaTypes: MEDIA_TYPE, redPacketText: RED_PACKET_TEXT
+  });
+  createDream({
+    messages: elements.messages, popover: elements.dreamPopover, enterButton: elements.dreamEnter,
+    dialog: elements.dreamDialog, frame: elements.dreamFrame, closeButton: elements.dreamClose
   });
 
   function localDateValue(date) {
