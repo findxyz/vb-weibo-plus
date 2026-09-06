@@ -6,6 +6,7 @@ import {
 } from "./chat-common.js";
 import {createMessageView} from "./message-view.js";
 import {createAnalysis} from "./analysis.js";
+import {createHistory} from "./history.js";
 
 function bootstrap() {
   "use strict";
@@ -136,18 +137,6 @@ function bootstrap() {
     loginPending: false,
     pendingRefresh: false
   };
-  const historyState = {
-    gid: null,
-    page: 1,
-    total: 0,
-    query: null,
-    targetMid: null,
-    beforeCursor: null,
-    afterCursor: null,
-    loadingMore: false,
-    requestVersion: 0
-  };
-
   const messageView = createMessageView({
     imageViewer: elements.imageViewer,
     imageViewerImage: elements.imageViewerImage,
@@ -159,6 +148,13 @@ function bootstrap() {
     onSenderClick: openCelebrationPopover
   });
   const analysis = createAnalysis({elements, fetchJson, localDateValue});
+  const history = createHistory({
+    elements, fetchJson, localDateValue, calendarMonthsAgo,
+    pageSize: PAGE_SIZE, searchPageSize: HISTORY_SEARCH_PAGE_SIZE,
+    earlierLoadThreshold: EARLIER_LOAD_THRESHOLD, compareMessages,
+    captureScrollAnchor, restoreScrollAnchor, messageView, formatDateTime,
+    mediaTypes: MEDIA_TYPE, redPacketText: RED_PACKET_TEXT
+  });
 
 
   function localDateValue(date) {
@@ -176,36 +172,6 @@ function bootstrap() {
     const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
     result.setDate(Math.min(day, lastDay));
     return result;
-  }
-
-  function resetHistory(gid) {
-    const start = calendarMonthsAgo(new Date(), 3);
-    historyState.requestVersion += 1;
-    historyState.gid = gid;
-    historyState.page = 1;
-    historyState.total = 0;
-    historyState.query = null;
-    historyState.targetMid = null;
-    historyState.beforeCursor = null;
-    historyState.afterCursor = null;
-    historyState.loadingMore = false;
-    elements.historyStart.value = localDateValue(start);
-    elements.historyEnd.value = localDateValue(new Date());
-    const syncDate = new Date();
-    syncDate.setFullYear(syncDate.getFullYear() - 2);
-    elements.historySyncTime.value = localDateValue(syncDate);
-    elements.historySender.value = "";
-    elements.historyKeyword.value = "";
-    elements.historyResultsList.replaceChildren();
-    elements.historyMessages.replaceChildren();
-    elements.historyEarlierState.textContent = "";
-    elements.historyNewerState.textContent = "";
-    elements.historyPageState.textContent = "";
-    elements.historyResults.hidden = true;
-    elements.historyContext.hidden = true;
-    elements.historyEmpty.hidden = false;
-    elements.historyEmpty.textContent = "设置筛选条件后点击查询";
-    elements.historyFeedback.textContent = "";
   }
 
   let emojiPanelBuilt = false;
@@ -366,228 +332,13 @@ function bootstrap() {
       && !(message.text || "").includes(RED_PACKET_TEXT);
   }
 
-  function historySummary(message) {
-    if (isVideoMessage(message)) return "[视频]";
-    if (message.mediaType === MEDIA_TYPE.WEIBO_CARD) return "[微博]";
-    if (message.mediaType === MEDIA_TYPE.IMAGE || message.previewUrl) return "[图片]";
-    return message.text?.trim() || `[${message.msgTypeName || "消息"}]`;
-  }
-
-  function appendHighlightedText(element, value, keyword) {
-    const text = value || "";
-    const needle = keyword?.trim() || "";
-    if (!needle) {
-      element.textContent = text;
-      return;
-    }
-    const lowerText = text.toLocaleLowerCase();
-    const lowerNeedle = needle.toLocaleLowerCase();
-    let start = 0;
-    let match = lowerText.indexOf(lowerNeedle, start);
-    while (match >= 0) {
-      element.append(document.createTextNode(text.slice(start, match)));
-      const mark = document.createElement("mark");
-      mark.textContent = text.slice(match, match + needle.length);
-      element.append(mark);
-      start = match + needle.length;
-      match = lowerText.indexOf(lowerNeedle, start);
-    }
-    element.append(document.createTextNode(text.slice(start)));
-  }
-
-  function renderHistoryResults(items) {
-    elements.historyResultsList.replaceChildren(...items.map(message => {
-      const button = document.createElement("button");
-      button.className = "history-result";
-      button.type = "button";
-      button.dataset.mid = String(message.mid);
-      const time = document.createElement("span");
-      time.className = "history-result-time";
-      time.textContent = formatDateTime(message.createdAt);
-      const sender = document.createElement("span");
-      sender.className = "history-result-sender";
-      sender.textContent = message.senderName || "未知成员";
-      const summary = document.createElement("span");
-      summary.className = "history-result-summary";
-      appendHighlightedText(summary, historySummary(message), historyState.query?.keyword);
-      button.append(time, sender, summary);
-      button.addEventListener("click", () => openHistoryContext(message));
-      return button;
-    }));
-    const pageCount = Math.max(1, Math.ceil(historyState.total / HISTORY_SEARCH_PAGE_SIZE));
-    elements.historyPageState.textContent =
-      `第 ${historyState.page} / ${pageCount} 页，共 ${historyState.total} 条`;
-    elements.historyPrevious.disabled = historyState.page <= 1;
-    elements.historyNext.disabled = historyState.page >= pageCount;
-    elements.historyEmpty.hidden = true;
-    elements.historyContext.hidden = true;
-    elements.historyResults.hidden = false;
-    elements.historyResultsList.scrollTop = 0;
-  }
-
-  function historyMessageElements(messages) {
-    return [...messages].sort(compareMessages)
-      .map(message => messageView.messageElement(message, historyState.targetMid));
-  }
-
-  function renderHistoryMessages(messages) {
-    elements.historyMessages.replaceChildren(...historyMessageElements(messages));
-  }
-
-  function updateHistoryEdges() {
-    elements.historyEarlierState.textContent = historyState.beforeCursor
-      ? "向上滚动加载更早消息" : "没有更早消息";
-    elements.historyNewerState.textContent = historyState.afterCursor
-      ? "向下滚动加载更新消息" : "没有更新消息";
-  }
-
-  function scrollHistoryMessageToStart(message) {
-    const containerTop = elements.historyMessages.getBoundingClientRect().top;
-    const paddingTop = Number.parseFloat(getComputedStyle(elements.historyMessages).paddingTop) || 0;
-    elements.historyMessages.scrollTop += message.getBoundingClientRect().top
-      - containerTop - paddingTop;
-  }
-
-  async function fetchHistoryCursor(direction, message, gid) {
-    const query = new URLSearchParams({
-      gid: String(gid), size: String(PAGE_SIZE)
-    });
-    query.set(`${direction}CreatedAt`, String(message.createdAt));
-    query.set(`${direction}Mid`, String(message.mid));
-    return fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-  }
-
-  async function openHistoryContext(target) {
-    const requestVersion = ++historyState.requestVersion;
-    const gid = historyState.gid;
-    historyState.loadingMore = false;
-    historyState.targetMid = target.mid;
-    historyState.beforeCursor = null;
-    historyState.afterCursor = null;
-    elements.historyResults.hidden = true;
-    elements.historyContext.hidden = false;
-    elements.historyEarlierState.textContent = "";
-    elements.historyNewerState.textContent = "";
-    renderHistoryMessages([target]);
-    elements.historyFeedback.textContent = "";
-    try {
-      const [before, after] = await Promise.all([
-        fetchHistoryCursor("before", target, gid),
-        fetchHistoryCursor("after", target, gid)
-      ]);
-      if (requestVersion !== historyState.requestVersion) return;
-      historyState.beforeCursor = before.hasMore ? {
-        createdAt: before.nextBeforeCreatedAt,
-        mid: before.nextBeforeMid
-      } : null;
-      historyState.afterCursor = after.hasMore ? {
-        createdAt: after.nextAfterCreatedAt,
-        mid: after.nextAfterMid
-      } : null;
-      renderHistoryMessages([...before.items, target, ...after.items]);
-      updateHistoryEdges();
-      elements.historyFeedback.textContent = "";
-      elements.historyMessages.querySelector(`[data-mid="${target.mid}"]`)
-        ?.scrollIntoView({block: "center"});
-    } catch {
-      if (requestVersion !== historyState.requestVersion) return;
-      elements.historyFeedback.textContent = "消息上下文加载失败，请返回后重试。";
-    }
-  }
-
-  async function loadMoreHistory(direction) {
-    const earlier = direction === "before";
-    const cursor = earlier ? historyState.beforeCursor : historyState.afterCursor;
-    if (!cursor || historyState.loadingMore) return;
-    historyState.loadingMore = true;
-    const requestVersion = historyState.requestVersion;
-    const gid = historyState.gid;
-    const anchor = earlier ? captureScrollAnchor(elements.historyMessages) : null;
-    try {
-      const result = await fetchHistoryCursor(direction, cursor, gid);
-      if (requestVersion !== historyState.requestVersion) return;
-      const loaded = historyMessageElements(result.items);
-      const nextCursor = result.hasMore ? {
-        createdAt: earlier ? result.nextBeforeCreatedAt : result.nextAfterCreatedAt,
-        mid: earlier ? result.nextBeforeMid : result.nextAfterMid
-      } : null;
-      if (earlier) {
-        historyState.beforeCursor = nextCursor;
-        elements.historyMessages.prepend(...loaded);
-        restoreScrollAnchor(anchor, elements.historyMessages);
-      } else {
-        historyState.afterCursor = nextCursor;
-        elements.historyMessages.append(...loaded);
-        if (loaded[0]) scrollHistoryMessageToStart(loaded[0]);
-      }
-      updateHistoryEdges();
-    } catch {
-      if (requestVersion !== historyState.requestVersion) return;
-      const edge = earlier ? elements.historyEarlierState : elements.historyNewerState;
-      edge.textContent = earlier ? "更早消息加载失败" : "更新消息加载失败";
-    } finally {
-      if (requestVersion === historyState.requestVersion) historyState.loadingMore = false;
-    }
-  }
-
-  async function queryHistory(page) {
-    const requestVersion = ++historyState.requestVersion;
-    const gid = historyState.gid;
-    elements.historyEmpty.hidden = true;
-    elements.historyContext.hidden = true;
-    const query = new URLSearchParams({
-      gid: String(gid),
-      page: String(page),
-      size: String(HISTORY_SEARCH_PAGE_SIZE)
-    });
-    const filters = historyState.query;
-    if (filters.start) query.set("start", `${filters.start} 00:00:00`);
-    if (filters.end) query.set("end", `${filters.end} 23:59:59`);
-    if (filters.sender) query.set("senderName", filters.sender);
-    if (filters.keyword) query.set("keyword", filters.keyword);
-    try {
-      const result = await fetchJson(`/chat/messages?${query}`, {cache: "no-store"});
-      if (requestVersion !== historyState.requestVersion) return;
-      historyState.page = result.page;
-      historyState.total = result.total;
-      renderHistoryResults(result.items);
-      elements.historyFeedback.textContent = result.items.length ? "" : "没有符合条件的聊天记录";
-    } catch {
-      if (requestVersion !== historyState.requestVersion) return;
-      elements.historyResults.hidden = true;
-      elements.historyFeedback.textContent = "聊天记录查询失败，请稍后重试。";
-    }
-  }
-
-  async function captureHistory() {
-    const gid = historyState.gid;
-    if (!gid) return;
-    elements.historyEmpty.hidden = true;
-    elements.historyResults.hidden = true;
-    elements.historyContext.hidden = true;
-    const raw = elements.historySyncTime.value;
-    if (!raw) {
-      elements.historyFeedback.textContent = "请先选择要同步到的历史日期。";
-      return;
-    }
-    const sinceTime = `${raw} 00:00:00`;
-    const query = new URLSearchParams({gid: String(gid), sinceTime});
-    try {
-      const response = await fetch(`/chat/since?${query}`, {method: "POST"});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      elements.historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";
-    } catch {
-      elements.historyFeedback.textContent = "同步历史请求失败，请稍后重试。";
-    }
-  }
-
   async function selectGroup(gid) {
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
     const version = ++state.groupLoadVersion;
     state.switchingGroup = true;
     if (state.currentGid !== gid) cancelCelebrations();
-    if (historyState.gid !== gid) resetHistory(gid);
+    history.setGroup(group);
     state.currentGid = gid;
     state.messages.clear();
     state.beforeCursor = null;
@@ -1145,11 +896,6 @@ function bootstrap() {
     elements.messages.scrollTop = elements.messages.scrollHeight;
     elements.newMessages.hidden = true;
   });
-  elements.historyOpen.addEventListener("click", () => {
-    resetHistory(state.currentGid);
-    elements.historyDialog.showModal();
-  });
-
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
   elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());
   elements.imageInput.addEventListener("change", () => {
@@ -1178,36 +924,6 @@ function bootstrap() {
     if (event.key === "Escape" && !elements.emojiPanel.hidden) {
       toggleEmojiPanel(false);
     }
-  });
-  elements.historyClose.addEventListener("click", () => elements.historyDialog.close());
-  elements.historyForm.addEventListener("submit", event => {
-    event.preventDefault();
-    historyState.query = {
-      start: elements.historyStart.value,
-      end: elements.historyEnd.value,
-      sender: elements.historySender.value.trim(),
-      keyword: elements.historyKeyword.value.trim()
-    };
-    queryHistory(1);
-  });
-  elements.historyPrevious.addEventListener("click", () => queryHistory(historyState.page - 1));
-  elements.historyNext.addEventListener("click", () => queryHistory(historyState.page + 1));
-  elements.historySync.addEventListener("click", captureHistory);
-  elements.historyBack.addEventListener("click", () => {
-    historyState.requestVersion += 1;
-    elements.historyContext.hidden = true;
-    elements.historyFeedback.textContent = "";
-    elements.historyResults.hidden = false;
-  });
-  elements.historyMessages.addEventListener("scroll", () => {
-    if (elements.historyMessages.scrollHeight <= elements.historyMessages.clientHeight) return;
-    if (elements.historyMessages.scrollTop <= EARLIER_LOAD_THRESHOLD) {
-      loadMoreHistory("before");
-      return;
-    }
-    const distanceFromBottom = elements.historyMessages.scrollHeight
-      - elements.historyMessages.scrollTop - elements.historyMessages.clientHeight;
-    if (distanceFromBottom <= EARLIER_LOAD_THRESHOLD) loadMoreHistory("after");
   });
   window.addEventListener("focus", refreshView);
   document.addEventListener("visibilitychange", () => {
