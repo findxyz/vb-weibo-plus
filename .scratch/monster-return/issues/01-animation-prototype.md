@@ -9,7 +9,7 @@ Status: resolved
 
 ## 结果
 
-独立原型已完成，位于 codex/monster-return-prototype 分支的 src/main/resources/static/chat/monster-prototype/。播放地址与启动方式见该目录 README.md。
+独立原型已完成，位于 codex/monster-return-prototype 分支的 .scratch/monster-return/prototype/。播放地址与启动方式见该目录 README.md。
 
 原型验证了透明图集与 Canvas 时间轴可以组合入场、指点、踢击、爆炸、雷欧登场与飞离。目标已调整为成员头像上的“潜水中”标牌，踢击后标牌碎裂、头像亮起，未接入真实消息。支持重播、暂停、跳过和拖动进度。
 

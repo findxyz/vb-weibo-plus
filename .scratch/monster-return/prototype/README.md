@@ -7,10 +7,10 @@
 在仓库根目录运行：
 
 ```powershell
-python -m http.server 8765 --bind 127.0.0.1 --directory src/main/resources/static
+python -m http.server 8765 --bind 127.0.0.1 --directory .
 ```
 
-打开 <http://127.0.0.1:8765/chat/monster-prototype/>。
+打开 <http://127.0.0.1:8765/.scratch/monster-return/prototype/>。
 
 ## 素材来源
 
