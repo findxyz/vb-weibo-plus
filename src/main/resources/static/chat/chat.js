@@ -10,6 +10,7 @@ import {createHistory} from "./history.js";
 import {createCelebration} from "./celebration.js";
 import {createComposer} from "./composer.js";
 import {createGroupList} from "./group-list.js";
+import {createConversationSession} from "./conversation-session.js";
 
 function bootstrap() {
   "use strict";
@@ -115,14 +116,12 @@ function bootstrap() {
   const state = {
     groups: [],
     currentGid: null,
-    messages: new Map(),
     beforeCursor: null,
     hasMore: false,
     refreshingGroups: false,
     refreshing: false,
     initializing: false,
     switchingGroup: false,
-    groupLoadVersion: 0,
     loadingEarlier: false,
     pendingCatchUp: false,
     get followingLatest() {
@@ -140,6 +139,7 @@ function bootstrap() {
     loginPending: false,
     pendingRefresh: false
   };
+  const conversation = createConversationSession();
   const messageView = createMessageView({
     imageViewer: elements.imageViewer,
     imageViewerImage: elements.imageViewerImage,
@@ -153,7 +153,7 @@ function bootstrap() {
   const analysis = createAnalysis({elements, fetchJson, localDateValue});
   const celebration = createCelebration({
     elements, messageView, getCurrentGid: () => state.currentGid,
-    getMessages: () => state.messages.values(), compareMessages
+    getMessages: () => conversation.messages.values(), compareMessages
   });
   const composer = createComposer({
     elements, getGid: () => state.currentGid,
@@ -233,7 +233,7 @@ function bootstrap() {
   }
 
   function renderMessages(forceFollow = false) {
-    const ordered = [...state.messages.values()].sort(compareMessages);
+    const ordered = [...conversation.messages.values()].sort(compareMessages);
     const onLoad = forceFollow ? () => scrollToBottom(true) : () => scrollToBottom();
 
     // 已渲染的消息元素按 mid 索引
@@ -303,7 +303,7 @@ function bootstrap() {
   async function selectGroup(gid) {
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
-    const version = ++state.groupLoadVersion;
+    const version = ++conversation.version;
     state.switchingGroup = true;
     if (state.currentGid !== gid) {
       celebration.cancel();
@@ -311,7 +311,7 @@ function bootstrap() {
     }
     history.setGroup(group);
     state.currentGid = gid;
-    state.messages.clear();
+    conversation.messages.clear();
     state.beforeCursor = null;
     state.hasMore = false;
     state.pendingCatchUp = false;
@@ -340,7 +340,7 @@ function bootstrap() {
     try {
       await loadMessages(null, null);
     } finally {
-      if (state.groupLoadVersion === version) state.switchingGroup = false;
+      if (conversation.version === version) state.switchingGroup = false;
     }
   }
 
@@ -385,7 +385,7 @@ function bootstrap() {
     const isLatestPage = beforeCursor === null;
     const anchor = isLatestPage ? null : captureScrollAnchor(elements.messages);
     const gid = state.currentGid;
-    const version = state.groupLoadVersion;
+    const version = conversation.version;
     const query = new URLSearchParams({
       gid: String(gid), size: String(PAGE_SIZE)
     });
@@ -395,8 +395,8 @@ function bootstrap() {
     }
     try {
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (state.currentGid !== gid || state.groupLoadVersion !== version) return;
-      result.items.forEach(message => state.messages.set(message.mid, message));
+      if (state.currentGid !== gid || conversation.version !== version) return;
+      result.items.forEach(message => conversation.messages.set(message.mid, message));
       state.beforeCursor = result.hasMore && result.nextBeforeCreatedAt !== null
         && result.nextBeforeMid !== null
         ? {createdAt: result.nextBeforeCreatedAt, mid: result.nextBeforeMid}
@@ -457,23 +457,23 @@ function bootstrap() {
       || state.refreshing || document.hidden) return;
     state.refreshing = true;
     const gid = state.currentGid;
-    const version = state.groupLoadVersion;
+    const version = conversation.version;
     try {
-      if (state.pendingCatchUp && state.messages.size > 0) {
+      if (state.pendingCatchUp && conversation.messages.size > 0) {
         // 回到页面后追平离开期间的缺口，追平会一直翻到最新，不再走常规刷新
         if (await catchUpMessages(gid)) state.pendingCatchUp = false;
         return;
       }
       // 标签页隐藏期间视为未在阅读，回来后不自动贴底，保留上次阅读位置
       const followedLatest = state.followingLatest && isNearBottom();
-      const knownMids = new Set(state.messages.keys());
+      const knownMids = new Set(conversation.messages.keys());
       const query = new URLSearchParams({
         gid: String(gid), size: String(PAGE_SIZE)
       });
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (state.currentGid !== gid || state.groupLoadVersion !== version) return;
+      if (state.currentGid !== gid || conversation.version !== version) return;
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
-      result.items.forEach(message => state.messages.set(message.mid, message));
+      result.items.forEach(message => conversation.messages.set(message.mid, message));
       if (fresh.length > 0) {
         state.followingLatest = followedLatest;
         renderMessages();
@@ -494,20 +494,20 @@ function bootstrap() {
 
   // 回到页面后从已加载的最新一条起，用 after 游标逐页向前补拉，直到追平最新
   async function catchUpMessages(gid) {
-    const version = state.groupLoadVersion;
-    const latest = [...state.messages.values()].reduce((left, right) =>
+    const version = conversation.version;
+    const latest = [...conversation.messages.values()].reduce((left, right) =>
       compareMessages(left, right) >= 0 ? left : right);
     let cursor = {createdAt: latest.createdAt, mid: latest.mid};
     let added = false;
     while (!document.hidden && state.currentGid === gid
-      && state.groupLoadVersion === version) {
+      && conversation.version === version) {
       const query = new URLSearchParams({
         gid: String(gid), size: String(PAGE_SIZE),
         afterCreatedAt: String(cursor.createdAt), afterMid: String(cursor.mid)
       });
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (state.currentGid !== gid || state.groupLoadVersion !== version) return false;
-      result.items.forEach(message => state.messages.set(message.mid, message));
+      if (state.currentGid !== gid || conversation.version !== version) return false;
+      result.items.forEach(message => conversation.messages.set(message.mid, message));
       if (result.items.length > 0) {
         added = true;
         renderMessages();
@@ -521,7 +521,7 @@ function bootstrap() {
     // 追平后不自动贴底，由“新消息”按钮提示，点击恢复跟随
     if (added && !state.followingLatest) elements.newMessages.hidden = false;
     return !document.hidden && state.currentGid === gid
-      && state.groupLoadVersion === version;
+      && conversation.version === version;
   }
 
   function groupsEqual(prev, next) {
