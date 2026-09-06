@@ -55,6 +55,7 @@ class GroupChatPageTest {
     private static final AtomicInteger qrLoginRequests = new AtomicInteger();
     private static final AtomicBoolean failQrLogin = new AtomicBoolean();
     private static final AtomicBoolean delayGroup202Latest = new AtomicBoolean();
+    private static final AtomicBoolean catchUpMessages = new AtomicBoolean();
     private static final AtomicBoolean multipleCelebrationMessages = new AtomicBoolean();
     private static final AtomicBoolean delayAnalysisDetail = new AtomicBoolean();
 
@@ -151,6 +152,12 @@ class GroupChatPageTest {
                 sendJson(exchange, afterCursorMessagesJson(true, 7_000L, 7L,
                         messageJson(7, "路路", "山顶见", 7000) + ","
                                 + messageJson(6, "阿呆", "我也参加", 6000)));
+                return;
+            }
+            if (query.contains("afterCreatedAt=2000") && query.contains("afterMid=2")
+                    && catchUpMessages.getAndSet(false)) {
+                sendJson(exchange, afterCursorMessagesJson(false, null, null,
+                        messageJson(3, "阿呆", "追平消息", 3000)));
                 return;
             }
             if (query.contains("beforeCreatedAt=3000") && query.contains("beforeMid=3")) {
@@ -453,6 +460,7 @@ class GroupChatPageTest {
         qrLoginRequests.set(0);
         failQrLogin.set(false);
         delayGroup202Latest.set(false);
+        catchUpMessages.set(false);
         multipleCelebrationMessages.set(false);
         delayAnalysisDetail.set(false);
     }
@@ -1349,6 +1357,37 @@ class GroupChatPageTest {
         assertThat(page.locator("#current-group")).hasText("LinkNow");
         page.waitForTimeout(100);
         Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
+        page.close();
+    }
+
+    @Test
+    void catches_up_messages_after_returning_from_a_hidden_page() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#messages")).not().containsText("追平消息");
+
+        page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: true})");
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+        catchUpMessages.set(true);
+        page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: false})");
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+
+        assertThat(page.locator("#messages")).containsText("追平消息");
+        assertThat(page.locator("#new-messages")).isVisible();
+        page.close();
+    }
+
+    @Test
+    void ignores_a_previous_group_response_after_switching_back() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        delayGroup202Latest.set(true);
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+        page.waitForTimeout(500);
+        assertThat(page.locator("#messages")).not().containsText("分享图片");
         page.close();
     }
 
