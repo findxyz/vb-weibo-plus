@@ -1,4 +1,6 @@
-export function createGroupList({elements, messageView, getGroups, getCurrentGid, onSelect}) {
+export function createGroupList({elements, messageView, fetchJson, getCurrentGid, onSelect, onGroupsChanged}) {
+  let groups = null;
+  let refreshing = false;
   function groupPreview(group) {
     const sender = group.latestSenderName?.trim() || "";
     const message = group.latestMessage?.trim() || "";
@@ -9,8 +11,14 @@ export function createGroupList({elements, messageView, getGroups, getCurrentGid
     elements.groupsList.querySelectorAll(".group-row").forEach(row => { row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword); });
   }
   function render() {
+    if (!groups.length) {
+      elements.groupsCount.textContent = "暂无群聊";
+      elements.groupsList.replaceChildren(
+        Object.assign(document.createElement("div"), {className: "groups-empty", textContent: "暂无群聊数据"}));
+      return;
+    }
     elements.groupsList.replaceChildren();
-    for (const group of getGroups()) {
+    for (const group of groups) {
       const button = document.createElement("button"); button.className = "group-row"; button.type = "button"; button.dataset.gid = String(group.gid);
       if (group.gid === getCurrentGid()) { button.classList.add("active"); button.setAttribute("aria-current", "true"); }
       const preview = groupPreview(group); button.setAttribute("aria-label", `${group.name || `群聊 ${group.gid}`}，${preview}`);
@@ -20,8 +28,53 @@ export function createGroupList({elements, messageView, getGroups, getCurrentGid
       const summary = document.createElement("span"); summary.className = "group-preview"; summary.textContent = preview;
       copy.append(name, summary); button.append(copy); button.addEventListener("click", () => onSelect(group.gid)); elements.groupsList.append(button);
     }
-    elements.groupsCount.textContent = `${getGroups().length} 个群聊`; filter(elements.groupSearch.value);
+    elements.groupsCount.textContent = `${groups.length} 个群聊`; filter(elements.groupSearch.value);
+  }
+  function sameAdmins(left, right) {
+    if (left === right) return true;
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => value === right[index]);
+  }
+  function groupsEqual(prev, next) {
+    if (prev.length !== next.length) return false;
+    return prev.every((group, index) => {
+      const other = next[index];
+      return group.gid === other.gid && group.name === other.name && group.avatar === other.avatar
+        && group.latestMessage === other.latestMessage && group.latestSenderName === other.latestSenderName
+        && group.messageCount === other.messageCount && group.memberCount === other.memberCount
+        && group.maxMember === other.maxMember && sameAdmins(group.admins, other.admins);
+    });
+  }
+  function copyGroup(group) {
+    return {...group, admins: Array.isArray(group.admins) ? [...group.admins] : group.admins};
+  }
+  function snapshot() { return (groups || []).map(copyGroup); }
+  function findGroup(gid) {
+    const found = (groups || []).find(item => item.gid === gid);
+    return found ? copyGroup(found) : null;
+  }
+  function applyGroups(next) {
+    if (groups && groupsEqual(groups, next)) return;
+    groups = next;
+    render();
+    onGroupsChanged(snapshot());
+  }
+  async function loadInitial() {
+    if (refreshing) return snapshot();
+    refreshing = true;
+    try {
+      applyGroups(await fetchJson("/chat/groups", {cache: "no-store"}));
+      return snapshot();
+    } finally { refreshing = false; }
+  }
+  async function refreshGroups() {
+    if (refreshing || document.hidden) return;
+    refreshing = true;
+    try {
+      applyGroups(await fetchJson("/chat/groups", {cache: "no-store"}));
+    } catch (error) { console.warn("刷新群聊列表失败：", error); }
+    finally { refreshing = false; }
   }
   elements.groupSearch.addEventListener("input", event => filter(event.target.value));
-  return {render, filter};
+  return {findGroup, loadInitial, refreshGroups};
 }

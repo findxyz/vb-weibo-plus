@@ -68,7 +68,7 @@ function bootstrap() {
     celebrationPopoverJoin: document.querySelector("#celebration-popover-join")
   };
   const state = {
-    groups: [], currentGid: null, refreshingGroups: false, initializing: false,
+    currentGid: null, initializing: false,
     loginCheckTick: 0, loginPending: false, pendingRefresh: false,
     lastSizeGid: null, lastMessageCount: null
   };
@@ -98,8 +98,13 @@ function bootstrap() {
     onSent: gid => conversation.followLatest(gid)
   });
   const groupList = createGroupList({
-    elements, messageView, getGroups: () => state.groups,
-    getCurrentGid: () => state.currentGid, onSelect: selectGroup
+    elements, messageView, fetchJson,
+    getCurrentGid: () => state.currentGid, onSelect: selectGroup,
+    onGroupsChanged: groups => {
+      const current = groups.find(item => item.gid === state.currentGid);
+      if (current) conversation.updateGroup(current);
+      updateCurrentGroupHeader();
+    }
   });
   const history = createHistory({
     elements, fetchJson, localDateValue, calendarMonthsAgo,
@@ -130,7 +135,7 @@ function bootstrap() {
   function formatDateTime(timestamp) { return dateTimeFormatter.format(new Date(timestamp)); }
   function isAdminSender(senderId) {
     if (!Number.isSafeInteger(senderId) || senderId <= 0) return false;
-    const group = state.groups.find(item => item.gid === state.currentGid);
+    const group = groupList.findGroup(state.currentGid);
     return Array.isArray(group?.admins) && group.admins.includes(senderId);
   }
 
@@ -155,7 +160,7 @@ function bootstrap() {
   }
 
   async function selectGroup(gid) {
-    const group = state.groups.find(item => item.gid === gid);
+    const group = groupList.findGroup(gid);
     if (!group) return;
     if (state.currentGid !== gid) { celebration.cancel(); history.close(); }
     state.currentGid = gid;
@@ -182,7 +187,7 @@ function bootstrap() {
   }
 
   function updateCurrentGroupHeader() {
-    const group = state.groups.find(item => item.gid === state.currentGid);
+    const group = groupList.findGroup(state.currentGid);
     if (!group) return;
     if (typeof group.messageCount !== "number") {
       elements.currentSize.textContent = `${group.maxMember || group.memberCount} 人群`;
@@ -203,39 +208,9 @@ function bootstrap() {
     }
   }
 
-  function groupsEqual(prev, next) {
-    if (prev.length !== next.length) return false;
-    return prev.every((group, index) => {
-      const other = next[index];
-      return group.gid === other.gid && group.name === other.name && group.avatar === other.avatar
-        && group.latestMessage === other.latestMessage && group.latestSenderName === other.latestSenderName
-        && group.messageCount === other.messageCount && group.memberCount === other.memberCount
-        && group.maxMember === other.maxMember && sameAdmins(group.admins, other.admins);
-    });
-  }
-  function sameAdmins(left, right) {
-    if (left === right) return true;
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
-    return left.every((value, index) => value === right[index]);
-  }
-
-  async function refreshGroups() {
-    if (state.refreshingGroups || document.hidden) return;
-    state.refreshingGroups = true;
-    try {
-      const groups = await fetchJson("/chat/groups", {cache: "no-store"});
-      if (groupsEqual(state.groups, groups)) return;
-      state.groups = groups; groupList.render();
-      const current = groups.find(item => item.gid === state.currentGid);
-      if (current) conversation.updateGroup(current);
-      updateCurrentGroupHeader();
-    } catch (error) { console.warn("刷新群聊列表失败：", error); }
-    finally { state.refreshingGroups = false; }
-  }
-
   function refreshView() {
     if (state.initializing) { state.pendingRefresh = true; return; }
-    refreshGroups(); conversation.refresh(); maybeCheckLoginStatus();
+    groupList.refreshGroups(); conversation.refresh(); maybeCheckLoginStatus();
   }
 
   const LOGIN_CHECK_INTERVAL = 60; const QR_LOGIN_LOADING_TEXT = "📱 扫码中…"; const QR_IMAGE_INTERVAL = 10000;
@@ -270,15 +245,10 @@ function bootstrap() {
   async function initialize() {
     state.initializing = true; elements.retryGroups.hidden = true; elements.groupsState.textContent = "";
     try {
-      state.groups = await fetchJson("/chat/groups", {cache: "no-store"}); groupList.render();
-      if (!state.groups.length) {
-        elements.groupsState.textContent = ""; elements.groupsCount.textContent = "暂无群聊";
-        elements.groupsList.replaceChildren(
-          Object.assign(document.createElement("div"), {className: "groups-empty", textContent: "暂无群聊数据"}));
-        return;
-      }
+      const groups = await groupList.loadInitial();
+      if (!groups.length) return;
       const savedGid = Number(localStorage.getItem(LAST_GROUP_KEY));
-      await selectGroup((state.groups.find(group => group.gid === savedGid) || state.groups[0]).gid);
+      await selectGroup((groups.find(group => group.gid === savedGid) || groups[0]).gid);
     } catch { elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false; }
     finally { state.initializing = false; if (state.pendingRefresh) { state.pendingRefresh = false; refreshView(); } }
   }
