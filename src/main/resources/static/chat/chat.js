@@ -9,6 +9,7 @@ import {createAnalysis} from "./analysis.js";
 import {createHistory} from "./history.js";
 import {createCelebration} from "./celebration.js";
 import {createComposer} from "./composer.js";
+import {createGroupList} from "./group-list.js";
 
 function bootstrap() {
   "use strict";
@@ -159,6 +160,10 @@ function bootstrap() {
     onRefresh: gid => refreshMessages(gid),
     onSent: () => { state.followingLatest = true; }
   });
+  const groupList = createGroupList({
+    elements, messageView, getGroups: () => state.groups,
+    getCurrentGid: () => state.currentGid, onSelect: gid => selectGroup(gid)
+  });
   const history = createHistory({
     elements, fetchJson, localDateValue, calendarMonthsAgo,
     pageSize: PAGE_SIZE, searchPageSize: HISTORY_SEARCH_PAGE_SIZE,
@@ -219,54 +224,6 @@ function bootstrap() {
     composer.setRangeText(phrase, start, end, "end");
     composer.focus();
     composer.dispatchEvent(new Event("input", {bubbles: true}));
-  }
-
-  function groupPreview(group) {
-    const sender = group.latestSenderName?.trim() || "";
-    const message = group.latestMessage?.trim() || "";
-    if (sender || message) {
-      return sender ? `${sender}：${message}` : message;
-    }
-    return `${group.maxMember || group.memberCount} 人群`;
-  }
-
-  function renderGroups() {
-    elements.groupsList.replaceChildren();
-    state.groups.forEach(group => {
-      const button = document.createElement("button");
-      button.className = "group-row";
-      button.type = "button";
-      button.dataset.gid = String(group.gid);
-      if (group.gid === state.currentGid) {
-        button.classList.add("active");
-        button.setAttribute("aria-current", "true");
-      }
-      const previewText = groupPreview(group);
-      button.setAttribute("aria-label",
-        `${group.name || `群聊 ${group.gid}`}，${previewText}`);
-      button.append(messageView.avatar(group, "group-avatar"));
-      const copy = document.createElement("span");
-      copy.className = "group-copy";
-      const name = document.createElement("span");
-      name.className = "group-name";
-      name.textContent = group.name || `群聊 ${group.gid}`;
-      const size = document.createElement("span");
-      size.className = "group-preview";
-      size.textContent = previewText;
-      copy.append(name, size);
-      button.append(copy);
-      button.addEventListener("click", () => selectGroup(group.gid));
-      elements.groupsList.append(button);
-    });
-    elements.groupsCount.textContent = `${state.groups.length} 个群聊`;
-    filterGroups(elements.groupSearch.value);
-  }
-
-  function filterGroups(value) {
-    const keyword = value.trim().toLocaleLowerCase("zh-CN");
-    elements.groupsList.querySelectorAll(".group-row").forEach(row => {
-      row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword);
-    });
   }
 
   function isAdminSender(senderId) {
@@ -593,7 +550,7 @@ function bootstrap() {
       const groups = await fetchJson("/chat/groups", {cache: "no-store"});
       if (groupsEqual(state.groups, groups)) return;
       state.groups = groups;
-      renderGroups();
+      groupList.render();
       updateCurrentGroupHeader();
     } catch (error) {
       console.warn("刷新群聊列表失败：", error);
@@ -695,7 +652,7 @@ function bootstrap() {
     elements.groupsState.textContent = "";
     try {
       state.groups = await fetchJson("/chat/groups", {cache: "no-store"});
-      renderGroups();
+      groupList.render();
       if (!state.groups.length) {
         elements.groupsState.textContent = "";
         elements.groupsCount.textContent = "暂无群聊";
@@ -723,9 +680,6 @@ function bootstrap() {
     }
   }
 
-  elements.groupSearch.addEventListener("input", event => {
-    filterGroups(event.target.value);
-  });
   elements.messages.addEventListener("scroll", () => {
     state.followingLatest = isNearBottom();
     if (state.followingLatest) elements.newMessages.hidden = true;
@@ -814,3 +768,4 @@ if (document.readyState === "loading") {
 } else {
   bootstrap();
 }
+
