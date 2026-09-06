@@ -1,6 +1,7 @@
 // 盗梦空间彩蛋：每个群友的梦境页面按用户 id 放在 /chat/dream/<uid>.html，
-// 悬停头像 3 秒后探测该页面，存在才弹出入口提示，确认后以蒙版对话框打开游戏。
-export function createDream({messages, popover, enterButton, dialog, frame, closeButton}) {
+// 悬停头像 3 秒后探测该页面，存在才弹出入口提示；弹层保持显示，直到点击
+// 自身的关闭按钮、进入游戏或滚动消息，确认后以蒙版对话框打开游戏。
+export function createDream({messages, popover, enterButton, popoverClose, dialog, frame, closeButton}) {
   const HOVER_OPEN_MS = 3000;
   let hoverTimer = null;
   let anchor = null;
@@ -58,6 +59,7 @@ export function createDream({messages, popover, enterButton, dialog, frame, clos
   });
   closeButton.addEventListener("click", closeGame);
   enterButton.addEventListener("click", openGame);
+  popoverClose.addEventListener("click", hidePopover);
   messages.addEventListener("scroll", hidePopover, {passive: true});
 
   document.addEventListener("pointerover", event => {
@@ -84,24 +86,12 @@ export function createDream({messages, popover, enterButton, dialog, frame, clos
   });
 
   document.addEventListener("pointerout", event => {
-    const from = event.target;
+    // 弹层出现后不再跟随指针移动收起，否则鼠标从头像移向弹层时
+    // 会穿过两者之间的间隙被误收，根本点不到按钮
+    if (!popover.hidden) return;
     const to = event.relatedTarget;
-    const avatar = hoverableAvatar(from);
-    if (avatar) {
-      if (to && avatar.contains(to)) return;
-      if (!popover.hidden && to?.closest?.("#dream-popover")) return;
-      hidePopover();
-      return;
-    }
-    if (!popover.hidden && from.closest?.("#dream-popover")) {
-      if (hoverableAvatar(to) === anchor) return;
-      hidePopover();
-    }
-  });
-
-  document.addEventListener("pointerdown", event => {
-    if (popover.hidden) return;
-    if (event.target.closest?.("#dream-popover")) return;
+    const avatar = hoverableAvatar(event.target);
+    if (!avatar || (to && avatar.contains(to))) return;
     hidePopover();
   });
 }

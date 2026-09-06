@@ -1801,6 +1801,26 @@ class GroupChatPageTest {
     }
 
     @Test
+    void dream_popup_stays_visible_until_its_close_button_dismisses_it() {
+        dreamEggMessage.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("[data-mid='14']")).isVisible();
+
+        page.hover("[data-mid='14'] .message-avatar");
+        assertThat(page.locator("#dream-popover")).isVisible();
+
+        // 弹层出现后不再跟随指针移动消失，鼠标移开也能回头点按钮
+        page.mouse().move(10, 10);
+        page.waitForTimeout(500);
+        assertThat(page.locator("#dream-popover")).isVisible();
+
+        page.locator("#dream-popover-close").click();
+        assertThat(page.locator("#dream-popover")).isHidden();
+        page.close();
+    }
+
+    @Test
     void dream_popup_requires_a_full_hover_and_only_reacts_to_the_easter_egg_avatar() {
         dreamEggMessage.set(true);
         Page page = browser.newPage();

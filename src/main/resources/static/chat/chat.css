@@ -1785,7 +1785,8 @@ h1 {
   filter: drop-shadow(0 1px 1px #003692);
 }
 
-.celebration-popover-titlebar button {
+.celebration-popover-titlebar button,
+.dream-popover-titlebar button {
   width: 28px;
   height: 26px;
   flex: none;
@@ -1800,7 +1801,8 @@ h1 {
   box-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
 }
 
-.celebration-popover-titlebar button::before {
+.celebration-popover-titlebar button::before,
+.dream-popover-titlebar button::before {
   content: "";
   display: block;
   width: 12px;
@@ -1809,7 +1811,8 @@ h1 {
   filter: drop-shadow(0 1px #074b9a);
 }
 
-.celebration-popover-titlebar button:hover {
+.celebration-popover-titlebar button:hover,
+.dream-popover-titlebar button:hover {
   filter: brightness(1.08);
 }
 

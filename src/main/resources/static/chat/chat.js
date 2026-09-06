@@ -68,6 +68,7 @@ function bootstrap() {
     celebrationPopoverRemove: document.querySelector("#celebration-popover-remove"), celebrationInterval: document.querySelector("#celebration-interval"),
     celebrationPopoverJoin: document.querySelector("#celebration-popover-join"),
     dreamPopover: document.querySelector("#dream-popover"), dreamEnter: document.querySelector("#dream-enter"),
+    dreamPopoverClose: document.querySelector("#dream-popover-close"),
     dreamDialog: document.querySelector("#dream-dialog"), dreamFrame: document.querySelector("#dream-frame"),
     dreamClose: document.querySelector("#dream-close")
   };
@@ -118,6 +119,7 @@ function bootstrap() {
   });
   createDream({
     messages: elements.messages, popover: elements.dreamPopover, enterButton: elements.dreamEnter,
+    popoverClose: elements.dreamPopoverClose,
     dialog: elements.dreamDialog, frame: elements.dreamFrame, closeButton: elements.dreamClose
   });
 
