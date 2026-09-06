@@ -266,7 +266,6 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
         }
       }
       if (!isCurrent(sessionVersion, operationVersion)) return;
-      elements.analysisFeedback.textContent = "分析完成。";
       if (doneView) {
         if (state.renderFrame !== null) {
           cancelAnimationFrame(state.renderFrame);
@@ -279,6 +278,7 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
         elements.analysisDetailContent.innerHTML = renderMarkdown(doneView.result);
         elements.analysisDetailContent.scrollTop = 0;
       } else {
+        elements.analysisFeedback.textContent = "分析完成。";
         renderStream();
       }
     } catch (error) {
