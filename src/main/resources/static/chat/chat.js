@@ -1862,7 +1862,7 @@
         continue;
       }
       if (message.createdAt - baseline >= interval * 1000) {
-        spawnCelebration(gid, entry);
+        if (activeCelebrations.size === 0) spawnCelebration(gid, entry);
       }
       celebrationSeen[key] = message.createdAt;
       changed = true;

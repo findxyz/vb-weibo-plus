@@ -53,6 +53,7 @@ class GroupChatPageTest {
     private static final AtomicInteger qrLoginRequests = new AtomicInteger();
     private static final AtomicBoolean failQrLogin = new AtomicBoolean();
     private static final AtomicBoolean delayGroup202Latest = new AtomicBoolean();
+    private static final AtomicBoolean multipleCelebrationMessages = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -214,10 +215,16 @@ class GroupChatPageTest {
             }
             int requestNumber = latestPageRequests.incrementAndGet();
             boolean refreshed = requestNumber > 1;
-            String newMessage = requestNumber > 2
-                    ? messageJson(4, "小凯", "点击后消息", 4000) + ","
-                            + messageJson(3, "阿呆", "刷新后消息", 3000) + ","
-                    : refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
+            String newMessage;
+            if (refreshed && multipleCelebrationMessages.getAndSet(false)) {
+                newMessage = messageJson(4, "小凯", "第二条刷新后消息", 4000) + ","
+                        + messageJson(3, "阿呆", "第一条刷新后消息", 3000) + ",";
+            } else {
+                newMessage = requestNumber > 2
+                        ? messageJson(4, "小凯", "点击后消息", 4000) + ","
+                                + messageJson(3, "阿呆", "刷新后消息", 3000) + ","
+                        : refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
+            }
             sendJson(exchange, cursorMessagesJson(true,
                     refreshed ? 2_000L : 1_000L, refreshed ? 2L : 1L,
                     newMessage
@@ -410,6 +417,7 @@ class GroupChatPageTest {
         qrLoginRequests.set(0);
         failQrLogin.set(false);
         delayGroup202Latest.set(false);
+        multipleCelebrationMessages.set(false);
     }
 
     @Test
@@ -1299,6 +1307,33 @@ class GroupChatPageTest {
         Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
         Object seen = page.evaluate("JSON.parse(localStorage.getItem('weibo-chat:celebration-seen'))['101:3']");
         Assertions.assertThat(((Number) seen).longValue()).isEqualTo(3_000L);
+        page.close();
+    }
+
+    @Test
+    void celebrates_only_once_for_multiple_arrivals_in_one_refresh() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
+                  "101": {
+                    "3": {"name": "阿呆", "avatar": "", "interval": 1},
+                    "4": {"name": "小凯", "avatar": "", "interval": 1}
+                  }
+                }));
+                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
+                  "101:3": 1000,
+                  "101:4": 1000
+                }));
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+
+        multipleCelebrationMessages.set(true);
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+        page.waitForTimeout(800);
+
+        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count())
+                .isEqualTo(1);
         page.close();
     }
 
