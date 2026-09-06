@@ -52,6 +52,7 @@ class GroupChatPageTest {
     private static final AtomicInteger loginStatusRequests = new AtomicInteger();
     private static final AtomicInteger qrLoginRequests = new AtomicInteger();
     private static final AtomicBoolean failQrLogin = new AtomicBoolean();
+    private static final AtomicBoolean delayGroup202Latest = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -92,6 +93,13 @@ class GroupChatPageTest {
                     exchange.sendResponseHeaders(400, -1);
                     exchange.close();
                     return;
+                }
+                if (delayGroup202Latest.getAndSet(false)) {
+                    try {
+                        Thread.sleep(300);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
                 String baseMessages = mediaMessageJson(4, 1, "分享图片",
                         "/chat/media?gid=202&mid=4&variant=preview",
@@ -401,6 +409,7 @@ class GroupChatPageTest {
         loginStatusRequests.set(0);
         qrLoginRequests.set(0);
         failQrLogin.set(false);
+        delayGroup202Latest.set(false);
     }
 
     @Test
@@ -1224,6 +1233,76 @@ class GroupChatPageTest {
     }
 
     @Test
+    void does_not_celebrate_initial_messages_when_switching_groups() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
+                  "202": {"9": {"name": "媒体用户", "avatar": "", "interval": 1}}
+                }));
+                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
+                  "202:9": 0
+                }));
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+
+        delayGroup202Latest.set(true);
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        page.evaluate("setTimeout(() => window.dispatchEvent(new Event('focus')), 20)");
+        page.waitForTimeout(800);
+
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        page.waitForTimeout(100);
+        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
+        page.close();
+    }
+
+    @Test
+    void cancels_a_celebration_when_switching_groups() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
+                  "101": {"3": {"name": "阿呆", "avatar": "", "interval": 1}}
+                }));
+                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
+                  "101:3": 1000
+                }));
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+        assertThat(page.locator(".celebration-member")).isVisible();
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        page.waitForTimeout(100);
+        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
+        page.close();
+    }
+
+    @Test
+    void establishes_a_baseline_before_celebrating_when_seen_time_is_missing() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
+                  "101": {"3": {"name": "阿呆", "avatar": "", "interval": 1}}
+                }));
+                localStorage.removeItem("weibo-chat:celebration-seen");
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+        page.waitForTimeout(800);
+
+        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
+        Object seen = page.evaluate("JSON.parse(localStorage.getItem('weibo-chat:celebration-seen'))['101:3']");
+        Assertions.assertThat(((Number) seen).longValue()).isEqualTo(3_000L);
+        page.close();
+    }
+
+    @Test
     void shows_login_expired_prompt_and_starts_qr_login_on_click() {
         loginInvalid.set(true);
         Page page = browser.newPage();
@@ -1292,6 +1371,8 @@ class GroupChatPageTest {
                 exchange.getResponseHeaders().set("Content-Type", "text/css; charset=UTF-8");
             } else if (resourcePath.endsWith(".js")) {
                 exchange.getResponseHeaders().set("Content-Type", "text/javascript; charset=UTF-8");
+            } else if (resourcePath.endsWith(".png")) {
+                exchange.getResponseHeaders().set("Content-Type", "image/png");
             } else {
                 exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
             }

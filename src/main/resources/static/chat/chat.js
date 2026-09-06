@@ -114,6 +114,8 @@
     refreshingGroups: false,
     refreshing: false,
     initializing: false,
+    switchingGroup: false,
+    groupLoadVersion: 0,
     loadingEarlier: false,
     pendingCatchUp: false,
     get followingLatest() {
@@ -813,6 +815,9 @@
   async function selectGroup(gid) {
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
+    const version = ++state.groupLoadVersion;
+    state.switchingGroup = true;
+    if (state.currentGid !== gid) cancelCelebrations();
     if (historyState.gid !== gid) resetHistory(gid);
     state.currentGid = gid;
     state.messages.clear();
@@ -842,7 +847,11 @@
       if (active) row.setAttribute("aria-current", "true");
       else row.removeAttribute("aria-current");
     });
-    await loadMessages(null, null);
+    try {
+      await loadMessages(null, null);
+    } finally {
+      if (state.groupLoadVersion === version) state.switchingGroup = false;
+    }
   }
 
   function updateCurrentGroupHeader() {
@@ -886,6 +895,7 @@
     const isLatestPage = beforeCursor === null;
     const anchor = isLatestPage ? null : captureScrollAnchor();
     const gid = state.currentGid;
+    const version = state.groupLoadVersion;
     const query = new URLSearchParams({
       gid: String(gid), size: String(PAGE_SIZE)
     });
@@ -895,7 +905,7 @@
     }
     try {
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (state.currentGid !== gid) return;
+      if (state.currentGid !== gid || state.groupLoadVersion !== version) return;
       result.items.forEach(message => state.messages.set(message.mid, message));
       state.beforeCursor = result.hasMore && result.nextBeforeCreatedAt !== null
         && result.nextBeforeMid !== null
@@ -953,9 +963,11 @@
   }
 
   async function refreshMessages() {
-    if (!state.currentGid || state.initializing || state.refreshing || document.hidden) return;
+    if (!state.currentGid || state.initializing || state.switchingGroup
+      || state.refreshing || document.hidden) return;
     state.refreshing = true;
     const gid = state.currentGid;
+    const version = state.groupLoadVersion;
     try {
       if (state.pendingCatchUp && state.messages.size > 0) {
         // 回到页面后追平离开期间的缺口，追平会一直翻到最新，不再走常规刷新
@@ -969,7 +981,7 @@
         gid: String(gid), size: String(PAGE_SIZE)
       });
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (state.currentGid !== gid) return;
+      if (state.currentGid !== gid || state.groupLoadVersion !== version) return;
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
       result.items.forEach(message => state.messages.set(message.mid, message));
       if (fresh.length > 0) {
@@ -992,17 +1004,19 @@
 
   // 回到页面后从已加载的最新一条起，用 after 游标逐页向前补拉，直到追平最新
   async function catchUpMessages(gid) {
+    const version = state.groupLoadVersion;
     const latest = [...state.messages.values()].reduce((left, right) =>
       compareMessages(left, right) >= 0 ? left : right);
     let cursor = {createdAt: latest.createdAt, mid: latest.mid};
     let added = false;
-    while (!document.hidden && state.currentGid === gid) {
+    while (!document.hidden && state.currentGid === gid
+      && state.groupLoadVersion === version) {
       const query = new URLSearchParams({
         gid: String(gid), size: String(PAGE_SIZE),
         afterCreatedAt: String(cursor.createdAt), afterMid: String(cursor.mid)
       });
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-      if (state.currentGid !== gid) return false;
+      if (state.currentGid !== gid || state.groupLoadVersion !== version) return false;
       result.items.forEach(message => state.messages.set(message.mid, message));
       if (result.items.length > 0) {
         added = true;
@@ -1016,7 +1030,8 @@
     }
     // 追平后不自动贴底，由“新消息”按钮提示，点击恢复跟随
     if (added && !state.followingLatest) elements.newMessages.hidden = false;
-    return !document.hidden && state.currentGid === gid;
+    return !document.hidden && state.currentGid === gid
+      && state.groupLoadVersion === version;
   }
 
   function groupsEqual(prev, next) {
@@ -1774,6 +1789,15 @@
   const celebrationRoster = loadCelebrationStore(CELEBRATION_ROSTER_KEY);
   const celebrationSeen = loadCelebrationStore(CELEBRATION_SEEN_KEY);
   let celebrationDraft = null;
+  let celebrationGeneration = 0;
+  const activeCelebrations = new Set();
+
+  function cancelCelebrations() {
+    celebrationGeneration++;
+    for (const celebration of activeCelebrations) celebration.cancel();
+    activeCelebrations.clear();
+    elements.celebrationStage.replaceChildren();
+  }
 
   function celebrationEntry(gid, senderId) {
     return celebrationRoster[String(gid)]?.[String(senderId)] || null;
@@ -1831,17 +1855,19 @@
       const baseline = celebrationSeen[key] || 0;
       const interval = entry.interval > 0 ? entry.interval : CELEBRATION_DEFAULT_INTERVAL;
       if (message.createdAt <= baseline) continue;
-      if (!baseline || message.createdAt - baseline >= interval * 1000) {
-        spawnCelebration(entry);
+      if (!baseline) {
+        // 没有可靠的上一条消息时间时先建立基线，避免把普通消息误判为久默回归
+        celebrationSeen[key] = message.createdAt;
+        changed = true;
+        continue;
+      }
+      if (message.createdAt - baseline >= interval * 1000) {
+        spawnCelebration(gid, entry);
       }
       celebrationSeen[key] = message.createdAt;
       changed = true;
     }
     if (changed) saveCelebrationSeen();
-  }
-
-  function celebrationAnimLabel(animId) {
-    return CELEBRATION_ANIMS.find(anim => anim.id === animId)?.label || "";
   }
 
   function renderCelebrationRoster() {
@@ -1957,173 +1983,218 @@
       (canvas.width - w) / 2, 0, w, h);
   }
 
-  async function spawnCelebration(entry) {
-    const stage = elements.celebrationStage;
-    const width = stage.clientWidth;
-    const height = stage.clientHeight;
-    // 成员卡片要完整留在舞台内
-    if (width < 380 || height < 340) return;
-    let sheets;
-    try {
-      sheets = await loadMonsterSheets();
-    } catch {
-      return;
-    }
-    const name = entry.name || "未知成员";
+  const CELEBRATION_TIMINGS = Object.freeze({
+    walk: 2400,
+    poke: 800,
+    cheer: 1300,
+    mount: 625,
+    exit: 1600
+  });
 
-    // 成员卡片：头像被水泡罩住，泡破后头像亮起并显示欢迎面板
-    const card = document.createElement("div");
-    card.className = "celebration-member";
-    const figure = document.createElement("div");
-    figure.className = "celebration-member-figure";
-    figure.append(avatar(entry, "celebration-member-avatar"));
-    const bubble = document.createElement("span");
-    bubble.className = "celebration-bubble";
-    bubble.setAttribute("aria-hidden", "true");
-    figure.append(bubble);
-    card.append(figure);
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "celebration";
-    const actor = document.createElement("button");
-    actor.type = "button";
-    actor.className = "celebration-actor";
-    actor.setAttribute("aria-label", `跳过${name}的回归庆祝`);
-    const monster = document.createElement("canvas");
-    monster.className = "celebration-monster";
-    monster.width = 440;
-    monster.height = 440;
-    actor.append(monster);
-    // 台词是怪兽的话：悬在怪兽头顶，戳破前「你终于冒泡了」，戳破后当场改口
-    const speech = document.createElement("span");
-    speech.className = "celebration-speech";
-    speech.textContent = "你终于冒泡了";
-    actor.append(speech);
-    wrapper.append(actor);
-    stage.append(card, wrapper);
-
-    // 卡片停在中上部，怪兽站到卡片侧面够得着水泡的位置
-    const target = {
-      x: 170 + Math.random() * Math.max(1, width - 340),
-      y: 140 + Math.random() * Math.max(1, height - 300)
-    };
-    card.style.left = `${target.x}px`;
-    card.style.top = `${target.y}px`;
-    // 怪兽默认站卡片左侧朝右戳泡；卡片偏左时换到右侧并镜像。偏移按指泡帧
-    // 实测反推（指尖约在帧宽 95%、高 40% 处），身体让开水泡、指尖点在泡缘
-    const flip = target.x <= width / 2;
-    const spot = {
-      x: target.x + (flip ? -30 : -198),
-      y: target.y - 83
-    };
-    if (flip) actor.classList.add("flip");
-    // 图集怪兽面朝右：不镜像时从左缘进、右缘出，镜像时相反，避免倒着走路。
-    // 出场改为雷欧驮着怪兽朝面向一侧高空飞离；终点留足整格余量，
-    // 保证骑乘帧的完整人马都飞出舞台后才清理，不会半路凭空消失
-    const start = flip ? {x: width + 70, y: spot.y} : {x: -70, y: spot.y};
-    const exit = flip ? {x: -260, y: -260} : {x: width + 260, y: -260};
-
+  async function spawnCelebration(gid, entry) {
+    const run = {cancelled: false, cancel: null};
+    const generation = celebrationGeneration;
+    activeCelebrations.add(run);
+    const isCurrent = () => !run.cancelled
+      && generation === celebrationGeneration
+      && state.currentGid === gid;
+    let card = null;
+    let wrapper = null;
     let current = null;
     let skipped = false;
     const waits = new Set();
-    const wait = ms => new Promise(resolve => {
-      if (skipped) {
-        resolve();
-        return;
-      }
-      const done = () => {
-        clearTimeout(timer);
-        waits.delete(done);
-        resolve();
-      };
-      const timer = setTimeout(done, ms);
-      waits.add(done);
-    });
     const finish = () => {
+      if (skipped) return;
       skipped = true;
+      run.cancelled = true;
       current?.cancel();
       // 表演阶段的等待没有对应的 WAAPI，直接放行让清理立即执行
       for (const done of waits) done();
     };
-    actor.addEventListener("click", finish);
+    run.cancel = finish;
 
-    const move = (from, to, duration) => {
-      if (skipped) return Promise.resolve();
-      current = wrapper.animate([
-        {transform: `translate(${from.x}px, ${from.y}px)`},
-        {transform: `translate(${to.x}px, ${to.y}px)`}
-      ], {duration, easing: "linear", fill: "both"});
-      return current.finished.catch(() => {});
-    };
-    // 戳破水泡：水珠飞溅，头像亮起，怪兽改口「赶紧的一同拯救世界去」
-    const popBubble = () => {
-      card.classList.remove("is-poked");
-      card.classList.add("is-popped");
-      speech.textContent = "赶紧的一同拯救世界去";
-      const ring = document.createElement("i");
-      ring.className = "celebration-ring";
-      figure.append(ring);
-      for (let i = 0; i < 8; i++) {
-        const drop = document.createElement("i");
-        drop.className = "celebration-drop";
-        figure.append(drop);
-        const angle = i * 0.785 + 0.4;
-        const distance = 40 + (i % 3) * 16;
-        drop.animate([
-          {transform: "translate(0, 0) scale(1)", opacity: 1},
-          {transform: `translate(${Math.round(Math.cos(angle) * distance)}px, ${Math.round(Math.sin(angle) * distance - 10)}px) scale(0.3)`, opacity: 0}
-        ], {duration: 520 + (i % 3) * 90, easing: "cubic-bezier(0.2, 0.6, 0.3, 1)", fill: "forwards"});
+    try {
+      const stage = elements.celebrationStage;
+      const width = stage.clientWidth;
+      const height = stage.clientHeight;
+      // 成员卡片要完整留在舞台内
+      if (!isCurrent() || width < 380 || height < 340) return;
+      let sheets;
+      try {
+        sheets = await loadMonsterSheets();
+      } catch {
+        return;
       }
-    };
+      if (!isCurrent()) return;
+      const name = entry.name || "未知成员";
 
-    // 帧时间轴与 promise 链对齐：走 0-2.4s（8 帧/秒），戳 2.4-3.2s，欢呼 3.2-4.5s
-    // （图集前 5 帧，末帧定格举臂），4.5-5.125s 雷欧入画让怪兽原地骑上（5-9 帧），
-    // 骑稳后 5.125s 起循环 10-14 帧飞离
-    const paintStart = performance.now();
-    const paint = now => {
-      if (skipped) return;
-      const t = (now - paintStart) / 1000;
-      if (t < 2.4) drawMonsterFrame(monster, sheets.walk, Math.floor(t * 8) % 15, flip);
-      else if (t < 3.2) drawMonsterFrame(monster, sheets.point, 11 + Math.min(3, Math.floor((t - 2.4) * 8)), flip);
-      else if (t < 4.5) drawMonsterFrame(monster, sheets.leo, Math.min(4, Math.floor((t - 3.2) * 6)), flip);
-      else if (t < 5.125) drawMonsterFrame(monster, sheets.leo, 5 + Math.min(4, Math.floor((t - 4.5) * 8)), flip);
-      else drawMonsterFrame(monster, sheets.leo, 10 + Math.floor((t - 5.125) * 8) % 5, flip);
-      requestAnimationFrame(paint);
-    };
-    requestAnimationFrame(paint);
+      // 成员卡片：头像被水泡罩住，泡破后头像亮起并显示欢迎面板
+      card = document.createElement("div");
+      card.className = "celebration-member";
+      const figure = document.createElement("div");
+      figure.className = "celebration-member-figure";
+      figure.append(avatar(entry, "celebration-member-avatar"));
+      const bubble = document.createElement("span");
+      bubble.className = "celebration-bubble";
+      bubble.setAttribute("aria-hidden", "true");
+      figure.append(bubble);
+      card.append(figure);
 
-    wrapper.style.transform = `translate(${start.x}px, ${start.y}px)`;
-    move(start, spot, 2400)
-      .then(() => {
-        // 俯身轻戳两下水泡，泡泡跟着晃
-        card.classList.add("is-poked");
-        actor.classList.add("is-poking");
-        return wait(800);
-      })
-      .then(() => {
-        actor.classList.remove("is-poking");
-        popBubble();
-        // 雷欧入画让怪兽原地骑上（欢呼 1.3 秒 + 上鞍 0.625 秒），骑稳后再一同飞离
-        return wait(1925);
-      })
-      .then(() => {
-        // 雷欧驮走怪兽，成员保持队形同步飞离：与怪兽同时起飞、同速同向，
-        // 卡片终点 = 怪兽终点 + 起飞时卡片相对怪兽画布的偏移，全程队形不变
-        const off = {x: target.x - spot.x, y: target.y - spot.y};
-        const dx = exit.x + off.x - target.x;
-        const dy = exit.y + off.y - target.y;
-        card.animate([
-          {transform: "translate(-50%, -50%)"},
-          {transform: `translate(calc(-50% + ${Math.round(dx)}px), calc(-50% + ${Math.round(dy)}px)) rotate(${flip ? -5 : 5}deg)`}
-        ], {duration: 1600, easing: "linear", fill: "forwards"});
-        return move(spot, exit, 1600);
-      })
-      .finally(() => {
-        skipped = true;
-        current?.cancel();
-        wrapper.remove();
-        card.remove();
+      wrapper = document.createElement("div");
+      wrapper.className = "celebration";
+      const actor = document.createElement("button");
+      actor.type = "button";
+      actor.className = "celebration-actor";
+      actor.setAttribute("aria-label", `跳过${name}的回归庆祝`);
+      const monster = document.createElement("canvas");
+      monster.className = "celebration-monster";
+      monster.width = 440;
+      monster.height = 440;
+      actor.append(monster);
+      // 台词是怪兽的话：悬在怪兽头顶，戳破前「你终于冒泡了」，戳破后当场改口
+      const speech = document.createElement("span");
+      speech.className = "celebration-speech";
+      speech.textContent = "你终于冒泡了";
+      actor.append(speech);
+      wrapper.append(actor);
+      stage.append(card, wrapper);
+
+      // 卡片停在中上部，怪兽站到卡片侧面够得着水泡的位置
+      const target = {
+        x: 170 + Math.random() * Math.max(1, width - 340),
+        y: 140 + Math.random() * Math.max(1, height - 300)
+      };
+      card.style.left = `${target.x}px`;
+      card.style.top = `${target.y}px`;
+      // 怪兽默认站卡片左侧朝右戳泡；卡片偏左时换到右侧并镜像。偏移按指泡帧
+      // 实测反推（指尖约在帧宽 95%、高 40% 处），身体让开水泡、指尖点在泡缘
+      const flip = target.x <= width / 2;
+      const spot = {
+        x: target.x + (flip ? -30 : -198),
+        y: target.y - 83
+      };
+      if (flip) actor.classList.add("flip");
+      // 图集怪兽面朝右：不镜像时从左缘进、右缘出，镜像时相反，避免倒着走路。
+      // 出场改为雷欧驮着怪兽朝面向一侧高空飞离；终点留足整格余量，
+      // 保证骑乘帧的完整人马都飞出舞台后才清理，不会半路凭空消失
+      const start = flip ? {x: width + 70, y: spot.y} : {x: -70, y: spot.y};
+      const exit = flip ? {x: -260, y: -260} : {x: width + 260, y: -260};
+
+      const wait = ms => new Promise(resolve => {
+        if (!isCurrent()) {
+          resolve();
+          return;
+        }
+        const done = () => {
+          clearTimeout(timer);
+          waits.delete(done);
+          resolve();
+        };
+        const timer = setTimeout(done, ms);
+        waits.add(done);
       });
+      actor.addEventListener("click", finish);
+
+      const move = (from, to, duration) => {
+        if (!isCurrent()) return Promise.resolve();
+        current = wrapper.animate([
+          {transform: `translate(${from.x}px, ${from.y}px)`},
+          {transform: `translate(${to.x}px, ${to.y}px)`}
+        ], {duration, easing: "linear", fill: "both"});
+        return current.finished.catch(() => {});
+      };
+      // 戳破水泡：水珠飞溅，头像亮起，怪兽改口「赶紧的一同拯救世界去」
+      const popBubble = () => {
+        card.classList.remove("is-poked");
+        card.classList.add("is-popped");
+        speech.textContent = "赶紧的一同拯救世界去";
+        const ring = document.createElement("i");
+        ring.className = "celebration-ring";
+        figure.append(ring);
+        for (let i = 0; i < 8; i++) {
+          const drop = document.createElement("i");
+          drop.className = "celebration-drop";
+          figure.append(drop);
+          const angle = i * 0.785 + 0.4;
+          const distance = 40 + (i % 3) * 16;
+          drop.animate([
+            {transform: "translate(0, 0) scale(1)", opacity: 1},
+            {transform: `translate(${Math.round(Math.cos(angle) * distance)}px, ${Math.round(Math.sin(angle) * distance - 10)}px) scale(0.3)`, opacity: 0}
+          ], {duration: 520 + (i % 3) * 90, easing: "cubic-bezier(0.2, 0.6, 0.3, 1)", fill: "forwards"});
+        }
+      };
+
+      // 帧时间线与 Promise 链对齐：走 0-2.4 s（8 帧/秒），戳 2.4-3.2 s，欢呼 3.2-4.5 s
+      // （图集前 5 帧，末帧定格举臂），4.5-5.125 s 雷欧入画让怪兽原地骑上（5-9 帧），
+      // 骑稳后 5.125 s 起循环 10-14 帧飞离
+      const walkEnd = CELEBRATION_TIMINGS.walk;
+      const pokeEnd = walkEnd + CELEBRATION_TIMINGS.poke;
+      const cheerEnd = pokeEnd + CELEBRATION_TIMINGS.cheer;
+      const rideEnd = cheerEnd + CELEBRATION_TIMINGS.mount;
+      const paintStart = performance.now();
+      let lastSheet = null;
+      let lastFrame = -1;
+      let lastFlip = null;
+      const paint = now => {
+        if (!isCurrent()) return;
+        const elapsed = now - paintStart;
+        let sheet;
+        let frame;
+        if (elapsed < walkEnd) {
+          sheet = sheets.walk;
+          frame = Math.floor(elapsed / 1000 * 8) % 15;
+        } else if (elapsed < pokeEnd) {
+          sheet = sheets.point;
+          frame = 11 + Math.min(3, Math.floor((elapsed - walkEnd) / 1000 * 8));
+        } else if (elapsed < cheerEnd) {
+          sheet = sheets.leo;
+          frame = Math.min(4, Math.floor((elapsed - pokeEnd) / 1000 * 6));
+        } else if (elapsed < rideEnd) {
+          sheet = sheets.leo;
+          frame = 5 + Math.min(4, Math.floor((elapsed - cheerEnd) / 1000 * 8));
+        } else {
+          sheet = sheets.leo;
+          frame = 10 + Math.floor((elapsed - rideEnd) / 1000 * 8) % 5;
+        }
+        if (sheet !== lastSheet || frame !== lastFrame || flip !== lastFlip) {
+          drawMonsterFrame(monster, sheet, frame, flip);
+          lastSheet = sheet;
+          lastFrame = frame;
+          lastFlip = flip;
+        }
+        if (isCurrent()) requestAnimationFrame(paint);
+      };
+      requestAnimationFrame(paint);
+
+      wrapper.style.transform = `translate(${start.x}px, ${start.y}px)`;
+      await move(start, spot, CELEBRATION_TIMINGS.walk);
+      if (!isCurrent()) return;
+      // 俯身轻戳两下水泡，泡泡跟着晃
+      card.classList.add("is-poked");
+      actor.classList.add("is-poking");
+      await wait(CELEBRATION_TIMINGS.poke);
+      if (!isCurrent()) return;
+      actor.classList.remove("is-poking");
+      popBubble();
+      // 雷欧入画让怪兽原地骑上（欢呼 1.3 s + 上鞍 0.625 s），骑稳后再一同飞离
+      await wait(CELEBRATION_TIMINGS.cheer + CELEBRATION_TIMINGS.mount);
+      if (!isCurrent()) return;
+      // 雷欧驮走怪兽，成员保持队形同步飞离：与怪兽同时起飞、同速同向，
+      // 卡片终点 = 怪兽终点 + 起飞时卡片相对怪兽画布的偏移，全程队形不变
+      const off = {x: target.x - spot.x, y: target.y - spot.y};
+      const dx = exit.x + off.x - target.x;
+      const dy = exit.y + off.y - target.y;
+      card.animate([
+        {transform: "translate(-50%, -50%)"},
+        {transform: `translate(calc(-50% + ${Math.round(dx)}px), calc(-50% + ${Math.round(dy)}px)) rotate(${flip ? -5 : 5}deg)`}
+      ], {duration: CELEBRATION_TIMINGS.exit, easing: "linear", fill: "forwards"});
+      await move(spot, exit, CELEBRATION_TIMINGS.exit);
+    } finally {
+      finish();
+      activeCelebrations.delete(run);
+      wrapper?.remove();
+      card?.remove();
+    }
   }
 
   elements.celebrationPopoverClose.addEventListener("click", closeCelebrationPopover);
