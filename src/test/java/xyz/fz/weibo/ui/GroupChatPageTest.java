@@ -347,6 +347,7 @@ class GroupChatPageTest {
             boolean latestTarget = query != null && query.contains("keyword=latest");
             boolean mediaResults = query != null && query.contains("keyword=media");
             boolean chainedTarget = query != null && query.contains("keyword=chain");
+            boolean dreamTarget = query != null && query.contains("keyword=dream");
             if (query != null && query.contains("keyword=slow")) {
                 try {
                     Thread.sleep(300);
@@ -361,7 +362,9 @@ class GroupChatPageTest {
                       "items":[%s],"page":%d,"size":50,"total":%d
                     }
                     """.formatted(
-                    chainedTarget
+                    dreamTarget
+                            ? dreamMessageJson(20)
+                            : chainedTarget
                             ? messageJson(91, "小凯", "连续加载目标", 91000)
                             : mediaResults
                             ? historyMediaMessageJson(10, 1, "分享图片", "/chat/media?preview=10", "")
@@ -376,7 +379,7 @@ class GroupChatPageTest {
                             : messageJson(5, "小凯", "周末一起爬山", 5000) + ","
                                     + messageJson(4, "小凯", "准备登山鞋", 4000),
                     secondPage ? 2 : 1,
-                    chainedTarget ? 1 : mediaResults ? 4 : latestTarget ? 1 : 51));
+                    dreamTarget ? 1 : chainedTarget ? 1 : mediaResults ? 4 : latestTarget ? 1 : 51));
         });
         server.createContext("/chat/analyses", exchange -> {
             String path = exchange.getRequestURI().getPath();
@@ -1820,6 +1823,27 @@ class GroupChatPageTest {
         assertThat(page.locator("#dream-popover")).isVisible();
 
         page.locator("#dream-popover-close").click();
+        assertThat(page.locator("#dream-popover")).isHidden();
+        page.close();
+    }
+
+    @Test
+    void dream_popup_does_not_trigger_for_avatars_inside_modal_dialogs() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+
+        page.getByRole(AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("聊天记录")).click();
+        page.locator("#history-keyword").fill("dream");
+        page.getByRole(AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("查询")).click();
+        assertThat(page.locator(".history-result")).hasCount(1);
+        page.locator(".history-result").click();
+        assertThat(page.locator("#history-messages [data-sender-id='1176117365']")).isVisible();
+
+        // 原生 dialog 在顶层渲染，弹层盖不过它，弹窗内的头像不触发彩蛋
+        page.hover("#history-messages .message-avatar[data-sender-id='1176117365']");
+        page.waitForTimeout(3_300);
         assertThat(page.locator("#dream-popover")).isHidden();
         page.close();
     }

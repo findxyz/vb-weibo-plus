@@ -14,6 +14,9 @@ export function createDream({messages, popover, enterButton, popoverClose, dialo
   function hoverableAvatar(target) {
     const avatar = target?.closest?.("[data-sender-id]");
     const uid = Number(avatar?.dataset.senderId);
+    // 原生 dialog 渲染在浏览器顶层，任何 z-index 都盖不过它，
+    // 弹窗（如聊天记录搜索结果）里的头像不触发彩蛋
+    if (avatar?.closest?.("dialog[open]")) return null;
     return Number.isSafeInteger(uid) && uid > 0 ? avatar : null;
   }
 
