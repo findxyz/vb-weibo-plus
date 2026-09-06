@@ -113,6 +113,7 @@
     hasMore: false,
     refreshingGroups: false,
     refreshing: false,
+    initializing: false,
     loadingEarlier: false,
     pendingCatchUp: false,
     get followingLatest() {
@@ -952,7 +953,7 @@
   }
 
   async function refreshMessages() {
-    if (!state.currentGid || state.refreshing || document.hidden) return;
+    if (!state.currentGid || state.initializing || state.refreshing || document.hidden) return;
     state.refreshing = true;
     const gid = state.currentGid;
     try {
@@ -1272,6 +1273,7 @@
   }
 
   async function initialize() {
+    state.initializing = true;
     elements.retryGroups.hidden = true;
     elements.groupsState.textContent = "";
     try {
@@ -1295,6 +1297,8 @@
       elements.groupsCount.textContent = "加载失败";
       elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。";
       elements.retryGroups.hidden = false;
+    } finally {
+      state.initializing = false;
     }
   }
 
@@ -1832,6 +1836,7 @@
       const key = `${gid}:${message.senderId}`;
       const baseline = celebrationSeen[key] || 0;
       const interval = entry.interval > 0 ? entry.interval : CELEBRATION_DEFAULT_INTERVAL;
+      if (message.createdAt <= baseline) continue;
       if (!baseline || message.createdAt - baseline >= interval * 1000) {
         spawnCelebration(entry);
       }
