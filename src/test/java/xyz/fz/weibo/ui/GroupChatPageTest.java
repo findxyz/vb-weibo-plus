@@ -48,6 +48,8 @@ class GroupChatPageTest {
     private static final AtomicBoolean failSend = new AtomicBoolean();
     private static final AtomicBoolean failSendSync = new AtomicBoolean();
     private static final AtomicInteger sendRequests = new AtomicInteger();
+    private static final AtomicBoolean delaySend = new AtomicBoolean();
+    private static final AtomicReference<String> lastSendGid = new AtomicReference<>();
     private static final AtomicBoolean loginInvalid = new AtomicBoolean();
     private static final AtomicInteger loginStatusRequests = new AtomicInteger();
     private static final AtomicInteger qrLoginRequests = new AtomicInteger();
@@ -120,7 +122,7 @@ class GroupChatPageTest {
                         + weiboMessageJson(11, "tombkeeper", "如果未来中国也被迫要腾笼换鸟，希望至少能先把还活着的大力推行和鼓吹计划生育的人先用中华民族传统方法处理一下。",
                         "http://weibo.com/1401527553/Rbd0OxIhB") + ","
                         + stickerMessageJson(12, "https://wx4.sinaimg.cn/large/sticker.jpg");
-                String messages = sendRequests.get() > 0
+                String messages = "202".equals(lastSendGid.get())
                         ? "{\"mid\":9,\"gid\":202,\"msgType\":321,\"msgTypeName\":\"普通消息\","
                         + "\"mediaType\":0,\"senderId\":1,\"senderName\":\"测试者\",\"senderAvatar\":\"\","
                         + "\"text\":\"刚发出的消息\",\"urlObjects\":[],\"picInfos\":[],\"template\":\"\","
@@ -234,6 +236,15 @@ class GroupChatPageTest {
         });
         server.createContext("/chat/messages/send", exchange -> {
             sendRequests.incrementAndGet();
+            String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            lastSendGid.set(requestBody.replaceAll(".*(?:^|&)gid=([^&]+).*", "$1"));
+            if (delaySend.getAndSet(false)) {
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             if (failSend.get()) {
                 exchange.sendResponseHeaders(502, -1);
                 exchange.close();
@@ -435,6 +446,8 @@ class GroupChatPageTest {
         failSend.set(false);
         failSendSync.set(false);
         sendRequests.set(0);
+        delaySend.set(false);
+        lastSendGid.set(null);
         loginInvalid.set(false);
         loginStatusRequests.set(0);
         qrLoginRequests.set(0);
@@ -838,6 +851,21 @@ class GroupChatPageTest {
                 .hasText("按下 Enter 发送内容 / Shift+Enter 换行");
         assertThat(page.locator("#messages [data-mid='9'] .bubble")).hasText("刚发出的消息");
 
+        page.close();
+    }
+
+    @Test
+    void does_not_refresh_the_new_group_when_an_old_group_send_finishes() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        delaySend.set(true);
+        page.locator("#composer").fill("切群前发送");
+        page.locator("#composer").press("Enter");
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        page.waitForTimeout(700);
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        assertThat(page.locator("#messages")).not().containsText("刚发出的消息");
         page.close();
     }
 
@@ -1321,6 +1349,20 @@ class GroupChatPageTest {
         assertThat(page.locator("#current-group")).hasText("LinkNow");
         page.waitForTimeout(100);
         Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
+        page.close();
+    }
+
+    @Test
+    void clears_old_messages_before_a_slow_group_switch_response() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#messages")).containsText("较新消息");
+
+        delayGroup202Latest.set(true);
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        Assertions.assertThat(page.locator("#messages").textContent()).doesNotContain("较新消息");
         page.close();
     }
 

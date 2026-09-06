@@ -62,7 +62,8 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
   }
 
   async function sendAttachment() {
-    if (sending || !getGid() || !pendingAttachment) return;
+    const gid = getGid();
+    if (sending || !gid || !pendingAttachment) return;
     const kind = pendingAttachment.kind;
     const endpoint = kind === "image" ? "/chat/messages/sendImage" : "/chat/messages/sendVideo";
     sending = true;
@@ -72,7 +73,7 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
     setComposerHint("发送中…", "sending");
     try {
       const formData = new FormData();
-      formData.append("gid", String(getGid()));
+      formData.append("gid", String(gid));
       formData.append("file", pendingAttachment.file);
       const response = await fetch(endpoint, {
         method: "POST",
@@ -84,8 +85,8 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
         return;
       }
       clearPendingAttachment();
-      onSent(getGid());
-      await onRefresh(getGid());
+      onSent(gid);
+      await onRefresh(gid);
       setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
     } catch {
       setComposerHint(kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。",
@@ -100,7 +101,8 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
   }
 
   async function sendMessage() {
-    if (sending || !getGid()) return;
+    const gid = getGid();
+    if (sending || !gid) return;
     if (pendingAttachment) {
       await sendAttachment();
       return;
@@ -114,15 +116,15 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
       const response = await fetch("/chat/messages/send", {
         method: "POST",
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
-        body: new URLSearchParams({gid: String(getGid()), content})
+        body: new URLSearchParams({gid: String(gid), content})
       });
       if (!response.ok) {
         await handleSendError(response, "消息发送失败，请稍后重试。");
         return;
       }
       elements.composer.value = "";
-      onSent(getGid());
-      await onRefresh(getGid());
+      onSent(gid);
+      await onRefresh(gid);
       setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
     } catch {
       setComposerHint("消息发送失败，请稍后重试。", "error");
