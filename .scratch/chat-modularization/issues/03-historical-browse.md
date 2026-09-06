@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 模块入口与共用消息展示。
 
-**Status:** needs-info
+**Status:** ready-for-agent
 
 ## 实施边界
 
@@ -35,4 +35,4 @@
 
 ## Comments
 
-草案待评审。本票不修改服务端 Historical Capture 的异步和无进度协议。
+2026-09-06，用户已确认任务拆分、阻塞关系和关联修复范围。本票不修改服务端 Historical Capture 的异步和无进度协议。
