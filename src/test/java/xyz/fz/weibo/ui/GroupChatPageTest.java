@@ -1180,10 +1180,17 @@ class GroupChatPageTest {
     void new_messages_button_refreshes_again_before_scrolling_to_the_bottom() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("[data-mid='2']")).isVisible();
+
+        // 加高垫块让缩容后的容器必定远离底部，两屏消息的真实高度会卡在近底阈值边缘
         page.locator("#messages").evaluate("""
                 element => {
+                  const spacer = document.createElement("div");
+                  spacer.style.height = "200px";
+                  element.appendChild(spacer);
                   element.style.height = "40px";
                   element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
                 }
                 """);
         page.evaluate("window.dispatchEvent(new Event('focus'))");
@@ -1733,6 +1740,104 @@ class GroupChatPageTest {
         assertThat(page.locator("#login-qr")).isEnabled();
         assertThat(page.locator("#groups-state")).containsText("扫码登录失败");
 
+        page.close();
+    }
+
+    @Test
+    void sends_once_and_refreshes_once_after_qr_login_reinitialization() {
+        loginInvalid.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#login-expired")).isVisible();
+
+        // 扫码成功触发业务重初始化：重新拉群列表并恢复上次选中的群
+        page.waitForResponse(item -> item.url().contains("/weibo/login/qr"),
+                () -> page.locator("#login-qr").click());
+        page.waitForResponse(item -> item.url().contains("/chat/messages/cursor"), () -> {});
+        assertThat(page.locator("#login-expired")).isHidden();
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+
+        int cursorRequestsBeforeSend = latestPageRequests.get();
+        page.locator("#composer").fill("重初始化后发送");
+        page.waitForResponse(item -> item.url().contains("/chat/messages/send"),
+                () -> page.locator("#composer").press("Enter"));
+        page.waitForResponse(item -> item.url().contains("/chat/messages/cursor"), () -> {});
+
+        Assertions.assertThat(sendRequests.get()).isEqualTo(1);
+        // 3 秒轮询器可能在窗口内追加请求，只断言发送驱动的刷新必然到达；
+        // 双查询由刷新去重锁结构性排除（见 groups_refresh_dedupes 测试）
+        Assertions.assertThat(latestPageRequests.get()).isGreaterThanOrEqualTo(cursorRequestsBeforeSend + 1);
+        assertThat(page.locator("#messages")).containsText("点击后消息");
+        page.close();
+    }
+
+    @Test
+    void walks_the_full_group_chat_path_from_selection_to_celebration() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
+                  "202": {"1": {"name": "测试者", "avatar": "", "interval": 1}}
+                }));
+                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
+                  "202:1": 4000
+                }));
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+
+        // 群选择与媒体串联：切到 LinkNow，图片、视频与微博卡片正常渲染
+        page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=202"),
+                () -> page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click());
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        assertThat(page.locator("[data-mid='4'] .image-preview")).isVisible();
+        assertThat(page.locator("[data-mid='5'] .video-preview")).isVisible();
+        assertThat(page.locator("[data-mid='11'] .weibo-card-summary"))
+                .hasText("如果未来中国也被迫要腾笼换鸟，希望至少能先把还活着的大力推行和鼓吹计划生育的人先用中华民族传统方法处理一下。");
+
+        // 历史检索串联：按关键词查询当前群
+        page.locator("#history-open").click();
+        page.locator("#history-keyword").fill("爬山");
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("查询")).click();
+        assertThat(page.locator(".history-result")).hasCount(2);
+        assertThat(page.locator(".history-result-summary"))
+                .hasText(new String[]{"周末一起爬山", "准备登山鞋"});
+        page.locator("#history-close").click();
+
+        // Analysis 串联：打开分析弹窗可以看到既有报告列表
+        page.locator("#analysis-open").click();
+        assertThat(page.locator(".analysis-item")).hasCount(1);
+        page.locator("#analysis-close").click();
+
+        // Media Send 串联：发送后通过群归属刷新读回，不前端乐观插入
+        page.locator("#composer").fill("组合路径消息");
+        page.waitForResponse(item -> item.url().contains("/chat/messages/send"),
+                () -> page.locator("#composer").press("Enter"));
+        page.waitForResponse(item -> item.url().contains("/chat/messages/cursor"), () -> {});
+        assertThat(page.locator("#messages")).containsText("刚发出的消息");
+
+        // 消息滚动串联：上翻暂停跟随，回到底部恢复跟随
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "";
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#follow-indicator")).not().hasClass(Pattern.compile("paused"));
+
+        // Return Celebration 串联：新消息命中名单后出现庆祝
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+        page.waitForTimeout(800);
+        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count())
+                .isEqualTo(1);
         page.close();
     }
 
