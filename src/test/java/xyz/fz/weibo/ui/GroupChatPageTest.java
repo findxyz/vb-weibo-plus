@@ -64,6 +64,7 @@ class GroupChatPageTest {
     private static final AtomicBoolean catchUpMessages = new AtomicBoolean();
     private static final AtomicBoolean multipleCelebrationMessages = new AtomicBoolean();
     private static final AtomicBoolean delayAnalysisDetail = new AtomicBoolean();
+    private static final AtomicBoolean dreamEggMessage = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -253,6 +254,9 @@ class GroupChatPageTest {
             }
             int requestNumber = latestPageRequests.incrementAndGet();
             boolean refreshed = requestNumber > 1;
+            String dreamEgg = !refreshed && dreamEggMessage.getAndSet(false)
+                    ? dreamMessageJson(14) + ","
+                    : "";
             String newMessage;
             if (refreshed && multipleCelebrationMessages.getAndSet(false)) {
                 newMessage = messageJson(4, "小凯", "第二条刷新后消息", 4000) + ","
@@ -265,7 +269,8 @@ class GroupChatPageTest {
             }
             sendJson(exchange, cursorMessagesJson(true,
                     refreshed ? 2_000L : 1_000L, refreshed ? 2L : 1L,
-                    newMessage
+                    dreamEgg
+                            + newMessage
                             + messageJson(2, "飞飞", "较新消息", 2000) + ","
                             + messageJson(1, "小凯", "较早消息", 1000)));
         });
@@ -510,6 +515,7 @@ class GroupChatPageTest {
         catchUpMessages.set(false);
         multipleCelebrationMessages.set(false);
         delayAnalysisDetail.set(false);
+        dreamEggMessage.set(false);
     }
 
     @Test
@@ -1772,6 +1778,48 @@ class GroupChatPageTest {
     }
 
     @Test
+    void dream_popup_launches_the_mickey_game_after_hovering_the_easter_egg_avatar() {
+        dreamEggMessage.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("[data-mid='14']")).isVisible();
+
+        page.hover("[data-mid='14'] .message-avatar");
+        assertThat(page.locator("#dream-popover")).isVisible();
+        assertThat(page.locator("#dream-popover")).containsText("是否进入盗梦空间？");
+
+        page.locator("#dream-enter").click();
+        assertThat(page.locator("#dream-dialog")).isVisible();
+        Assertions.assertThat(page.locator("#dream-frame").getAttribute("src"))
+                .contains("/chat/dream/1176117365.html");
+
+        page.locator("#dream-close").click();
+        assertThat(page.locator("#dream-dialog")).isHidden();
+        // close 事件是排队任务，用带重试的断言等它生效
+        assertThat(page.locator("#dream-frame")).hasAttribute("src", "about:blank");
+        page.close();
+    }
+
+    @Test
+    void dream_popup_requires_a_full_hover_and_only_reacts_to_the_easter_egg_avatar() {
+        dreamEggMessage.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("[data-mid='14']")).isVisible();
+
+        page.hover("[data-mid='2'] .message-avatar");
+        page.waitForTimeout(3_300);
+        assertThat(page.locator("#dream-popover")).isHidden();
+
+        page.hover("[data-mid='14'] .message-avatar");
+        page.waitForTimeout(500);
+        page.mouse().move(10, 10);
+        page.waitForTimeout(3_000);
+        assertThat(page.locator("#dream-popover")).isHidden();
+        page.close();
+    }
+
+    @Test
     void walks_the_full_group_chat_path_from_selection_to_celebration() {
         Page page = browser.newPage();
         page.addInitScript("""
@@ -1937,6 +1985,16 @@ class GroupChatPageTest {
                  "recallBy":"","createdAt":%d,"savedAt":%d,
                  "previewUrl":"","originalUrl":"","videoUrl":""}
                 """.formatted(mid, mid, sender, text, createdAt, createdAt);
+    }
+
+    private static String dreamMessageJson(long mid) {
+        return """
+                {"mid":%d,"gid":101,"msgType":321,"msgTypeName":"普通消息","mediaType":0,
+                 "senderId":1176117365,"senderName":"小大饼","senderAvatar":"","text":"梦开始的地方",
+                 "urlObjects":[],"picInfos":[],"template":"","templateData":{},"recallMids":[],
+                 "recallBy":"","createdAt":1500,"savedAt":1500,
+                 "previewUrl":"","originalUrl":"","videoUrl":""}
+                """.formatted(mid);
     }
 
     private static String mediaMessageJson(long mid, int mediaType, String text,
