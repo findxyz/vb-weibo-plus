@@ -1311,7 +1311,7 @@ class GroupChatPageTest {
     }
 
     @Test
-    void celebrates_only_once_for_multiple_arrivals_in_one_refresh() {
+    void celebrates_each_qualifying_message_in_one_refresh() {
         Page page = browser.newPage();
         page.addInitScript("""
                 localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
@@ -1333,7 +1333,9 @@ class GroupChatPageTest {
         page.waitForTimeout(800);
 
         Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count())
-                .isEqualTo(1);
+                .isEqualTo(2);
+        Assertions.assertThat(page.locator("#celebration-stage .celebration-monster").count())
+                .isEqualTo(2);
         page.close();
     }
 
