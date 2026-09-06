@@ -654,7 +654,8 @@ const P = {
   x:44, y:204, vx:0, vy:0, onGround:true, plat:null, dropT:0, facing:1,
   animT:0, stretch:0, squashT:0, runPhase:0, stepPh:0
 };
-const E = { x:128, y:204, facing:1, state:"chase", timer:2.5, animT:0, heartT:0 };
+const E = { x:128, y:204, facing:1, state:"chase", timer:2.5, animT:0, heartT:0,
+  surgeT:0, surgeCD:3, surgeSpd:1 };
 
 let state = "title", stT = 0, graceT = 0, shake = 0;
 let lives = 3, round = 1, score = 0, survT = 0, doorTime = 14;
@@ -672,6 +673,7 @@ function resetRoom(){
   P.x = 44; P.y = groundYAt(44); P.vx = 0; P.vy = 0; P.onGround = true; P.plat = null;
   P.dropT = 0; P.facing = 1; P.stretch = 0; P.squashT = 0; P.runPhase = 0;
   E.x = 128; E.y = groundYAt(128); E.state = "chase"; E.timer = 2.6; E.turnCD = 0;
+  E.surgeT = 0; E.surgeCD = 2.5 + Math.random() * 3;   // 冲刺节奏每间房重新洗牌
   E.facing = P.x > E.x ? 1 : -1;      // 开场面向米妮
   door = null; doorAge = 0; survT = 0; graceT = 1.0;
   for (const pl of PLATS[roomType]){ pl.state = "solid"; pl.t = 0; }   // 平台复位
@@ -837,11 +839,21 @@ function update(dt){
         E.turnCD = 0.35;
       }
       const base = curESpeed();
-      const spd2 = Math.abs(d) > 140 ? Math.min(base * 1.25, 76) : base;
+      E.surgeCD -= dt;
+      if (E.surgeCD <= 0 && E.surgeT <= 0){          // 随机冲刺：冷不丁加速逼近，制造紧张感
+        E.surgeT = 1.2 + Math.random() * 1.2;
+        E.surgeSpd = 1.3 + Math.random() * 0.15;
+        E.surgeCD = 4 + Math.random() * 4;
+      }
+      let spd2 = Math.abs(d) > 140 ? Math.min(base * 1.25, 76) : base;
+      if (E.surgeT > 0){
+        E.surgeT -= dt;
+        spd2 = Math.min(spd2 * E.surgeSpd, 80);      // 冲刺上限仍略低于米妮全速，直线跑可脱身
+      }
       E.x = Math.max(16, Math.min(240, E.x + E.facing * spd2 * dt));
       E.heartT -= dt;
       if (E.heartT <= 0){
-        E.heartT = 0.38;
+        E.heartT = E.surgeT > 0 ? 0.18 : 0.38;       // 冲刺时爱心冒得更急
         parts.push({ x: E.x + E.facing * 4, y: E.y - 30, vx: (Math.random() - .5) * 12, vy: -22, t: .9, kind: "heart" });
       }
       if (E.timer <= 0){ E.state = "stop"; E.timer = Math.max(1.4, 1.7 - (round - 1) * 0.05); SFX.stop_(); }
