@@ -38,3 +38,5 @@
 2026-09-06，用户已确认任务拆分、阻塞关系和关联修复范围。附件在发送期间被用户替换或移除的更完整交互策略若需改变，先记录为额外需求，不扩大本票。
 
 2026-09-06，已完成编辑器与媒体发送模块提取：新增 `composer.js`，入口不再持有发送锁、附件引用或编辑器事件；发送回调按发起群组刷新，保留既有失败和 HTTP 409 提示。验证：`GroupChatPageTest` 43 项通过，`node --check` 通过。
+
+2026-09-06，07 验收独立复查发现准则 5 此前勾选不实：入口把 `onSent` 连到 `conversation.followLatest(gid)`，但 `followLatest` 未接收 gid 参数，旧群发送完成仍会把新群会话置回跟随。已为 `followLatest` 补 gid 守卫，并新增「旧群发送完成不恢复跟随」回归测试（`does_not_resume_following_when_an_old_group_send_finishes`）。
