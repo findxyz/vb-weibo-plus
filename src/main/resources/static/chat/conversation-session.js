@@ -217,7 +217,8 @@ export function createConversationSession({
     pendingCatchUp = true;
   }
 
-  function followLatest() {
+  function followLatest(gid) {
+    if (currentGid() !== gid) return;
     setFollowing(true);
   }
 

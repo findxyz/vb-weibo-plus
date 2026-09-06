@@ -160,6 +160,7 @@ function bootstrap() {
     if (state.currentGid !== gid) { celebration.cancel(); history.close(); }
     state.currentGid = gid;
     history.setGroup(group); analysis.setGroup(group);
+    celebration.render();
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     elements.currentId.textContent = String(group.gid);
@@ -270,7 +271,12 @@ function bootstrap() {
     state.initializing = true; elements.retryGroups.hidden = true; elements.groupsState.textContent = "";
     try {
       state.groups = await fetchJson("/chat/groups", {cache: "no-store"}); groupList.render();
-      if (!state.groups.length) { elements.groupsState.textContent = ""; elements.groupsCount.textContent = "暂无群聊"; return; }
+      if (!state.groups.length) {
+        elements.groupsState.textContent = ""; elements.groupsCount.textContent = "暂无群聊";
+        elements.groupsList.replaceChildren(
+          Object.assign(document.createElement("div"), {className: "groups-empty", textContent: "暂无群聊数据"}));
+        return;
+      }
       const savedGid = Number(localStorage.getItem(LAST_GROUP_KEY));
       await selectGroup((state.groups.find(group => group.gid === savedGid) || state.groups[0]).gid);
     } catch { elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false; }

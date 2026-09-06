@@ -21,6 +21,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,12 +50,16 @@ class GroupChatPageTest {
     private static final AtomicBoolean failSendSync = new AtomicBoolean();
     private static final AtomicInteger sendRequests = new AtomicInteger();
     private static final AtomicBoolean delaySend = new AtomicBoolean();
+    private static final AtomicBoolean delaySendLong = new AtomicBoolean();
     private static final AtomicReference<String> lastSendGid = new AtomicReference<>();
     private static final AtomicBoolean loginInvalid = new AtomicBoolean();
     private static final AtomicInteger loginStatusRequests = new AtomicInteger();
     private static final AtomicInteger qrLoginRequests = new AtomicInteger();
     private static final AtomicBoolean failQrLogin = new AtomicBoolean();
     private static final AtomicBoolean delayGroup202Latest = new AtomicBoolean();
+    private static final AtomicBoolean delayGroup202Preview = new AtomicBoolean();
+    private static final AtomicBoolean emptyGroup202 = new AtomicBoolean();
+    private static final AtomicBoolean textOnlyGroup202 = new AtomicBoolean();
     private static final AtomicBoolean catchUpMessages = new AtomicBoolean();
     private static final AtomicBoolean multipleCelebrationMessages = new AtomicBoolean();
     private static final AtomicBoolean delayAnalysisDetail = new AtomicBoolean();
@@ -62,6 +67,13 @@ class GroupChatPageTest {
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        // 浏览器会并发发出轮询、媒体与发送请求，服务器必须并发处理，
+        // 否则任一可控延迟都会阻塞后续全部响应，切群协调场景无法构造
+        server.setExecutor(Executors.newFixedThreadPool(4, runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setDaemon(true);
+            return thread;
+        }));
         server.createContext("/chat/groups", exchange -> {
             if (failGroups.get()) {
                 exchange.sendResponseHeaders(503, -1);
@@ -105,6 +117,14 @@ class GroupChatPageTest {
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
                     }
+                }
+                if (emptyGroup202.get()) {
+                    sendJson(exchange, cursorMessagesJson(false, null, null, ""));
+                    return;
+                }
+                if (textOnlyGroup202.get()) {
+                    sendJson(exchange, cursorMessagesJson(false, null, null, messageRangeJson(1, 40)));
+                    return;
                 }
                 String baseMessages = mediaMessageJson(4, 1, "分享图片",
                         "/chat/media?gid=202&mid=4&variant=preview",
@@ -245,7 +265,13 @@ class GroupChatPageTest {
             sendRequests.incrementAndGet();
             String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             lastSendGid.set(requestBody.replaceAll(".*(?:^|&)gid=([^&]+).*", "$1"));
-            if (delaySend.getAndSet(false)) {
+            if (delaySendLong.getAndSet(false)) {
+                try {
+                    Thread.sleep(1_000);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            } else if (delaySend.getAndSet(false)) {
                 try {
                     Thread.sleep(300);
                 } catch (InterruptedException exception) {
@@ -371,6 +397,14 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
+            if (query != null && query.contains("mid=4") && query.contains("variant=preview")
+                    && delayGroup202Preview.get()) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             if (query != null && query.contains("mid=7") && query.contains("variant=original")) {
                 try {
                     Thread.sleep(500);
@@ -454,12 +488,16 @@ class GroupChatPageTest {
         failSendSync.set(false);
         sendRequests.set(0);
         delaySend.set(false);
+        delaySendLong.set(false);
         lastSendGid.set(null);
         loginInvalid.set(false);
         loginStatusRequests.set(0);
         qrLoginRequests.set(0);
         failQrLogin.set(false);
         delayGroup202Latest.set(false);
+        delayGroup202Preview.set(false);
+        emptyGroup202.set(false);
+        textOnlyGroup202.set(false);
         catchUpMessages.set(false);
         multipleCelebrationMessages.set(false);
         delayAnalysisDetail.set(false);
@@ -874,6 +912,37 @@ class GroupChatPageTest {
         page.waitForTimeout(700);
         assertThat(page.locator("#current-group")).hasText("LinkNow");
         assertThat(page.locator("#messages")).not().containsText("刚发出的消息");
+        page.close();
+    }
+
+    @Test
+    void does_not_resume_following_when_an_old_group_send_finishes() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        delaySendLong.set(true);
+        page.locator("#composer").fill("切群前发送");
+        page.waitForRequest(
+                request -> request.url().contains("/chat/messages/send"),
+                () -> page.locator("#composer").press("Enter"));
+        // 新群用纯文本消息渲染，避免媒体加载的回底行为干扰跟随状态
+        textOnlyGroup202.set(true);
+        page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=202"),
+                () -> page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click());
+
+        // 新群内上翻离开底部，进入暂停跟随；此时旧群发送仍在途
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+
+        page.waitForResponse(item -> item.url().contains("/chat/messages/send"), () -> {});
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+        assertThat(page.locator("#messages")).not().containsText("切群前发送");
         page.close();
     }
 
@@ -1392,6 +1461,40 @@ class GroupChatPageTest {
     }
 
     @Test
+    void ignores_a_late_media_load_from_the_previous_group() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        delayGroup202Preview.set(true);
+        page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=202"),
+                () -> page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click());
+        page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=101"),
+                () -> page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click());
+
+        // 切回旧群后滚离底部；上一群图片仍在慢速加载
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+
+        page.waitForResponse(
+                item -> item.url().contains("/chat/media") && item.url().contains("mid=4")
+                        && item.url().contains("variant=preview"),
+                () -> {});
+        page.waitForTimeout(200);
+        Object scrollTop = page.locator("#messages").evaluate("element => element.scrollTop");
+        Assertions.assertThat(((Number) scrollTop).doubleValue()).isCloseTo(0, Offset.offset(0.5));
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+        assertThat(page.locator("#messages")).not().containsText("分享图片");
+        page.close();
+    }
+
+    @Test
     void clears_old_messages_before_a_slow_group_switch_response() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -1401,6 +1504,43 @@ class GroupChatPageTest {
         page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
 
         assertThat(page.locator("#current-group")).hasText("LinkNow");
+        Assertions.assertThat(page.locator("#messages").textContent()).doesNotContain("较新消息");
+        page.close();
+    }
+
+    @Test
+    void shows_no_leftover_messages_when_the_new_group_is_empty() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#messages")).containsText("较新消息");
+
+        emptyGroup202.set(true);
+        Response response = page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=202"),
+                () -> page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click());
+        Assertions.assertThat(response.ok()).isTrue();
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        assertThat(page.locator("#messages")).isEmpty();
+        page.close();
+    }
+
+    @Test
+    void keeps_the_new_group_empty_when_its_first_screen_fails() {
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#messages")).containsText("较新消息");
+
+        failMessages.set(true);
+        Response failed = page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=202"),
+                () -> page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click());
+        Assertions.assertThat(failed.status()).isEqualTo(503);
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        Assertions.assertThat(page.locator("#messages").textContent()).doesNotContain("较新消息");
+
+        failMessages.set(false);
+        // 轮询自动恢复后只出现新群自己的消息，旧群消息不得回流
+        assertThat(page.locator("[data-mid='4'] .image-preview")).isVisible();
         Assertions.assertThat(page.locator("#messages").textContent()).doesNotContain("较新消息");
         page.close();
     }
@@ -1426,6 +1566,30 @@ class GroupChatPageTest {
         assertThat(page.locator("#current-group")).hasText("LinkNow");
         page.waitForTimeout(100);
         Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
+        page.close();
+    }
+
+    @Test
+    void refreshes_the_celebration_roster_when_switching_groups() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
+                  "101": {"3": {"name": "阿呆", "avatar": "", "interval": 30}}
+                }));
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+        // 进入会话后渲染当前群的庆祝名单
+        assertThat(page.locator("#celebration-roster .celebration-chip")).hasCount(1);
+
+        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        // 切到无名单的群后不得残留上一群的成员
+        assertThat(page.locator("#celebration-roster")).isHidden();
+
+        page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click();
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+        assertThat(page.locator("#celebration-roster .celebration-chip")).hasCount(1);
         page.close();
     }
 
