@@ -47,6 +47,9 @@ export function createDream({messages, popover, enterButton, popoverClose, dialo
     hidePopover();
     frame.src = dreamUrl;
     dialog.showModal();
+    // showModal 默认聚焦标题栏的关闭按钮，回车会误关弹窗；
+    // 把焦点交给 iframe，键盘操作才能进游戏
+    frame.focus();
   }
 
   function closeGame() {

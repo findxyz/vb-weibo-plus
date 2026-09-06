@@ -1793,6 +1793,10 @@ class GroupChatPageTest {
         Assertions.assertThat(page.locator("#dream-frame").getAttribute("src"))
                 .contains("/chat/dream/1176117365.html");
 
+        // 焦点应交给 iframe，回车进游戏而不是触发标题栏的关闭按钮
+        page.keyboard().press("Enter");
+        assertThat(page.locator("#dream-dialog")).isVisible();
+
         page.locator("#dream-close").click();
         assertThat(page.locator("#dream-dialog")).isHidden();
         // close 事件是排队任务，用带重试的断言等它生效
