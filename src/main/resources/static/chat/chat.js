@@ -8,6 +8,7 @@ import {createMessageView} from "./message-view.js";
 import {createAnalysis} from "./analysis.js";
 import {createHistory} from "./history.js";
 import {createCelebration} from "./celebration.js";
+import {createComposer} from "./composer.js";
 
 function bootstrap() {
   "use strict";
@@ -152,6 +153,11 @@ function bootstrap() {
   const celebration = createCelebration({
     elements, messageView, getCurrentGid: () => state.currentGid,
     getMessages: () => state.messages.values(), compareMessages
+  });
+  const composer = createComposer({
+    elements, getGid: () => state.currentGid,
+    onRefresh: gid => refreshMessages(gid),
+    onSent: () => { state.followingLatest = true; }
   });
   const history = createHistory({
     elements, fetchJson, localDateValue, calendarMonthsAgo,
@@ -683,138 +689,6 @@ function bootstrap() {
     }
   }
 
-  function setComposerHint(text, level) {
-    elements.composerHint.textContent = text;
-    elements.composerHint.classList.toggle("is-sending", level === "sending");
-    elements.composerHint.classList.toggle("is-error", level === "error");
-  }
-
-  const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
-  const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
-
-  function setPendingAttachment(kind, file) {
-    if (!file) return;
-    const isImage = kind === "image";
-    const validType = isImage ? file.type.startsWith("image/") : file.type === "video/mp4";
-    if (!validType) {
-      setComposerHint(isImage ? "仅支持图片文件。" : "仅支持 MP4 视频文件。", "error");
-      return;
-    }
-    const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-    if (file.size > maxSize) {
-      setComposerHint(isImage ? "图片不能超过 20MB。" : "视频不能超过 100MB。", "error");
-      return;
-    }
-    clearPendingAttachment();
-    state.pendingAttachment = {kind, file, url: URL.createObjectURL(file)};
-    elements.composerAttachmentPreview.src = isImage ? state.pendingAttachment.url : "";
-    elements.composerAttachmentPreview.hidden = !isImage;
-    elements.composerAttachmentPreviewVideo.src = isImage ? "" : state.pendingAttachment.url;
-    elements.composerAttachmentPreviewVideo.hidden = isImage;
-    elements.composerAttachment.hidden = false;
-    elements.composerAttachment.focus();
-    setComposerHint(isImage ? "按下 Enter 发送图片" : "按下 Enter 发送视频");
-  }
-
-  function clearPendingAttachment() {
-    if (state.pendingAttachment) {
-      URL.revokeObjectURL(state.pendingAttachment.url);
-    }
-    state.pendingAttachment = null;
-    elements.composerAttachment.hidden = true;
-    elements.composerAttachmentPreview.src = "";
-    elements.composerAttachmentPreview.hidden = false;
-    elements.composerAttachmentPreviewVideo.src = "";
-    elements.composerAttachmentPreviewVideo.hidden = true;
-    if (elements.imageInput.value) {
-      elements.imageInput.value = "";
-    }
-    if (elements.videoInput.value) {
-      elements.videoInput.value = "";
-    }
-  }
-
-  async function handleSendError(response, fallbackMessage) {
-    const error = await response.json().catch(() => ({}));
-    if (response.status === 409) {
-      setComposerHint(error.msg || "消息已发出，但本地同步失败，稍后会自动补全。", "error");
-    } else {
-      setComposerHint(error.msg || fallbackMessage, "error");
-    }
-  }
-
-  async function sendAttachment() {
-    if (state.sending || !state.currentGid || !state.pendingAttachment) return;
-    const kind = state.pendingAttachment.kind;
-    const endpoint = kind === "image" ? "/chat/messages/sendImage" : "/chat/messages/sendVideo";
-    state.sending = true;
-    elements.composer.disabled = true;
-    elements.imagePickerOpen.disabled = true;
-    elements.videoPickerOpen.disabled = true;
-    setComposerHint("发送中…", "sending");
-    try {
-      const formData = new FormData();
-      formData.append("gid", String(state.currentGid));
-      formData.append("file", state.pendingAttachment.file);
-      const response = await fetch(endpoint, {
-        method: "POST",
-        body: formData
-      });
-      if (!response.ok) {
-        await handleSendError(response,
-          kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。");
-        return;
-      }
-      clearPendingAttachment();
-      state.followingLatest = true;
-      await refreshMessages();
-      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
-    } catch {
-      setComposerHint(kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。",
-        "error");
-    } finally {
-      state.sending = false;
-      elements.composer.disabled = false;
-      elements.imagePickerOpen.disabled = !state.currentGid;
-      elements.videoPickerOpen.disabled = !state.currentGid;
-      elements.composer.focus();
-    }
-  }
-
-  async function sendMessage() {
-    if (state.sending || !state.currentGid) return;
-    if (state.pendingAttachment) {
-      await sendAttachment();
-      return;
-    }
-    const content = elements.composer.value.trim();
-    if (!content) return;
-    state.sending = true;
-    elements.composer.disabled = true;
-    setComposerHint("发送中…", "sending");
-    try {
-      const response = await fetch("/chat/messages/send", {
-        method: "POST",
-        headers: {"Content-Type": "application/x-www-form-urlencoded"},
-        body: new URLSearchParams({gid: String(state.currentGid), content})
-      });
-      if (!response.ok) {
-        await handleSendError(response, "消息发送失败，请稍后重试。");
-        return;
-      }
-      elements.composer.value = "";
-      state.followingLatest = true;
-      await refreshMessages();
-      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
-    } catch {
-      setComposerHint("消息发送失败，请稍后重试。", "error");
-    } finally {
-      state.sending = false;
-      elements.composer.disabled = false;
-      elements.composer.focus();
-    }
-  }
-
   async function initialize() {
     state.initializing = true;
     elements.retryGroups.hidden = true;
@@ -859,42 +733,6 @@ function bootstrap() {
   });
   elements.retryGroups.addEventListener("click", initialize);
   elements.loginQr.addEventListener("click", startQrLogin);
-  elements.composer.addEventListener("keydown", event => {
-    if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
-      event.preventDefault();
-      sendMessage();
-    }
-  });
-  elements.composerAttachment.addEventListener("keydown", event => {
-    if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
-      event.preventDefault();
-      sendMessage();
-    }
-  });
-  elements.composer.addEventListener("input", () => {
-    if (elements.composerHint.textContent !== "发送中…") {
-      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
-    }
-  });
-  const handlePaste = event => {
-    if (!state.currentGid) return;
-    const items = event.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.kind === "file" && item.type.startsWith("image/")) {
-        event.preventDefault();
-        setPendingAttachment("image", item.getAsFile());
-        return;
-      }
-      if (item.kind === "file" && item.type.startsWith("video/")) {
-        event.preventDefault();
-        setPendingAttachment("video", item.getAsFile());
-        return;
-      }
-    }
-  };
-  elements.composer.addEventListener("paste", handlePaste);
-  elements.composerAttachment.addEventListener("paste", handlePaste);
   elements.newMessages.addEventListener("click", async () => {
     await refreshMessages();
     state.followingLatest = true;
@@ -902,19 +740,6 @@ function bootstrap() {
     elements.newMessages.hidden = true;
   });
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
-  elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());
-  elements.imageInput.addEventListener("change", () => {
-    if (elements.imageInput.files?.[0]) {
-      setPendingAttachment("image", elements.imageInput.files[0]);
-    }
-  });
-  elements.videoPickerOpen.addEventListener("click", () => elements.videoInput.click());
-  elements.videoInput.addEventListener("change", () => {
-    if (elements.videoInput.files?.[0]) {
-      setPendingAttachment("video", elements.videoInput.files[0]);
-    }
-  });
-  elements.composerAttachmentRemove.addEventListener("click", clearPendingAttachment);
   elements.emojiPanelGrid.addEventListener("click", event => {
     const cell = event.target.closest(".emoji-cell");
     if (cell) insertEmoji(cell.alt);
