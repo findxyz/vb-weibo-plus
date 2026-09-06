@@ -44,6 +44,7 @@ class GroupChatPageTest {
     private static final AtomicInteger mediaRequests = new AtomicInteger();
     private static final AtomicReference<String> lastHistoryQuery = new AtomicReference<>();
     private static final AtomicBoolean failGroups = new AtomicBoolean();
+    private static final AtomicBoolean delayGroups = new AtomicBoolean();
     private static final AtomicBoolean failMessages = new AtomicBoolean();
     private static final AtomicBoolean delayEarlierHistory = new AtomicBoolean();
     private static final AtomicBoolean failSend = new AtomicBoolean();
@@ -79,6 +80,13 @@ class GroupChatPageTest {
                 exchange.sendResponseHeaders(503, -1);
                 exchange.close();
                 return;
+            }
+            if (delayGroups.get()) {
+                try {
+                    Thread.sleep(400);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
             }
             boolean refreshed = groupListRequests.incrementAndGet() > 1;
             sendJson(exchange, """
@@ -474,6 +482,7 @@ class GroupChatPageTest {
     @BeforeEach
     void resetServerState() {
         groupListRequests.set(0);
+        delayGroups.set(false);
         latestPageRequests.set(0);
         earlierPageRequests.set(0);
         historyPageRequests.set(0);
@@ -1021,6 +1030,55 @@ class GroupChatPageTest {
 
         assertThat(linkNowPreview).hasText("媒体用户：新的群消息");
 
+        page.close();
+    }
+
+    @Test
+    void groups_refresh_dedupes_requests_while_one_is_in_flight() {
+        Page page = browser.newPage();
+        delayGroups.set(true);
+        page.navigate(baseUrl + "/chat/index.html");
+        page.waitForResponse(item -> item.url().contains("/chat/groups"), () -> {});
+        int afterInitial = groupListRequests.get();
+
+        page.waitForResponse(
+                item -> item.url().contains("/chat/groups"),
+                () -> {
+                    page.evaluate("window.dispatchEvent(new Event('focus'))");
+                    page.evaluate("window.dispatchEvent(new Event('focus'))");
+                });
+
+        Assertions.assertThat(groupListRequests.get()).isEqualTo(afterInitial + 1);
+        page.close();
+    }
+
+    @Test
+    void metadata_refresh_keeps_conversation_messages_and_scroll_position() {
+        Page page = browser.newPage();
+        textOnlyGroup202.set(true);
+        page.navigate(baseUrl + "/chat/index.html");
+        page.waitForResponse(
+                item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=202"),
+                () -> page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click());
+
+        // 上翻离开底部暂停跟随，此时群列表元数据刷新不应重开会话或重置滚动
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.style.height = "40px";
+                  element.scrollTop = 0;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        Number scrollTop = (Number) page.locator("#messages").evaluate("element => element.scrollTop");
+        page.waitForResponse(
+                item -> item.url().contains("/chat/groups"),
+                () -> page.evaluate("window.dispatchEvent(new Event('focus'))"));
+
+        assertThat(page.locator("[data-gid='202'] .group-preview")).hasText("媒体用户：新的群消息");
+        assertThat(page.locator("#current-group")).hasText("LinkNow");
+        assertThat(page.locator("[data-mid='4']")).isVisible();
+        Number scrollTopAfter = (Number) page.locator("#messages").evaluate("element => element.scrollTop");
+        Assertions.assertThat(scrollTopAfter.doubleValue()).isEqualTo(scrollTop.doubleValue());
         page.close();
     }
 
