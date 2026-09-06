@@ -305,7 +305,10 @@ function bootstrap() {
     if (!group) return;
     const version = ++state.groupLoadVersion;
     state.switchingGroup = true;
-    if (state.currentGid !== gid) celebration.cancel();
+    if (state.currentGid !== gid) {
+      celebration.cancel();
+      history.close();
+    }
     history.setGroup(group);
     state.currentGid = gid;
     state.messages.clear();
