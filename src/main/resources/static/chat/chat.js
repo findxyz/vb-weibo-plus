@@ -5,6 +5,7 @@ import {
   restoreScrollAnchor
 } from "./chat-common.js";
 import {createMessageView} from "./message-view.js";
+import {createAnalysis} from "./analysis.js";
 
 function bootstrap() {
   "use strict";
@@ -135,14 +136,6 @@ function bootstrap() {
     loginPending: false,
     pendingRefresh: false
   };
-  const analysisState = {
-    gid: null,
-    page: 1,
-    total: 0,
-    size: 20,
-    requestVersion: 0,
-    loading: false
-  };
   const historyState = {
     gid: null,
     page: 1,
@@ -165,6 +158,7 @@ function bootstrap() {
     isAdminSender,
     onSenderClick: openCelebrationPopover
   });
+  const analysis = createAnalysis({elements, fetchJson, localDateValue});
 
 
   function localDateValue(date) {
@@ -606,12 +600,11 @@ function bootstrap() {
     elements.currentId.textContent = String(group.gid);
     renderCelebrationRoster();
     elements.historyOpen.disabled = false;
-    elements.analysisOpen.disabled = false;
     elements.emojiPickerOpen.disabled = false;
     elements.imagePickerOpen.disabled = false;
     elements.videoPickerOpen.disabled = false;
     elements.historyTitle.textContent = `聊天记录 - ${group.name || `群聊 ${group.gid}`}`;
-    elements.analysisTitle.textContent = `群聊分析 - ${group.name || `群聊 ${group.gid}`}`;
+    analysis.setGroup(group);
     elements.currentAvatar.replaceWith(messageView.avatar(group, "main-group-avatar"));
     elements.currentAvatar = document.querySelector(".main-group-avatar");
     elements.appTitle.textContent = `微博群聊 - ${elements.currentGroup.textContent}`;
@@ -1157,286 +1150,6 @@ function bootstrap() {
     elements.historyDialog.showModal();
   });
 
-  /* ---------- 群聊分析 ---------- */
-
-  const ANALYSIS_DEFAULT_PROMPT = "请总结今天群聊的主要讨论话题和参与者";
-
-  function resetAnalysis(gid) {
-    analysisState.requestVersion++;
-    analysisState.gid = gid;
-    analysisState.page = 1;
-    analysisState.total = 0;
-    elements.analysisDate.value = localDateValue(new Date());
-    elements.analysisPrompt.value = ANALYSIS_DEFAULT_PROMPT;
-    elements.analysisList.replaceChildren();
-    elements.analysisPageState.textContent = "";
-    elements.analysisResults.hidden = true;
-    elements.analysisDetail.hidden = true;
-    elements.analysisEmpty.hidden = false;
-    elements.analysisEmpty.textContent = "设置分析条件后点击分析";
-    elements.analysisFeedback.textContent = "";
-    elements.analysisSubmit.disabled = false;
-    elements.analysisSubmit.textContent = "🤖 分析";
-  }
-
-  async function queryAnalysisList(page) {
-    const requestVersion = ++analysisState.requestVersion;
-    const gid = analysisState.gid;
-    elements.analysisEmpty.hidden = true;
-    elements.analysisDetail.hidden = true;
-    const params = new URLSearchParams({
-      gid: String(gid),
-      page: String(page),
-      size: String(analysisState.size)
-    });
-    try {
-      const result = await fetchJson(`/chat/analyses?${params}`, {cache: "no-store"});
-      if (requestVersion !== analysisState.requestVersion) return;
-      analysisState.page = result.page;
-      analysisState.total = result.total;
-      renderAnalysisResults(result.items);
-      elements.analysisFeedback.textContent = result.items.length ? "" : "暂无历史分析记录。";
-    } catch {
-      if (requestVersion !== analysisState.requestVersion) return;
-      elements.analysisResults.hidden = true;
-      elements.analysisFeedback.textContent = "查询历史分析失败，请稍后重试。";
-    }
-  }
-
-  function renderAnalysisResults(items) {
-    elements.analysisList.replaceChildren(...items.map(item => {
-      const row = document.createElement("button");
-      row.className = "analysis-item";
-      row.type = "button";
-      const date = document.createElement("span");
-      date.className = "analysis-item-date";
-      date.textContent = item.date;
-      const prompt = document.createElement("span");
-      prompt.className = "analysis-item-prompt";
-      prompt.textContent = item.promptPreview || "";
-      if (item.promptPreview) {
-        prompt.title = item.promptPreview;
-      }
-      const count = document.createElement("span");
-      count.className = "analysis-item-count";
-      count.textContent = `${item.messageCount} 条`;
-      const time = document.createElement("span");
-      time.className = "analysis-item-time";
-      time.textContent = item.createdAt;
-      row.append(date, prompt, count, time);
-      row.addEventListener("click", () => loadAnalysisDetail(item.id));
-      return row;
-    }));
-    const pageCount = Math.max(1, Math.ceil(analysisState.total / analysisState.size));
-    elements.analysisPageState.textContent =
-      `第 ${analysisState.page} / ${pageCount} 页，共 ${analysisState.total} 条`;
-    elements.analysisPrev.disabled = analysisState.page <= 1;
-    elements.analysisNext.disabled = analysisState.page >= pageCount;
-    elements.analysisEmpty.hidden = true;
-    elements.analysisDetail.hidden = true;
-    elements.analysisResults.hidden = false;
-    elements.analysisList.scrollTop = 0;
-  }
-
-  function renderAnalysisMeta(view) {
-    const meta = elements.analysisDetailMeta;
-    meta.replaceChildren();
-    const fields = [
-      {label: "分析日期", value: view.date},
-      {label: "分析条数", value: view.messageCount != null ? `${view.messageCount} 条` : ""},
-      {label: "分析时间", value: view.createdAt}
-    ];
-    for (const field of fields) {
-      if (!field.value) continue;
-      const item = document.createElement("span");
-      item.className = "analysis-meta-field";
-      const label = document.createElement("span");
-      label.className = "analysis-meta-label";
-      label.textContent = `${field.label}：`;
-      const value = document.createElement("span");
-      value.className = "analysis-meta-value";
-      value.textContent = field.value;
-      item.append(label, value);
-      meta.append(item);
-    }
-    if (view.prompt) {
-      const item = document.createElement("span");
-      item.className = "analysis-meta-field analysis-meta-prompt";
-      const label = document.createElement("span");
-      label.className = "analysis-meta-label";
-      label.textContent = "提示词：";
-      const value = document.createElement("span");
-      value.className = "analysis-meta-value";
-      value.textContent = view.prompt;
-      value.title = view.prompt;
-      const copyBtn = document.createElement("button");
-      copyBtn.className = "analysis-meta-copy";
-      copyBtn.type = "button";
-      copyBtn.textContent = "📋";
-      copyBtn.title = "复制提示词";
-      copyBtn.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(view.prompt);
-          copyBtn.textContent = "✅";
-          setTimeout(() => { copyBtn.textContent = "📋"; }, 1500);
-        } catch {
-          copyBtn.textContent = "❌";
-          setTimeout(() => { copyBtn.textContent = "📋"; }, 1500);
-        }
-      });
-      item.append(label, value, copyBtn);
-      meta.append(item);
-    }
-    meta.hidden = meta.children.length === 0;
-  }
-
-  let currentAnalysisView = null;
-
-  function renderMarkdown(text) {
-    const html = window.marked ? window.marked.parse(text) : text;
-    return window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
-  }
-
-  async function loadAnalysisDetail(id) {
-    elements.analysisResults.hidden = true;
-    elements.analysisDetail.hidden = false;
-    elements.analysisFeedback.textContent = "";
-    elements.analysisDetailMeta.hidden = true;
-    elements.analysisDownload.disabled = true;
-    elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在加载…</div>';
-    try {
-      const result = await fetchJson(`/chat/analyses/${id}`, {cache: "no-store"});
-      currentAnalysisView = result;
-      renderAnalysisMeta(result);
-      elements.analysisDownload.disabled = false;
-      elements.analysisDetailContent.innerHTML = renderMarkdown(result.result);
-      elements.analysisDetailContent.scrollTop = 0;
-    } catch {
-      elements.analysisFeedback.textContent = "加载分析详情失败。";
-    }
-  }
-
-  function parseSseEvent(block) {
-    let event = "message";
-    const dataLines = [];
-    for (const rawLine of block.split("\n")) {
-      const line = rawLine.replace(/\r$/, "");
-      if (line.startsWith("event:")) event = line.slice(6).trim();
-      else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
-    }
-    return dataLines.length ? {event, data: dataLines.join("\n")} : null;
-  }
-
-  async function submitAnalysis() {
-    elements.analysisSubmit.disabled = true;
-    elements.analysisSubmit.textContent = "分析中…";
-    elements.analysisEmpty.hidden = true;
-    elements.analysisResults.hidden = true;
-    elements.analysisDetail.hidden = false;
-    elements.analysisDetailMeta.hidden = true;
-    elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在分析，请稍候…</div>';
-    elements.analysisFeedback.textContent = "";
-    let streamed = "";
-    let renderScheduled = false;
-    const renderStream = () => {
-      elements.analysisDetailContent.innerHTML = renderMarkdown(streamed);
-      elements.analysisDetailContent.scrollTop = elements.analysisDetailContent.scrollHeight;
-    };
-    const scheduleRender = () => {
-      if (renderScheduled) return;
-      renderScheduled = true;
-      requestAnimationFrame(() => {
-        renderScheduled = false;
-        renderStream();
-      });
-    };
-    try {
-      const params = new URLSearchParams({
-        gid: String(analysisState.gid),
-        date: elements.analysisDate.value,
-        prompt: elements.analysisPrompt.value
-      });
-      const response = await fetch("/chat/analyses/stream", {
-        method: "POST",
-        headers: {"Content-Type": "application/x-www-form-urlencoded"},
-        body: params
-      });
-      if (!response.ok || !response.body) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.msg || `HTTP ${response.status}`);
-      }
-      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-      let buffer = "";
-      let doneView = null;
-      for (;;) {
-        const {value, done} = await reader.read();
-        if (done) break;
-        buffer += value;
-        const blocks = buffer.split(/\r?\n\r?\n/);
-        buffer = blocks.pop();
-        for (const block of blocks) {
-          const parsed = parseSseEvent(block);
-          if (!parsed) continue;
-          if (parsed.event === "delta") {
-            streamed += parsed.data;
-            scheduleRender();
-          } else if (parsed.event === "done") {
-            doneView = JSON.parse(parsed.data);
-          } else if (parsed.event === "error") {
-            throw new Error(parsed.data);
-          }
-        }
-      }
-      elements.analysisFeedback.textContent = "分析完成。";
-      await queryAnalysisList(1);
-      if (doneView) {
-        loadAnalysisDetail(doneView.id);
-      } else {
-        elements.analysisResults.hidden = true;
-        elements.analysisDetail.hidden = false;
-        renderStream();
-      }
-    } catch (error) {
-      elements.analysisDetail.hidden = true;
-      elements.analysisResults.hidden = false;
-      elements.analysisFeedback.textContent = `分析失败：${error.message}`;
-    } finally {
-      elements.analysisSubmit.disabled = false;
-      elements.analysisSubmit.textContent = "🤖 分析";
-    }
-  }
-
-  elements.analysisOpen.addEventListener("click", () => {
-    resetAnalysis(state.currentGid);
-    elements.analysisDialog.showModal();
-    queryAnalysisList(1);
-  });
-  elements.analysisClose.addEventListener("click", () => elements.analysisDialog.close());
-  elements.analysisForm.addEventListener("submit", event => {
-    event.preventDefault();
-    submitAnalysis();
-  });
-  elements.analysisPrev.addEventListener("click", () => queryAnalysisList(analysisState.page - 1));
-  elements.analysisNext.addEventListener("click", () => queryAnalysisList(analysisState.page + 1));
-  elements.analysisBack.addEventListener("click", () => {
-    analysisState.requestVersion += 1;
-    currentAnalysisView = null;
-    elements.analysisDownload.disabled = true;
-    elements.analysisDetail.hidden = true;
-    elements.analysisFeedback.textContent = "";
-    elements.analysisResults.hidden = false;
-  });
-  elements.analysisDownload.addEventListener("click", () => {
-    if (!currentAnalysisView) return;
-    const header = `# 群聊分析报告\n\n- 分析日期：${currentAnalysisView.date}\n- 分析条数：${currentAnalysisView.messageCount} 条\n- 分析时间：${currentAnalysisView.createdAt}\n- 提示词：${currentAnalysisView.prompt}\n\n---\n\n`;
-    const blob = new Blob([header + currentAnalysisView.result], {type: "text/markdown;charset=utf-8"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `群聊分析_${currentAnalysisView.createdAt.replace(/[: ]/g, "-")}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
   elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());
   elements.imageInput.addEventListener("change", () => {

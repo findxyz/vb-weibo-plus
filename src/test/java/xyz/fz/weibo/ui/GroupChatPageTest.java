@@ -54,6 +54,7 @@ class GroupChatPageTest {
     private static final AtomicBoolean failQrLogin = new AtomicBoolean();
     private static final AtomicBoolean delayGroup202Latest = new AtomicBoolean();
     private static final AtomicBoolean multipleCelebrationMessages = new AtomicBoolean();
+    private static final AtomicBoolean delayAnalysisDetail = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -320,6 +321,28 @@ class GroupChatPageTest {
                     secondPage ? 2 : 1,
                     chainedTarget ? 1 : mediaResults ? 4 : latestTarget ? 1 : 51));
         });
+        server.createContext("/chat/analyses", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if (path.equals("/chat/analyses")) {
+                sendJson(exchange, """
+                    {"items":[{"id":1,"date":"2026-09-06","promptPreview":"总结讨论",
+                      "messageCount":2,"createdAt":"2026-09-06 12:00:00"}],
+                     "page":1,"size":20,"total":1}
+                    """);
+                return;
+            }
+            if (delayAnalysisDetail.getAndSet(false)) {
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            sendJson(exchange, """
+                {"id":1,"gid":101,"date":"2026-09-06","prompt":"总结讨论",
+                 "messageCount":2,"createdAt":"2026-09-06 12:00:00","result":"# 旧报告"}
+                """);
+        });
         server.createContext("/chat/media", exchange -> {
             mediaRequests.incrementAndGet();
             String query = exchange.getRequestURI().getRawQuery();
@@ -418,6 +441,7 @@ class GroupChatPageTest {
         failQrLogin.set(false);
         delayGroup202Latest.set(false);
         multipleCelebrationMessages.set(false);
+        delayAnalysisDetail.set(false);
     }
 
     @Test
@@ -474,6 +498,25 @@ class GroupChatPageTest {
 
         assertThat(page.locator("#current-size")).hasText("500 人群");
 
+        page.close();
+    }
+
+    @Test
+    void ignores_analysis_detail_response_after_closing_and_reopening_the_dialog() {
+        delayAnalysisDetail.set(true);
+        Page page = browser.newPage();
+        page.navigate(baseUrl + "/chat/index.html");
+        page.locator("#analysis-open").click();
+        assertThat(page.locator(".analysis-item")).hasCount(1);
+
+        page.locator(".analysis-item").click();
+        page.locator("#analysis-close").click();
+        page.locator("#analysis-open").click();
+        assertThat(page.locator("#analysis-results")).isVisible();
+        page.waitForTimeout(450);
+
+        assertThat(page.locator("#analysis-detail")).isHidden();
+        assertThat(page.locator("#analysis-results")).isVisible();
         page.close();
     }
 
