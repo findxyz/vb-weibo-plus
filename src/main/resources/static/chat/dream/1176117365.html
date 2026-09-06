@@ -256,50 +256,6 @@ const MICKEY_RUN3 = sprite([
   "................................"
 
 ], CHARACTER_PAL);
-const MICKEY_JUMP = sprite([
-
-  "................................",
-  ".......................K........",
-  "..........K.........KKKKKKK.....",
-  ".......KKKKKKK.....KKKKKKKKK....",
-  "......KKKKKKKKK....KKKKKKKKK....",
-  "......KKKKKKKKK.K..KKKKKKKKK....",
-  "......KKKKKKKKKKKKKKKKKKKKKKK...",
-  ".....KKKKKKKKKKKKKKKKKKKKKKK....",
-  "......KKKKKKKKFKKKKKFKKKKKKK....",
-  "......KKKKKKFFFFFKFFFFFKKKKK....",
-  "......KKKKKKFFFFWKFFFWFKKKK.....",
-  ".......KKKKFFFFFWFFFFWFFK.......",
-  "........KKKFFFFFWFFFFWFFK.......",
-  "........KKKFFFFWKWFFWKWFKK......",
-  ".......KKKFFFFFFKFFFFKFFFKKK....",
-  ".....KKWKKKFFFFFKFFFFKFFKKWK....",
-  ".....KWWKKKFFFFFWFFFFWKKKKKKK...",
-  "....KWWWKKKFFFFFFFFFFFFFFKWK....",
-  ".....KWWKKKKFFFFFFFFFFFFFFKK....",
-  ".....KKWKKKKFFFFFFFFFFFFFFF.....",
-  ".......K.KKKKKFFFFFFFFFFFF......",
-  "..........KKKKKKFFFFRFFFF.......",
-  "...........KKKKKKKKKF...........",
-  "...........KKKKKKKKK............",
-  "..........KKKKKKKKKKK...........",
-  "...........KKKKKKKKK............",
-  "...........RRRRRRRRRR...........",
-  "...........RRYYRRRYYR...........",
-  "...........RRYYRRRYYR.KKKK......",
-  "...........RRRRRRRRRRKKKLYKKK...",
-  "........KKKRRRRRRRRRRKYYYYYYYK..",
-  "......KKLYKRRRRK.RRRRKKKKYKKK...",
-  ".....KYYYYYYYK...........K......",
-  "......KKKYKKK...................",
-  ".........K......................",
-  "................................",
-  "................................",
-  "................................",
-  "................................",
-  "................................"
-
-], CHARACTER_PAL);
 const MINNIE_IDLE = sprite([
 
   "................................",
@@ -520,50 +476,6 @@ const MINNIE_JUMP = sprite([
   "................................"
 
 ], CHARACTER_PAL);
-const MINNIE_STOP = sprite([
-
-  "................................",
-  "..........PPP..PPP.....K........",
-  ".........PPPP..PPPP.KKKKKKK.....",
-  ".......KPPWPRRRPPWPPKKKKKKKK....",
-  "......KKKPPPRRRPPPPKKKKKKKKK....",
-  "......KKKWPPRRRPPPWKKKKKKKKK....",
-  "......KKKKKPPKKPPKKKKKKKKKKKK...",
-  ".....KKKKKKKKKKKKKKKKKKKKKKK....",
-  "......KKKKKKKKFKKKKKFKKKKKKK....",
-  "......KKKKKKFFKKFKFFKFKKKKKK....",
-  "......KKKKKKFFFFWKFFFWFKKKK.....",
-  ".......KKKKFFFFFWFFFFWFFK.......",
-  "........KKKFFFFFWFFFFWFFK.......",
-  "........KKKFFFFWKWFFWKWFK.......",
-  ".......KKKFFFFFFKFFFFKFFFK......",
-  "........KKKFFFFFKFFFFKFFKK......",
-  "........KKKFFFFFWFFFFWKKKKKKK...",
-  "........KKKFFFFFFFFFFFFFFK......",
-  "........KKKKFFFFFFFFFFFFFF......",
-  ".........KKKFFFFFFFFFFFFFFF.....",
-  "..........KKKKFFFFFFFFFFFFK.....",
-  "........K..KKKKKFFFFRFFFFKWKK...",
-  "......KKWKKKKKKKKKKKFKKKKWWWK...",
-  "......KWWWKKKKKKKKKKKKKKWWWSWK..",
-  ".....KWWWSWKKKKKKKKKK..KKWWWK...",
-  "......KWWWKPPPPPPPPPP...KKWKK...",
-  "......KKWKKPWWPPPPPPP.....K.....",
-  "........K.PPPPPPPWWPPP..........",
-  "..........PPPPPPPPPPPP..........",
-  ".........PWWPPPPPPPPWWP.........",
-  ".........PPPPPPWWPPPPPP.........",
-  "........KKKKKKKKKKKKKKKK........",
-  "..........KKK......KKK..........",
-  "..........KKK.......KKK.........",
-  ".........KKK.........KKKK.......",
-  ".......KKLPKKK.......KKLPKKK....",
-  "......KPPPPPPPK.....KPPPPPPPK...",
-  ".......KKKPKKK.......KKKPKKK....",
-  "..........K.............K.......",
-  "................................"
-
-], CHARACTER_PAL);
 
 // 裁掉帧底部空行（部分帧脚底下方留白），保证脚底贴合地面锚点
 function trimBottom(img){
@@ -585,7 +497,6 @@ const MINNIE_RUN_CYCLE = [trimBottom(MINNIE_RUN1), trimBottom(MINNIE_RUN2), trim
 const MINNIE_IDLE_T = trimBottom(MINNIE_IDLE);
 const MINNIE_JUMP_T = trimBottom(MINNIE_JUMP);
 const MICKEY_IDLE_T = trimBottom(MICKEY_IDLE);
-const B_RUN_CYCLE = MINNIE_RUN_CYCLE;
 
 const HEART_SPR = (() => {
   const c = document.createElement("canvas"); c.width = 8; c.height = 8;
@@ -599,9 +510,6 @@ const HEART_SPR = (() => {
 /* ================= 8-bit 音效（WebAudio 合成） ================= */
 let AC = null, master = null, muted = false;
 let noiseBuf = null;
-const MEL  = [[69,.2],[72,.2],[76,.2],[72,.2],[74,.2],[72,.2],[71,.2],[67,.2],
-              [69,.2],[72,.2],[76,.2],[79,.2],[77,.2],[76,.2],[74,.2],[72,.2]];
-const BASS = [[45,.8],[41,.8],[43,.8],[40,.8]];
 const midi = n => 440 * Math.pow(2, (n - 69) / 12);
 
 function ensureAudio(){
