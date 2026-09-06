@@ -45,7 +45,8 @@ export function createDream({messages, popover, enterButton, popoverClose, dialo
 
   function openGame() {
     hidePopover();
-    frame.src = dreamUrl;
+    // 带时间戳绕过浏览器缓存：游戏页是动态设置的 src，强刷外层页面管不到它
+    frame.src = `${dreamUrl}?v=${Date.now()}`;
     dialog.showModal();
     // showModal 默认聚焦标题栏的关闭按钮，回车会误关弹窗；
     // 把焦点交给 iframe，键盘操作才能进游戏
