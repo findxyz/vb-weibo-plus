@@ -1,4 +1,12 @@
-(() => {
+import {
+  captureScrollAnchor,
+  compareMessages,
+  fetchJson,
+  restoreScrollAnchor
+} from "./chat-common.js";
+import {createMessageView} from "./message-view.js";
+
+function bootstrap() {
   "use strict";
 
   const PAGE_SIZE = 50;
@@ -6,14 +14,8 @@
   const EARLIER_LOAD_THRESHOLD = 120;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const IMMERSIVE_KEY = "weibo-chat:immersive";
-  const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
-  const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
-  const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
-  const EMOJI_IMAGE_BASE = "https://img.t.sinajs.cn/t4/appstyle/expression/emimage";
   const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
-  const SYSTEM_SENDER_NAME = "粉丝群";
   const RED_PACKET_TEXT = "收到红包消息";
-  const WEIBO_EMOJI_MAP = (typeof window !== "undefined" && window.WEIBO_EMOJI_MAP) || {};
   const elements = {
     appTitle: document.querySelector("#app-title"),
     groupsCount: document.querySelector("#groups-count"),
@@ -130,7 +132,8 @@
     lastSizeGid: null,
     lastMessageCount: null,
     loginCheckTick: 0,
-    loginPending: false
+    loginPending: false,
+    pendingRefresh: false
   };
   const analysisState = {
     gid: null,
@@ -152,11 +155,17 @@
     requestVersion: 0
   };
 
-  async function fetchJson(url, options) {
-    const response = await fetch(url, options);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  }
+  const messageView = createMessageView({
+    imageViewer: elements.imageViewer,
+    imageViewerImage: elements.imageViewerImage,
+    imageViewerState: elements.imageViewerState,
+    getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
+    mediaTypes: MEDIA_TYPE,
+    formatTime,
+    isAdminSender,
+    onSenderClick: openCelebrationPopover
+  });
+
 
   function localDateValue(date) {
     const year = date.getFullYear();
@@ -205,82 +214,12 @@
     elements.historyFeedback.textContent = "";
   }
 
-  function initials(value, fallback) {
-    return value?.trim().slice(0, 1) || fallback;
-  }
-
-  function avatar(group, className, profileUrl) {
-    const container = document.createElement(profileUrl ? "a" : "span");
-    container.className = className;
-    if (profileUrl) {
-      container.href = profileUrl;
-      container.target = "_blank";
-      container.rel = "noopener noreferrer";
-      container.setAttribute("aria-label", `查看${group.name || "群友"}的微博主页`);
-    } else {
-      container.setAttribute("aria-hidden", "true");
-    }
-    if (group.avatar) {
-      const image = document.createElement("img");
-      image.src = `/chat/image?${new URLSearchParams({url: group.avatar})}`;
-      image.alt = "";
-      container.append(image);
-    } else {
-      container.textContent = initials(group.name, "群");
-    }
-    return container;
-  }
-
-  function emojiImageUrl(token) {
-    const imageMatch = token.match(EMOJI_IMAGE_TEST);
-    if (imageMatch) {
-      return EMOJI_IMAGE_BASE + imageMatch[1];
-    }
-    return WEIBO_EMOJI_MAP[token];
-  }
-
-  function appendTextSegment(container, text) {
-    let offset = 0;
-    for (const match of text.matchAll(EMOJI_PHRASE_PATTERN)) {
-      const url = emojiImageUrl(match[0]);
-      if (!url) continue;
-      if (match.index > offset) {
-        container.append(document.createTextNode(text.slice(offset, match.index)));
-      }
-      const img = document.createElement("img");
-      img.className = "emoji";
-      img.src = url;
-      img.alt = match[0];
-      img.loading = "lazy";
-      container.append(img);
-      offset = match.index + match[0].length;
-    }
-    if (offset < text.length) {
-      container.append(document.createTextNode(text.slice(offset)));
-    }
-  }
-
-  function appendMessageText(container, text) {
-    let offset = 0;
-    for (const match of text.matchAll(MESSAGE_URL_PATTERN)) {
-      appendTextSegment(container, text.slice(offset, match.index));
-      const link = document.createElement("a");
-      link.href = match[0];
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = match[0];
-      container.append(link);
-      offset = match.index + match[0].length;
-    }
-    appendTextSegment(container, text.slice(offset));
-  }
-
   let emojiPanelBuilt = false;
 
   function buildEmojiPanel() {
     if (emojiPanelBuilt) return;
     const grid = elements.emojiPanelGrid;
-    for (const [phrase, url] of Object.entries(WEIBO_EMOJI_MAP)) {
+    for (const [phrase, url] of Object.entries(window.WEIBO_EMOJI_MAP || {})) {
       const img = document.createElement("img");
       img.className = "emoji-cell";
       img.src = url;
@@ -311,36 +250,6 @@
     composer.dispatchEvent(new Event("input", {bubbles: true}));
   }
 
-  function appendWeiboCard(container, urlObject) {
-    const status = urlObject.status || {};
-    const author = status.user?.screen_name?.trim() || "";
-    const rawText = (status.text || "").replace(/<[^>]+>/g, "").trim();
-    const summary = rawText.length > 100 ? rawText.slice(0, 100) + "…" : rawText;
-    const link = urlObject.url_ori || urlObject.info?.url_long || "";
-    container.classList.add("weibo-card");
-    if (author) {
-      const authorEl = document.createElement("div");
-      authorEl.className = "weibo-card-author";
-      authorEl.textContent = author;
-      container.append(authorEl);
-    }
-    if (summary) {
-      const summaryEl = document.createElement("div");
-      summaryEl.className = "weibo-card-summary";
-      summaryEl.textContent = summary;
-      container.append(summaryEl);
-    }
-    if (link) {
-      const linkEl = document.createElement("a");
-      linkEl.className = "weibo-card-link";
-      linkEl.href = link;
-      linkEl.target = "_blank";
-      linkEl.rel = "noopener noreferrer";
-      linkEl.textContent = "查看微博";
-      container.append(linkEl);
-    }
-  }
-
   function groupPreview(group) {
     const sender = group.latestSenderName?.trim() || "";
     const message = group.latestMessage?.trim() || "";
@@ -364,7 +273,7 @@
       const previewText = groupPreview(group);
       button.setAttribute("aria-label",
         `${group.name || `群聊 ${group.gid}`}，${previewText}`);
-      button.append(avatar(group, "group-avatar"));
+      button.append(messageView.avatar(group, "group-avatar"));
       const copy = document.createElement("span");
       copy.className = "group-copy";
       const name = document.createElement("span");
@@ -395,66 +304,6 @@
     return Array.isArray(group?.admins) && group.admins.includes(senderId);
   }
 
-  function messageElement(message, targetMid, onMediaLoad = null, gid = null) {
-    const article = document.createElement("article");
-    article.className = "message";
-    article.dataset.mid = String(message.mid);
-    if (message.mid === targetMid) article.classList.add("target-message");
-    if (isAdminSender(message.senderId)) article.classList.add("admin-message");
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    if (message.fileUrl) {
-      const link = document.createElement("a");
-      link.className = "file-download";
-      link.href = message.fileUrl;
-      link.download = message.text || "";
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = message.text || "下载文件";
-      bubble.append(link);
-    } else if (message.mediaType === MEDIA_TYPE.WEIBO_CARD && message.urlObjects?.[0]?.status) {
-      appendWeiboCard(bubble, message.urlObjects[0]);
-    } else {
-      appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);
-    }
-    if (message.senderName?.trim() === SYSTEM_SENDER_NAME) {
-      article.classList.add("system-message");
-      article.append(bubble);
-      return article;
-    }
-    article.append(avatar({
-      name: message.senderName,
-      avatar: message.senderAvatar
-    }, "message-avatar", Number.isSafeInteger(message.senderId) && message.senderId > 0
-      ? `https://weibo.com/u/${message.senderId}`
-      : ""));
-    const content = document.createElement("div");
-    content.className = "message-content";
-    const meta = document.createElement("div");
-    meta.className = "message-meta";
-    if (gid) {
-      // 名字可点击配置回归庆祝；历史浏览等无 gid 场景保持纯文本
-      const sender = document.createElement("button");
-      sender.type = "button";
-      sender.className = "message-sender";
-      sender.textContent = message.senderName || "未知成员";
-      sender.title = "设置回归庆祝";
-      sender.addEventListener("click", () => openCelebrationPopover(
-        gid, message.senderId, message.senderName, message.senderAvatar, sender));
-      meta.append(sender, document.createTextNode(` · ${formatTime(message.createdAt)}`));
-    } else {
-      meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
-    }
-    const media = messageMedia(message, onMediaLoad);
-    const hidesBubbleText = media
-      && ["分享图片", "分享视频", "[动画表情]"].includes(message.text?.trim());
-    content.append(meta);
-    if (!hidesBubbleText) content.append(bubble);
-    if (media) content.append(media);
-    article.append(content);
-    return article;
-  }
-
   function renderMessages(forceFollow = false) {
     const ordered = [...state.messages.values()].sort(compareMessages);
     const onLoad = forceFollow ? () => scrollToBottom(true) : () => scrollToBottom();
@@ -469,7 +318,7 @@
     // 无交集时直接全量重建（切换群聊、首次加载）
     const hasCommon = ordered.some(message => existingByMid.has(message.mid));
     if (!hasCommon) {
-      elements.messages.replaceChildren(...ordered.map(message => messageElement(
+      elements.messages.replaceChildren(...ordered.map(message => messageView.messageElement(
         message, null, onLoad, state.currentGid)));
       return;
     }
@@ -491,63 +340,12 @@
           else elements.messages.prepend(el);
         }
       } else {
-        el = messageElement(message, null, onLoad, state.currentGid);
+        el = messageView.messageElement(message, null, onLoad, state.currentGid);
         if (prevEl) prevEl.after(el);
         else elements.messages.prepend(el);
       }
       prevEl = el;
     }
-  }
-
-  function messageMedia(message, onLoad) {
-    if (!message.previewUrl) return null;
-    const button = document.createElement("button");
-    button.type = "button";
-    const image = document.createElement("img");
-    // 首页/刷新的图片需要立即加载以触发 scrollToBottom，懒加载会让 load 回调无法及时跟随到底部
-    image.loading = onLoad ? "eager" : "lazy";
-    image.alt = "";
-    // 先注册 load 再设 src，避免缓存命中时 load 在监听前触发而漏掉跟随到底部
-    if (onLoad) image.addEventListener("load", onLoad, {once: true});
-    image.src = message.previewUrl;
-    button.append(image);
-    const label = document.createElement("span");
-    if (message.videoUrl) {
-      button.className = "media-preview video-preview";
-      button.setAttribute("aria-label", "播放视频");
-      label.textContent = "▶";
-      button.append(label);
-      button.addEventListener("click", () => {
-        const video = document.createElement("video");
-        video.src = message.videoUrl;
-        video.controls = true;
-        video.preload = "metadata";
-        video.setAttribute("aria-label", "群聊视频");
-        button.replaceWith(video);
-        video.play().catch(() => {
-          // 自动播放被浏览器阻止时静默处理，controls 已开启供用户手动播放
-        });
-      }, {once: true});
-    } else {
-      button.className = "media-preview image-preview";
-      button.setAttribute("aria-label", "查看原图");
-      button.addEventListener("click", () => openImage(message.originalUrl || message.previewUrl));
-    }
-    image.addEventListener("error", () => {
-      image.hidden = true;
-      label.textContent = "媒体加载失败，点击重试";
-      button.append(label);
-      button.classList.add("media-failed");
-      if (onLoad) onLoad();
-    }, {once: true});
-    return button;
-  }
-
-  function openImage(url) {
-    elements.imageViewerImage.hidden = true;
-    elements.imageViewerState.textContent = "正在加载原图…";
-    elements.imageViewerImage.src = url;
-    elements.imageViewer.showModal();
   }
 
   const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -633,13 +431,9 @@
     elements.historyResultsList.scrollTop = 0;
   }
 
-  function compareMessages(left, right) {
-    return left.createdAt - right.createdAt || left.mid - right.mid;
-  }
-
   function historyMessageElements(messages) {
     return [...messages].sort(compareMessages)
-      .map(message => messageElement(message, historyState.targetMid));
+      .map(message => messageView.messageElement(message, historyState.targetMid));
   }
 
   function renderHistoryMessages(messages) {
@@ -793,25 +587,6 @@
     }
   }
 
-  function captureScrollAnchor(container = elements.messages) {
-    const containerTop = container.getBoundingClientRect().top;
-    const anchor = [...container.children].find(element =>
-      element.getBoundingClientRect().bottom > containerTop);
-    if (!anchor) return null;
-    return {
-      mid: anchor.dataset.mid,
-      top: anchor.getBoundingClientRect().top
-    };
-  }
-
-  function restoreScrollAnchor(anchor, container = elements.messages) {
-    if (!anchor) return;
-    const renderedAnchor = container.querySelector(`[data-mid="${anchor.mid}"]`);
-    if (renderedAnchor) {
-      container.scrollTop += renderedAnchor.getBoundingClientRect().top - anchor.top;
-    }
-  }
-
   async function selectGroup(gid) {
     const group = state.groups.find(item => item.gid === gid);
     if (!group) return;
@@ -837,7 +612,7 @@
     elements.videoPickerOpen.disabled = false;
     elements.historyTitle.textContent = `聊天记录 - ${group.name || `群聊 ${group.gid}`}`;
     elements.analysisTitle.textContent = `群聊分析 - ${group.name || `群聊 ${group.gid}`}`;
-    elements.currentAvatar.replaceWith(avatar(group, "main-group-avatar"));
+    elements.currentAvatar.replaceWith(messageView.avatar(group, "main-group-avatar"));
     elements.currentAvatar = document.querySelector(".main-group-avatar");
     elements.appTitle.textContent = `微博群聊 - ${elements.currentGroup.textContent}`;
     document.title = elements.appTitle.textContent;
@@ -893,7 +668,7 @@
 
   async function loadMessages(beforeCursor = null) {
     const isLatestPage = beforeCursor === null;
-    const anchor = isLatestPage ? null : captureScrollAnchor();
+    const anchor = isLatestPage ? null : captureScrollAnchor(elements.messages);
     const gid = state.currentGid;
     const version = state.groupLoadVersion;
     const query = new URLSearchParams({
@@ -920,7 +695,7 @@
         seedCelebrationSeen(gid, result.items);
       } else {
         renderMessages();
-        restoreScrollAnchor(anchor);
+        restoreScrollAnchor(anchor, elements.messages);
         // 向上翻页加载的旧消息同样算亲眼见证，垫高基线（只增不减）
         seedCelebrationSeen(gid, result.items);
       }
@@ -1073,6 +848,10 @@
   }
 
   function refreshView() {
+    if (state.initializing) {
+      state.pendingRefresh = true;
+      return;
+    }
     refreshGroups();
     refreshMessages();
     maybeCheckLoginStatus();
@@ -1314,6 +1093,10 @@
       elements.retryGroups.hidden = false;
     } finally {
       state.initializing = false;
+      if (state.pendingRefresh) {
+        state.pendingRefresh = false;
+        refreshView();
+      }
     }
   }
 
@@ -1713,17 +1496,6 @@
       - elements.historyMessages.scrollTop - elements.historyMessages.clientHeight;
     if (distanceFromBottom <= EARLIER_LOAD_THRESHOLD) loadMoreHistory("after");
   });
-  elements.imageViewer.addEventListener("click", event => {
-    if (event.target === elements.imageViewer) elements.imageViewer.close();
-  });
-  elements.imageViewerImage.addEventListener("load", () => {
-    elements.imageViewerImage.hidden = false;
-    elements.imageViewerState.textContent = "";
-  });
-  elements.imageViewerImage.addEventListener("error", () => {
-    elements.imageViewerImage.hidden = true;
-    elements.imageViewerState.textContent = "原图加载失败，请关闭后重试。";
-  });
   window.addEventListener("focus", refreshView);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
@@ -1879,7 +1651,7 @@
       const chip = document.createElement("span");
       chip.className = "celebration-chip";
       chip.title = `沉默 ${entry.interval} 秒后回归时，怪兽会来戳破泡泡`;
-      chip.append(avatar(entry, "celebration-chip-avatar"));
+      chip.append(messageView.avatar(entry, "celebration-chip-avatar"));
       const name = document.createElement("button");
       name.type = "button";
       name.className = "celebration-chip-name";
@@ -2033,7 +1805,7 @@
       card.className = "celebration-member";
       const figure = document.createElement("div");
       figure.className = "celebration-member-figure";
-      figure.append(avatar(entry, "celebration-member-avatar"));
+      figure.append(messageView.avatar(entry, "celebration-member-avatar"));
       const bubble = document.createElement("span");
       bubble.className = "celebration-bubble";
       bubble.setAttribute("aria-hidden", "true");
@@ -2232,4 +2004,10 @@
   updateFollowIndicator();
   initialize();
   checkLoginStatus();
-})();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootstrap, {once: true});
+} else {
+  bootstrap();
+}

@@ -421,6 +421,22 @@ class GroupChatPageTest {
     }
 
     @Test
+    void loads_chat_modules_after_dom_content_loaded_without_page_errors() {
+        Page page = browser.newPage();
+        AtomicReference<String> pageError = new AtomicReference<>();
+        page.onPageError(pageError::set);
+        page.navigate(baseUrl + "/chat/index.html");
+
+        assertThat(page.locator("script[type='module'][src='chat.js']")).hasCount(1);
+        Object emojiCount = page.evaluate("() => Object.keys(window.WEIBO_EMOJI_MAP || {}).length");
+        Assertions.assertThat(((Number) emojiCount).intValue()).isGreaterThan(0);
+        Assertions.assertThat(pageError.get()).isNull();
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+
+        page.close();
+    }
+
+    @Test
     void loads_real_groups_and_renders_latest_messages_in_chronological_order() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
