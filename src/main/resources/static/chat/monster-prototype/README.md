@@ -16,6 +16,6 @@ python -m http.server 8765 --bind 127.0.0.1 --directory src/main/resources/stati
 
 六张图集原样来自 <https://github.com/531149627/MonsterDeleter/tree/main/assets>，下载日期为 2026-09-05。原项目说明仅供娱乐与学习。图集布局为 5 列、3 行。爆炸素材取帧时裁去分隔线边缘。
 
-素材合计约 17.5 MB，当前优先验证动作。正式接入前需要针对显示尺寸缩减图集、确认素材使用范围，再接入现有 spawnCelebration 入口与生命周期。
+素材合计约 17.5 MB，当前优先验证动作。正式版已接入聊天页 spawnCelebration：取走路、指泡、雷欧登场三段图集（雷欧图集前 5 帧欢呼、5-14 帧骑雷欧飞离），缩减为每帧 192 像素后放在 chat/assets/monster/，由 chat.js 用 Canvas 按时间轴选帧。
 
-原型保存在 codex/monster-return-prototype 分支。待用户判断观感后，再决定是否将演出接入真实群聊。
+原型保存在 codex/monster-return-prototype 分支，保留完整尺寸素材与对照剧情，供调整演出时参考。

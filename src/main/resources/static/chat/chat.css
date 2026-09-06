@@ -273,8 +273,7 @@ h1 {
 .group-avatar img,
 .main-group-avatar img,
 .message-avatar img,
-.celebration-chip-avatar img,
-.celebration-tag-avatar img {
+.celebration-chip-avatar img {
   display: block;
   width: 100%;
   height: 100%;
@@ -396,7 +395,8 @@ h1 {
 .analysis-pagination button,
 .analysis-detail-toolbar button,
 .panel-feedback button,
-.login-expired button {
+.login-expired button,
+.celebration-popover-body button {
   min-height: 32px;
   padding: 0 14px;
   border: 1px solid #7f9fba;
@@ -1509,15 +1509,160 @@ h1 {
   cursor: pointer;
 }
 
-.celebration-tag {
+/* 成员卡片：头像被水泡罩住，停在舞台中上部 */
+.celebration-member {
   position: absolute;
-  bottom: calc(100% + 2px);
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* 成员整体上下微微浮动，像被泡泡托着漂 */
+.celebration-member-figure {
+  position: relative;
+  animation: celebration-bob 3s ease-in-out infinite;
+}
+
+@keyframes celebration-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+.celebration-member-avatar {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 54px;
+  height: 54px;
+  border: 2px solid rgb(255 255 255 / 92%);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #4ba7ec, #0864c6);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.celebration-member-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 水泡：左上白芯、右下浅蓝的玻璃球体，配双高光与底部微光 */
+.celebration-bubble {
+  position: absolute;
+  inset: -13px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 108%, rgb(255 255 255 / 50%), rgb(255 255 255 / 0%) 34%),
+    radial-gradient(circle at 30% 24%, rgb(255 255 255 / 88%), rgb(255 255 255 / 0%) 40%),
+    radial-gradient(circle at 72% 84%, rgb(8 108 224 / 14%), rgb(8 108 224 / 0%) 46%),
+    radial-gradient(circle at 50% 50%, rgb(223 240 255 / 12%) 56%, rgb(191 224 247 / 42%) 84%, rgb(255 255 255 / 78%) 97%);
+  box-shadow:
+    inset 0 0 12px rgb(255 255 255 / 65%),
+    inset -7px -9px 14px rgb(111 159 201 / 30%),
+    0 6px 16px rgb(8 108 224 / 18%);
+  animation: celebration-float 2.8s ease-in-out infinite;
+}
+
+.celebration-bubble::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 9px;
+  width: 22px;
+  height: 13px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 92%);
+  transform: rotate(-32deg);
+}
+
+.celebration-bubble::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  bottom: 11px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 80%);
+}
+
+@keyframes celebration-float {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-4px) scale(1.01, 0.99); }
+}
+
+/* 被轻戳时整颗泡泡果冻式晃动 */
+.celebration-member.is-poked .celebration-bubble {
+  animation: celebration-jelly 0.8s ease-in-out;
+}
+
+@keyframes celebration-jelly {
+  0%, 100% { transform: scale(1, 1); }
+  22% { transform: scale(1.09, 0.91) rotate(-3deg); }
+  52% { transform: scale(0.93, 1.07) rotate(2deg); }
+  78% { transform: scale(1.05, 0.96); }
+}
+
+/* 破裂：先胀一下再散掉 */
+.celebration-member.is-popped .celebration-bubble {
+  animation: celebration-pop 0.3s ease-out forwards;
+}
+
+@keyframes celebration-pop {
+  0% { opacity: 1; transform: scale(1); }
+  45% { opacity: 1; transform: scale(1.16); }
+  100% { opacity: 0; transform: scale(1.32); }
+}
+
+.celebration-ring {
+  position: absolute;
+  inset: -13px;
+  border: 2px solid rgb(255 255 255 / 85%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: celebration-ring 0.45s ease-out forwards;
+}
+
+@keyframes celebration-ring {
+  from { opacity: 0.9; transform: scale(0.72); }
+  to { opacity: 0; transform: scale(1.5); }
+}
+
+.celebration-drop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, #ffffff, #9fd2f0 72%);
+  pointer-events: none;
+}
+
+.celebration-member.is-popped .celebration-member-avatar {
+  animation: celebration-awake 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes celebration-awake {
+  0% { transform: scale(0.88); }
+  55% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* 怪兽台词：悬在怪兽头顶的药丸气泡，带指向头顶的小尾巴 */
+.celebration-speech {
+  position: absolute;
+  bottom: calc(100% - 12px);
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  padding: 4px 11px;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: var(--surface);
@@ -1527,213 +1672,53 @@ h1 {
   box-shadow: 0 2px 6px rgb(16 24 32 / 15%);
 }
 
-.celebration-tag-avatar {
-  width: 16px;
-  height: 16px;
-  border: none;
-  font-size: 9px;
-}
-
-.celebration-creature {
-  --cs-color: #4fbf63;
-  position: relative;
-  display: block;
-  width: 46px;
-  height: 40px;
-}
-
-.celebration-horn {
-  display: none;
-  position: absolute;
-  top: -4px;
-  width: 8px;
-  height: 12px;
-  background: var(--cs-color);
-  border: 2px solid rgb(16 24 32 / 55%);
-  border-radius: 6px 6px 0 0;
-  z-index: 0;
-}
-
-.celebration-horn.left {
-  left: 10px;
-  transform: rotate(-14deg);
-}
-
-.celebration-horn.right {
-  right: 10px;
-  transform: rotate(14deg);
-}
-
-.celebration-body {
-  position: absolute;
-  inset: 6px 4px 2px;
-  background: var(--cs-color);
-  border: 2px solid rgb(16 24 32 / 55%);
-  border-radius: 48% 52% 46% 54% / 58% 58% 42% 42%;
-  z-index: 1;
-}
-
-.celebration-eye {
-  position: absolute;
-  top: 14px;
-  width: 7px;
-  height: 9px;
-  background: #101820;
-  border-radius: 50%;
-  z-index: 2;
-}
-
-.celebration-eye.left {
-  left: 13px;
-}
-
-.celebration-eye.right {
-  right: 13px;
-}
-
-.celebration-flame {
-  display: block;
+.celebration-speech::after {
+  content: "";
   position: absolute;
   left: 50%;
-  top: 20px;
-  width: 14px;
-  height: 18px;
-  margin-left: -7px;
-  background: linear-gradient(#ffd23c, #f2703a);
-  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
-  opacity: 0;
-  transform: translateY(6px) scale(0.4);
-  z-index: 3;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface);
+  transform: translateX(-50%) rotate(45deg);
 }
 
-.cs-bounce {
-  --cs-color: #f5a13c;
-}
-
-.cs-bounce .celebration-body {
-  border-radius: 50%;
-}
-
-.cs-fire {
-  --cs-color: #e5533d;
-}
-
-.cs-fire .celebration-horn {
+.celebration-monster {
   display: block;
-  border-radius: 2px;
-  top: -6px;
-  height: 14px;
+  width: 220px;
+  height: 220px;
 }
 
-.cs-peek {
-  --cs-color: #9a6df2;
+/* 轻戳水泡：朝泡泡方向探身两下；flip 时镜像探向另一侧 */
+.celebration-actor.is-poking .celebration-monster {
+  animation: celebration-poke 0.8s ease-in-out;
+  transform-origin: 50% 100%;
 }
 
-.cs-peek .celebration-eye {
-  width: 12px;
-  height: 12px;
-  top: 12px;
+.celebration-actor.is-poking.flip .celebration-monster {
+  animation-name: celebration-poke-flip;
 }
 
-.cs-peek .celebration-eye.left {
-  left: 16px;
+@keyframes celebration-poke {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  20% { transform: translate(9px, -16px) rotate(8deg); }
+  34% { transform: translate(3px, -3px) rotate(2deg); }
+  54% { transform: translate(10px, -17px) rotate(9deg); }
+  74% { transform: translate(2px, 0) rotate(0); }
 }
 
-.cs-peek .celebration-eye.right {
+@keyframes celebration-poke-flip {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  20% { transform: translate(-9px, -16px) rotate(-8deg); }
+  34% { transform: translate(-3px, -3px) rotate(-2deg); }
+  54% { transform: translate(-10px, -17px) rotate(-9deg); }
+  74% { transform: translate(-2px, 0) rotate(0); }
+}
+
+.celebration-popover-join[hidden] {
   display: none;
-}
-
-.celebration-actor.is-walking .celebration-creature {
-  animation: celebration-walk 0.4s ease-in-out infinite;
-}
-
-@keyframes celebration-walk {
-  0%, 100% { transform: translateY(0) rotate(-3deg); }
-  50% { transform: translateY(-4px) rotate(3deg); }
-}
-
-.celebration-actor.is-acting .cs-patrol .celebration-body {
-  animation: celebration-patrol 2.6s ease-in-out;
-}
-
-@keyframes celebration-patrol {
-  0%, 100% { transform: translateX(0) rotate(0); }
-  20% { transform: translateX(-16px) rotate(-4deg); }
-  40% { transform: translateX(16px) rotate(4deg); }
-  60% { transform: translateX(-12px) rotate(-3deg); }
-  80% { transform: translateX(12px) rotate(3deg); }
-}
-
-.celebration-actor.is-acting .cs-bounce .celebration-body {
-  animation: celebration-bounce 2.6s ease-in-out;
-}
-
-@keyframes celebration-bounce {
-  0%, 100% { transform: translateY(0) scale(1, 1); }
-  15% { transform: translateY(0) scale(1.15, 0.8); }
-  35% { transform: translateY(-26px) scale(0.92, 1.1); }
-  55% { transform: translateY(0) scale(1.12, 0.85); }
-  75% { transform: translateY(-18px) scale(0.95, 1.06); }
-  90% { transform: translateY(0) scale(1.1, 0.9); }
-}
-
-.celebration-actor.is-acting .cs-fire .celebration-body {
-  animation: celebration-fire 2.6s ease-in-out;
-}
-
-@keyframes celebration-fire {
-  0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-14deg) translateY(-2px); }
-  40% { transform: rotate(10deg); }
-  55% { transform: rotate(-8deg); }
-  70% { transform: rotate(6deg); }
-}
-
-.celebration-actor.is-acting .cs-fire .celebration-flame {
-  animation: celebration-flame 2.6s ease-out;
-}
-
-@keyframes celebration-flame {
-  0%, 20% { opacity: 0; transform: translateY(6px) scale(0.4); }
-  30% { opacity: 1; transform: translateY(14px) scale(1.25); }
-  45% { opacity: 0.9; transform: translateY(20px) scale(1.05); }
-  60%, 100% { opacity: 0; transform: translateY(26px) scale(0.6); }
-}
-
-.celebration-actor.is-acting .cs-peek .celebration-body {
-  animation: celebration-peek 2.6s ease-in-out;
-}
-
-@keyframes celebration-peek {
-  0%, 100% { transform: rotate(0) translateX(0); }
-  25% { transform: rotate(-14deg) translateX(-6px); }
-  50% { transform: rotate(12deg) translateX(6px); }
-  75% { transform: rotate(-10deg) translateX(-4px); }
-}
-
-.celebration-anim-card {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  padding: 8px 4px 6px;
-  border: 1px solid #a7bdcd;
-  border-radius: var(--radius-sm);
-  background: #ffffff;
-  cursor: pointer;
-}
-
-.celebration-anim-card.selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.celebration-anim-label {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.celebration-anim-card.selected .celebration-anim-label {
-  color: var(--accent-strong);
 }
 
 .celebration-popover {
@@ -1823,38 +1808,25 @@ h1 {
   justify-content: space-between;
   gap: 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .celebration-popover-row input {
   width: 76px;
-  height: 28px;
+  height: 34px;
   padding: 0 8px;
   border: 1px solid #8badca;
   border-radius: var(--radius-sm);
   background: #ffffff;
 }
 
-.celebration-anim-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-
 .celebration-popover-hint {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .celebration-popover-remove {
-  min-height: 28px;
-  padding: 0 14px;
-  border: 1px solid #7f9fba;
-  border-radius: var(--radius-sm);
   color: var(--danger);
-  background: linear-gradient(#ffffff, #dceaf5);
-  font-size: 12px;
-  cursor: pointer;
 }
 
 .celebration-popover-remove:hover {
