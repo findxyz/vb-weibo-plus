@@ -1521,6 +1521,128 @@ class GroupChatPageTest {
     }
 
     @Test
+    void keeps_follow_paused_when_a_pending_earlier_load_resolves_while_hidden() {
+        Page page = browser.newPage();
+        // 掐掉 3 秒轮询定时器，让测试序列里的每个请求都可预测
+        page.addInitScript("window.setInterval = () => 0;");
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+        assertThat(page.locator("#messages")).containsText("较早消息");
+
+        // 页面内包装 fetch：更早一页的响应到达后按住不交，直到测试翻转 __releaseEarlier，
+        // 让“请求跨越切走时刻”从概率事件变成确定序列
+        page.evaluate("""
+                () => {
+                  window.__releaseEarlier = false;
+                  const original = window.fetch;
+                  window.fetch = async (input, init) => {
+                    const response = await original(input, init);
+                    if (String(input).includes("beforeCreatedAt=1000")
+                        && !window.__releaseEarlier) {
+                      while (!window.__releaseEarlier) {
+                        await new Promise(resolve => setTimeout(resolve, 20));
+                      }
+                    }
+                    return response;
+                  };
+                }
+                """);
+
+        // 收窄可视区并贴底跟随；贴底会触发更早一页加载（响应被按住）
+        page.locator("#messages").evaluate("element => { element.style.height = '120px'; }");
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#follow-indicator")).not().hasClass(Pattern.compile("paused"));
+
+        // 切走：跟随挂起
+        page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: true})");
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+
+        // 放行被按住的响应：渲染与锚点恢复引发的滚动回调此刻才到来
+        page.evaluate("() => { window.__releaseEarlier = true; }");
+        page.waitForTimeout(300);
+
+        // 回来：追平离开期间的缺口
+        catchUpMessages.set(true);
+        page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: false})");
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+        assertThat(page.locator("#messages")).containsText("追平消息");
+
+        // 暂停必须保持：指示器不恢复、新消息按钮出现，跟随若被翻回则两者都不成立
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+        assertThat(page.locator("#new-messages")).isVisible();
+        page.close();
+    }
+
+    @Test
+    void keeps_follow_paused_when_a_poll_straddles_the_away_transition() {
+        Page page = browser.newPage();
+        page.addInitScript("window.setInterval = () => 0;");
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+        assertThat(page.locator("#messages")).containsText("较早消息");
+
+        // 页面内包装 fetch：按住最新页响应，制造跨越切走时刻的轮询请求
+        page.evaluate("""
+                () => {
+                  window.__releasePoll = false;
+                  const original = window.fetch;
+                  window.fetch = async (input, init) => {
+                    const response = await original(input, init);
+                    const url = String(input);
+                    if (url.includes("/chat/messages/cursor")
+                        && !url.includes("beforeCreatedAt") && !url.includes("afterCreatedAt")
+                        && !window.__releasePoll) {
+                      while (!window.__releasePoll) {
+                        await new Promise(resolve => setTimeout(resolve, 20));
+                      }
+                    }
+                    return response;
+                  };
+                }
+                """);
+
+        // 收窄可视区并贴底跟随
+        page.locator("#messages").evaluate("element => { element.style.height = '120px'; }");
+        page.locator("#messages").evaluate("""
+                element => {
+                  element.scrollTop = element.scrollHeight;
+                  element.dispatchEvent(new Event("scroll"));
+                }
+                """);
+        assertThat(page.locator("#follow-indicator")).not().hasClass(Pattern.compile("paused"));
+        Object scrollTopBefore = page.locator("#messages").evaluate("element => element.scrollTop");
+
+        // focus 事件驱动 refreshView 发起一次轮询，请求在途时切走
+        page.evaluate("window.dispatchEvent(new Event('focus'))");
+        page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: true})");
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+
+        // 放行被按住的轮询响应：新消息此刻才渲染
+        page.evaluate("() => { window.__releasePoll = true; }");
+        page.waitForTimeout(300);
+        assertThat(page.locator("#messages")).containsText("刷新后消息");
+
+        // 回来：追平路径接管剩余缺口
+        page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: false})");
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+
+        // 暂停必须保持：指示器不恢复、滚动位置不被贴底、新消息按钮出现
+        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+        Object scrollTopAfter = page.locator("#messages").evaluate("element => element.scrollTop");
+        Assertions.assertThat(((Number) scrollTopAfter).doubleValue())
+                .isEqualTo(((Number) scrollTopBefore).doubleValue(), Offset.offset(0.5));
+        assertThat(page.locator("#new-messages")).isVisible();
+        page.close();
+    }
+
+    @Test
     void ignores_a_previous_group_response_after_switching_back() {
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");

@@ -179,9 +179,11 @@ export function createConversationSession({
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
       result.items.forEach(message => messages.set(message.mid, message));
       if (fresh.length > 0) {
-        setFollowing(followedLatest);
+        // 请求跨越切走时刻时，followedLatest 已过期，不得覆盖 markAway 的挂起
+        const resumeFollowing = !document.hidden && followedLatest;
+        setFollowing(resumeFollowing);
         renderMessages();
-        if (followedLatest) scrollToBottom();
+        if (resumeFollowing) scrollToBottom();
         else elements.newMessages.hidden = false;
         onNewMessages(gid, fresh);
       }
@@ -228,7 +230,8 @@ export function createConversationSession({
   }
 
   elements.messages.addEventListener("scroll", () => {
-    setFollowing(isNearBottom());
+    // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此恢复跟随
+    setFollowing(!document.hidden && isNearBottom());
     if (followingLatest) elements.newMessages.hidden = true;
     loadEarlierIfNeeded();
   });
