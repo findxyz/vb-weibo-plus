@@ -485,6 +485,13 @@ h1 {
   scrollbar-gutter: stable;
 }
 
+/* 滑动窗口占位：撑起未渲染消息的滚动高度 */
+.list-spacer {
+  flex: none;
+  width: 100%;
+  pointer-events: none;
+}
+
 .message {
   width: 100%;
   display: grid;

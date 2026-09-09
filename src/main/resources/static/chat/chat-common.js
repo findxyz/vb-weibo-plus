@@ -10,8 +10,9 @@ export function compareMessages(left, right) {
 
 export function captureScrollAnchor(container) {
   const containerTop = container.getBoundingClientRect().top;
+  // 跳过没有消息的占位元素（如滑动窗口的顶部占位），否则贴顶时锚点会落空
   const anchor = [...container.children].find(element =>
-    element.getBoundingClientRect().bottom > containerTop);
+    element.dataset.mid && element.getBoundingClientRect().bottom > containerTop);
   if (!anchor) return null;
   return {
     mid: anchor.dataset.mid,
