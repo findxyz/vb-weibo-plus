@@ -191,6 +191,57 @@ class ChatServiceTest {
     }
 
     @Test
+    void returns_empty_attitudes_without_touching_upstream_for_no_mids() {
+        assertThat(chatService.queryAttitudes(1, List.of())).isEmpty();
+
+        verifyNoInteractions(groupMessagesApi);
+    }
+
+    @Test
+    void collects_attitudes_from_the_page_reached_by_the_newest_requested_mid() {
+        GroupMessagesResponse.Message liked = messageWithAttitudes(300, 1_000,
+                new GroupMessagesResponse.Attitude("good", 5, 1));
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 301L)))
+                .thenReturn(messagePage(message(200, 321, 900), liked));
+
+        assertThat(chatService.queryAttitudes(1, List.of(200L, 300L)))
+                .containsOnlyKeys(300L)
+                .containsEntry(300L, List.of(new GroupMessagesResponse.Attitude("good", 5, 1)));
+
+        verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 301L));
+        verifyNoMoreInteractions(groupMessagesApi);
+    }
+
+    @Test
+    void walks_backward_until_every_requested_mid_is_collected() {
+        GroupMessagesResponse.Message newer = messageWithAttitudes(300, 1_000,
+                new GroupMessagesResponse.Attitude("good", 5, 1));
+        GroupMessagesResponse.Message older = messageWithAttitudes(100, 500,
+                new GroupMessagesResponse.Attitude("干杯", 3, 0));
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 301L)))
+                .thenReturn(messagePage(newer));
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 300L)))
+                .thenReturn(messagePage(older));
+
+        assertThat(chatService.queryAttitudes(1, List.of(100L, 300L)))
+                .containsOnlyKeys(100L, 300L);
+
+        verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 301L));
+        verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 300L));
+        verifyNoMoreInteractions(groupMessagesApi);
+    }
+
+    @Test
+    void stops_after_the_page_cap_when_requested_mids_stay_out_of_reach() {
+        when(groupMessagesApi.messages(any()))
+                .thenReturn(messagePage(message(900, 321, 1_000)));
+
+        assertThat(chatService.queryAttitudes(1, List.of(100L))).isEmpty();
+
+        verify(groupMessagesApi, times(10)).messages(any());
+    }
+
+    @Test
     void queries_messages_from_sqlite_with_group_metadata_only_at_the_top_level() {
         GroupEntity group = group(1, 100);
         GroupRecord groupRecord = record(1);
@@ -1057,7 +1108,14 @@ class ChatServiceTest {
 
     private GroupMessagesResponse.Message message(long mid, int type, long time) {
         return new GroupMessagesResponse.Message(mid, 1L, type, 9L, null, "消息", 0, time,
-                List.of(), null, null, null, null, null, "", null, null, null, "");
+                List.of(), null, null, null, null, null, "", null, null, null, "", null);
+    }
+
+    private GroupMessagesResponse.Message messageWithAttitudes(long mid, long time,
+            GroupMessagesResponse.Attitude... attitudes) {
+        return new GroupMessagesResponse.Message(mid, 1L, 321, 9L, null, "消息", 0, time,
+                List.of(), null, null, null, null, null, "", null, null, null, "",
+                new GroupMessagesResponse.AttitudeInfo(List.of(attitudes)));
     }
 
     private MessageEntity messageEntity(long mid, long createdAt) {

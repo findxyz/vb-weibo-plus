@@ -54,8 +54,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
@@ -69,6 +71,8 @@ public class ChatService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final long MAX_IMAGE_SIZE = 20L * 1024 * 1024;
     private static final long MAX_VIDEO_SIZE = 100L * 1024 * 1024;
+    /** 实时表态最多向回翻的时间线页数，防止老消息把上游请求拖到失控。 */
+    private static final int MAX_ATTITUDE_PAGES = 10;
 
     private final GroupListApi groupListApi;
     private final GroupMessagesApi groupMessagesApi;
@@ -220,6 +224,40 @@ public class ChatService {
                 !loadingAfter && next != null ? next.getMid() : null,
                 loadingAfter && next != null ? next.getCreatedAt() : null,
                 loadingAfter && next != null ? next.getMid() : null);
+    }
+
+    /**
+     * 实时拉取一批消息的表态，不落库：从最大 mid 起沿时间线向回翻页，
+     * 集齐全部目标消息或达到页数上限为止；上限内没翻到的消息不出现在结果里。
+     */
+    public Map<Long, List<GroupMessagesResponse.Attitude>> queryAttitudes(long gid, List<Long> mids) {
+        validateGid(gid);
+        Set<Long> wanted = new HashSet<>(mids);
+        wanted.remove(null);
+        if (wanted.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<GroupMessagesResponse.Attitude>> result = new HashMap<>();
+        long cursor = Collections.max(wanted) + 1;
+        for (int page = 0; page < MAX_ATTITUDE_PAGES && !wanted.isEmpty(); page++) {
+            List<GroupMessagesResponse.Message> messages = requireMessages(
+                    groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
+            if (messages.isEmpty()) {
+                break;
+            }
+            for (GroupMessagesResponse.Message message : messages) {
+                long mid = requireMid(message);
+                if (wanted.remove(mid)) {
+                    List<GroupMessagesResponse.Attitude> attitudes = message.attitudeInfo() == null
+                            ? List.of() : message.attitudeInfo().attitudes();
+                    if (attitudes != null && !attitudes.isEmpty()) {
+                        result.put(mid, attitudes);
+                    }
+                }
+            }
+            cursor = requireMid(messages.getFirst());
+        }
+        return result;
     }
 
     @Async

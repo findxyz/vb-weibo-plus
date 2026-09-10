@@ -521,6 +521,29 @@ h1 {
   font-size: 12px;
 }
 
+.message-attitudes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attitude-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 9px;
+  border: 1px solid #a7bdcd;
+  border-radius: 999px;
+  color: #486b88;
+  background: #f3f8fc;
+  font-size: 12px;
+}
+
+.attitude-chip.selected {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
 .bubble {
   max-width: min(680px, 85%);
   padding: 8px 11px;
@@ -618,6 +641,26 @@ h1 {
 .follow-indicator.paused .follow-slash {
   display: block;
   stroke-width: 2.4;
+}
+
+.attitudes-toggle {
+  position: absolute;
+  right: 26px;
+  bottom: 50px;
+  padding: 3px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgb(255 255 255 / 85%);
+  box-shadow: 0 2px 8px rgb(17 67 115 / 18%);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.attitudes-toggle.active {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
 }
 
 

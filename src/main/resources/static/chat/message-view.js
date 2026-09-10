@@ -3,6 +3,14 @@ const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
 const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
 const EMOJI_IMAGE_BASE = "https://img.t.sinajs.cn/t4/appstyle/expression/emimage";
 const SYSTEM_SENDER_NAME = "粉丝群";
+// 表态名 → 近似 emoji（覆盖 LinkNow 群实测的完整 25 种表态包）；未收录名称回退显示原文，悬浮可见名称。
+const ATTITUDE_ICONS = {
+  good: "👍", "点赞": "👍", "赞啊": "👍", "干杯": "🍺",
+  "心": "❤️", "给你小心心": "💗", "送花花": "💐", "爱慕": "😘", "憧憬": "😍",
+  "太开心": "😆", "哈哈": "😃", "嘻嘻": "😁", "哇": "🤩", "期待": "🤞",
+  "抱一抱": "🤗", "来抱抱": "🫂", "鼓掌": "👏", "求饶": "🙏", "打call": "🙌",
+  "彩虹屁": "🌈", "不愧是你": "💯", "yeah": "🥳", "比耶": "✌️", "努力": "💪"
+};
 
 export function createMessageView({
   imageViewer,
@@ -156,6 +164,32 @@ export function createMessageView({
     return button;
   }
 
+  function appendAttitudes(container, message) {
+    const attitudes = Array.isArray(message.attitudes) ? message.attitudes : [];
+    if (!attitudes.length) return;
+    const row = document.createElement("div");
+    row.className = "message-attitudes";
+    for (const attitude of attitudes) {
+      if (!attitude?.name || !(attitude.count > 0)) continue;
+      const chip = document.createElement("span");
+      chip.className = "attitude-chip";
+      if (attitude.selected) chip.classList.add("selected");
+      const icon = ATTITUDE_ICONS[attitude.name];
+      chip.textContent = `${icon || attitude.name} ${attitude.count}`;
+      chip.title = attitude.name;
+      row.append(chip);
+    }
+    if (row.children.length) container.append(row);
+  }
+
+  // 实时表态返回后原地刷新已渲染消息的表态行；没有表态则连同旧行一起清掉。
+  function updateAttitudes(element, message) {
+    const content = element.querySelector(".message-content");
+    if (!content) return;
+    content.querySelector(".message-attitudes")?.remove();
+    appendAttitudes(content, message);
+  }
+
   function messageElement(message, targetMid, onMediaLoad = null, gid = null) {
     const article = document.createElement("article");
     article.className = "message";
@@ -210,6 +244,7 @@ export function createMessageView({
     content.append(meta);
     if (!hidesBubbleText) content.append(bubble);
     if (media) content.append(media);
+    appendAttitudes(content, message);
     article.append(content);
     return article;
   }
@@ -226,5 +261,5 @@ export function createMessageView({
     imageViewerState.textContent = "原图加载失败，请关闭后重试。";
   });
 
-  return {avatar, messageElement};
+  return {avatar, messageElement, updateAttitudes};
 }

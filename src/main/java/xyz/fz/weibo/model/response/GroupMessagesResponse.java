@@ -35,8 +35,16 @@ public record GroupMessagesResponse(
             @JsonProperty("template_data") JsonNode templateData,
             JsonNode data,
             @JsonProperty("recall_mids") JsonNode recallMids,
-            @JsonProperty("recall_by") String recallBy
+            @JsonProperty("recall_by") String recallBy,
+            @JsonProperty("attitude_info") AttitudeInfo attitudeInfo
     ) {
+    }
+
+    /** 消息表态快照：attitudes 为该消息当前全部表态，非增量。 */
+    public record AttitudeInfo(@JsonProperty("attitudes") List<Attitude> attitudes) {
+    }
+
+    public record Attitude(String name, int count, int selected) {
     }
 
     public record Sender(

@@ -20,6 +20,7 @@ function bootstrap() {
   const HISTORY_SEARCH_PAGE_SIZE = 20;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const IMMERSIVE_KEY = "weibo-chat:immersive";
+  const ATTITUDES_KEY = "weibo-chat:attitudes";
   const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
   const RED_PACKET_TEXT = "收到红包消息";
   const elements = {
@@ -30,6 +31,7 @@ function bootstrap() {
     currentId: document.querySelector("#current-id"), currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"), newMessages: document.querySelector("#new-messages"),
     followIndicator: document.querySelector("#follow-indicator"), historyOpen: document.querySelector("#history-open"),
+    attitudesToggle: document.querySelector("#attitudes-toggle"),
     emojiPickerOpen: document.querySelector("#emoji-picker-open"), emojiPanel: document.querySelector("#emoji-panel"),
     emojiPanelGrid: document.querySelector("#emoji-panel-grid"), historyDialog: document.querySelector("#history-dialog"),
     historyClose: document.querySelector("#history-close"), historyTitle: document.querySelector("#history-title"),
@@ -88,9 +90,18 @@ function bootstrap() {
   const conversation = createConversationSession({
     elements, messageView, fetchJson, compareMessages, captureScrollAnchor, restoreScrollAnchor,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
-    onInitialMessages: (gid, messages) => celebration.seed(gid, messages),
-    onEarlierMessages: (gid, messages) => celebration.seed(gid, messages),
-    onNewMessages: (gid, messages) => celebration.process(gid, messages)
+    onInitialMessages: (gid, messages) => {
+      celebration.seed(gid, messages);
+      loadAttitudes(gid, messages);
+    },
+    onEarlierMessages: (gid, messages) => {
+      celebration.seed(gid, messages);
+      loadAttitudes(gid, messages);
+    },
+    onNewMessages: (gid, messages) => {
+      celebration.process(gid, messages);
+      loadAttitudes(gid, messages);
+    }
   });
   const analysis = createAnalysis({elements, fetchJson, localDateValue});
   celebration = createCelebration({
@@ -167,6 +178,43 @@ function bootstrap() {
     const end = elements.composer.selectionEnd ?? elements.composer.value.length;
     elements.composer.setRangeText(phrase, start, end, "end");
     elements.composer.focus(); elements.composer.dispatchEvent(new Event("input", {bubbles: true}));
+  }
+
+  let attitudesEnabled = localStorage.getItem(ATTITUDES_KEY) === "1";
+  function applyAttitudesToggle() {
+    elements.attitudesToggle.classList.toggle("active", attitudesEnabled);
+    elements.attitudesToggle.setAttribute("aria-pressed", String(attitudesEnabled));
+    elements.attitudesToggle.title = attitudesEnabled
+      ? "表态已打开，随每次查询实时刷新" : "是否打开表态";
+  }
+  // 开关打开时立即为当前可见窗口补一次表态，不等下一次查询
+  function loadVisibleAttitudes() {
+    const byMid = new Map(conversation.getMessagesSnapshot().map(message => [message.mid, message]));
+    const items = [...elements.messages.querySelectorAll("[data-mid]")]
+      .map(element => byMid.get(Number(element.dataset.mid))).filter(Boolean);
+    loadAttitudes(state.currentGid, items);
+  }
+  // 开关打开时随每次查询实时拉取这批消息的表态并原地渲染；拉到的快照同时缓存回消息对象，
+  // 滑动窗口回收后重新渲染的消息仍能带上表态。失败静默降级，不影响消息本身展示。
+  async function loadAttitudes(gid, items) {
+    if (!attitudesEnabled || !items.length || gid !== state.currentGid) return;
+    const mids = [...new Set(items.map(message => String(message.mid)))];
+    try {
+      const result = await fetchJson(
+        `/chat/attitudes?${new URLSearchParams({gid: String(gid), mids: mids.join(",")})}`,
+        {cache: "no-store"});
+      if (gid !== state.currentGid) return;
+      const byMid = new Map(items.map(message => [String(message.mid), message]));
+      for (const [mid, attitudes] of Object.entries(result)) {
+        const message = byMid.get(mid);
+        if (!message) continue;
+        message.attitudes = Array.isArray(attitudes) ? attitudes : [];
+        const element = elements.messages.querySelector(`[data-mid="${mid}"]`);
+        if (element) messageView.updateAttitudes(element, message);
+      }
+    } catch (error) {
+      console.warn("获取表态失败：", error);
+    }
   }
 
   async function selectGroup(gid) {
@@ -265,6 +313,12 @@ function bootstrap() {
 
   elements.retryGroups.addEventListener("click", initialize);
   elements.loginQr.addEventListener("click", startQrLogin);
+  elements.attitudesToggle.addEventListener("click", () => {
+    attitudesEnabled = !attitudesEnabled;
+    localStorage.setItem(ATTITUDES_KEY, attitudesEnabled ? "1" : "0");
+    applyAttitudesToggle();
+    if (attitudesEnabled) loadVisibleAttitudes();
+  });
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
   elements.emojiPanelGrid.addEventListener("click", event => { const cell = event.target.closest(".emoji-cell"); if (cell) insertEmoji(cell.alt); });
   document.addEventListener("click", event => { if (!elements.emojiPanel.hidden && !elements.emojiPanel.contains(event.target) && !elements.emojiPickerOpen.contains(event.target)) toggleEmojiPanel(false); });
@@ -279,6 +333,7 @@ function bootstrap() {
   }
   elements.immersiveToggle.addEventListener("click", () => { const enabled = !elements.conversation.classList.contains("immersive"); localStorage.setItem(IMMERSIVE_KEY, enabled ? "1" : "0"); applyImmersive(enabled); });
   applyImmersive(localStorage.getItem(IMMERSIVE_KEY) === "1");
+  applyAttitudesToggle();
   initialize(); checkLoginStatus();
 }
 

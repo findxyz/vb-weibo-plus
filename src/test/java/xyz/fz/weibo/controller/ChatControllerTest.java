@@ -27,6 +27,7 @@ import xyz.fz.weibo.domain.MessageCursorResult;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.MessageView;
 import xyz.fz.weibo.domain.SaveResult;
+import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.ImageProxyService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
@@ -130,6 +131,23 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.ignoredCount").value(1));
 
         verify(chatService).saveIncremental(101);
+    }
+
+    @Test
+    void attitudes_maps_upstream_snapshots_by_mid_and_rejects_malformed_mids() throws Exception {
+        when(chatService.queryAttitudes(101L, List.of(100L, 200L)))
+                .thenReturn(Map.of(200L, List.of(new GroupMessagesResponse.Attitude("good", 5, 1))));
+
+        mockMvc.perform(get("/chat/attitudes").param("gid", "101").param("mids", "100, 200"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$['200'][0].name").value("good"))
+                .andExpect(jsonPath("$['200'][0].count").value(5))
+                .andExpect(jsonPath("$['200'][0].selected").value(1));
+
+        mockMvc.perform(get("/chat/attitudes").param("gid", "101").param("mids", "100,x"))
+                .andExpect(status().isBadRequest());
+
+        verify(chatService).queryAttitudes(101L, List.of(100L, 200L));
     }
 
     @Test

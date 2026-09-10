@@ -23,6 +23,7 @@ import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageCursorResult;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
+import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.ImageProxyService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
@@ -32,7 +33,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -120,6 +123,28 @@ public class ChatController {
             @RequestParam int size) {
         return chatService.queryMessagesByCursor(
                 gid, beforeCreatedAt, beforeMid, afterCreatedAt, afterMid, size);
+    }
+
+    @GetMapping("/attitudes")
+    public Map<Long, List<GroupMessagesResponse.Attitude>> queryAttitudes(
+            @RequestParam long gid, @RequestParam String mids) {
+        return chatService.queryAttitudes(gid, parseMids(mids));
+    }
+
+    private List<Long> parseMids(String mids) {
+        List<Long> result = new ArrayList<>();
+        for (String part : mids.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                result.add(Long.parseLong(trimmed));
+            } catch (NumberFormatException e) {
+                throw new InvalidRequestException("mids 必须是逗号分隔的消息 ID。");
+            }
+        }
+        return result;
     }
 
     @GetMapping("/media")
