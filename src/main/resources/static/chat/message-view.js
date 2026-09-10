@@ -3,7 +3,8 @@ const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
 const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
 const EMOJI_IMAGE_BASE = "https://img.t.sinajs.cn/t4/appstyle/expression/emimage";
 const SYSTEM_SENDER_NAME = "粉丝群";
-// 表态名 → 近似 emoji（覆盖 LinkNow 群实测的完整 25 种表态包）；未收录名称回退显示原文，悬浮可见名称。
+// 表态优先用微博原版表情贴图（WEIBO_EMOJI_MAP，与消息内 [表情] 同源）；
+// 贴图缺失时退回近似 emoji，都没有才显示原文，悬浮始终可见名称。
 const ATTITUDE_ICONS = {
   good: "👍", "点赞": "👍", "赞啊": "👍", "干杯": "🍺",
   "心": "❤️", "给你小心心": "💗", "送花花": "💐", "爱慕": "😘", "憧憬": "😍",
@@ -167,6 +168,7 @@ export function createMessageView({
   function appendAttitudes(container, message) {
     const attitudes = Array.isArray(message.attitudes) ? message.attitudes : [];
     if (!attitudes.length) return;
+    const emojiMap = getWeiboEmojiMap();
     const row = document.createElement("div");
     row.className = "message-attitudes";
     for (const attitude of attitudes) {
@@ -174,8 +176,19 @@ export function createMessageView({
       const chip = document.createElement("span");
       chip.className = "attitude-chip";
       if (attitude.selected) chip.classList.add("selected");
-      const icon = ATTITUDE_ICONS[attitude.name];
-      chip.textContent = `${icon || attitude.name} ${attitude.count}`;
+      const sticker = emojiMap[`[${attitude.name}]`];
+      if (sticker) {
+        const image = document.createElement("img");
+        image.className = "attitude-chip-icon";
+        image.src = sticker;
+        image.alt = attitude.name;
+        image.loading = "lazy";
+        chip.append(image);
+      } else {
+        const icon = ATTITUDE_ICONS[attitude.name];
+        chip.append(document.createTextNode(icon || attitude.name));
+      }
+      chip.append(document.createTextNode(String(attitude.count)));
       chip.title = attitude.name;
       row.append(chip);
     }

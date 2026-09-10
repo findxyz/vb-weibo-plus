@@ -532,12 +532,18 @@ h1 {
 .attitude-chip {
   display: inline-flex;
   align-items: center;
+  gap: 3px;
   padding: 1px 9px;
   border: 1px solid #a7bdcd;
   border-radius: 999px;
   color: #486b88;
   background: #f3f8fc;
   font-size: 12px;
+}
+
+.attitude-chip-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .attitude-chip.selected {
