@@ -184,8 +184,9 @@ function bootstrap() {
   function applyAttitudesToggle() {
     elements.attitudesToggle.classList.toggle("active", attitudesEnabled);
     elements.attitudesToggle.setAttribute("aria-pressed", String(attitudesEnabled));
-    elements.attitudesToggle.title = attitudesEnabled
-      ? "表态已打开，随每次查询实时刷新" : "是否打开表态";
+    const label = attitudesEnabled ? "表态已打开，随每次查询实时刷新" : "是否打开表态";
+    elements.attitudesToggle.setAttribute("aria-label", label);
+    elements.attitudesToggle.title = label;
   }
   // 开关打开时立即为当前可见窗口补一次表态，不等下一次查询
   function loadVisibleAttitudes() {

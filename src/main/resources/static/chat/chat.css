@@ -643,24 +643,50 @@ h1 {
   stroke-width: 2.4;
 }
 
+/* 与右下角「跟随最新」指示器同款圆形按钮：打开时素色 👍，关闭时琥珀色并打斜线 */
 .attitudes-toggle {
   position: absolute;
   right: 26px;
   bottom: 50px;
-  padding: 3px 12px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 50%;
   color: var(--muted);
   background: rgb(255 255 255 / 85%);
   box-shadow: 0 2px 8px rgb(17 67 115 / 18%);
-  font-size: 12px;
   cursor: pointer;
 }
 
-.attitudes-toggle.active {
-  border-color: var(--accent);
-  color: var(--accent-strong);
-  background: var(--accent-soft);
+.attitudes-toggle-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.attitudes-toggle-slash {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+}
+
+.attitudes-toggle-slash path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.attitudes-toggle.active .attitudes-toggle-slash {
+  display: none;
+}
+
+.attitudes-toggle:not(.active) {
+  border-color: var(--focus);
+  color: #9a6200;
+  background: #fff7e6;
 }
 
 
