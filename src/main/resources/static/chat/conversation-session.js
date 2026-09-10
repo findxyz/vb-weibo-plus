@@ -64,7 +64,7 @@ export function createConversationSession({
     if (!items.length) return;
     items.forEach(message => messages.set(message.mid, message));
     const block = items.slice().reverse();
-    if (!orderedCache) {
+    if (!orderedCache?.length) {
       rebuildOrdered();
       invalidateWindow();
     } else if (compareMessages(block[block.length - 1], orderedCache[0]) < 0) {
@@ -81,7 +81,7 @@ export function createConversationSession({
     if (!items.length) return;
     items.forEach(message => messages.set(message.mid, message));
     const block = items.slice().sort(compareMessages);
-    if (!orderedCache) {
+    if (!orderedCache?.length) {
       rebuildOrdered();
       invalidateWindow();
     } else if (compareMessages(orderedCache[orderedCache.length - 1], block[0]) < 0) {
@@ -370,6 +370,34 @@ export function createConversationSession({
     if (ordered.length <= WINDOW_CAP) return;
     const container = elements.messages;
     const rect = container.getBoundingClientRect();
+    // 跳滚完全越过当前窗口时，直接定位占位区内的目标消息，避免逐批渲染沿途内容。
+    const aboveWindow = topSpacer.nextElementSibling.getBoundingClientRect().top >= rect.bottom;
+    const belowWindow = bottomSpacer.previousElementSibling.getBoundingClientRect().bottom <= rect.top;
+    if (aboveWindow || belowWindow) {
+      if (followingLatest) {
+        scrollToBottom();
+        return;
+      }
+      sliding = true;
+      try {
+        let target = aboveWindow ? 0 : windowEndIdx + 1;
+        let targetTop = aboveWindow
+          ? topSpacer.getBoundingClientRect().top + GAP_HEIGHT
+          : bottomSpacer.getBoundingClientRect().top;
+        while (target < ordered.length - 1 && targetTop + estimateHeight(ordered[target]) <= rect.top) {
+          targetTop += estimateHeight(ordered[target]);
+          target += 1;
+        }
+        windowStartIdx = Math.max(0, Math.min(target - WINDOW_KEEP_ABOVE, ordered.length - WINDOW_CAP));
+        windowEndIdx = windowStartIdx + WINDOW_CAP - 1;
+        renderMessages();
+        const anchor = container.querySelector(`[data-mid="${ordered[target].mid}"]`);
+        container.scrollTop += anchor.getBoundingClientRect().top - targetTop;
+      } finally {
+        sliding = false;
+      }
+      return;
+    }
     const aboveRendered = countRenderedAbove(rect.top);
     if (aboveRendered < WINDOW_KEEP_ABOVE / 2 && windowStartIdx > 0) {
       sliding = true;
