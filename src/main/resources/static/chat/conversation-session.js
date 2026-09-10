@@ -35,9 +35,6 @@ export function createConversationSession({
   let orderedCache = null;
   let windowStartIdx = 0;
   let windowEndIdx = -1;
-  let windowStartMid = null;
-  let windowEndMid = null;
-  let windowIdxValid = false;
   let sliding = false;
   const heightByMid = new Map();
   const topSpacer = document.createElement("div");
@@ -51,14 +48,52 @@ export function createConversationSession({
     return group?.gid ?? null;
   }
 
-  function mergeMessages(items) {
+  // 有序缓存按「连续块拼接」维护：更早分页整体旧于现有最小值，新消息整体新于最大值，
+  // 拼接即可保持有序，避免每次合并都对几万条消息全量重排；边界不单调时兜底全量排序。
+  function rebuildOrdered() {
+    orderedCache = [...messages.values()].sort(compareMessages);
+  }
+
+  // 全量重排后旧窗口下标失效，置为无效让 resolveWindow 走兜底窗口
+  function invalidateWindow() {
+    windowStartIdx = 0;
+    windowEndIdx = -1;
+  }
+
+  function prependOlder(items) {
+    if (!items.length) return;
     items.forEach(message => messages.set(message.mid, message));
-    orderedCache = null;
-    windowIdxValid = false;
+    const block = items.slice().reverse();
+    if (!orderedCache) {
+      rebuildOrdered();
+      invalidateWindow();
+    } else if (compareMessages(block[block.length - 1], orderedCache[0]) < 0) {
+      orderedCache = block.concat(orderedCache);
+      windowStartIdx += block.length;
+      windowEndIdx += block.length;
+    } else {
+      rebuildOrdered();
+      invalidateWindow();
+    }
+  }
+
+  function appendNewer(items) {
+    if (!items.length) return;
+    items.forEach(message => messages.set(message.mid, message));
+    const block = items.slice().sort(compareMessages);
+    if (!orderedCache) {
+      rebuildOrdered();
+      invalidateWindow();
+    } else if (compareMessages(orderedCache[orderedCache.length - 1], block[0]) < 0) {
+      orderedCache = orderedCache.concat(block);
+    } else {
+      rebuildOrdered();
+      invalidateWindow();
+    }
   }
 
   function getOrdered() {
-    if (!orderedCache) orderedCache = [...messages.values()].sort(compareMessages);
+    if (!orderedCache) rebuildOrdered();
     return orderedCache;
   }
 
@@ -78,9 +113,9 @@ export function createConversationSession({
   // 把窗口边界解析为排序后的渲染区间；跟随最新时窗口贴住列表尾部
   function resolveWindow(ordered) {
     if (ordered.length <= WINDOW_CAP) {
-      windowStartMid = ordered.length ? ordered[0].mid : null;
-      windowEndMid = ordered.length ? ordered[ordered.length - 1].mid : null;
-      return [0, ordered.length - 1];
+      windowStartIdx = 0;
+      windowEndIdx = ordered.length - 1;
+      return [windowStartIdx, windowEndIdx];
     }
     let start;
     let end;
@@ -88,10 +123,10 @@ export function createConversationSession({
       end = ordered.length - 1;
       start = end - WINDOW_CAP + 1;
     } else {
-      const indexByMid = new Map(ordered.map((message, index) => [message.mid, index]));
-      start = indexByMid.get(windowStartMid);
-      end = indexByMid.get(windowEndMid);
-      if (start === undefined || end === undefined || end < start) {
+      start = windowStartIdx;
+      end = windowEndIdx;
+      if (!Number.isInteger(start) || start < 0
+        || !Number.isInteger(end) || end >= ordered.length || end < start) {
         end = ordered.length - 1;
         start = end - WINDOW_CAP + 1;
       } else if (end - start + 1 > WINDOW_CAP) {
@@ -100,8 +135,8 @@ export function createConversationSession({
         if (isNearBottom()) start += excess; else end -= excess;
       }
     }
-    windowStartMid = ordered[start].mid;
-    windowEndMid = ordered[end].mid;
+    windowStartIdx = start;
+    windowEndIdx = end;
     return [start, end];
   }
 
@@ -123,13 +158,10 @@ export function createConversationSession({
     if (!force && !followingLatest) return;
     // 未跟随时窗口可能停在更早位置，滚底前先把最新消息渲染出来
     const ordered = getOrdered();
-    if (ordered.length) {
-      const lastMid = ordered[ordered.length - 1].mid;
-      if (windowEndMid !== lastMid) {
-        windowEndMid = lastMid;
-        if (!followingLatest) windowStartMid = null;
-        renderMessages();
-      }
+    if (ordered.length && windowEndIdx !== ordered.length - 1) {
+      windowEndIdx = ordered.length - 1;
+      if (!followingLatest) windowStartIdx = Math.max(0, windowEndIdx - WINDOW_CAP + 1);
+      renderMessages();
     }
     elements.messages.scrollTop = elements.messages.scrollHeight;
   }
@@ -137,16 +169,11 @@ export function createConversationSession({
   function renderMessages(forceFollow = false) {
     const ordered = getOrdered();
     if (!ordered.length) {
-      windowStartMid = null;
-      windowEndMid = null;
-      windowIdxValid = false;
+      invalidateWindow();
       return;
     }
     ensureSpacers();
     const [start, end] = resolveWindow(ordered);
-    windowStartIdx = start;
-    windowEndIdx = end;
-    windowIdxValid = true;
     const renderGid = currentGid();
     const renderVersion = version;
     const onLoad = () => {
@@ -197,7 +224,7 @@ export function createConversationSession({
     try {
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (currentGid() !== gid || version !== requestVersion) return;
-      mergeMessages(result.items);
+      if (latestPage) appendNewer(result.items); else prependOlder(result.items);
       beforeCursor = result.hasMore && result.nextBeforeCreatedAt !== null
         && result.nextBeforeMid !== null
         ? {createdAt: result.nextBeforeCreatedAt, mid: result.nextBeforeMid}
@@ -205,7 +232,7 @@ export function createConversationSession({
       hasMore = result.hasMore;
       if (!latestPage && result.items.length) {
         // 新拉到的更早消息直接进入窗口顶部，保持向上翻历史时新内容可见
-        windowStartMid = result.items[result.items.length - 1].mid;
+        windowStartIdx = 0;
       }
       renderMessages(latestPage);
       if (latestPage) {
@@ -248,8 +275,8 @@ export function createConversationSession({
       });
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (currentGid() !== gid || version !== requestVersion) return false;
-      mergeMessages(result.items);
       if (result.items.length > 0) {
+        appendNewer(result.items);
         added = true;
         renderMessages();
         onNewMessages(gid, result.items);
@@ -278,8 +305,8 @@ export function createConversationSession({
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
       if (currentGid() !== gid || version !== requestVersion) return;
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
-      if (fresh.length > 0) mergeMessages(result.items);
       if (fresh.length > 0) {
+        appendNewer(fresh);
         // 请求跨越切走时刻时，followedLatest 已过期，不得覆盖 markAway 的挂起
         const resumeFollowing = !document.hidden && followedLatest;
         setFollowing(resumeFollowing);
@@ -338,7 +365,7 @@ export function createConversationSession({
   // 物化内容落在视口上方（或视口已进入底部占位区）时，按「实测 - 估算」差值补偿
   // scrollTop，估算误差只影响滚动条长度，不影响视口稳定。
   function slideWindow() {
-    if (sliding || !windowIdxValid || switchingGroup || document.hidden || !currentGid()) return;
+    if (sliding || windowEndIdx < 0 || switchingGroup || document.hidden || !currentGid()) return;
     const ordered = getOrdered();
     if (ordered.length <= WINDOW_CAP) return;
     const container = elements.messages;
@@ -353,10 +380,8 @@ export function createConversationSession({
         const estimated = sumEstimated(materialized);
         const scrollTopBefore = container.scrollTop;
         windowStartIdx = newStart;
-        windowStartMid = ordered[newStart].mid;
         if (windowEndIdx - windowStartIdx + 1 > WINDOW_CAP) {
           windowEndIdx = windowStartIdx + WINDOW_CAP - 1;
-          windowEndMid = ordered[windowEndIdx].mid;
         }
         renderMessages();
         container.scrollTop = scrollTopBefore + (sumMeasured(materialized) - estimated);
@@ -376,10 +401,8 @@ export function createConversationSession({
         const insideSpacer = bottomSpacer.getBoundingClientRect().top < rect.bottom;
         const scrollTopBefore = container.scrollTop;
         windowEndIdx = newEnd;
-        windowEndMid = ordered[newEnd].mid;
         if (windowEndIdx - windowStartIdx + 1 > WINDOW_CAP) {
           windowStartIdx = windowEndIdx - WINDOW_CAP + 1;
-          windowStartMid = ordered[windowStartIdx].mid;
         }
         renderMessages();
         if (insideSpacer) {
@@ -397,9 +420,7 @@ export function createConversationSession({
     switchingGroup = true;
     messages.clear();
     orderedCache = null;
-    windowIdxValid = false;
-    windowStartMid = null;
-    windowEndMid = null;
+    invalidateWindow();
     beforeCursor = null;
     hasMore = false;
     pendingCatchUp = false;
