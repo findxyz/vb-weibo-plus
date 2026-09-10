@@ -1430,6 +1430,17 @@ h1 {
   to { transform: rotate(360deg); }
 }
 
+.analysis-error {
+  max-width: 720px;
+  margin: 24px auto;
+  padding: 12px 16px;
+  border: 1px solid #e3b7b2;
+  border-radius: var(--radius-sm);
+  background: #fdf4f3;
+  color: var(--danger);
+  word-break: break-word;
+}
+
 /* ---------- 回归庆祝 ---------- */
 
 .message-sender {

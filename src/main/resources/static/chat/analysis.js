@@ -59,6 +59,17 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     return window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
   }
 
+  function friendlyErrorMessage(message) {
+    const match = message.match(/\{[\s\S]*\}/);
+    if (!match) return message;
+    try {
+      const detail = JSON.parse(match[0])?.error?.message;
+      return detail ? message.slice(0, match.index) + detail : message;
+    } catch {
+      return message;
+    }
+  }
+
   function renderMeta(view) {
     const meta = elements.analysisDetailMeta;
     meta.replaceChildren();
@@ -283,9 +294,12 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
       }
     } catch (error) {
       if (!isCurrent(sessionVersion, operationVersion)) return;
-      elements.analysisDetail.hidden = true;
-      elements.analysisResults.hidden = false;
-      if (error.name !== "AbortError") elements.analysisFeedback.textContent = `分析失败：${error.message}`;
+      elements.analysisResults.hidden = true;
+      elements.analysisDetail.hidden = false;
+      const notice = document.createElement("div");
+      notice.className = "analysis-error";
+      notice.textContent = `分析失败：${friendlyErrorMessage(error.message)}`;
+      elements.analysisDetailContent.replaceChildren(notice);
     } finally {
       if (!isCurrent(sessionVersion, operationVersion)) return;
       state.reader = null;
