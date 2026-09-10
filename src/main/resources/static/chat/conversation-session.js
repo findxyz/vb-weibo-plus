@@ -211,6 +211,33 @@ export function createConversationSession({
     bottomSpacer.style.height = `${belowSum}px`;
   }
 
+  // 实时表态结果统一由会话应用：只有当前群的结果生效；空列表会清掉旧表态，
+  // 未渲染消息只写缓存，重新进窗口时按缓存展示。
+  function applyAttitudes(gid, result) {
+    if (currentGid() !== gid) return;
+    for (const [mid, attitudes] of Object.entries(result)) {
+      const message = messages.get(Number(mid));
+      if (!message) continue;
+      message.attitudes = Array.isArray(attitudes) ? attitudes : [];
+      const element = elements.messages.querySelector(`[data-mid="${mid}"]`);
+      if (element) {
+        messageView.updateAttitudes(element, message);
+        heightByMid.set(Number(mid), element.offsetHeight);
+      }
+    }
+  }
+
+  // 当前窗口实际渲染的消息对象，供按需拉取表态等场景使用
+  function getRenderedMessages() {
+    const rendered = [];
+    for (const element of elements.messages.children) {
+      if (isSpacer(element) || !element.dataset.mid) continue;
+      const message = messages.get(Number(element.dataset.mid));
+      if (message) rendered.push(message);
+    }
+    return rendered;
+  }
+
   async function loadMessages(cursor = null) {
     const latestPage = cursor === null;
     const anchor = latestPage ? null : captureScrollAnchor(elements.messages);
@@ -508,6 +535,8 @@ export function createConversationSession({
     markAway,
     followLatest,
     refreshAfterSend,
+    applyAttitudes,
+    getRenderedMessages,
     getCurrentGid: currentGid,
     getMessagesSnapshot: () => [...messages.values()]
   };

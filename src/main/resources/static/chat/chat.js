@@ -189,13 +189,10 @@ function bootstrap() {
   }
   // 开关打开时立即为当前可见窗口补一次表态，不等下一次查询
   function loadVisibleAttitudes() {
-    const byMid = new Map(conversation.getMessagesSnapshot().map(message => [message.mid, message]));
-    const items = [...elements.messages.querySelectorAll("[data-mid]")]
-      .map(element => byMid.get(Number(element.dataset.mid))).filter(Boolean);
-    loadAttitudes(state.currentGid, items);
+    loadAttitudes(state.currentGid, conversation.getRenderedMessages());
   }
-  // 开关打开时随每次查询实时拉取这批消息的表态并原地渲染；拉到的快照同时缓存回消息对象，
-  // 滑动窗口回收后重新渲染的消息仍能带上表态。失败静默降级，不影响消息本身展示。
+  // 开关打开时随每次查询实时拉取这批消息的表态，结果由会话模块统一应用；
+  // 失败静默降级，不影响消息本身展示。
   async function loadAttitudes(gid, items) {
     if (!attitudesEnabled || !items.length || gid !== state.currentGid) return;
     const mids = [...new Set(items.map(message => String(message.mid)))];
@@ -204,14 +201,7 @@ function bootstrap() {
         `/chat/attitudes?${new URLSearchParams({gid: String(gid), mids: mids.join(",")})}`,
         {cache: "no-store"});
       if (gid !== state.currentGid) return;
-      const byMid = new Map(items.map(message => [String(message.mid), message]));
-      for (const [mid, attitudes] of Object.entries(result)) {
-        const message = byMid.get(mid);
-        if (!message) continue;
-        message.attitudes = Array.isArray(attitudes) ? attitudes : [];
-        const element = elements.messages.querySelector(`[data-mid="${mid}"]`);
-        if (element) messageView.updateAttitudes(element, message);
-      }
+      conversation.applyAttitudes(gid, result);
     } catch (error) {
       console.warn("获取表态失败：", error);
     }

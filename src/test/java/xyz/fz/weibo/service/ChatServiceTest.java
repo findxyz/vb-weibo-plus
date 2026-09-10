@@ -198,15 +198,16 @@ class ChatServiceTest {
     }
 
     @Test
-    void collects_attitudes_from_the_page_reached_by_the_newest_requested_mid() {
+    void maps_found_messages_to_their_snapshot_even_when_the_attitudes_were_withdrawn() {
         GroupMessagesResponse.Message liked = messageWithAttitudes(300, 1_000,
                 new GroupMessagesResponse.Attitude("good", 5, 1));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 301L)))
                 .thenReturn(messagePage(message(200, 321, 900), liked));
 
         assertThat(chatService.queryAttitudes(1, List.of(200L, 300L)))
-                .containsOnlyKeys(300L)
-                .containsEntry(300L, List.of(new GroupMessagesResponse.Attitude("good", 5, 1)));
+                .containsEntry(200L, List.of())
+                .containsEntry(300L, List.of(new GroupMessagesResponse.Attitude("good", 5, 1)))
+                .hasSize(2);
 
         verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 301L));
         verifyNoMoreInteractions(groupMessagesApi);

@@ -228,7 +228,9 @@ public class ChatService {
 
     /**
      * 实时拉取一批消息的表态，不落库：从最大 mid 起沿时间线向回翻页，
-     * 集齐全部目标消息或达到页数上限为止；上限内没翻到的消息不出现在结果里。
+     * 集齐全部目标消息或达到页数上限为止。翻到的消息一律返回条目——表态被
+     * 撤空时返回空列表，供前端清除旧缓存；上限内没翻到的消息不出现在结果里，
+     * 前端据此保留已有缓存。
      */
     public Map<Long, List<GroupMessagesResponse.Attitude>> queryAttitudes(long gid, List<Long> mids) {
         validateGid(gid);
@@ -250,9 +252,7 @@ public class ChatService {
                 if (wanted.remove(mid)) {
                     List<GroupMessagesResponse.Attitude> attitudes = message.attitudeInfo() == null
                             ? List.of() : message.attitudeInfo().attitudes();
-                    if (attitudes != null && !attitudes.isEmpty()) {
-                        result.put(mid, attitudes);
-                    }
+                    result.put(mid, attitudes == null ? List.of() : attitudes);
                 }
             }
             cursor = requireMid(messages.getFirst());
