@@ -521,9 +521,11 @@ h1 {
   font-size: 12px;
 }
 
+/* 固定 5 列：表态多时按 5 个一行换行，避免一条消息拉出一长排 */
 .message-attitudes {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
+  justify-content: start;
   gap: 6px;
 }
 
