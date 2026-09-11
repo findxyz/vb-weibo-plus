@@ -1,6 +1,6 @@
 // 本地微博 post 页引导：收集 DOM 引用与共享状态，按依赖顺序装配各模块。
-// 博主列表 → 日期时间轴 → 微博列表 → 高级搜索为数据流依赖链，
-// 图片查看器与登录相互独立，先建后注入。
+// 博主列表 → 日期时间轴 → 微博列表为数据流依赖链，跨模块编排走 datesApi/postsApi
+// 的显式接口；图片查看器与登录相互独立，先建后注入。
 import {createApiErrorHandler} from "./helpers.js";
 import {createViewer} from "./viewer.js";
 import {createPosts} from "./posts.js";
@@ -94,8 +94,7 @@ const dates = createDates({
 const bloggers = createBloggers({
   elements: pickElements(
     "bloggersCount", "bloggersList", "bloggersState", "allBloggersRow", "bloggerSearch",
-    "currentFilter", "syncHistoryOpen", "globalTip", "posts", "postsState", "feedCount",
-    "datesState", "datesList",
+    "currentFilter", "syncHistoryOpen", "globalTip",
     "bloggerAdd", "addBloggerDialog", "addBloggerCancel", "addBloggerSubmit", "addBloggerInput",
     "addBloggerError", "syncHistoryDialog", "syncHistoryBlogger", "syncHistoryStart",
     "syncHistoryEnd", "syncHistoryStatus", "syncHistoryCancel", "syncHistorySubmit"),
@@ -106,7 +105,7 @@ const bloggers = createBloggers({
 createSearch({
   elements: pickElements(
     "searchOpen", "searchDialog", "searchCancel", "searchSubmit", "searchKeyword",
-    "searchStart", "searchEnd", "searchStatus", "searchResults", "searchScopeTip", "datesList"),
+    "searchStart", "searchEnd", "searchStatus", "searchResults", "searchScopeTip"),
   state, handleApiError,
   datesApi: dates, postsApi: posts
 });

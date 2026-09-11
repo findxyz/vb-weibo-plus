@@ -415,9 +415,20 @@ export function createPosts({
     return actions;
   }
 
+  // 程序性清空列表与计数（博主切换时使用），不触碰选中日期等页面状态
+  function clear() {
+    posts.replaceChildren();
+    showState(postsState, "");
+    feedCount.textContent = "";
+  }
+
+  function showStatus(message) {
+    showState(postsState, message);
+  }
+
   retryPosts.addEventListener("click", () => {
     if (state.selectedDate) loadPosts(state.selectedDate);
   });
 
-  return {selectDate, activateDate, loadPosts};
+  return {selectDate, activateDate, loadPosts, clear, showStatus};
 }

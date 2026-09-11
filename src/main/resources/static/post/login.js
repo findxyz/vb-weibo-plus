@@ -26,8 +26,9 @@ export function createLogin({elements: {loginExpired, loginQr, loginQrImg, blogg
       } else {
         loginExpired.hidden = true;
       }
-    } catch (_) {
-      // 忽略登录检测失败
+    } catch (error) {
+      // 登录检测失败不打扰用户，仅留调试信息
+      console.warn("检查登录状态失败：", error);
     }
   }
 

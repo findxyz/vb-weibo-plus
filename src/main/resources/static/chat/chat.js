@@ -1,6 +1,5 @@
 import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
 import {fetchJson} from "../shared/fetch.js";
-import {attachDismiss} from "../shared/popover.js";
 import {createQrLogin} from "../shared/qr-login.js";
 import {
   captureScrollAnchor,
@@ -15,13 +14,14 @@ import {createComposer} from "./composer.js";
 import {createGroupList} from "./group-list.js";
 import {createConversationSession} from "./conversation-session.js";
 import {createDream} from "./dream.js";
+import {createAttitudes} from "./attitudes.js";
+import {createEmojiPanel} from "./emoji-panel.js";
 
 function bootstrap() {
   const PAGE_SIZE = 50;
   const HISTORY_SEARCH_PAGE_SIZE = 20;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const IMMERSIVE_KEY = "weibo-chat:immersive";
-  const ATTITUDES_KEY = "weibo-chat:attitudes";
   const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
   const RED_PACKET_TEXT = "收到红包消息";
   const elements = {
@@ -85,7 +85,7 @@ function bootstrap() {
   // 首屏与向上翻页都是「垫高庆祝基线 + 补一次表态」，共用同一回调
   function seedCelebrationAndAttitudes(gid, messages) {
     celebration.seed(gid, messages);
-    loadAttitudes(gid, messages);
+    attitudes.load(gid, messages);
   }
   // 各工厂只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
   const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
@@ -103,8 +103,18 @@ function bootstrap() {
     onEarlierMessages: seedCelebrationAndAttitudes,
     onNewMessages: (gid, messages) => {
       celebration.process(gid, messages);
-      loadAttitudes(gid, messages);
+      attitudes.load(gid, messages);
     }
+  });
+  const attitudes = createAttitudes({
+    elements: pickElements("attitudesToggle"),
+    getCurrentGid: () => state.currentGid,
+    getRenderedMessages: () => conversation.getRenderedMessages(),
+    applyAttitudes: conversation.applyAttitudes
+  });
+  createEmojiPanel({
+    elements: pickElements("emojiPickerOpen", "emojiPanel", "emojiPanelGrid", "composer"),
+    getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {}
   });
   const analysis = createAnalysis({
     elements: pickElements(
@@ -171,54 +181,6 @@ function bootstrap() {
     if (!Number.isSafeInteger(senderId) || senderId <= 0) return false;
     const group = groupList.findGroup(state.currentGid);
     return Array.isArray(group?.admins) && group.admins.includes(senderId);
-  }
-
-  let emojiPanelBuilt = false;
-  function toggleEmojiPanel(forceOpen) {
-    const open = forceOpen ?? elements.emojiPanel.hidden;
-    if (open && !emojiPanelBuilt) {
-      for (const [phrase, url] of Object.entries(window.WEIBO_EMOJI_MAP || {})) {
-        const image = document.createElement("img");
-        image.className = "emoji-cell"; image.src = url; image.alt = phrase; image.title = phrase; image.loading = "lazy";
-        elements.emojiPanelGrid.append(image);
-      }
-      emojiPanelBuilt = true;
-    }
-    elements.emojiPanel.hidden = !open;
-  }
-  function insertEmoji(phrase) {
-    const start = elements.composer.selectionStart ?? elements.composer.value.length;
-    const end = elements.composer.selectionEnd ?? elements.composer.value.length;
-    elements.composer.setRangeText(phrase, start, end, "end");
-    elements.composer.focus(); elements.composer.dispatchEvent(new Event("input", {bubbles: true}));
-  }
-
-  let attitudesEnabled = localStorage.getItem(ATTITUDES_KEY) === "1";
-  function applyAttitudesToggle() {
-    elements.attitudesToggle.classList.toggle("active", attitudesEnabled);
-    elements.attitudesToggle.setAttribute("aria-pressed", String(attitudesEnabled));
-    const label = attitudesEnabled ? "表态已打开，随每次查询实时刷新" : "是否打开表态";
-    elements.attitudesToggle.setAttribute("aria-label", label);
-    elements.attitudesToggle.title = label;
-  }
-  // 开关打开时立即为当前可见窗口补一次表态，不等下一次查询
-  function loadVisibleAttitudes() {
-    loadAttitudes(state.currentGid, conversation.getRenderedMessages());
-  }
-  // 开关打开时随每次查询实时拉取这批消息的表态，结果由会话模块统一应用；
-  // 失败静默降级，不影响消息本身展示。
-  async function loadAttitudes(gid, items) {
-    if (!attitudesEnabled || !items.length || gid !== state.currentGid) return;
-    const mids = [...new Set(items.map(message => String(message.mid)))];
-    try {
-      const result = await fetchJson(
-        `/chat/attitudes?${new URLSearchParams({gid: String(gid), mids: mids.join(",")})}`,
-        {cache: "no-store"});
-      if (gid !== state.currentGid) return;
-      conversation.applyAttitudes(gid, result);
-    } catch (error) {
-      console.warn("获取表态失败：", error);
-    }
   }
 
   async function selectGroup(gid) {
@@ -298,9 +260,7 @@ function bootstrap() {
   }
   async function checkLoginStatus() {
     try {
-      const response = await fetch("/weibo/login/status", {cache: "no-store"});
-      if (!response.ok) return;
-      const result = await response.json();
+      const result = await fetchJson("/weibo/login/status", {cache: "no-store"});
       elements.loginExpired.hidden = result.valid !== false;
     }
     catch (error) { console.warn("检查登录状态失败：", error); }
@@ -312,20 +272,14 @@ function bootstrap() {
       if (!groups.length) return;
       const savedGid = Number(localStorage.getItem(LAST_GROUP_KEY));
       await selectGroup((groups.find(group => group.gid === savedGid) || groups[0]).gid);
-    } catch { elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false; }
+    } catch (error) {
+      console.warn("加载群聊列表失败：", error);
+      elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false;
+    }
     finally { state.initializing = false; if (state.pendingRefresh) { state.pendingRefresh = false; refreshView(); } }
   }
 
   elements.retryGroups.addEventListener("click", initialize);
-  elements.attitudesToggle.addEventListener("click", () => {
-    attitudesEnabled = !attitudesEnabled;
-    localStorage.setItem(ATTITUDES_KEY, attitudesEnabled ? "1" : "0");
-    applyAttitudesToggle();
-    if (attitudesEnabled) loadVisibleAttitudes();
-  });
-  elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
-  elements.emojiPanelGrid.addEventListener("click", event => { const cell = event.target.closest(".emoji-cell"); if (cell) insertEmoji(cell.alt); });
-  attachDismiss(elements.emojiPanel, () => toggleEmojiPanel(false), {ignoreClosest: "#emoji-picker-open"});
   window.addEventListener("focus", refreshView);
   window.addEventListener("blur", () => conversation.markAway());
   document.addEventListener("visibilitychange", () => { if (document.hidden) conversation.markAway(); else refreshView(); });
@@ -341,7 +295,6 @@ function bootstrap() {
   }
   applyImmersive(localStorage.getItem(IMMERSIVE_KEY) === "1");
   elements.immersiveToggle.addEventListener("click", () => setImmersive(!elements.conversation.classList.contains("immersive")));
-  applyAttitudesToggle();
   initialize(); checkLoginStatus();
 }
 

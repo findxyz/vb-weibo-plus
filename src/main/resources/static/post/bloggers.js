@@ -1,13 +1,14 @@
 // 博主列表与博主管理：加载/筛选/选中，添加博主与同步历史微博两个弹窗。
+// 切换博主后的列表重置与默认日期选中，一律走 datesApi/postsApi 的显式接口，
+// 不直接触碰两个模块渲染出的 DOM。
 import {fetchJson} from "../shared/fetch.js";
-import {localDateValue} from "../shared/date.js";
+import {localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {showState, isDateRangeValid, createVerifiedBadge} from "./helpers.js";
 
 export function createBloggers({
   elements: {
     bloggersCount, bloggersList, bloggersState, allBloggersRow, bloggerSearch,
-    currentFilter, syncHistoryOpen, globalTip, posts, postsState, feedCount,
-    datesState, datesList,
+    currentFilter, syncHistoryOpen, globalTip,
     bloggerAdd, addBloggerDialog, addBloggerCancel, addBloggerSubmit, addBloggerInput,
     addBloggerError, syncHistoryDialog, syncHistoryBlogger, syncHistoryStart,
     syncHistoryEnd, syncHistoryStatus, syncHistoryCancel, syncHistorySubmit
@@ -105,25 +106,14 @@ export function createBloggers({
 
   async function onBloggerChanged() {
     state.selectedDate = null;
-    posts.replaceChildren();
-    showState(postsState, "");
-    feedCount.textContent = "";
+    postsApi.clear();
     await datesApi.loadDates();
-    const firstMonth = datesList.querySelector(".month-group");
-    if (firstMonth) {
-      const firstYear = firstMonth.closest(".year-group");
-      if (firstYear) {
-        firstYear.classList.add("open");
-      }
-      datesApi.toggleGroup(firstMonth);
-      const firstDay = firstMonth.querySelector(".date-item");
-      if (firstDay) {
-        postsApi.selectDate(firstDay.dataset.date, firstDay);
-      } else {
-        showState(postsState, "该月无微博");
-      }
+    // 默认进入时间轴上的第一天；没有可用的日期项时提示空数据
+    const firstDay = datesApi.selectFirstDate();
+    if (firstDay) {
+      postsApi.selectDate(firstDay.dataset.date, firstDay);
     } else {
-      showState(postsState, "无微博数据");
+      postsApi.showStatus("无微博数据");
     }
   }
 
@@ -232,14 +222,14 @@ export function createBloggers({
     syncHistoryOpen.disabled = true;
     const params = new URLSearchParams({
       uid: String(uid),
-      start: `${start} 00:00:00`,
-      end: `${end} 23:59:59`,
+      start: toQueryDateTime(start),
+      end: toQueryEndTime(end),
     });
     try {
       await fetchJson(`/post/range?${params}`, {method: "POST"});
       // 刷新日期时间轴，让新同步的日期出现在面板里
       await datesApi.loadDates();
-      showState(datesState, "同步完成");
+      datesApi.setStatus("同步完成");
     } catch (error) {
       // 错误在主窗口右上角醒目提示，不再写进日期标题旁的 #dates-state 造成重影
       handleApiError(error, (e) => showGlobalTip(`同步历史微博失败：${e.message}`));

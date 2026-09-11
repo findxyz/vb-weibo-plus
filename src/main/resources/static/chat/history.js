@@ -176,6 +176,8 @@ export function createHistory({
     const version = ++state.requestVersion;
     try {
       const query = new URLSearchParams({gid: String(state.gid), sinceTime: `${raw} 00:00:00`});
+      // /chat/since 成功时返回 204 无响应体，fetchJson 的 response.json() 会解析失败，
+      // 这里必须用裸 fetch
       const response = await fetch(`/chat/since?${query}`, {method: "POST"});
       if (!response.ok) throw new Error();
       if (version === state.requestVersion) historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";

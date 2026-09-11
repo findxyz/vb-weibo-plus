@@ -103,5 +103,32 @@ export function createDates({
     group.classList.toggle("open");
   }
 
-  return {loadDates, toggleGroup};
+  // 展开指定日期所在的年份与月份分组，返回该日元素；日期不在时间轴上时返回 null。
+  // 搜索结果跳转等程序性定位使用，避免外部了解分组 DOM 结构。
+  function revealDate(dateStr) {
+    const monthGroup = datesList.querySelector(`.month-group[data-month="${dateStr.slice(0, 7)}"]`);
+    if (!monthGroup) return null;
+    const yearGroup = monthGroup.closest(".year-group");
+    if (yearGroup && !yearGroup.classList.contains("open")) toggleGroup(yearGroup);
+    if (!monthGroup.classList.contains("open")) toggleGroup(monthGroup);
+    return datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
+  }
+
+  // 展开并返回时间轴上的第一天；没有可用的日期项时返回 null。
+  // 博主切换后的默认选中使用，避免外部了解分组 DOM 结构。
+  function selectFirstDate() {
+    const firstMonth = datesList.querySelector(".month-group");
+    if (!firstMonth) return null;
+    const firstYear = firstMonth.closest(".year-group");
+    if (firstYear) firstYear.classList.add("open");
+    toggleGroup(firstMonth);
+    return firstMonth.querySelector(".date-item");
+  }
+
+  // 日期面板状态行（如同步完成后由博主模块写入提示）
+  function setStatus(message) {
+    showState(datesState, message);
+  }
+
+  return {loadDates, revealDate, selectFirstDate, setStatus};
 }

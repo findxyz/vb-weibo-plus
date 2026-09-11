@@ -1,6 +1,6 @@
 // 高级搜索：关键词 + 起止日期，结果摘要做 DOM 高亮，点击跳转到对应日期与博文。
 import {fetchJson} from "../shared/fetch.js";
-import {localDateValue} from "../shared/date.js";
+import {localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {appendHighlightedText} from "../shared/highlight.js";
 import {showState, isDateRangeValid, formatDate, epochToDateStr} from "./helpers.js";
 
@@ -9,7 +9,7 @@ const SEARCH_SIZE_LIMIT = 1000;
 export function createSearch({
   elements: {
     searchOpen, searchDialog, searchCancel, searchSubmit, searchKeyword,
-    searchStart, searchEnd, searchStatus, searchResults, searchScopeTip, datesList
+    searchStart, searchEnd, searchStatus, searchResults, searchScopeTip
   },
   state, handleApiError, datesApi, postsApi}) {
 
@@ -57,8 +57,8 @@ export function createSearch({
     if (state.selectedUid) {
       params.set("uids", String(state.selectedUid));
     }
-    if (start) params.set("start", `${start} 00:00:00`);
-    if (end) params.set("end", `${end} 23:59:59`);
+    if (start) params.set("start", toQueryDateTime(start));
+    if (end) params.set("end", toQueryEndTime(end));
 
     try {
       const result = await fetchJson(`/post/list?${params}`);
@@ -141,19 +141,8 @@ export function createSearch({
   async function jumpToPost(post) {
     searchDialog.close();
     const dateStr = epochToDateStr(post.createdAt);
-    // 选中日期树对应日（必要时先展开年份与月份）
-    const monthKey = dateStr.slice(0, 7);
-    const monthGroup = datesList.querySelector(`.month-group[data-month="${monthKey}"]`);
-    if (monthGroup) {
-      const yearGroup = monthGroup.closest(".year-group");
-      if (yearGroup && !yearGroup.classList.contains("open")) {
-        datesApi.toggleGroup(yearGroup);
-      }
-      if (!monthGroup.classList.contains("open")) {
-        datesApi.toggleGroup(monthGroup);
-      }
-    }
-    const dayItem = datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
+    // 展开日期树上该日所在的年与月，拿到日期项后程序性切换选中
+    const dayItem = datesApi.revealDate(dateStr);
     if (dayItem) {
       // 程序性切换：activateDate 不做加载中的早退判断，语义见 posts 模块
       postsApi.activateDate(dateStr, dayItem);
