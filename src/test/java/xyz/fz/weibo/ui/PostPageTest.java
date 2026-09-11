@@ -55,6 +55,12 @@ class PostPageTest {
     static void startBrowserAndServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/post/bloggers", exchange -> {
+            // HttpServer 按前缀匹配上下文，/post/bloggers.js（博主模块脚本）也会落进这里；
+            // 非精确 API 路径一律转交静态资源处理，避免模块脚本被当成 JSON 返回
+            if (!exchange.getRequestURI().getPath().equals("/post/bloggers")) {
+                PostPageTest.sendStaticResource(exchange);
+                return;
+            }
             bloggersRequests.incrementAndGet();
             if (failBloggers.get()) {
                 exchange.sendResponseHeaders(503, -1);
@@ -226,6 +232,8 @@ class PostPageTest {
             exchange.close();
         });
         server.createContext("/post/", PostPageTest::sendStaticResource);
+        // 前端重构后 post 页模块从 /shared/ 加载公共模块，测试服务器必须一并伺服
+        server.createContext("/shared/", PostPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
 

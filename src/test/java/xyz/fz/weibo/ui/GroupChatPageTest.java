@@ -468,6 +468,8 @@ class GroupChatPageTest {
             sendJson(exchange, "{\"sub\":\"SUB\",\"subp\":\"SUBP\",\"ssoLoginState\":\"1\",\"alf\":\"1\"}");
         });
         server.createContext("/chat/", GroupChatPageTest::sendStaticResource);
+        // 前端重构后 chat 页模块从 /shared/ 加载公共模块，测试服务器必须一并伺服
+        server.createContext("/shared/", GroupChatPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
 
