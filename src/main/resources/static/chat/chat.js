@@ -1,5 +1,6 @@
 import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
 import {fetchJson} from "../shared/fetch.js";
+import {attachDismiss} from "../shared/popover.js";
 import {
   captureScrollAnchor,
   compareMessages,
@@ -299,8 +300,7 @@ function bootstrap() {
   });
   elements.emojiPickerOpen.addEventListener("click", () => toggleEmojiPanel());
   elements.emojiPanelGrid.addEventListener("click", event => { const cell = event.target.closest(".emoji-cell"); if (cell) insertEmoji(cell.alt); });
-  document.addEventListener("click", event => { if (!elements.emojiPanel.hidden && !elements.emojiPanel.contains(event.target) && !elements.emojiPickerOpen.contains(event.target)) toggleEmojiPanel(false); });
-  document.addEventListener("keydown", event => { if (event.key === "Escape" && !elements.emojiPanel.hidden) toggleEmojiPanel(false); });
+  attachDismiss(elements.emojiPanel, () => toggleEmojiPanel(false), {ignoreClosest: "#emoji-picker-open"});
   window.addEventListener("focus", refreshView);
   window.addEventListener("blur", () => conversation.markAway());
   document.addEventListener("visibilitychange", () => { if (document.hidden) conversation.markAway(); else refreshView(); });

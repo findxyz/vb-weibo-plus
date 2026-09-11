@@ -1,3 +1,5 @@
+import {positionPopover} from "../shared/popover.js";
+
 // 盗梦空间彩蛋：每个群友的梦境页面按用户 id 放在 /chat/dream/<uid>.html，
 // 悬停头像 3 秒后探测该页面，存在才弹出入口提示；弹层保持显示，直到点击
 // 自身的关闭按钮、进入游戏或滚动消息，确认后以蒙版对话框打开游戏。
@@ -31,19 +33,6 @@ export function createDream({messages, popover, enterButton, popoverClose, dialo
     cancelHover();
     anchor = null;
     popover.hidden = true;
-  }
-
-  function positionPopover(avatar) {
-    const rect = avatar.getBoundingClientRect();
-    const popoverRect = popover.getBoundingClientRect();
-    const left = Math.min(
-      Math.max(rect.left + rect.width / 2 - popoverRect.width / 2, 8),
-      window.innerWidth - popoverRect.width - 8);
-    const top = rect.top > popoverRect.height + 12
-      ? rect.top - popoverRect.height - 8
-      : rect.bottom + 8;
-    popover.style.left = `${Math.round(Math.max(left, 8))}px`;
-    popover.style.top = `${Math.round(Math.max(top, 8))}px`;
   }
 
   function openGame() {
@@ -88,7 +77,7 @@ export function createDream({messages, popover, enterButton, popoverClose, dialo
         return;
       }
       popover.hidden = false;
-      positionPopover(avatar);
+      positionPopover(popover, avatar, {gap: 8, prefer: "above"});
     }, HOVER_OPEN_MS);
   });
 

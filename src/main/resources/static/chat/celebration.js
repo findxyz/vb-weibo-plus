@@ -1,3 +1,5 @@
+import {attachDismiss, positionPopover} from "../shared/popover.js";
+
 export function createCelebration({elements, messageView, getCurrentGid, getMessages, compareMessages}) {
   const CELEBRATION_ROSTER_KEY = "weibo-chat:celebration-roster";
   const CELEBRATION_SEEN_KEY = "weibo-chat:celebration-seen";
@@ -162,15 +164,7 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
     elements.celebrationPopoverRemove.hidden = !entry;
     elements.celebrationPopoverJoin.hidden = !!entry;
     elements.celebrationPopover.hidden = false;
-    const rect = anchor.getBoundingClientRect();
-    const popRect = elements.celebrationPopover.getBoundingClientRect();
-    let left = Math.max(8, Math.min(rect.left, window.innerWidth - popRect.width - 8));
-    let top = rect.bottom + 6;
-    if (top + popRect.height > window.innerHeight - 8) {
-      top = Math.max(8, rect.top - popRect.height - 6);
-    }
-    elements.celebrationPopover.style.left = `${left}px`;
-    elements.celebrationPopover.style.top = `${top}px`;
+    positionPopover(elements.celebrationPopover, anchor, {align: "left", gap: 6});
   }
 
   function closeCelebrationPopover() {
@@ -442,18 +436,9 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
       commitCelebrationDraft();
     }
   });
-  document.addEventListener("click", event => {
-    if (elements.celebrationPopover.hidden) return;
-    if (elements.celebrationPopover.contains(event.target)) return;
-    // 点在打开弹层的入口上时不关闭，由入口自己的处理接管
-    if (event.target.closest(".message-sender, .celebration-chip-name")) return;
-    closeCelebrationPopover();
-  });
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !elements.celebrationPopover.hidden) {
-      closeCelebrationPopover();
-    }
-  });
+  // 点在打开弹层的入口（发送者昵称、庆祝 chip）上时不关闭，由入口自己的处理接管
+  attachDismiss(elements.celebrationPopover, closeCelebrationPopover,
+    {ignoreClosest: ".message-sender, .celebration-chip-name"});
 
   renderCelebrationRoster();
   return {cancel: cancelCelebrations, seed: seedCelebrationSeen, process: processCelebrationArrivals, render: renderCelebrationRoster, openPopover: openCelebrationPopover};
