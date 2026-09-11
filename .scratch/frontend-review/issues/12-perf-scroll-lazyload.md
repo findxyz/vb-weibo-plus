@@ -17,3 +17,4 @@
 - analysis.js 新增 `ensureMarkdownLibs()`：动态注入 marked.min.js 与 dompurify.min.js（与原 index.html 同路径）；打开弹窗时预热（fire-and-forget），`submit()` 与 `loadDetail()` 在 try 内 await——按钮处于「分析中…」/占位「正在加载…」禁用态，等待可感知。
 - 加载失败时 promise 缓存置空、下次操作重试；renderMarkdown 的 `window.marked ? … : text` 降级路径原样保留，失败仍以纯文本呈现。
 - chat/index.html 删除两个预载 script 标签；weibo-emoji.js 保持不动（composer 启动即用）。commit 0c414f7。
+- 收尾修正（commit 36453d5）：全延迟合帧把首个 scroll 事件的处理推迟到下一帧，改变了贴底时更早一页的触发时序（UI 测试捕获该回归）；改为领先/收尾模式——首事件同步处理，同帧后续事件合并为帧末一次收尾。

@@ -17,3 +17,4 @@
 - 顺手修正一处旧缺陷：首拉的 3 秒 setTimeout 现在纳入 stop 清理，请求快速失败时不会再有迟到的二维码刷新把 UI 弄脏。
 - post 页 post.js 由经典脚本转为 `type="module"`（IIFE 结构保留，仅顶部加 import），才能引 shared 模块；post/index.html 新增 `#login-qr-state`（role=alert）作为失败提示归属位，替换原先对 `#bloggers-state` 的挤占。
 - 群聊页行为完全保留（qr-loading 占位、失败文案进群聊状态栏 + 重试按钮）；commit 887e391。
+- 收尾修正（commit 6e865a0）：失败提示归属位按纯重构口径回退——写回 `#bloggers-state`，与 master 行为及 PostPageTest 断言一致；`#login-qr-state` 元素与接线已移除。
