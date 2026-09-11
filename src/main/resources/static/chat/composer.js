@@ -1,14 +1,50 @@
+import {fetchJson} from "../shared/fetch.js";
+
+const HINT_DEFAULT = "按下 Enter 发送内容 / Shift+Enter 换行";
+const HINT_SENDING = "发送中…";
+const HINT_CONFLICT = "消息已发出，但本地同步失败，稍后会自动补全。";
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+
 export function createComposer({elements, getGid, onRefresh, onSent}) {
   let sending = false;
   let pendingAttachment = null;
-  function setComposerHint(text, level) {
+  // 提示状态由变量管理，不从 DOM 文本反读
+  let hintLevel = "default";
+
+  function setComposerHint(text, level = "default") {
+    hintLevel = level;
     elements.composerHint.textContent = text;
     elements.composerHint.classList.toggle("is-sending", level === "sending");
     elements.composerHint.classList.toggle("is-error", level === "error");
   }
 
-  const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
-  const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+  function setBusyUi(busy) {
+    elements.composer.disabled = busy;
+    elements.imagePickerOpen.disabled = busy || !getGid();
+    elements.videoPickerOpen.disabled = busy || !getGid();
+    if (!busy) elements.composer.focus();
+  }
+
+  // 发送公共骨架：加锁禁用 UI → 执行请求与成功回调 → 复位并聚焦。
+  // 409 是服务端确认已发出但本地同步失败的特例，默认文案与普通失败不同。
+  async function send(request, fallbackError) {
+    if (sending) return;
+    sending = true;
+    setBusyUi(true);
+    setComposerHint(HINT_SENDING, "sending");
+    try {
+      await request();
+    } catch (error) {
+      const message = error.status === 409
+        ? (error.msg || HINT_CONFLICT)
+        : (error.msg || fallbackError);
+      setComposerHint(message, "error");
+    } finally {
+      sending = false;
+      setBusyUi(false);
+    }
+  }
 
   function setPendingAttachment(kind, file) {
     if (!file) return;
@@ -52,87 +88,44 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
     }
   }
 
-  async function handleSendError(response, fallbackMessage) {
-    const error = await response.json().catch(() => ({}));
-    if (response.status === 409) {
-      setComposerHint(error.msg || "消息已发出，但本地同步失败，稍后会自动补全。", "error");
-    } else {
-      setComposerHint(error.msg || fallbackMessage, "error");
-    }
-  }
-
   async function sendAttachment() {
     const gid = getGid();
     if (sending || !gid || !pendingAttachment) return;
     const kind = pendingAttachment.kind;
     const endpoint = kind === "image" ? "/chat/messages/sendImage" : "/chat/messages/sendVideo";
-    sending = true;
-    elements.composer.disabled = true;
-    elements.imagePickerOpen.disabled = true;
-    elements.videoPickerOpen.disabled = true;
-    setComposerHint("发送中…", "sending");
-    try {
+    const fallbackError = kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。";
+    await send(async () => {
       const formData = new FormData();
       formData.append("gid", String(gid));
       formData.append("file", pendingAttachment.file);
-      const response = await fetch(endpoint, {
-        method: "POST",
-        body: formData
-      });
-      if (!response.ok) {
-        await handleSendError(response,
-          kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。");
-        return;
-      }
+      await fetchJson(endpoint, {method: "POST", body: formData});
       clearPendingAttachment();
       onSent(gid);
       await onRefresh(gid);
-      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
-    } catch {
-      setComposerHint(kind === "image" ? "图片发送失败，请稍后重试。" : "视频发送失败，请稍后重试。",
-        "error");
-    } finally {
-      sending = false;
-      elements.composer.disabled = false;
-      elements.imagePickerOpen.disabled = !getGid();
-      elements.videoPickerOpen.disabled = !getGid();
-      elements.composer.focus();
-    }
+      setComposerHint(HINT_DEFAULT);
+    }, fallbackError);
   }
 
   async function sendMessage() {
-    const gid = getGid();
-    if (sending || !gid) return;
     if (pendingAttachment) {
       await sendAttachment();
       return;
     }
+    const gid = getGid();
+    if (sending || !gid) return;
     const content = elements.composer.value.trim();
     if (!content) return;
-    sending = true;
-    elements.composer.disabled = true;
-    setComposerHint("发送中…", "sending");
-    try {
-      const response = await fetch("/chat/messages/send", {
+    await send(async () => {
+      await fetchJson("/chat/messages/send", {
         method: "POST",
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
         body: new URLSearchParams({gid: String(gid), content})
       });
-      if (!response.ok) {
-        await handleSendError(response, "消息发送失败，请稍后重试。");
-        return;
-      }
       elements.composer.value = "";
       onSent(gid);
       await onRefresh(gid);
-      setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
-    } catch {
-      setComposerHint("消息发送失败，请稍后重试。", "error");
-    } finally {
-      sending = false;
-      elements.composer.disabled = false;
-      elements.composer.focus();
-    }
+      setComposerHint(HINT_DEFAULT);
+    }, "消息发送失败，请稍后重试。");
   }
 
   elements.composer.addEventListener("keydown", event => {
@@ -142,7 +135,7 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
     if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) { event.preventDefault(); sendMessage(); }
   });
   elements.composer.addEventListener("input", () => {
-    if (elements.composerHint.textContent !== "发送中…") setComposerHint("按下 Enter 发送内容 / Shift+Enter 换行");
+    if (hintLevel !== "sending") setComposerHint(HINT_DEFAULT);
   });
   const handlePaste = event => {
     if (!getGid()) return;
@@ -158,5 +151,7 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
   elements.videoPickerOpen.addEventListener("click", () => elements.videoInput.click());
   elements.videoInput.addEventListener("change", () => elements.videoInput.files?.[0] && setPendingAttachment("video", elements.videoInput.files[0]));
   elements.composerAttachmentRemove.addEventListener("click", clearPendingAttachment);
+  // JS 运行后提示文案以这里为唯一来源；HTML 里的初始文案只是未加载时的兜底
+  setComposerHint(HINT_DEFAULT);
   return {sendMessage, clearPendingAttachment, setPendingAttachment};
 }

@@ -4,14 +4,19 @@ export async function fetchJson(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) {
     let msg = `HTTP ${response.status}`;
+    let backendMsg = null;
     try {
       const body = await response.json();
-      if (body.msg) msg = body.msg;
+      if (body.msg) {
+        backendMsg = body.msg;
+        msg = body.msg;
+      }
     } catch {
       // 非 JSON 错误体，沿用默认消息
     }
     const error = new Error(msg);
     error.status = response.status;
+    if (backendMsg) error.msg = backendMsg;
     throw error;
   }
   return response.json();
