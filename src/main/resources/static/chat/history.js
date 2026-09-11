@@ -1,3 +1,5 @@
+import {appendHighlightedText} from "../shared/highlight.js";
+
 export function createHistory({elements, fetchJson, localDateValue, calendarMonthsAgo,
   pageSize, searchPageSize, earlierLoadThreshold, compareMessages, captureScrollAnchor,
   restoreScrollAnchor, messageView, formatDateTime, mediaTypes, redPacketText, group = {}}) {
@@ -32,20 +34,6 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
     elements.historyContext.hidden = true; elements.historyEmpty.hidden = false;
     elements.historyEmpty.textContent = "设置筛选条件后点击查询";
     elements.historyFeedback.textContent = "";
-  }
-
-  function appendHighlightedText(element, value, keyword) {
-    const text = value || "", needle = keyword?.trim() || "";
-    if (!needle) { element.textContent = text; return; }
-    const lowerText = text.toLocaleLowerCase(), lowerNeedle = needle.toLocaleLowerCase();
-    let start = 0, match = lowerText.indexOf(lowerNeedle);
-    while (match >= 0) {
-      element.append(document.createTextNode(text.slice(start, match)));
-      const mark = document.createElement("mark");
-      mark.textContent = text.slice(match, match + needle.length); element.append(mark);
-      start = match + needle.length; match = lowerText.indexOf(lowerNeedle, start);
-    }
-    element.append(document.createTextNode(text.slice(start)));
   }
 
   function renderResults(items) {

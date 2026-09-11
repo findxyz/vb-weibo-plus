@@ -1,4 +1,5 @@
 import {createQrLogin} from "../shared/qr-login.js";
+import {appendHighlightedText} from "../shared/highlight.js";
 
 (() => {
   "use strict";
@@ -464,29 +465,28 @@ import {createQrLogin} from "../shared/qr-login.js";
     }
   }
 
-  // 在正文纯文本里找命中词位置，截取前后文并用 <mark> 包裹
-  function buildSnippet(post, keyword) {
+  // 在正文纯文本里找命中词位置，截取前后文构建摘要，高亮交给 shared DOM 版（只标首处命中）
+  function appendSearchSnippet(snippet, post, keyword) {
     const text = (post.contentRaw || stripHtml(post.content || "")).trim();
-    if (!text) return "";
-    const lower = text.toLowerCase();
-    const idx = lower.indexOf(keyword.toLowerCase());
-    if (idx < 0) return escapeHtml(text.slice(0, 80));
+    if (!text) return;
+    const needle = keyword?.trim() || "";
+    const lower = text.toLocaleLowerCase(), lowerNeedle = needle.toLocaleLowerCase();
+    const idx = needle ? lower.indexOf(lowerNeedle) : -1;
+    if (idx < 0) {
+      snippet.textContent = text.slice(0, 80);
+      return;
+    }
     const radius = 30;
     const start = Math.max(0, idx - radius);
-    const end = Math.min(text.length, idx + keyword.length + radius);
-    const prefix = (start > 0 ? "…" : "") + text.slice(start, idx);
-    const match = text.slice(idx, idx + keyword.length);
-    const suffix = text.slice(idx + keyword.length, end) + (end < text.length ? "…" : "");
-    return escapeHtml(prefix) + `<mark>${escapeHtml(match)}</mark>` + escapeHtml(suffix);
+    const end = Math.min(text.length, idx + needle.length + radius);
+    if (start > 0) snippet.append("…");
+    appendHighlightedText(snippet, text.slice(start, end), needle, {max: 1});
+    if (end < text.length) snippet.append("…");
   }
 
   function stripHtml(html) {
     const doc = new DOMParser().parseFromString(html, "text/html");
     return doc.body.textContent || "";
-  }
-
-  function escapeHtml(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   function createSearchResultItem(post, keyword) {
@@ -502,7 +502,7 @@ import {createQrLogin} from "../shared/qr-login.js";
 
     const snippet = document.createElement("div");
     snippet.className = "search-result-snippet";
-    snippet.innerHTML = buildSnippet(post, keyword);
+    appendSearchSnippet(snippet, post, keyword);
 
     item.appendChild(meta);
     item.appendChild(snippet);
