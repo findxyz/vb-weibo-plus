@@ -18,7 +18,6 @@ const elements = {
   loginExpired: document.querySelector("#login-expired"),
   loginQr: document.querySelector("#login-qr"),
   loginQrImg: document.querySelector("#login-qr-img"),
-  loginQrState: document.querySelector("#login-qr-state"),
   currentFilter: document.querySelector("#current-filter"),
   feedCount: document.querySelector("#feed-count"),
   datesState: document.querySelector("#dates-state"),
@@ -72,7 +71,7 @@ const state = {
 // 各模块只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
 const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
 
-const login = createLogin({elements: pickElements("loginExpired", "loginQr", "loginQrImg", "loginQrState")});
+const login = createLogin({elements: pickElements("loginExpired", "loginQr", "loginQrImg", "bloggersState")});
 const handleApiError = createApiErrorHandler(() => login.showLoginExpired());
 
 const viewer = createViewer({
