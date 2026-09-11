@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>vb-weibo-plus 设计体系 · 样式指南</title>
+  <style>
+    /* ─── 指南铬层令牌（中性纸白，衬两个皮肤样本）────────────────────── */
+    :root {
+      --bg:      #fafaf7;
+      --surface: #ffffff;
+      --fg:      #101820;
+      --muted:   #607486;
+      --border:  #e8e5df;
+      --accent:  #086ce0;   /* 源码 --accent（chat.css） */
+
+      --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+      --fg-soft:     color-mix(in oklch, var(--fg) 6%, transparent);
+
+      --font-display: 'Iowan Old Style', 'Charter', Georgia, 'Times New Roman', serif;
+      --font-body:    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono:    ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      --font-app:     Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
+
+      --fs-h1: clamp(40px, 5vw, 64px);
+      --fs-h2: clamp(28px, 3.4vw, 42px);
+      --fs-h3: 21px;
+      --fs-lead: 19px;
+      --fs-body: 16px;
+      --fs-meta: 13px;
+
+      --gap-xs: 8px;  --gap-sm: 12px; --gap-md: 20px;
+      --gap-lg: 32px; --gap-xl: 56px; --gap-2xl: 88px;
+      --container: 1120px; --gutter: 32px;
+      --radius: 10px; --radius-lg: 16px;
+
+      /* ─── 皮肤 A · 蔚蓝拟物（chat.css 逐值抄录）────────────────────── */
+      --a-primary: #086ce0;      --a-primary-strong: #034fbf;  --a-primary-soft: #dff0ff;
+      --a-surface: #ffffff;      --a-surface-subtle: #f3f8fc;
+      --a-border: #98bde0;       --a-border-strong: #6f9fc9;
+      --a-text: #101820;         --a-muted: #607486;           --a-danger: #b42318;
+      --a-focus: #ffb020;        --a-frame: #075fd2;           --a-link: #1677ff;
+      --a-titlebar-grad: linear-gradient(#1394fa 0, #0879ed 28%, #0060d8 72%, #006bea 100%);
+      --a-titlebar-inset: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+      --a-title-shadow: 0 1px 1px #003692;
+      --a-window-grad: linear-gradient(#70bcf8, #176fce 72%);
+      --a-close-grad: linear-gradient(#ff9a73, #e63c20 72%);
+      --a-toggle-grad: linear-gradient(#86efac, #16a34a 72%);
+      --a-ctl-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
+      --a-sidebar-grad: linear-gradient(90deg, #dcefff, #bedcf3);
+      --a-sidebar-text: #16375a;
+      --a-heading-grad: linear-gradient(#fafdff, #d8eafa);
+      --a-active-grad: linear-gradient(90deg, #ffffff, #eaf6ff);
+      --a-amber-inset: inset 4px 0 0 #f4a51d;
+      --a-avatar-grad: linear-gradient(145deg, #4ba7ec, #0864c6);
+      --a-ava-border: #6c9ec7;
+      --a-bubble-border: #a7bdcd; --a-bubble-text: #16242f;
+      --a-meta-text: #637889;    --a-chip-text: #486b88;
+      --a-system-bg: #e1e3e6;    --a-system-text: #45494d;
+      --a-admin-bg: #fff3e0;     --a-admin-border: #f0c78a;
+      --a-shadow-1: 0 1px 2px rgb(31 63 89 / 10%);
+      --a-shadow-2: 0 2px 8px rgb(17 67 115 / 28%);
+      --a-shadow-3: 0 12px 36px rgb(0 35 85 / 38%);
+      --a-tool-grad: linear-gradient(#ffffff, #dceaf5);
+      --a-tool-border: #7f9fba;
+      --a-search-border: #8badca;
+      --a-input-inset: inset 0 1px 2px rgb(35 77 110 / 12%);
+      --a-row-line: #d2e1ec;     --a-hover-veil: rgb(255 255 255 / 48%);
+      --a-mark: #fff0a8;         --a-amber-bg: #fff8d9;        --a-amber-deep: #e5a11b;
+      --a-paused-text: #9a6200;  --a-paused-bg: #fff7e6;
+      --a-hint-ok: #52c41a;      --a-hint-err: #f5222d;
+
+      /* ─── 皮肤 B · 纸感手绘（post.css 逐值抄录）────────────────────── */
+      --b-paper: #fbf6ec;        --b-paper-tint: #f5eedf;
+      --b-ink: #2b2620;          --b-pencil: #4d473d;
+      --b-rule: #c8bfa9;         --b-grid-line: #e3d8b8;
+      --b-sketch-accent: #d8482b; --b-sketch-hatch: #b53a20;   --b-highlight: #f9d27c;
+      --b-danger: #b42318;       --b-focus: #d8482b;
+      --b-paper-dots: radial-gradient(circle, rgb(43 38 32 / 4.5%) 1px, transparent 1.4px) 0 0 / 22px 22px;
+      --b-hatch-band: repeating-linear-gradient(135deg, rgb(0 0 0 / 5%) 0 2px, transparent 2px 6px);
+      --b-avatar-hatch: repeating-linear-gradient(45deg, var(--b-sketch-accent) 0 3px, var(--b-sketch-hatch) 3px 6px);
+      --b-hatch-grid: repeating-linear-gradient(45deg, var(--b-grid-line) 0 4px, transparent 4px 8px);
+      --b-shadow-near: 2px 2px 0 -1px rgb(43 38 32 / 18%);
+      --b-shadow-card: 6px 8px 0 -3px rgb(43 38 32 / 18%);
+      --b-shadow-card-strong: 6px 8px 0 -3px rgb(43 38 32 / 22%);
+    }
+
+    /* ─── reset & base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font-family: var(--font-body); font-size: var(--fs-body); line-height: 1.55;
+      text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
+    }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; color: inherit; }
+    p { text-wrap: pretty; }
+    h1, h2, h3, h4 { text-wrap: balance; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    /* ─── layout primitives ────────────────────────────────────────────── */
+    .container { max-width: var(--container); margin-inline: auto; padding-inline: var(--gutter); }
+    .section { padding-block: clamp(48px, 7vw, 76px); }
+    .section + .section { border-top: 1px solid var(--border); }
+    .stack { display: flex; flex-direction: column; }
+    .row { display: flex; align-items: center; gap: var(--gap-md); }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-md); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap-lg); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-lg); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap-md); }
+    @media (max-width: 920px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+    /* ─── type ─────────────────────────────────────────────────────────── */
+    .h1, h1 { font-family: var(--font-display); font-size: var(--fs-h1); line-height: 1.06; letter-spacing: -0.02em; margin: 0; }
+    .h2, h2 { font-family: var(--font-display); font-size: var(--fs-h2); line-height: 1.12; letter-spacing: -0.015em; margin: 0; }
+    .h3, h3 { font-size: var(--fs-h3); font-weight: 600; line-height: 1.3; margin: 0; }
+    .lead { font-size: var(--fs-lead); line-height: 1.6; color: var(--muted); max-width: 60ch; margin: 0; }
+    .eyebrow {
+      font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--accent); margin: 0 0 var(--gap-md);
+    }
+    .meta { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--muted); }
+    .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    /* ─── chrome ───────────────────────────────────────────────────────── */
+    .topnav {
+      position: sticky; top: 0; z-index: 10;
+      background: color-mix(in oklch, var(--bg) 92%, transparent);
+      backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+    }
+    .topnav-inner { display: flex; align-items: center; justify-content: space-between; padding-block: 14px; }
+    .topnav .logo { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+    .topnav nav { display: flex; gap: var(--gap-lg); }
+    .topnav nav a { font-size: 14px; color: var(--muted); }
+    .topnav nav a:hover { color: var(--fg); }
+    .pagefoot { padding-block: var(--gap-xl); color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); }
+
+    /* ─── buttons ──────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px;
+      border-radius: var(--radius); border: 1px solid transparent;
+      font-size: 15px; font-weight: 500; transition: transform .05s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+    .btn-primary:hover { background: color-mix(in oklch, var(--accent) 88%, black); }
+    .btn-secondary { background: transparent; color: var(--fg); border-color: var(--border); }
+    .btn-secondary:hover { border-color: var(--fg); }
+    .btn-ghost { background: transparent; color: var(--fg); border-color: transparent; padding-inline: 8px; }
+    .btn-ghost:hover { color: var(--accent); }
+
+    /* ─── cards / quote / stat ─────────────────────────────────────────── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; }
+    .card-rule { background: transparent; border: 0; border-top: 1px solid var(--fg); padding: 24px 0 0; border-radius: 0; }
+    .stat .stat-num { font-family: var(--font-display); font-size: clamp(52px, 7vw, 84px); line-height: 0.95; letter-spacing: -0.04em; font-weight: 600; }
+    .stat .stat-label { color: var(--muted); font-size: 14px; margin-top: 10px; max-width: 26ch; }
+    .quote-mark { font-family: var(--font-display); font-size: 120px; line-height: 0.7; color: var(--accent); opacity: 0.18; margin-bottom: -24px; }
+
+    /* ─── 色彩样卡 ─────────────────────────────────────────────────────── */
+    .sw-group + .sw-group { margin-top: var(--gap-lg); }
+    .sw-group h3 { margin: 0 0 14px; font-size: 16px; }
+    .sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+    .sw-chip { height: 64px; border-radius: 8px; border: 1px solid color-mix(in oklch, var(--fg) 8%, transparent); }
+    .sw-name { margin-top: 8px; font-size: 13px; font-weight: 600; }
+    .sw-hex { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+    .sw-role { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* ─── 字型阶梯 ─────────────────────────────────────────────────────── */
+    .type-row {
+      display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--gap-lg);
+      padding: 18px 0; border-top: 1px solid var(--border); align-items: baseline;
+    }
+    .type-row:last-child { border-bottom: 1px solid var(--border); }
+    .type-spec { font-family: var(--font-mono); font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .type-sample { font-family: var(--font-app); overflow-wrap: anywhere; }
+    @media (max-width: 920px) { .type-row { grid-template-columns: 1fr; } }
+
+    /* ─── 形状 / 阴影 / 纹理 ───────────────────────────────────────────── */
+    .demo-tile { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+    .rad-box {
+      width: 84px; height: 56px; background: var(--surface);
+      border: 1.5px solid var(--fg); display: grid; place-items: center;
+      font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+    }
+    .sh-chip {
+      padding: 14px 18px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--fg);
+    }
+    .sh-a-1 { box-shadow: var(--a-shadow-1); }
+    .sh-a-2 { box-shadow: var(--a-shadow-2); border-color: var(--a-border); }
+    .sh-a-3 { box-shadow: var(--a-shadow-3); border-color: var(--a-border-strong); }
+    .sh-b-near { box-shadow: var(--b-shadow-near); border-color: var(--b-pencil); background: var(--b-paper); color: var(--b-ink); border-radius: 4px; }
+    .sh-b-card { box-shadow: var(--b-shadow-card-strong); border: 2px solid var(--b-pencil); background: var(--b-paper); color: var(--b-ink); border-radius: 10px; }
+    .tex-tile { width: 132px; height: 76px; border-radius: 6px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--muted); }
+    .tex-dots { background: var(--b-paper-dots), var(--b-paper); border: 1.5px solid var(--b-rule); }
+    .tex-hatch { background: var(--b-hatch-grid), var(--b-paper-tint); border: 1.5px solid var(--b-ink); color: var(--b-pencil); }
+    .tex-band { background: var(--b-hatch-band), var(--b-ink); color: var(--b-paper); }
+    .tex-hl { background: transparent; position: relative; color: var(--b-ink); font-family: var(--font-app); font-size: 15px; }
+    .tex-hl::before { content: ""; position: absolute; inset: 6px -4px; background: var(--b-highlight); opacity: 0.6; transform: skew(-7deg); z-index: -1; }
+
+    /* ─── 皮肤 A 实样 · 群聊窗格 ───────────────────────────────────────── */
+    .aw {
+      border: 2px solid var(--a-frame); background: var(--a-surface);
+      border-radius: 4px; overflow: hidden; font-family: var(--font-app);
+      box-shadow: var(--a-shadow-3); color: var(--a-text);
+    }
+    .aw-titlebar {
+      height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 10px;
+      color: var(--a-surface); background: var(--a-titlebar-grad); box-shadow: var(--a-titlebar-inset);
+    }
+    .aw-logo { width: 30px; height: 30px; flex: none; }
+    .aw-title { font-size: 18px; font-weight: 700; letter-spacing: 0.4px; text-shadow: var(--a-title-shadow); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .aw-controls { margin-left: auto; display: flex; gap: 5px; }
+    .aw-ctl {
+      width: 28px; height: 26px; display: grid; place-items: center; padding: 0;
+      border: 1px solid color-mix(in srgb, var(--a-surface) 94%, transparent); border-radius: 5px; background: var(--a-window-grad);
+      box-shadow: var(--a-ctl-shadow); transition: filter .15s ease;
+    }
+    .aw-ctl.close { background: var(--a-close-grad); }
+    .aw-ctl.toggle { background: var(--a-toggle-grad); }
+    .aw-ctl:hover { filter: brightness(1.08); }
+    .aw-body { display: grid; grid-template-columns: 216px minmax(0, 1fr); }
+    @media (max-width: 920px) { .aw-body { grid-template-columns: 1fr; } }
+    .aw-side { background: var(--a-sidebar-grad); border-right: 1px solid var(--a-border-strong); color: var(--a-sidebar-text); }
+    .aw-search { padding: 9px 12px; border-bottom: 1px solid var(--a-search-border); }
+    .aw-search input {
+      width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--a-search-border);
+      border-radius: 3px; color: var(--a-text); background: var(--a-surface);
+      box-shadow: var(--a-input-inset); font: inherit; font-size: 14px;
+    }
+    .aw-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--a-row-line); }
+    .aw-row:hover { background: var(--a-hover-veil); }
+    .aw-row.active { background: var(--a-active-grad); box-shadow: var(--a-amber-inset); }
+    .aw-ava {
+      width: 36px; height: 36px; flex: none; display: grid; place-items: center;
+      border-radius: 6px; border: 1px solid var(--a-ava-border); color: var(--a-surface);
+      background: var(--a-avatar-grad); font-weight: 700; font-size: 15px;
+    }
+    .aw-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .aw-preview { font-size: 12px; color: var(--a-meta-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .aw-msgs { position: relative; padding: 14px 16px 44px; display: flex; flex-direction: column; gap: 12px; background: var(--a-surface); }
+    .aw-system { align-self: center; padding: 5px 14px; border-radius: 2px; background: var(--a-system-bg); color: var(--a-system-text); font-size: 13px; }
+    .aw-msg { display: flex; align-items: flex-start; gap: 10px; }
+    .aw-bubble {
+      max-width: 72%; padding: 8px 11px; border: 1px solid var(--a-bubble-border);
+      border-radius: 4px; background: var(--a-surface); box-shadow: var(--a-shadow-1);
+      color: var(--a-bubble-text); font-size: 15px; line-height: 1.55; overflow-wrap: anywhere;
+    }
+    .aw-bubble.admin { background: var(--a-admin-bg); border-color: var(--a-admin-border); }
+    .aw-meta { font-size: 12px; color: var(--a-meta-text); margin-bottom: 4px; }
+    .aw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .aw-chip {
+      display: inline-flex; align-items: center; gap: 3px; padding: 1px 9px;
+      border: 1px solid var(--a-bubble-border); border-radius: 999px;
+      color: var(--a-chip-text); background: var(--a-surface-subtle); font-size: 12px;
+    }
+    .aw-chip.selected { border-color: var(--a-primary); color: var(--a-primary-strong); background: var(--a-primary-soft); }
+    .aw-tools { display: flex; align-items: center; gap: 5px; padding: 6px 10px; border-top: 1px solid var(--a-border-strong); }
+    .aw-btn {
+      min-height: 32px; padding: 0 14px; display: inline-flex; align-items: center; gap: 5px;
+      border: 1px solid var(--a-tool-border); border-radius: 3px;
+      background: var(--a-tool-grad); font-family: var(--font-app); font-size: 14px; color: var(--a-text);
+      transition: filter .15s ease;
+    }
+    .aw-btn:hover { filter: brightness(1.05); }
+    .aw-fab {
+      position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+      padding: 7px 15px; border: 1px solid var(--a-primary-strong); border-radius: 16px;
+      color: var(--a-surface); background: var(--a-primary); box-shadow: var(--a-shadow-2);
+      font-family: var(--font-app); font-size: 14px; transition: filter .15s ease;
+    }
+    .aw-fab:hover { filter: brightness(1.08); }
+
+    /* ─── 皮肤 B 实样 · 手绘博文卡 ─────────────────────────────────────── */
+    .bw {
+      background: var(--b-paper-dots), var(--b-paper);
+      border: 3px solid var(--b-ink); border-radius: 12px;
+      box-shadow: var(--b-shadow-card-strong);
+      font-family: var(--font-app); color: var(--b-ink); overflow: hidden;
+    }
+    .bw-titlebar {
+      height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 14px 0 12px;
+      color: var(--b-paper); background: var(--b-hatch-band), var(--b-ink); border-bottom: 2px solid var(--b-ink);
+    }
+    .bw-logo {
+      width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+      border: 1.5px solid var(--b-paper); border-radius: 6px; background: var(--b-sketch-accent);
+      transform: rotate(-3deg);
+    }
+    .bw-title { font-size: 22px; font-weight: 800; letter-spacing: 0.2px; }
+    .bw-ctl {
+      width: 30px; height: 28px; display: grid; place-items: center; padding: 0;
+      border: 1.5px solid var(--b-paper); border-radius: 5px; color: var(--b-paper);
+      background: color-mix(in srgb, var(--a-surface) 8%, transparent); transform: rotate(-0.6deg); transition: filter .15s ease;
+    }
+    .bw-ctl.accent { background: var(--b-sketch-accent); }
+    .bw-ctl:hover { filter: brightness(1.08); }
+    .bw-stage { padding: 20px; }
+    .bw-card {
+      max-width: 620px; margin: 0 auto; padding: 16px;
+      display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: start;
+      border: 2px solid var(--b-pencil); border-radius: 10px; background: var(--b-paper);
+      box-shadow: var(--b-shadow-card);
+    }
+    .bw-ava {
+      width: 48px; height: 48px; display: grid; place-items: center; overflow: hidden;
+      border: 1.5px solid var(--b-ink); border-radius: 8px; color: var(--b-paper);
+      background: var(--b-avatar-hatch); font-weight: 700; font-size: 18px;
+    }
+    .bw-body { display: grid; gap: 8px; min-width: 0; }
+    .bw-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .bw-author { font-size: 16px; font-weight: 700; }
+    .bw-badge { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-left: 4px; }
+    .bw-time { font-size: 12px; color: var(--b-pencil); font-variant-numeric: tabular-nums; }
+    .bw-content { font-size: 19px; line-height: 1.55; overflow-wrap: anywhere; }
+    .bw-content a { color: var(--b-sketch-accent); text-decoration: underline wavy; text-underline-offset: 3px; }
+    .bw-content a:hover { text-decoration-style: solid; }
+    .bw-pics { display: grid; grid-template-columns: repeat(3, 92px); gap: 6px; }
+    .bw-pic {
+      position: relative; width: 92px; height: 92px; overflow: hidden;
+      border: 1.5px solid var(--b-ink); border-radius: 4px;
+      background: var(--b-hatch-grid), var(--b-paper-tint);
+    }
+    .bw-pic::after { content: "img"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; color: var(--b-pencil); letter-spacing: 0.1em; }
+    .bw-rt { padding: 10px 12px; border: 1.5px dashed var(--b-pencil); border-radius: 8px; background: var(--b-paper-tint); display: grid; gap: 6px; }
+    .bw-rt-author { font-size: 15px; font-weight: 600; color: var(--b-ink); }
+    .bw-rt-content { font-size: 17px; line-height: 1.55; color: var(--b-pencil); }
+    .bw-actions { display: flex; align-items: center; gap: 16px; margin-top: 2px; font-size: 13px; color: var(--b-pencil); }
+    .bw-link { margin-left: auto; color: var(--b-sketch-accent); font-size: 14px; font-weight: 700; text-decoration: underline wavy; text-underline-offset: 3px; white-space: nowrap; }
+    .bw-link:hover { text-decoration-style: solid; }
+    .bw-btnrow { display: flex; gap: 10px; justify-content: flex-end; max-width: 620px; margin: 16px auto 0; }
+    .bw-btn-primary {
+      min-height: 34px; padding: 0 18px; border: 1.5px solid var(--b-ink); border-radius: 4px;
+      background: var(--b-sketch-accent); color: var(--b-paper);
+      font-weight: 700; font-size: 15px; transform: rotate(-0.6deg); transition: filter .15s ease;
+    }
+    .bw-btn-primary:hover { filter: brightness(1.08); }
+    .bw-btn-ghost {
+      min-height: 34px; padding: 0 18px; border: 1.5px solid var(--b-ink); border-radius: 4px;
+      background: var(--b-paper); color: var(--b-ink); font-size: 14px;
+      transform: rotate(-0.5deg); transition: background .15s ease;
+    }
+    .bw-btn-ghost:hover { background: var(--b-highlight); }
+
+    /* ─── Do / Don't ───────────────────────────────────────────────────── */
+    .dd-card { border-radius: var(--radius-lg); padding: 26px 28px; border: 1px solid var(--border); background: var(--surface); }
+    .dd-card.do { border-top: 4px solid var(--fg); }
+    .dd-card.dont { border-top: 4px solid var(--a-danger); background: color-mix(in oklch, var(--a-danger) 4%, var(--surface)); }
+    .dd-card h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .dd-card ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14.5px; color: var(--fg); }
+    .dd-card .muted { color: var(--muted); }
+
+    /* ─── skin gallery strips ──────────────────────────────────────────── */
+    .gal-strip { display: flex; gap: 6px; margin-top: 16px; }
+    .gal-strip i { height: 22px; flex: 1; border-radius: 4px; border: 1px solid color-mix(in oklch, var(--fg) 8%, transparent); }
+    .gal-li { margin: 0 0 8px; padding-left: 16px; font-size: 14.5px; color: var(--muted); position: relative; }
+    .gal-li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 7px; height: 7px; border-radius: 2px; background: var(--muted); }
+    .gal-li strong { color: var(--fg); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <svg style="display:none" aria-hidden="true">
+    <defs>
+      <g id="weibo-logo">
+        <path fill="#fff" d="M53.3 403.7c0 84.4 109.9 152.8 245.4 152.8s245.4-68.4 245.4-152.8-109.9-152.8-245.4-152.8S53.3 319.3 53.3 403.7"/>
+        <path fill="#e6162d" d="M304.5 544.1C184.5 556 80.9 501.7 73.1 423c-7.8-78.8 83.2-152.2 203.1-164.1 120-11.9 223.6 42.4 231.3 121.1 7.9 78.8-83.1 152.3-203 164.1M544.4 282.6c-10.2-3.1-17.2-5.1-11.9-18.5 11.6-29.1 12.8-54.2.2-72.2-23.5-33.6-87.9-31.8-161.7-.9 0 0-23.2 10.1-17.2-8.2 11.3-36.5 9.6-67-8-84.7-40-40.1-146.5 1.5-237.8 92.8C39.7 259.2 0 331.7 0 394.4c0 119.8 153.7 192.7 304 192.7 197.1 0 328.2-114.5 328.2-205.4.1-55-46.2-86.2-87.8-99.1"/>
+        <path fill="#f93" d="M675.3 63.3C627.7 10.5 557.5-9.6 492.7 4.2c-15 3.2-24.5 18-21.3 32.9 3.2 15 17.9 24.5 32.9 21.3 46.1-9.8 96 4.5 129.8 42 33.8 37.5 43 88.6 28.5 133.4-4.7 14.6 3.3 30.2 17.9 34.9 14.6 4.7 30.2-3.3 34.9-17.8 20.4-62.9 7.5-134.9-40.1-187.6"/>
+        <path fill="#f93" d="M602.2 129.3c-23.2-25.7-57.4-35.5-88.9-28.7-12.9 2.7-21.1 15.5-18.4 28.4 2.8 12.9 15.5 21.1 28.3 18.3 15.4-3.3 32.2 1.5 43.5 14 11.3 12.6 14.4 29.7 9.5 44.7-4 12.5 2.8 26 15.4 30.1 12.6 4 26-2.8 30.1-15.4 9.9-30.7 3.7-65.7-19.5-91.4"/>
+        <path d="M311.1 401.5c-4.2 7.2-13.5 10.6-20.7 7.6-7.2-2.9-9.4-11-5.3-18 4.2-7 13.1-10.4 20.2-7.6 7.2 2.6 9.8 10.7 5.8 18M272.8 450.5c-11.6 18.5-36.5 26.6-55.2 18.1-18.4-8.4-23.9-29.9-12.3-48 11.5-18 35.5-26 54.1-18.2 18.8 8.1 24.8 29.4 13.4 48.1M316.4 319.5c-57.1-14.9-121.6 13.6-146.4 63.9-25.3 51.3-.8 108.3 56.8 126.9 59.8 19.3 130.2-10.3 154.7-65.6 24.2-54.2-6-109.9-65.1-125.2"/>
+      </g>
+      <g id="ic-min"><path d="M3 6h6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></g>
+      <g id="ic-max"><rect x="2.5" y="2.5" width="7" height="7" rx="1" fill="none" stroke="#fff" stroke-width="1.4"/></g>
+      <g id="ic-x"><path d="M3 3l6 6M9 3l-6 6" stroke="#fff" stroke-width="1.8" stroke-linecap="square"/></g>
+      <g id="badge-verified">
+        <path d="M7 0l1.8 1.3 2.2-.3.6 2.1 2 1-.7 2.1.7 2.1-2 1-.6 2.1-2.2-.3L7 14l-1.8-1.3-2.2.3-.6-2.1-2-1 .7-2.1L.4 5.5l2-1L3 2.4l2.2.3L7 0z" fill="#d8482b"/>
+        <path d="M4 7l2 2 4-4" fill="none" stroke="#fbf6ec" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </defs>
+  </svg>
+
+  <header class="topnav" data-od-id="topnav">
+    <div class="container topnav-inner">
+      <span class="logo">vb-weibo-plus 设计体系</span>
+      <nav>
+        <a href="#skins">双皮肤</a>
+        <a href="#colors">色彩</a>
+        <a href="#type">字型</a>
+        <a href="#components">组件</a>
+        <a href="#rules">边界</a>
+      </nav>
+      <a class="btn btn-secondary" href="DESIGN.md">打开 DESIGN.md</a>
+    </div>
+  </header>
+
+  <main id="content">
+
+    <!-- 01 · Hero -->
+    <section class="section hero" data-od-id="hero">
+      <div class="container hero-center" style="text-align:center; max-width:820px; margin-inline:auto;">
+        <p class="eyebrow">VB-WEIBO-PLUS · DESIGN SYSTEM · 抽取自前端源码</p>
+        <h1>一套骨架，两种皮肤，令牌有据可查。</h1>
+        <p class="lead" style="margin: 18px auto 32px;">群聊客户端是 Windows Aero 式的蔚蓝拟物，博文阅读器是米纸上的手绘草稿——两套视觉共享同一副字体栈、间距与焦点环习惯。以下全部取值逐行抄自 chat.css 与 post.css。</p>
+        <div class="hero-cta" style="display:inline-flex; gap:12px; flex-wrap:wrap;">
+          <a class="btn btn-primary" href="#colors">浏览色彩令牌</a>
+          <a class="btn btn-secondary" href="#skins">看两套皮肤实样</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 · 抽取统计 -->
+    <section class="section" data-od-id="stats">
+      <div class="container">
+        <p class="eyebrow">抽取自源码 · 非虚构数字</p>
+        <div class="grid-4" style="margin-top: 8px;">
+          <div class="stat">
+            <div class="stat-num num">2</div>
+            <p class="stat-label">套独立皮肤：chat.css 蔚蓝拟物 · post.css 纸感手绘</p>
+          </div>
+          <div class="stat">
+            <div class="stat-num num">3,234</div>
+            <p class="stat-label">行 CSS 源码（1,976 + 1,258）逐行核对后抽取</p>
+          </div>
+          <div class="stat">
+            <div class="stat-num num">84</div>
+            <p class="stat-label">个色彩令牌收敛进 DESIGN.md（源码出现 105 处不同写法）</p>
+          </div>
+          <div class="stat">
+            <div class="stat-num num">16</div>
+            <p class="stat-label">个组件规格写入规范，全部带代码出处</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 · 双皮肤画廊 -->
+    <section class="section" data-od-id="skins">
+      <div class="container">
+        <p class="eyebrow">01 · 双皮肤</p>
+        <h2>工具窗格拟物，阅读界面手绘。</h2>
+        <p class="lead" style="margin: 14px 0 40px;">同一次抽取得到的两种气质——差别在渐变与纹理，共同点是骨架习惯：Tahoma / 微软雅黑栈、4–18px 间距、3px 焦点环外扩 2px、最小窗宽 900px。</p>
+        <div class="grid-2">
+          <div>
+            <h3 style="margin-bottom: 12px;">A · 蔚蓝拟物 <span class="meta">chat.css · 群聊客户端</span></h3>
+            <div style="border-radius:6px; overflow:hidden; border:2px solid var(--a-frame);">
+              <div class="aw-titlebar" style="border-radius:0;">
+                <svg class="aw-logo" viewBox="0 0 724.7 587.1" role="img" aria-label="微博 logo"><use href="#weibo-logo"/></svg>
+                <span class="aw-title">微博助手</span>
+                <span class="aw-controls">
+                  <span class="aw-ctl"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-min"/></svg></span>
+                  <span class="aw-ctl"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-max"/></svg></span>
+                  <span class="aw-ctl close"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-x"/></svg></span>
+                </span>
+              </div>
+            </div>
+            <ul style="margin: 14px 0 0; padding: 0; list-style: none;">
+              <li class="gal-li"><strong>四段渐变标题栏</strong> + 顶部 8px 白高光 + 底部内嵌暗边，Aero 玻璃感的全部来源</li>
+              <li class="gal-li">侧栏水平渐变 #dcefff → #bedcf3，激活行靠 <strong>4px 琥珀内嵌条</strong>定位</li>
+              <li class="gal-li">三级柔和投影：气泡 → 浮动控件 → 对话框</li>
+            </ul>
+            <div class="gal-strip" aria-label="蔚蓝拟物关键色">
+              <i style="background: var(--a-titlebar-grad);" title="标题栏渐变"></i>
+              <i style="background: var(--a-sidebar-grad);" title="侧栏渐变"></i>
+              <i style="background: var(--a-avatar-grad);" title="头像渐变"></i>
+              <i style="background: var(--a-primary);" title="主操作蓝"></i>
+              <i style="background: var(--a-focus);" title="焦点琥珀"></i>
+            </div>
+          </div>
+          <div>
+            <h3 style="margin-bottom: 12px;">B · 纸感手绘 <span class="meta">post.css · 博文阅读器</span></h3>
+            <div style="border-radius:12px 12px 0 0; overflow:hidden; border:3px solid var(--b-ink); border-bottom:0; border-radius:12px;">
+              <div class="bw-titlebar">
+                <span class="bw-logo"><svg width="22" height="18" viewBox="0 0 724.7 587.1" role="img" aria-label="微博 logo"><use href="#weibo-logo"/></svg></span>
+                <span class="bw-title">博文</span>
+                <span class="aw-controls" style="margin-left:auto; gap:6px;">
+                  <span class="bw-ctl accent"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-x"/></svg></span>
+                </span>
+              </div>
+            </div>
+            <ul style="margin: 14px 0 0; padding: 0; list-style: none;">
+              <li class="gal-li"><strong>22px 铅笔点阵纸纹</strong>铺满全局，135° 影线压在墨色标题带上</li>
+              <li class="gal-li">激活行是 <strong>skew(-7deg) 荧光笔道</strong>，链接是波浪下划线，控件带 ±0.6° 微旋转</li>
+              <li class="gal-li">只有硬偏移无模糊阴影，像剪纸贴在纸上</li>
+            </ul>
+            <div class="gal-strip" aria-label="纸感手绘关键色">
+              <i style="background: var(--b-paper);" title="米纸"></i>
+              <i style="background: var(--b-paper-tint);" title="纸色 tint"></i>
+              <i style="background: var(--b-ink);" title="墨色"></i>
+              <i style="background: var(--b-sketch-accent);" title="朱砂笔"></i>
+              <i style="background: var(--b-highlight);" title="荧光笔"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 · 色彩令牌 -->
+    <section class="section" data-od-id="colors">
+      <div class="container">
+        <p class="eyebrow">02 · 色彩令牌</p>
+        <h2>84 个令牌，每格都有出处。</h2>
+        <p class="lead" style="margin: 14px 0 36px;">主操作蓝与错误红全项目唯一；琥珀与荧光黄分别只服务各自的皮肤。完整清单见 DESIGN.md 的 colors 段。</p>
+
+        <div class="sw-group">
+          <h3>全局与信号</h3>
+          <div class="sw-grid">
+            <div><div class="sw-chip" style="background: var(--a-primary);"></div><div class="sw-name">primary</div><div class="sw-hex">#086ce0</div><div class="sw-role">主操作 · 新消息浮标</div></div>
+            <div><div class="sw-chip" style="background: var(--a-primary-strong);"></div><div class="sw-name">primary-strong</div><div class="sw-hex">#034fbf</div><div class="sw-role">主操作深色 · 选中文字</div></div>
+            <div><div class="sw-chip" style="background: var(--a-primary-soft);"></div><div class="sw-name">primary-soft</div><div class="sw-hex">#dff0ff</div><div class="sw-role">选中底 · 态势淡化</div></div>
+            <div><div class="sw-chip" style="background: var(--a-surface);"></div><div class="sw-name">surface</div><div class="sw-hex">#ffffff</div><div class="sw-role">气泡 · 输入框 · 窗体</div></div>
+            <div><div class="sw-chip" style="background: var(--a-surface-subtle);"></div><div class="sw-name">surface-subtle</div><div class="sw-hex">#f3f8fc</div><div class="sw-role">附件条 · 表态底</div></div>
+            <div><div class="sw-chip" style="background: var(--a-text);"></div><div class="sw-name">text</div><div class="sw-hex">#101820</div><div class="sw-role">正文墨色</div></div>
+            <div><div class="sw-chip" style="background: var(--a-muted);"></div><div class="sw-name">muted</div><div class="sw-hex">#607486</div><div class="sw-role">次要文字</div></div>
+            <div><div class="sw-chip" style="background: var(--a-danger);"></div><div class="sw-name">danger</div><div class="sw-hex">#b42318</div><div class="sw-role">错误 · 两皮肤共用</div></div>
+            <div><div class="sw-chip" style="background: var(--a-focus);"></div><div class="sw-name">focus</div><div class="sw-hex">#ffb020</div><div class="sw-role">A 皮肤焦点环</div></div>
+            <div><div class="sw-chip" style="background: var(--a-link);"></div><div class="sw-name">link</div><div class="sw-hex">#1677ff</div><div class="sw-role">文件链接 · 发送提示</div></div>
+          </div>
+        </div>
+
+        <div class="sw-group">
+          <h3>蔚蓝拟物 · 界面蓝</h3>
+          <div class="sw-grid">
+            <div><div class="sw-chip" style="background: var(--a-titlebar-grad);"></div><div class="sw-name">titlebar 渐变</div><div class="sw-hex">#1394fa→#006bea</div><div class="sw-role">四段 stop · 28% / 72%</div></div>
+            <div><div class="sw-chip" style="background: var(--a-sidebar-grad);"></div><div class="sw-name">sidebar 渐变</div><div class="sw-hex">#dcefff→#bedcf3</div><div class="sw-role">群列表侧栏 90°</div></div>
+            <div><div class="sw-chip" style="background: var(--a-avatar-grad);"></div><div class="sw-name">avatar 渐变</div><div class="sw-hex">#4ba7ec→#0864c6</div><div class="sw-role">头像 145°</div></div>
+            <div><div class="sw-chip" style="background: var(--a-border);"></div><div class="sw-name">border</div><div class="sw-hex">#98bde0</div><div class="sw-role">分隔线</div></div>
+            <div><div class="sw-chip" style="background: var(--a-border-strong);"></div><div class="sw-name">border-strong</div><div class="sw-hex">#6f9fc9</div><div class="sw-role">面板边界</div></div>
+            <div><div class="sw-chip" style="background: var(--a-frame);"></div><div class="sw-name">frame</div><div class="sw-hex">#075fd2</div><div class="sw-role">窗体 2px 外框</div></div>
+            <div><div class="sw-chip" style="background: var(--a-sidebar-text);"></div><div class="sw-name">sidebar-text</div><div class="sw-hex">#16375a</div><div class="sw-role">侧栏文字</div></div>
+          </div>
+        </div>
+
+        <div class="sw-group">
+          <h3>蔚蓝拟物 · 状态与提示</h3>
+          <div class="sw-grid">
+            <div><div class="sw-chip" style="background: var(--a-focus);"></div><div class="sw-name">amber</div><div class="sw-hex">#f4a51d</div><div class="sw-role">激活内嵌条</div></div>
+            <div><div class="sw-chip" style="background: var(--a-amber-bg);"></div><div class="sw-name">amber-bg</div><div class="sw-hex">#fff8d9</div><div class="sw-role">目标消息底</div></div>
+            <div><div class="sw-chip" style="background: var(--a-paused-bg);"></div><div class="sw-name">paused-bg</div><div class="sw-hex">#fff7e6</div><div class="sw-role">暂停跟读底</div></div>
+            <div><div class="sw-chip" style="background: var(--a-mark);"></div><div class="sw-name">mark</div><div class="sw-hex">#fff0a8</div><div class="sw-role">搜索命中高亮</div></div>
+            <div><div class="sw-chip" style="background: var(--a-admin-bg);"></div><div class="sw-name">admin-bg</div><div class="sw-hex">#fff3e0</div><div class="sw-role">管理消息暖黄</div></div>
+            <div><div class="sw-chip" style="background: var(--a-system-bg);"></div><div class="sw-name">system-bg</div><div class="sw-hex">#e1e3e6</div><div class="sw-role">系统消息灰条</div></div>
+            <div><div class="sw-chip" style="background: var(--a-hint-ok);"></div><div class="sw-name">success-hint</div><div class="sw-hex">#52c41a</div><div class="sw-role">发送中提示</div></div>
+            <div><div class="sw-chip" style="background: var(--a-hint-err);"></div><div class="sw-name">error-hint</div><div class="sw-hex">#f5222d</div><div class="sw-role">发送失败提示</div></div>
+            <div><div class="sw-chip" style="background: var(--a-close-grad);"></div><div class="sw-name">close 渐变</div><div class="sw-hex">#ff9a73→#e63c20</div><div class="sw-role">关闭钮红</div></div>
+            <div><div class="sw-chip" style="background: var(--a-toggle-grad);"></div><div class="sw-name">toggle 渐变</div><div class="sw-hex">#86efac→#16a34a</div><div class="sw-role">切换钮绿</div></div>
+          </div>
+        </div>
+
+        <div class="sw-group">
+          <h3>纸感手绘</h3>
+          <div class="sw-grid">
+            <div><div class="sw-chip" style="background: var(--b-paper);"></div><div class="sw-name">paper</div><div class="sw-hex">#fbf6ec</div><div class="sw-role">米纸底 + 22px 点阵</div></div>
+            <div><div class="sw-chip" style="background: var(--b-paper-tint);"></div><div class="sw-name">paper-tint</div><div class="sw-hex">#f5eedf</div><div class="sw-role">便签 · 空图位</div></div>
+            <div><div class="sw-chip" style="background: var(--b-ink);"></div><div class="sw-name">ink</div><div class="sw-hex">#2b2620</div><div class="sw-role">墨色 · 外框 3px</div></div>
+            <div><div class="sw-chip" style="background: var(--b-pencil);"></div><div class="sw-name">pencil</div><div class="sw-hex">#4d473d</div><div class="sw-role">铅笔字 · 卡片描边</div></div>
+            <div><div class="sw-chip" style="background: var(--b-rule);"></div><div class="sw-name">rule</div><div class="sw-hex">#c8bfa9</div><div class="sw-role">虚线分隔</div></div>
+            <div><div class="sw-chip" style="background: var(--b-grid-line);"></div><div class="sw-name">grid-line</div><div class="sw-hex">#e3d8b8</div><div class="sw-role">45° 斜纹格</div></div>
+            <div><div class="sw-chip" style="background: var(--b-sketch-accent);"></div><div class="sw-name">sketch-accent</div><div class="sw-hex">#d8482b</div><div class="sw-role">朱砂主操作 · 焦点</div></div>
+            <div><div class="sw-chip" style="background: var(--b-sketch-hatch);"></div><div class="sw-name">sketch-hatch</div><div class="sw-hex">#b53a20</div><div class="sw-role">斜纹暗段</div></div>
+            <div><div class="sw-chip" style="background: var(--b-highlight);"></div><div class="sw-name">sketch-highlight</div><div class="sw-hex">#f9d27c</div><div class="sw-role">荧光笔涂选</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 · 字型 -->
+    <section class="section" data-od-id="type">
+      <div class="container">
+        <p class="eyebrow">03 · 字型阶梯</p>
+        <h2>一支字体栈，八档字号。</h2>
+        <p class="lead" style="margin: 14px 0 36px;">全项目只有 Tahoma → 微软雅黑 → SimSun 一条栈，post.css 的 serif / hand / mono 变量有意全部指向它，零字体文件加载。样例即真实渲染。</p>
+        <div class="type-row">
+          <div class="type-spec">sketch-display · 22px / 800<br>letter-spacing 0.2px · 应用标题</div>
+          <div class="type-sample" style="font-size:22px; font-weight:800; letter-spacing:0.2px;">博文阅读器</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec">post-content · 19px / 1.55<br>正文 · 最大内容字号</div>
+          <div class="type-sample" style="font-size:19px; line-height:1.55;">清晨的雾还没散，山脊线先亮了。</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec">app-title · 18px / 700<br>letter-spacing 0.4px · 标题栏</div>
+          <div class="type-sample" style="font-size:18px; font-weight:700; letter-spacing:0.4px;">微博助手 · 群聊</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec">panel-title · 17px / 700<br>面板与分组标题</div>
+          <div class="type-sample" style="font-size:17px; font-weight:700;">群列表 · 128 个会话</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec">body-text · 15px / 1.55<br>气泡 · 输入框 · 控件</div>
+          <div class="type-sample" style="font-size:15px; line-height:1.55;">这条消息包含 3 张图片和一段视频。</div>
+        </div>
+        <div class="type-row">
+          <div class="type-spec">meta-text · 12px / 1.4<br>时间 · 计数 · 计数用 tabular-nums</div>
+          <div class="type-sample num" style="font-size:12px; font-family:var(--font-app); color:var(--a-meta-text);">2026-09-11 07:42 · 来自 装扮中心 · 转发 12</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 · 形状 / 层次 / 纹理 -->
+    <section class="section" data-od-id="shapes">
+      <div class="container">
+        <p class="eyebrow">04 · 形状与层次</p>
+        <h2>小圆角、两族阴影、三件纹理。</h2>
+        <p class="lead" style="margin: 14px 0 40px;">拟物皮肤是 2–7px 的小圆角世界；手绘皮肤靠描边宽度（1.5 / 2 / 3px）与硬偏移阴影立层次。</p>
+        <div class="grid-3">
+          <div>
+            <h3 style="margin-bottom: 14px;">圆角阶梯</h3>
+            <div class="demo-tile">
+              <div class="rad-box" style="border-radius:2px;">2</div>
+              <div class="rad-box" style="border-radius:3px;">3</div>
+              <div class="rad-box" style="border-radius:4px;">4</div>
+              <div class="rad-box" style="border-radius:5px;">5</div>
+              <div class="rad-box" style="border-radius:6px;">6</div>
+              <div class="rad-box" style="border-radius:8px;">8</div>
+              <div class="rad-box" style="border-radius:10px;">10</div>
+              <div class="rad-box" style="border-radius:12px;">12</div>
+              <div class="rad-box" style="border-radius:999px;">999</div>
+            </div>
+            <p class="meta" style="margin-top: 12px;">气泡 4 · 窗控 5 · 头像 6/7 · 浮标 16（图示 84×56 按比例）</p>
+          </div>
+          <div>
+            <h3 style="margin-bottom: 14px;">两族阴影</h3>
+            <div class="stack" style="gap: 22px;">
+              <div class="demo-tile">
+                <div class="sh-chip sh-a-1">A 气泡</div>
+                <div class="sh-chip sh-a-2">A 浮动</div>
+                <div class="sh-chip sh-a-3">A 对话框</div>
+              </div>
+              <div class="demo-tile">
+                <div class="sh-chip sh-b-near">B 近景</div>
+                <div class="sh-chip sh-b-card">B 卡片</div>
+              </div>
+            </div>
+            <p class="meta" style="margin-top: 12px;">A：柔和蓝灰投影三级；B：全部硬偏移、零模糊</p>
+          </div>
+          <div>
+            <h3 style="margin-bottom: 14px;">纹理三件套</h3>
+            <div class="demo-tile">
+              <div class="tex-tile tex-dots">22px 点阵</div>
+              <div class="tex-tile tex-hatch">45° 斜纹</div>
+              <div class="tex-tile tex-band">135° 影线</div>
+            </div>
+            <div class="demo-tile" style="margin-top: 12px;">
+              <div class="tex-tile tex-hl" style="width:auto; padding: 0 18px;">荧光笔道 skew(-7deg)</div>
+            </div>
+            <p class="meta" style="margin-top: 12px;">仅 B 皮肤使用；A 皮肤一律素面渐变</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 · 组件实样 -->
+    <section class="section" data-od-id="components">
+      <div class="container">
+        <p class="eyebrow">05 · 组件实样 · 示例数据</p>
+        <h2>按源码值实渲的两个窗口。</h2>
+        <p class="lead" style="margin: 14px 0 40px;">不是示意图——渐变、描边、阴影、字号全部取自令牌。以下人名与文案为演示样例。</p>
+
+        <h3 style="margin-bottom: 14px;">A · 群聊窗格 <span class="meta">titlebar 38px · 侧栏 216px（源码 280px）</span></h3>
+        <div class="aw" data-od-id="specimen-chat">
+          <div class="aw-titlebar">
+            <svg class="aw-logo" viewBox="0 0 724.7 587.1" role="img" aria-label="微博 logo"><use href="#weibo-logo"/></svg>
+            <span class="aw-title">微博助手 · 群聊</span>
+            <span class="aw-controls">
+              <span class="aw-ctl"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-min"/></svg></span>
+              <span class="aw-ctl"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-max"/></svg></span>
+              <span class="aw-ctl close"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-x"/></svg></span>
+            </span>
+          </div>
+          <div class="aw-body">
+            <div class="aw-side">
+              <div class="aw-search"><input type="text" placeholder="搜索群聊" aria-label="搜索群聊" /></div>
+              <div class="aw-row active">
+                <span class="aw-ava">早</span>
+                <span style="min-width:0;"><span class="aw-name">早餐研究组</span><br /><span class="aw-preview">阿禾：今天试了碱水结</span></span>
+              </div>
+              <div class="aw-row">
+                <span class="aw-ava">徒</span>
+                <span style="min-width:0;"><span class="aw-name">周末徒步团</span><br /><span class="aw-preview">路线图已上传</span></span>
+              </div>
+              <div class="aw-row">
+                <span class="aw-ava">摄</span>
+                <span style="min-width:0;"><span class="aw-name">胶片冲扫交流</span><br /><span class="aw-preview">药水配方 v3</span></span>
+              </div>
+            </div>
+            <div class="aw-msgs">
+              <div class="aw-system">阿禾 邀请 小舟 加入了群聊</div>
+              <div class="aw-msg">
+                <span class="aw-ava">阿</span>
+                <div style="min-width:0;">
+                  <div class="aw-meta">阿禾 · 07:42</div>
+                  <div class="aw-bubble">今早的碱水结出炉了，皮脆心软，配方改天发群里。</div>
+                  <div class="aw-chips">
+                    <span class="aw-chip selected">👍 赞</span>
+                    <span class="aw-chip">😂 哈哈</span>
+                    <span class="aw-chip">🤤 馋了</span>
+                  </div>
+                </div>
+              </div>
+              <div class="aw-msg">
+                <span class="aw-ava">舟</span>
+                <div style="min-width:0;">
+                  <div class="aw-meta">小舟 · 07:45</div>
+                  <div class="aw-bubble admin">群公告：每周三晚八点线下烘焙，报名接龙在本条消息下。</div>
+                </div>
+              </div>
+              <div class="aw-tools">
+                <button class="aw-btn">😀 表情</button>
+                <button class="aw-btn">📎 附件</button>
+                <button class="aw-btn" style="margin-left:auto;">🕘 历史记录</button>
+              </div>
+              <button class="aw-fab">新消息</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 48px;"></div>
+
+        <h3 style="margin-bottom: 14px;">B · 手绘博文卡 <span class="meta">标题带 44px · 卡片 2px 描边 · 10px 圆角</span></h3>
+        <div class="bw" data-od-id="specimen-post">
+          <div class="bw-titlebar">
+            <span class="bw-logo"><svg width="22" height="18" viewBox="0 0 724.7 587.1" role="img" aria-label="微博 logo"><use href="#weibo-logo"/></svg></span>
+            <span class="bw-title">博文</span>
+            <span style="margin-left:auto; display:flex; gap:6px;">
+              <span class="bw-ctl accent"><svg width="12" height="12" viewBox="0 0 12 12"><use href="#ic-x"/></svg></span>
+            </span>
+          </div>
+          <div class="bw-stage">
+            <div class="bw-card">
+              <span class="bw-ava">摄</span>
+              <div class="bw-body">
+                <div class="bw-head">
+                  <span class="bw-author">胶片与镜头<svg class="bw-badge" viewBox="0 0 14 14" role="img" aria-label="认证"><use href="#badge-verified"/></svg></span>
+                  <span class="bw-time num">09-10 21:47 · 来自 胶片冲扫交流</span>
+                </div>
+                <div class="bw-content">山里的秋来得早，#晨雾漫记# 这卷 HP5 压到 800 拍的，颗粒还是那么踏实。<a href="#components">九图待冲</a></div>
+                <div class="bw-pics" aria-label="九宫格占位（源码空位样式）">
+                  <span class="bw-pic"></span><span class="bw-pic"></span><span class="bw-pic"></span>
+                  <span class="bw-pic"></span><span class="bw-pic"></span><span class="bw-pic"></span>
+                </div>
+                <div class="bw-rt">
+                  <span class="bw-rt-author">@慢速显影 转发了</span>
+                  <span class="bw-rt-content">同款药水冲过两卷，高光留得住。</span>
+                </div>
+                <div class="bw-actions">
+                  <span>转发</span><span>评论</span><span>赞</span>
+                  <a class="bw-link" href="#components">查看原微博</a>
+                </div>
+              </div>
+            </div>
+            <div class="bw-btnrow">
+              <button class="bw-btn-ghost">高级搜索</button>
+              <button class="bw-btn-primary">同步博文</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 · 使用边界 -->
+    <section class="section" data-od-id="rules">
+      <div class="container">
+        <p class="eyebrow">06 · 使用边界</p>
+        <h2>Do &amp; Don't</h2>
+        <p class="lead" style="margin: 14px 0 36px;">摘自 DESIGN.md 的 Do's and Don'ts 段，逐条对应源码里的既有决定。</p>
+        <div class="grid-2">
+          <div class="dd-card do">
+            <h3><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 9.5 7.5 14 15 5" fill="none" stroke="var(--fg)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Do</h3>
+            <ul>
+              <li>标题栏保留顶部高光 + 底部内嵌暗边——拟物皮肤玻璃感的来源。</li>
+              <li>激活 / 定位态交给琥珀（A）或荧光笔道（B），主操作色不参与状态表达。</li>
+              <li>链接一律带下划线：A 实线，B 波浪线 hover 转实线。</li>
+              <li>焦点环固定 3px 外扩 2px，全组件一致。</li>
+              <li>小控件允许 ±0.5–3° 微旋转（仅 B），营造手贴便签的松动感。</li>
+            </ul>
+          </div>
+          <div class="dd-card dont">
+            <h3><svg width="18" height="18" viewBox="0 0 18 18"><path d="M4 4l10 10M14 4 4 14" fill="none" stroke="var(--a-danger)" stroke-width="2.2" stroke-linecap="round"/></svg>Don't</h3>
+            <ul>
+              <li>不要把标题栏四段渐变简化成纯色，也不要让渐变蔓延到内容区。<span class="muted">——渐变是 A 皮肤的身份，不是装饰。</span></li>
+              <li>不要在两套皮肤间混用令牌：琥珀只属于 A，荧光黄只属于 B。</li>
+              <li>不要移除纸面点阵纹理，否则 B 退化成普通米色页面。</li>
+              <li>不要给 B 皮肤加模糊投影——它只有硬偏移阴影。</li>
+              <li>不要在 900px 以下硬挤布局：这是桌面应用，最小窗宽是硬约束。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 09 · CTA -->
+    <section class="section" data-od-id="cta-strip" style="text-align:center;">
+      <div class="container" style="max-width: 620px;">
+        <h2>让下一个界面也有据可查。</h2>
+        <p class="lead" style="margin: 16px auto 32px;">DESIGN.md 已含 84 个色彩令牌、8 档字型与 16 个组件规格；新页面直接引用令牌，不再从截图猜颜色。</p>
+        <a class="btn btn-primary" href="DESIGN.md">查看 DESIGN.md 规范</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pagefoot" data-od-id="footer">
+    <div class="container row-between" style="flex-wrap: wrap;">
+      <span>© vb-weibo-plus · 设计体系 2026</span>
+      <span class="meta">source: src/main/resources/static/chat/chat.css · post/post.css</span>
+    </div>
+  </footer>
+</body>
+</html>
