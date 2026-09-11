@@ -499,17 +499,29 @@ export function createConversationSession({
   }
 
   // 滚动合帧：一帧内密集的 scroll 事件只做一次跟随判定、窗口滑动与更早消息加载，
-  // 消除滚动路径上逐帧多次的同步布局测量
-  let scrollFrame = 0;
+  // 消除滚动路径上逐帧多次的同步布局测量。首个事件保持同步处理（与逐事件处理
+  // 时序一致），同帧内后续事件合并为帧末的一次收尾。
+  let trailingFrame = 0;
+  let trailingPending = false;
+  function handleScroll() {
+    // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此恢复跟随
+    setFollowing(!document.hidden && isNearBottom());
+    if (followingLatest) newMessagesElement.hidden = true;
+    slideWindow();
+    loadEarlierIfNeeded();
+  }
   messagesElement.addEventListener("scroll", () => {
-    if (scrollFrame) return;
-    scrollFrame = requestAnimationFrame(() => {
-      scrollFrame = 0;
-      // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此恢复跟随
-      setFollowing(!document.hidden && isNearBottom());
-      if (followingLatest) newMessagesElement.hidden = true;
-      slideWindow();
-      loadEarlierIfNeeded();
+    if (trailingFrame) {
+      trailingPending = true;
+      return;
+    }
+    handleScroll();
+    trailingFrame = requestAnimationFrame(() => {
+      trailingFrame = 0;
+      if (trailingPending) {
+        trailingPending = false;
+        handleScroll();
+      }
     });
   });
   newMessagesElement.addEventListener("click", async () => {
