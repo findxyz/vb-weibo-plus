@@ -1,9 +1,9 @@
+import {createQrLogin} from "../shared/qr-login.js";
+
 (() => {
   "use strict";
 
   const DAY_PAGE_SIZE = 9999;
-  const QR_IMAGE_INTERVAL = 10000;
-  const QR_LOGIN_LOADING_TEXT = "扫码中…";
   const elements = {
     globalTip: document.querySelector("#global-tip"),
     bloggersCount: document.querySelector("#bloggers-count"),
@@ -13,6 +13,7 @@
     loginExpired: document.querySelector("#login-expired"),
     loginQr: document.querySelector("#login-qr"),
     loginQrImg: document.querySelector("#login-qr-img"),
+    loginQrState: document.querySelector("#login-qr-state"),
     currentFilter: document.querySelector("#current-filter"),
     feedCount: document.querySelector("#feed-count"),
     datesState: document.querySelector("#dates-state"),
@@ -1090,29 +1091,15 @@
 
   /* ---------- 登录状态 ---------- */
 
-  let qrImageTimer = null;
-
-  function refreshQrImage() {
-    const img = new Image();
-    img.onload = () => {
-      elements.loginQrImg.src = img.src;
-      elements.loginQrImg.hidden = false;
-    };
-    img.src = `/weibo/login/qr/image?t=${Date.now()}`;
-  }
-
-  function startQrImagePolling() {
-    qrImageTimer = setInterval(refreshQrImage, QR_IMAGE_INTERVAL);
-    setTimeout(refreshQrImage, 3000);
-  }
-
-  function stopQrImagePolling() {
-    if (qrImageTimer) {
-      clearInterval(qrImageTimer);
-      qrImageTimer = null;
-    }
-    elements.loginQrImg.hidden = true;
-  }
+  // 扫码登录交给 shared 控制器：防重入、首拉延迟、10 秒轮询与按钮 loading 态都在那里
+  const qrLogin = createQrLogin({
+    button: elements.loginQr,
+    image: elements.loginQrImg,
+    idleText: "扫码登录",
+    loadingText: "扫码中…",
+    onSuccess: () => checkLoginStatus(),
+    onError: error => showState(elements.loginQrState, `登录请求失败：${error.message}`)
+  });
 
   function showLoginExpired() {
     elements.loginExpired.hidden = false;
@@ -1128,22 +1115,6 @@
       }
     } catch (_) {
       // 忽略登录检测失败
-    }
-  }
-
-  async function startQrLogin() {
-    elements.loginQr.disabled = true;
-    elements.loginQr.textContent = QR_LOGIN_LOADING_TEXT;
-    startQrImagePolling();
-    try {
-      await fetchJson("/weibo/login/qr", {method: "POST"});
-      await checkLoginStatus();
-    } catch (error) {
-      showState(elements.bloggersState, `登录请求失败：${error.message}`);
-    } finally {
-      stopQrImagePolling();
-      elements.loginQr.disabled = false;
-      elements.loginQr.textContent = "扫码登录";
     }
   }
 
@@ -1186,8 +1157,6 @@
   elements.windowToggle.addEventListener("click", () => {
     location.href = "/chat/index.html";
   });
-
-  elements.loginQr.addEventListener("click", startQrLogin);
 
   elements.imageViewer.addEventListener("click", (e) => {
     if (e.target === elements.imageViewer) {

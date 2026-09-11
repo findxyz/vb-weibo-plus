@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>本地微博</title>
   <link rel="stylesheet" href="post.css">
-  <script src="post.js" defer></script>
+  <script src="post.js" type="module"></script>
 </head>
 <body>
   <main class="app" aria-labelledby="app-title">
@@ -46,6 +46,7 @@
         <div class="login-expired" id="login-expired" role="status" hidden>
           <img id="login-qr-img" alt="扫码登录二维码" hidden>
           <span class="panel-state">登录已失效</span>
+          <span class="panel-state" id="login-qr-state" role="alert"></span>
           <button id="login-qr" type="button">扫码登录</button>
         </div>
       </aside>

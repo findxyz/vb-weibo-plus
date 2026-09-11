@@ -1,6 +1,7 @@
 import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
 import {fetchJson} from "../shared/fetch.js";
 import {attachDismiss} from "../shared/popover.js";
+import {createQrLogin} from "../shared/qr-login.js";
 import {
   captureScrollAnchor,
   compareMessages,
@@ -76,7 +77,7 @@ function bootstrap() {
   };
   const state = {
     currentGid: null, initializing: false,
-    loginCheckTick: 0, loginPending: false, pendingRefresh: false,
+    loginCheckTick: 0, pendingRefresh: false,
     lastSizeGid: null, lastMessageCount: null
   };
 
@@ -250,17 +251,25 @@ function bootstrap() {
     groupList.refreshGroups(); conversation.refresh(); maybeCheckLoginStatus();
   }
 
-  const LOGIN_CHECK_INTERVAL = 60; const QR_LOGIN_LOADING_TEXT = "📱 扫码中…"; const QR_IMAGE_INTERVAL = 10000;
-  let qrImageTimer = null;
-  function refreshQrImage() {
-    const image = new Image();
-    image.onload = () => { elements.qrLoading.hidden = true; elements.loginQrImg.src = image.src; elements.loginQrImg.hidden = false; };
-    image.src = `/weibo/login/qr/image?t=${Date.now()}`;
-  }
-  function startQrImagePolling() { elements.loginQrImg.hidden = true; elements.qrLoading.hidden = false; qrImageTimer = setInterval(refreshQrImage, QR_IMAGE_INTERVAL); setTimeout(refreshQrImage, 3000); }
-  function stopQrImagePolling() { if (qrImageTimer) clearInterval(qrImageTimer); qrImageTimer = null; elements.loginQrImg.hidden = true; elements.qrLoading.hidden = true; }
+  const LOGIN_CHECK_INTERVAL = 60;
+  // 扫码登录交给 shared 控制器：防重入、首拉延迟、10 秒轮询与按钮 loading 态都在那里
+  const qrLogin = createQrLogin({
+    button: elements.loginQr,
+    image: elements.loginQrImg,
+    loading: elements.qrLoading,
+    idleText: "📱 扫码登录",
+    loadingText: "📱 扫码中…",
+    onSuccess: async () => {
+      elements.loginExpired.hidden = true;
+      await initialize();
+    },
+    onError: () => {
+      elements.groupsState.textContent = "扫码登录失败，请稍后重试。";
+      elements.retryGroups.hidden = false;
+    }
+  });
   function maybeCheckLoginStatus() {
-    if (document.hidden || state.loginPending || ++state.loginCheckTick < LOGIN_CHECK_INTERVAL) return;
+    if (document.hidden || qrLogin.pending || ++state.loginCheckTick < LOGIN_CHECK_INTERVAL) return;
     state.loginCheckTick = 0; checkLoginStatus();
   }
   async function checkLoginStatus() {
@@ -271,13 +280,6 @@ function bootstrap() {
       elements.loginExpired.hidden = result.valid !== false;
     }
     catch (error) { console.warn("检查登录状态失败：", error); }
-  }
-  async function startQrLogin() {
-    if (state.loginPending) return;
-    state.loginPending = true; elements.loginQr.disabled = true; elements.loginQr.textContent = QR_LOGIN_LOADING_TEXT; startQrImagePolling();
-    try { const response = await fetch("/weibo/login/qr", {method: "POST"}); if (!response.ok) throw new Error(`HTTP ${response.status}`); elements.loginExpired.hidden = true; await initialize(); }
-    catch { elements.groupsState.textContent = "扫码登录失败，请稍后重试。"; elements.retryGroups.hidden = false; }
-    finally { stopQrImagePolling(); state.loginPending = false; elements.loginQr.disabled = false; elements.loginQr.textContent = "📱 扫码登录"; }
   }
   async function initialize() {
     state.initializing = true; elements.retryGroups.hidden = true; elements.groupsState.textContent = "";
@@ -291,7 +293,6 @@ function bootstrap() {
   }
 
   elements.retryGroups.addEventListener("click", initialize);
-  elements.loginQr.addEventListener("click", startQrLogin);
   elements.attitudesToggle.addEventListener("click", () => {
     attitudesEnabled = !attitudesEnabled;
     localStorage.setItem(ATTITUDES_KEY, attitudesEnabled ? "1" : "0");
