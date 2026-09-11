@@ -1,6 +1,12 @@
 import {attachDismiss, positionPopover} from "../shared/popover.js";
 
-export function createCelebration({elements, messageView, getCurrentGid, getMessages, compareMessages}) {
+export function createCelebration({
+  elements: {
+    celebrationRoster: celebrationRosterElement, celebrationStage, celebrationInterval,
+    celebrationPopover, celebrationPopoverTitle, celebrationPopoverJoin,
+    celebrationPopoverRemove, celebrationPopoverClose
+  },
+  messageView, getCurrentGid, getMessages, compareMessages}) {
   const CELEBRATION_ROSTER_KEY = "weibo-chat:celebration-roster";
   const CELEBRATION_SEEN_KEY = "weibo-chat:celebration-seen";
   // 回归间隔默认值，单位秒
@@ -26,7 +32,7 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
     celebrationGeneration++;
     for (const celebration of activeCelebrations) celebration.cancel();
     activeCelebrations.clear();
-    elements.celebrationStage.replaceChildren();
+    celebrationStage.replaceChildren();
   }
 
   function celebrationEntry(gid, senderId) {
@@ -101,7 +107,7 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
   }
 
   function renderCelebrationRoster() {
-    const container = elements.celebrationRoster;
+    const container = celebrationRosterElement;
     container.replaceChildren();
     const members = Object.entries(celebrationRoster[String(getCurrentGid())] || {});
     container.hidden = members.length === 0;
@@ -135,7 +141,7 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
 
   function commitCelebrationDraft() {
     if (!celebrationDraft) return;
-    const text = elements.celebrationInterval.value.trim();
+    const text = celebrationInterval.value.trim();
     const raw = Number(text);
     // 间隔最小 1 秒，清空或乱填时回退默认值
     const interval = text !== "" && Number.isFinite(raw)
@@ -146,8 +152,8 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
       avatar: celebrationDraft.avatar,
       interval
     });
-    elements.celebrationPopoverJoin.hidden = true;
-    elements.celebrationPopoverRemove.hidden = false;
+    celebrationPopoverJoin.hidden = true;
+    celebrationPopoverRemove.hidden = false;
   }
 
   function openCelebrationPopover(gid, senderId, name, avatarUrl, anchor) {
@@ -158,17 +164,17 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
       name: name || "未知成员",
       avatar: avatarUrl || ""
     };
-    elements.celebrationPopoverTitle.textContent = "回归庆祝";
-    elements.celebrationInterval.value =
+    celebrationPopoverTitle.textContent = "回归庆祝";
+    celebrationInterval.value =
       String(entry?.interval > 0 ? entry.interval : CELEBRATION_DEFAULT_INTERVAL);
-    elements.celebrationPopoverRemove.hidden = !entry;
-    elements.celebrationPopoverJoin.hidden = !!entry;
-    elements.celebrationPopover.hidden = false;
-    positionPopover(elements.celebrationPopover, anchor, {align: "left", gap: 6});
+    celebrationPopoverRemove.hidden = !entry;
+    celebrationPopoverJoin.hidden = !!entry;
+    celebrationPopover.hidden = false;
+    positionPopover(celebrationPopover, anchor, {align: "left", gap: 6});
   }
 
   function closeCelebrationPopover() {
-    elements.celebrationPopover.hidden = true;
+    celebrationPopover.hidden = true;
     celebrationDraft = null;
   }
 
@@ -236,7 +242,7 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
     run.cancel = finish;
 
     try {
-      const stage = elements.celebrationStage;
+      const stage = celebrationStage;
       const width = stage.clientWidth;
       const height = stage.clientHeight;
       // 成员卡片要完整留在舞台内
@@ -419,17 +425,17 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
     }
   }
 
-  elements.celebrationPopoverClose.addEventListener("click", closeCelebrationPopover);
-  elements.celebrationPopoverJoin.addEventListener("click", () => {
+  celebrationPopoverClose.addEventListener("click", closeCelebrationPopover);
+  celebrationPopoverJoin.addEventListener("click", () => {
     commitCelebrationDraft();
   });
-  elements.celebrationPopoverRemove.addEventListener("click", () => {
+  celebrationPopoverRemove.addEventListener("click", () => {
     if (!celebrationDraft) return;
     setCelebrationMember(celebrationDraft.gid, celebrationDraft.senderId, null);
-    elements.celebrationPopoverRemove.hidden = true;
-    elements.celebrationPopoverJoin.hidden = false;
+    celebrationPopoverRemove.hidden = true;
+    celebrationPopoverJoin.hidden = false;
   });
-  elements.celebrationInterval.addEventListener("change", () => {
+  celebrationInterval.addEventListener("change", () => {
     // 已在名单里的成员，改间隔立即生效；新成员点「加入庆祝名单」保存
     if (celebrationDraft
       && celebrationEntry(celebrationDraft.gid, celebrationDraft.senderId)) {
@@ -437,7 +443,7 @@ export function createCelebration({elements, messageView, getCurrentGid, getMess
     }
   });
   // 点在打开弹层的入口（发送者昵称、庆祝 chip）上时不关闭，由入口自己的处理接管
-  attachDismiss(elements.celebrationPopover, closeCelebrationPopover,
+  attachDismiss(celebrationPopover, closeCelebrationPopover,
     {ignoreClosest: ".message-sender, .celebration-chip-name"});
 
   renderCelebrationRoster();

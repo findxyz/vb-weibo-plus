@@ -1,5 +1,5 @@
 export function createConversationSession({
-  elements,
+  elements: {messages: messagesElement, newMessages: newMessagesElement},
   messageView,
   fetchJson,
   compareMessages,
@@ -101,8 +101,8 @@ export function createConversationSession({
   }
 
   function ensureSpacers() {
-    if (topSpacer.parentNode !== elements.messages) elements.messages.prepend(topSpacer);
-    if (bottomSpacer.parentNode !== elements.messages) elements.messages.append(bottomSpacer);
+    if (topSpacer.parentNode !== messagesElement) messagesElement.prepend(topSpacer);
+    if (bottomSpacer.parentNode !== messagesElement) messagesElement.append(bottomSpacer);
   }
 
   function isSpacer(element) {
@@ -144,9 +144,9 @@ export function createConversationSession({
   }
 
   function isNearBottom() {
-    return elements.messages.scrollHeight
-      - elements.messages.scrollTop
-      - elements.messages.clientHeight < 80;
+    return messagesElement.scrollHeight
+      - messagesElement.scrollTop
+      - messagesElement.clientHeight < 80;
   }
 
   function scrollToBottom() {
@@ -157,7 +157,7 @@ export function createConversationSession({
       if (!followingLatest) windowStartIdx = Math.max(0, windowEndIdx - WINDOW_CAP + 1);
       renderMessages();
     }
-    elements.messages.scrollTop = elements.messages.scrollHeight;
+    messagesElement.scrollTop = messagesElement.scrollHeight;
   }
 
   function renderMessages() {
@@ -181,7 +181,7 @@ export function createConversationSession({
     let belowSum = 0;
     for (let i = end + 1; i < ordered.length; i++) belowSum += estimateHeight(ordered[i]);
     const existingByMid = new Map();
-    for (const element of elements.messages.children) {
+    for (const element of messagesElement.children) {
       if (isSpacer(element)) continue;
       if (element.dataset.mid) existingByMid.set(Number(element.dataset.mid), element);
     }
@@ -199,7 +199,7 @@ export function createConversationSession({
       previous = element;
     }
     if (bottomSpacer !== previous.nextElementSibling) previous.after(bottomSpacer);
-    for (const element of elements.messages.children) {
+    for (const element of messagesElement.children) {
       if (isSpacer(element) || !element.dataset.mid) continue;
       heightByMid.set(Number(element.dataset.mid), element.offsetHeight);
     }
@@ -215,7 +215,7 @@ export function createConversationSession({
       const message = messages.get(Number(mid));
       if (!message) continue;
       message.attitudes = Array.isArray(attitudes) ? attitudes : [];
-      const element = elements.messages.querySelector(`[data-mid="${mid}"]`);
+      const element = messagesElement.querySelector(`[data-mid="${mid}"]`);
       if (element) {
         messageView.updateAttitudes(element, message);
         heightByMid.set(Number(mid), element.offsetHeight);
@@ -226,7 +226,7 @@ export function createConversationSession({
   // 当前窗口实际渲染的消息对象，供按需拉取表态等场景使用
   function getRenderedMessages() {
     const rendered = [];
-    for (const element of elements.messages.children) {
+    for (const element of messagesElement.children) {
       if (isSpacer(element) || !element.dataset.mid) continue;
       const message = messages.get(Number(element.dataset.mid));
       if (message) rendered.push(message);
@@ -236,7 +236,7 @@ export function createConversationSession({
 
   async function loadMessages(cursor = null) {
     const latestPage = cursor === null;
-    const anchor = latestPage ? null : captureScrollAnchor(elements.messages);
+    const anchor = latestPage ? null : captureScrollAnchor(messagesElement);
     const gid = currentGid();
     const requestVersion = version;
     const query = new URLSearchParams({gid: String(gid), size: String(pageSize)});
@@ -263,7 +263,7 @@ export function createConversationSession({
         scrollToBottom();
         onInitialMessages(gid, result.items);
       } else {
-        restoreScrollAnchor(anchor, elements.messages);
+        restoreScrollAnchor(anchor, messagesElement);
         onEarlierMessages(gid, result.items);
       }
     } catch (error) {
@@ -273,8 +273,8 @@ export function createConversationSession({
 
   async function loadEarlierIfNeeded() {
     if (!currentGid() || !hasMore || loadingEarlier || refreshing) return;
-    if (elements.messages.scrollTop > earlierLoadThreshold
-      || elements.messages.scrollHeight <= elements.messages.clientHeight) return;
+    if (messagesElement.scrollTop > earlierLoadThreshold
+      || messagesElement.scrollHeight <= messagesElement.clientHeight) return;
     if (!beforeCursor) return;
     loadingEarlier = true;
     try {
@@ -308,7 +308,7 @@ export function createConversationSession({
         || result.nextAfterMid === null) break;
       cursor = {createdAt: result.nextAfterCreatedAt, mid: result.nextAfterMid};
     }
-    if (added) elements.newMessages.hidden = false;
+    if (added) newMessagesElement.hidden = false;
     return !document.hidden && currentGid() === gid && version === requestVersion;
   }
 
@@ -331,7 +331,7 @@ export function createConversationSession({
         appendNewer(fresh);
         // 新消息一律只弹提示，不再自动贴底；由用户点击提示自行跳转。
         renderMessages();
-        elements.newMessages.hidden = false;
+        newMessagesElement.hidden = false;
         onNewMessages(gid, fresh);
       }
     } catch (error) {
@@ -387,7 +387,7 @@ export function createConversationSession({
     if (sliding || windowEndIdx < 0 || switchingGroup || document.hidden || !currentGid()) return;
     const ordered = getOrdered();
     if (ordered.length <= WINDOW_CAP) return;
-    const container = elements.messages;
+    const container = messagesElement;
     const rect = container.getBoundingClientRect();
     // 跳滚完全越过当前窗口时，直接定位占位区内的目标消息，避免逐批渲染沿途内容。
     const aboveWindow = topSpacer.nextElementSibling.getBoundingClientRect().top >= rect.bottom;
@@ -472,8 +472,8 @@ export function createConversationSession({
     beforeCursor = null;
     hasMore = false;
     pendingCatchUp = false;
-    elements.messages.replaceChildren();
-    elements.newMessages.hidden = true;
+    messagesElement.replaceChildren();
+    newMessagesElement.hidden = true;
     return loadMessages().finally(() => {
       if (currentGid() === nextGroup.gid) switchingGroup = false;
     });
@@ -501,22 +501,22 @@ export function createConversationSession({
   // 滚动合帧：一帧内密集的 scroll 事件只做一次跟随判定、窗口滑动与更早消息加载，
   // 消除滚动路径上逐帧多次的同步布局测量
   let scrollFrame = 0;
-  elements.messages.addEventListener("scroll", () => {
+  messagesElement.addEventListener("scroll", () => {
     if (scrollFrame) return;
     scrollFrame = requestAnimationFrame(() => {
       scrollFrame = 0;
       // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此恢复跟随
       setFollowing(!document.hidden && isNearBottom());
-      if (followingLatest) elements.newMessages.hidden = true;
+      if (followingLatest) newMessagesElement.hidden = true;
       slideWindow();
       loadEarlierIfNeeded();
     });
   });
-  elements.newMessages.addEventListener("click", async () => {
+  newMessagesElement.addEventListener("click", async () => {
     await refresh();
     setFollowing(true);
     scrollToBottom();
-    elements.newMessages.hidden = true;
+    newMessagesElement.hidden = true;
   });
   setFollowing(true);
 

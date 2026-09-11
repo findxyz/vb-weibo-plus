@@ -1,6 +1,14 @@
 import {appendHighlightedText} from "../shared/highlight.js";
 
-export function createHistory({elements, fetchJson, localDateValue, calendarMonthsAgo,
+export function createHistory({
+  elements: {
+    historyDialog, historyOpen, historyClose, historyBack, historyForm, historyKeyword,
+    historySender, historyStart, historyEnd, historySync, historySyncTime, historyTitle,
+    historyMessages, historyEmpty, historyFeedback, historyPageState, historyNewerState,
+    historyEarlierState, historyPrevious, historyNext, historyResults, historyResultsList,
+    historyContext
+  },
+  fetchJson, localDateValue, calendarMonthsAgo,
   pageSize, searchPageSize, earlierLoadThreshold, compareMessages, captureScrollAnchor,
   restoreScrollAnchor, messageView, formatDateTime, mediaTypes, redPacketText, group = {}}) {
   const state = {
@@ -23,21 +31,21 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
     state.requestVersion += 1;
     state.page = 1; state.total = 0; state.query = null; state.targetMid = null;
     state.beforeCursor = null; state.afterCursor = null; state.loadingMore = false;
-    elements.historyStart.value = localDateValue(start);
-    elements.historyEnd.value = localDateValue(new Date());
+    historyStart.value = localDateValue(start);
+    historyEnd.value = localDateValue(new Date());
     const syncDate = new Date(); syncDate.setFullYear(syncDate.getFullYear() - 2);
-    elements.historySyncTime.value = localDateValue(syncDate);
-    elements.historySender.value = ""; elements.historyKeyword.value = "";
-    elements.historyResultsList.replaceChildren(); elements.historyMessages.replaceChildren();
-    elements.historyEarlierState.textContent = ""; elements.historyNewerState.textContent = "";
-    elements.historyPageState.textContent = ""; elements.historyResults.hidden = true;
-    elements.historyContext.hidden = true; elements.historyEmpty.hidden = false;
-    elements.historyEmpty.textContent = "设置筛选条件后点击查询";
-    elements.historyFeedback.textContent = "";
+    historySyncTime.value = localDateValue(syncDate);
+    historySender.value = ""; historyKeyword.value = "";
+    historyResultsList.replaceChildren(); historyMessages.replaceChildren();
+    historyEarlierState.textContent = ""; historyNewerState.textContent = "";
+    historyPageState.textContent = ""; historyResults.hidden = true;
+    historyContext.hidden = true; historyEmpty.hidden = false;
+    historyEmpty.textContent = "设置筛选条件后点击查询";
+    historyFeedback.textContent = "";
   }
 
   function renderResults(items) {
-    elements.historyResultsList.replaceChildren(...items.map(message => {
+    historyResultsList.replaceChildren(...items.map(message => {
       const button = document.createElement("button");
       button.className = "history-result";
       button.type = "button"; button.dataset.mid = String(message.mid);
@@ -52,11 +60,11 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
       return button;
     }));
     const pageCount = Math.max(1, Math.ceil(state.total / searchPageSize));
-    elements.historyPageState.textContent = `第 ${state.page} / ${pageCount} 页，共 ${state.total} 条`;
-    elements.historyPrevious.disabled = state.page <= 1;
-    elements.historyNext.disabled = state.page >= pageCount;
-    elements.historyEmpty.hidden = true; elements.historyContext.hidden = true; elements.historyResults.hidden = false;
-    elements.historyResultsList.scrollTop = 0;
+    historyPageState.textContent = `第 ${state.page} / ${pageCount} 页，共 ${state.total} 条`;
+    historyPrevious.disabled = state.page <= 1;
+    historyNext.disabled = state.page >= pageCount;
+    historyEmpty.hidden = true; historyContext.hidden = true; historyResults.hidden = false;
+    historyResultsList.scrollTop = 0;
   }
 
   function messageElements(messages) {
@@ -64,14 +72,14 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
   }
 
   function updateEdges() {
-    elements.historyEarlierState.textContent = state.beforeCursor ? "向上滚动加载更早消息" : "没有更早消息";
-    elements.historyNewerState.textContent = state.afterCursor ? "向下滚动加载更新消息" : "没有更新消息";
+    historyEarlierState.textContent = state.beforeCursor ? "向上滚动加载更早消息" : "没有更早消息";
+    historyNewerState.textContent = state.afterCursor ? "向下滚动加载更新消息" : "没有更新消息";
   }
 
   function scrollMessageToStart(message) {
-    const containerTop = elements.historyMessages.getBoundingClientRect().top;
-    const paddingTop = Number.parseFloat(getComputedStyle(elements.historyMessages).paddingTop) || 0;
-    elements.historyMessages.scrollTop += message.getBoundingClientRect().top
+    const containerTop = historyMessages.getBoundingClientRect().top;
+    const paddingTop = Number.parseFloat(getComputedStyle(historyMessages).paddingTop) || 0;
+    historyMessages.scrollTop += message.getBoundingClientRect().top
       - containerTop - paddingTop;
   }
 
@@ -85,20 +93,20 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
   async function openContext(target) {
     const version = ++state.requestVersion;
     state.loadingMore = false; state.targetMid = target.mid;
-    state.beforeCursor = null; state.afterCursor = null; elements.historyResults.hidden = true;
-    elements.historyContext.hidden = false; elements.historyEarlierState.textContent = "";
-    elements.historyNewerState.textContent = ""; elements.historyFeedback.textContent = "";
-    elements.historyMessages.replaceChildren(...messageElements([target]));
+    state.beforeCursor = null; state.afterCursor = null; historyResults.hidden = true;
+    historyContext.hidden = false; historyEarlierState.textContent = "";
+    historyNewerState.textContent = ""; historyFeedback.textContent = "";
+    historyMessages.replaceChildren(...messageElements([target]));
     try {
       const [before, after] = await Promise.all([cursorRequest("before", target), cursorRequest("after", target)]);
       if (version !== state.requestVersion) return;
       state.beforeCursor = before.hasMore ? {createdAt: before.nextBeforeCreatedAt, mid: before.nextBeforeMid} : null;
       state.afterCursor = after.hasMore ? {createdAt: after.nextAfterCreatedAt, mid: after.nextAfterMid} : null;
-      elements.historyMessages.replaceChildren(...messageElements([...before.items, target, ...after.items]));
+      historyMessages.replaceChildren(...messageElements([...before.items, target, ...after.items]));
       updateEdges();
-      elements.historyMessages.querySelector(`[data-mid="${target.mid}"]`)?.scrollIntoView({block: "center"});
+      historyMessages.querySelector(`[data-mid="${target.mid}"]`)?.scrollIntoView({block: "center"});
     } catch {
-      if (version === state.requestVersion) elements.historyFeedback.textContent = "消息上下文加载失败，请返回后重试。";
+      if (version === state.requestVersion) historyFeedback.textContent = "消息上下文加载失败，请返回后重试。";
     }
   }
 
@@ -108,7 +116,7 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
     if (!cursor || state.loadingMore) return;
     state.loadingMore = true;
     const version = state.requestVersion;
-    const anchor = earlier ? captureScrollAnchor(elements.historyMessages) : null;
+    const anchor = earlier ? captureScrollAnchor(historyMessages) : null;
     try {
       const result = await cursorRequest(direction, cursor);
       if (version !== state.requestVersion) return;
@@ -119,17 +127,17 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
       } : null;
       if (earlier) {
         state.beforeCursor = next;
-        elements.historyMessages.prepend(...loaded);
-        restoreScrollAnchor(anchor, elements.historyMessages);
+        historyMessages.prepend(...loaded);
+        restoreScrollAnchor(anchor, historyMessages);
       } else {
         state.afterCursor = next;
-        elements.historyMessages.append(...loaded);
+        historyMessages.append(...loaded);
         if (loaded[0]) scrollMessageToStart(loaded[0]);
       }
       updateEdges();
     } catch {
       if (version === state.requestVersion) {
-        (earlier ? elements.historyEarlierState : elements.historyNewerState).textContent
+        (earlier ? historyEarlierState : historyNewerState).textContent
           = earlier ? "更早消息加载失败" : "更新消息加载失败";
       }
     } finally {
@@ -145,77 +153,77 @@ export function createHistory({elements, fetchJson, localDateValue, calendarMont
     if (filters.end) query.set("end", `${filters.end} 23:59:59`);
     if (filters.sender) query.set("senderName", filters.sender);
     if (filters.keyword) query.set("keyword", filters.keyword);
-    elements.historyEmpty.hidden = true; elements.historyContext.hidden = true;
+    historyEmpty.hidden = true; historyContext.hidden = true;
     try {
       const result = await fetchJson(`/chat/messages?${query}`, {cache: "no-store"});
       if (version !== state.requestVersion) return;
       state.page = result.page; state.total = result.total;
       renderResults(result.items);
-      elements.historyFeedback.textContent = result.items.length ? "" : "没有符合条件的聊天记录";
+      historyFeedback.textContent = result.items.length ? "" : "没有符合条件的聊天记录";
     } catch {
       if (version === state.requestVersion) {
-        elements.historyResults.hidden = true;
-        elements.historyFeedback.textContent = "聊天记录查询失败，请稍后重试。";
+        historyResults.hidden = true;
+        historyFeedback.textContent = "聊天记录查询失败，请稍后重试。";
       }
     }
   }
 
   async function capture() {
     if (!state.gid) return;
-    elements.historyEmpty.hidden = true; elements.historyResults.hidden = true; elements.historyContext.hidden = true;
-    const raw = elements.historySyncTime.value;
-    if (!raw) { elements.historyFeedback.textContent = "请先选择要同步到的历史日期。"; return; }
+    historyEmpty.hidden = true; historyResults.hidden = true; historyContext.hidden = true;
+    const raw = historySyncTime.value;
+    if (!raw) { historyFeedback.textContent = "请先选择要同步到的历史日期。"; return; }
     const version = ++state.requestVersion;
     try {
       const query = new URLSearchParams({gid: String(state.gid), sinceTime: `${raw} 00:00:00`});
       const response = await fetch(`/chat/since?${query}`, {method: "POST"});
       if (!response.ok) throw new Error();
-      if (version === state.requestVersion) elements.historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";
+      if (version === state.requestVersion) historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";
     } catch {
-      if (version === state.requestVersion) elements.historyFeedback.textContent = "同步历史请求失败，请稍后重试。";
+      if (version === state.requestVersion) historyFeedback.textContent = "同步历史请求失败，请稍后重试。";
     }
   }
 
   function close() {
     state.requestVersion += 1;
-    if (elements.historyDialog.open) elements.historyDialog.close();
+    if (historyDialog.open) historyDialog.close();
   }
 
   function open() {
     reset();
-    elements.historyDialog.showModal();
+    historyDialog.showModal();
   }
 
   function setGroup(nextGroup) {
     state.gid = nextGroup.gid; state.group = nextGroup;
-    elements.historyOpen.disabled = false;
-    elements.historyTitle.textContent = `聊天记录 - ${nextGroup.name || `群聊 ${nextGroup.gid}`}`;
+    historyOpen.disabled = false;
+    historyTitle.textContent = `聊天记录 - ${nextGroup.name || `群聊 ${nextGroup.gid}`}`;
   }
 
-  elements.historyOpen.addEventListener("click", open);
-  elements.historyClose.addEventListener("click", close);
-  elements.historyForm.addEventListener("submit", event => {
+  historyOpen.addEventListener("click", open);
+  historyClose.addEventListener("click", close);
+  historyForm.addEventListener("submit", event => {
     event.preventDefault();
     state.query = {
-      start: elements.historyStart.value, end: elements.historyEnd.value,
-      sender: elements.historySender.value.trim(), keyword: elements.historyKeyword.value.trim()
+      start: historyStart.value, end: historyEnd.value,
+      sender: historySender.value.trim(), keyword: historyKeyword.value.trim()
     };
     query(1);
   });
-  elements.historyPrevious.addEventListener("click", () => query(state.page - 1));
-  elements.historyNext.addEventListener("click", () => query(state.page + 1));
-  elements.historySync.addEventListener("click", capture);
-  elements.historyBack.addEventListener("click", () => {
+  historyPrevious.addEventListener("click", () => query(state.page - 1));
+  historyNext.addEventListener("click", () => query(state.page + 1));
+  historySync.addEventListener("click", capture);
+  historyBack.addEventListener("click", () => {
     state.requestVersion += 1;
-    elements.historyContext.hidden = true;
-    elements.historyFeedback.textContent = "";
-    elements.historyResults.hidden = false;
+    historyContext.hidden = true;
+    historyFeedback.textContent = "";
+    historyResults.hidden = false;
   });
-  elements.historyMessages.addEventListener("scroll", () => {
-    if (elements.historyMessages.scrollHeight <= elements.historyMessages.clientHeight) return;
-    if (elements.historyMessages.scrollTop <= earlierLoadThreshold) return loadMore("before");
-    const distance = elements.historyMessages.scrollHeight
-      - elements.historyMessages.scrollTop - elements.historyMessages.clientHeight;
+  historyMessages.addEventListener("scroll", () => {
+    if (historyMessages.scrollHeight <= historyMessages.clientHeight) return;
+    if (historyMessages.scrollTop <= earlierLoadThreshold) return loadMore("before");
+    const distance = historyMessages.scrollHeight
+      - historyMessages.scrollTop - historyMessages.clientHeight;
     if (distance <= earlierLoadThreshold) loadMore("after");
   });
 

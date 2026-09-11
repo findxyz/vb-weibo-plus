@@ -6,7 +6,12 @@ const HINT_CONFLICT = "消息已发出，但本地同步失败，稍后会自动
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 
-export function createComposer({elements, getGid, onRefresh, onSent}) {
+export function createComposer({
+  elements: {
+    composer, composerHint, imagePickerOpen, imageInput, videoPickerOpen, videoInput,
+    composerAttachment, composerAttachmentPreview, composerAttachmentPreviewVideo, composerAttachmentRemove
+  },
+  getGid, onRefresh, onSent}) {
   let sending = false;
   let pendingAttachment = null;
   // 提示状态由变量管理，不从 DOM 文本反读
@@ -14,16 +19,16 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
 
   function setComposerHint(text, level = "default") {
     hintLevel = level;
-    elements.composerHint.textContent = text;
-    elements.composerHint.classList.toggle("is-sending", level === "sending");
-    elements.composerHint.classList.toggle("is-error", level === "error");
+    composerHint.textContent = text;
+    composerHint.classList.toggle("is-sending", level === "sending");
+    composerHint.classList.toggle("is-error", level === "error");
   }
 
   function setBusyUi(busy) {
-    elements.composer.disabled = busy;
-    elements.imagePickerOpen.disabled = busy || !getGid();
-    elements.videoPickerOpen.disabled = busy || !getGid();
-    if (!busy) elements.composer.focus();
+    composer.disabled = busy;
+    imagePickerOpen.disabled = busy || !getGid();
+    videoPickerOpen.disabled = busy || !getGid();
+    if (!busy) composer.focus();
   }
 
   // 发送公共骨架：加锁禁用 UI → 执行请求与成功回调 → 复位并聚焦。
@@ -61,12 +66,12 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
     }
     clearPendingAttachment();
     pendingAttachment = {kind, file, url: URL.createObjectURL(file)};
-    elements.composerAttachmentPreview.src = isImage ? pendingAttachment.url : "";
-    elements.composerAttachmentPreview.hidden = !isImage;
-    elements.composerAttachmentPreviewVideo.src = isImage ? "" : pendingAttachment.url;
-    elements.composerAttachmentPreviewVideo.hidden = isImage;
-    elements.composerAttachment.hidden = false;
-    elements.composerAttachment.focus();
+    composerAttachmentPreview.src = isImage ? pendingAttachment.url : "";
+    composerAttachmentPreview.hidden = !isImage;
+    composerAttachmentPreviewVideo.src = isImage ? "" : pendingAttachment.url;
+    composerAttachmentPreviewVideo.hidden = isImage;
+    composerAttachment.hidden = false;
+    composerAttachment.focus();
     setComposerHint(isImage ? "按下 Enter 发送图片" : "按下 Enter 发送视频");
   }
 
@@ -75,16 +80,16 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
       URL.revokeObjectURL(pendingAttachment.url);
     }
     pendingAttachment = null;
-    elements.composerAttachment.hidden = true;
-    elements.composerAttachmentPreview.src = "";
-    elements.composerAttachmentPreview.hidden = false;
-    elements.composerAttachmentPreviewVideo.src = "";
-    elements.composerAttachmentPreviewVideo.hidden = true;
-    if (elements.imageInput.value) {
-      elements.imageInput.value = "";
+    composerAttachment.hidden = true;
+    composerAttachmentPreview.src = "";
+    composerAttachmentPreview.hidden = false;
+    composerAttachmentPreviewVideo.src = "";
+    composerAttachmentPreviewVideo.hidden = true;
+    if (imageInput.value) {
+      imageInput.value = "";
     }
-    if (elements.videoInput.value) {
-      elements.videoInput.value = "";
+    if (videoInput.value) {
+      videoInput.value = "";
     }
   }
 
@@ -113,7 +118,7 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
     }
     const gid = getGid();
     if (sending || !gid) return;
-    const content = elements.composer.value.trim();
+    const content = composer.value.trim();
     if (!content) return;
     await send(async () => {
       await fetchJson("/chat/messages/send", {
@@ -121,20 +126,20 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
         body: new URLSearchParams({gid: String(gid), content})
       });
-      elements.composer.value = "";
+      composer.value = "";
       onSent(gid);
       await onRefresh(gid);
       setComposerHint(HINT_DEFAULT);
     }, "消息发送失败，请稍后重试。");
   }
 
-  elements.composer.addEventListener("keydown", event => {
+  composer.addEventListener("keydown", event => {
     if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) { event.preventDefault(); sendMessage(); }
   });
-  elements.composerAttachment.addEventListener("keydown", event => {
+  composerAttachment.addEventListener("keydown", event => {
     if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.metaKey) { event.preventDefault(); sendMessage(); }
   });
-  elements.composer.addEventListener("input", () => {
+  composer.addEventListener("input", () => {
     if (hintLevel !== "sending") setComposerHint(HINT_DEFAULT);
   });
   const handlePaste = event => {
@@ -144,13 +149,13 @@ export function createComposer({elements, getGid, onRefresh, onSent}) {
       if (item.kind === "file" && item.type.startsWith("video/")) { event.preventDefault(); setPendingAttachment("video", item.getAsFile()); return; }
     }
   };
-  elements.composer.addEventListener("paste", handlePaste);
-  elements.composerAttachment.addEventListener("paste", handlePaste);
-  elements.imagePickerOpen.addEventListener("click", () => elements.imageInput.click());
-  elements.imageInput.addEventListener("change", () => elements.imageInput.files?.[0] && setPendingAttachment("image", elements.imageInput.files[0]));
-  elements.videoPickerOpen.addEventListener("click", () => elements.videoInput.click());
-  elements.videoInput.addEventListener("change", () => elements.videoInput.files?.[0] && setPendingAttachment("video", elements.videoInput.files[0]));
-  elements.composerAttachmentRemove.addEventListener("click", clearPendingAttachment);
+  composer.addEventListener("paste", handlePaste);
+  composerAttachment.addEventListener("paste", handlePaste);
+  imagePickerOpen.addEventListener("click", () => imageInput.click());
+  imageInput.addEventListener("change", () => imageInput.files?.[0] && setPendingAttachment("image", imageInput.files[0]));
+  videoPickerOpen.addEventListener("click", () => videoInput.click());
+  videoInput.addEventListener("change", () => videoInput.files?.[0] && setPendingAttachment("video", videoInput.files[0]));
+  composerAttachmentRemove.addEventListener("click", clearPendingAttachment);
   // JS 运行后提示文案以这里为唯一来源；HTML 里的初始文案只是未加载时的兜底
   setComposerHint(HINT_DEFAULT);
   return {sendMessage, clearPendingAttachment, setPendingAttachment};

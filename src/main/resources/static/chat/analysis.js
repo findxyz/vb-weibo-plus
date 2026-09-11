@@ -1,4 +1,11 @@
-export function createAnalysis({elements, fetchJson, localDateValue}) {
+export function createAnalysis({
+  elements: {
+    analysisDialog, analysisOpen, analysisClose, analysisTitle, analysisForm,
+    analysisDate, analysisPrompt, analysisSubmit, analysisBack, analysisDownload,
+    analysisEmpty, analysisFeedback, analysisResults, analysisList, analysisPageState,
+    analysisPrev, analysisNext, analysisDetail, analysisDetailMeta, analysisDetailContent
+  },
+  fetchJson, localDateValue}) {
   const state = {
     gid: null,
     page: 1,
@@ -31,17 +38,17 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
 
   function resetView() {
     state.currentView = null;
-    elements.analysisList.replaceChildren();
-    elements.analysisPageState.textContent = "";
-    elements.analysisResults.hidden = true;
-    elements.analysisDetail.hidden = true;
-    elements.analysisEmpty.hidden = false;
-    elements.analysisEmpty.textContent = "设置分析条件后点击分析";
-    elements.analysisFeedback.textContent = "";
-    elements.analysisSubmit.disabled = false;
-    elements.analysisSubmit.textContent = "🤖 分析";
-    elements.analysisBack.disabled = false;
-    elements.analysisDownload.disabled = true;
+    analysisList.replaceChildren();
+    analysisPageState.textContent = "";
+    analysisResults.hidden = true;
+    analysisDetail.hidden = true;
+    analysisEmpty.hidden = false;
+    analysisEmpty.textContent = "设置分析条件后点击分析";
+    analysisFeedback.textContent = "";
+    analysisSubmit.disabled = false;
+    analysisSubmit.textContent = "🤖 分析";
+    analysisBack.disabled = false;
+    analysisDownload.disabled = true;
   }
 
   function resetForOpen() {
@@ -49,8 +56,8 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     state.sessionVersion += 1;
     state.page = 1;
     state.total = 0;
-    elements.analysisDate.value = localDateValue(new Date());
-    elements.analysisPrompt.value = "请总结今天群聊的主要讨论话题和参与者";
+    analysisDate.value = localDateValue(new Date());
+    analysisPrompt.value = "请总结今天群聊的主要讨论话题和参与者";
     resetView();
   }
 
@@ -96,7 +103,7 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
   }
 
   function renderMeta(view) {
-    const meta = elements.analysisDetailMeta;
+    const meta = analysisDetailMeta;
     meta.replaceChildren();
     const fields = [
       {label: "分析日期", value: view.date},
@@ -147,7 +154,7 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
   }
 
   function renderResults(items, sessionVersion) {
-    elements.analysisList.replaceChildren(...items.map(item => {
+    analysisList.replaceChildren(...items.map(item => {
       const row = document.createElement("button");
       row.className = "analysis-item";
       row.type = "button";
@@ -169,14 +176,14 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
       return row;
     }));
     const pageCount = Math.max(1, Math.ceil(state.total / state.size));
-    elements.analysisPageState.textContent =
+    analysisPageState.textContent =
       `第 ${state.page} / ${pageCount} 页，共 ${state.total} 条`;
-    elements.analysisPrev.disabled = state.page <= 1;
-    elements.analysisNext.disabled = state.page >= pageCount;
-    elements.analysisEmpty.hidden = true;
-    elements.analysisDetail.hidden = true;
-    elements.analysisResults.hidden = false;
-    elements.analysisList.scrollTop = 0;
+    analysisPrev.disabled = state.page <= 1;
+    analysisNext.disabled = state.page >= pageCount;
+    analysisEmpty.hidden = true;
+    analysisDetail.hidden = true;
+    analysisResults.hidden = false;
+    analysisList.scrollTop = 0;
   }
 
   async function queryList(page, sessionVersion = state.sessionVersion) {
@@ -184,43 +191,43 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     const params = new URLSearchParams({
       gid: String(state.gid), page: String(page), size: String(state.size)
     });
-    elements.analysisEmpty.hidden = true;
-    elements.analysisDetail.hidden = true;
+    analysisEmpty.hidden = true;
+    analysisDetail.hidden = true;
     try {
       const result = await fetchJson(`/chat/analyses?${params}`, {cache: "no-store"});
       if (!isCurrent(sessionVersion, operationVersion)) return;
       state.page = result.page;
       state.total = result.total;
       renderResults(result.items, sessionVersion);
-      elements.analysisFeedback.textContent = result.items.length ? "" : "暂无历史分析记录。";
+      analysisFeedback.textContent = result.items.length ? "" : "暂无历史分析记录。";
     } catch {
       if (!isCurrent(sessionVersion, operationVersion)) return;
-      elements.analysisResults.hidden = true;
-      elements.analysisFeedback.textContent = "查询历史分析失败，请稍后重试。";
+      analysisResults.hidden = true;
+      analysisFeedback.textContent = "查询历史分析失败，请稍后重试。";
     }
   }
 
   async function loadDetail(id, sessionVersion = state.sessionVersion) {
     const operationVersion = ++state.operationVersion;
-    elements.analysisResults.hidden = true;
-    elements.analysisDetail.hidden = false;
-    elements.analysisBack.disabled = false;
-    elements.analysisFeedback.textContent = "";
-    elements.analysisDetailMeta.hidden = true;
-    elements.analysisDownload.disabled = true;
-    elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在加载…</div>';
+    analysisResults.hidden = true;
+    analysisDetail.hidden = false;
+    analysisBack.disabled = false;
+    analysisFeedback.textContent = "";
+    analysisDetailMeta.hidden = true;
+    analysisDownload.disabled = true;
+    analysisDetailContent.innerHTML = '<div class="analysis-pending">正在加载…</div>';
     try {
       await ensureMarkdownLibs();
       const result = await fetchJson(`/chat/analyses/${id}`, {cache: "no-store"});
       if (!isCurrent(sessionVersion, operationVersion)) return;
       state.currentView = result;
       renderMeta(result);
-      elements.analysisDownload.disabled = false;
-      elements.analysisDetailContent.innerHTML = renderMarkdown(result.result);
-      elements.analysisDetailContent.scrollTop = 0;
+      analysisDownload.disabled = false;
+      analysisDetailContent.innerHTML = renderMarkdown(result.result);
+      analysisDetailContent.scrollTop = 0;
     } catch {
       if (!isCurrent(sessionVersion, operationVersion)) return;
-      elements.analysisFeedback.textContent = "加载分析详情失败。";
+      analysisFeedback.textContent = "加载分析详情失败。";
     }
   }
 
@@ -239,22 +246,22 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     const sessionVersion = state.sessionVersion;
     const operationVersion = ++state.operationVersion;
     state.controller = new AbortController();
-    elements.analysisSubmit.disabled = true;
-    elements.analysisSubmit.textContent = "分析中…";
-    elements.analysisBack.disabled = true;
-    elements.analysisEmpty.hidden = true;
-    elements.analysisResults.hidden = true;
-    elements.analysisDetail.hidden = false;
-    elements.analysisDetailMeta.hidden = true;
-    elements.analysisDownload.disabled = true;
-    elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在分析，请稍候…</div>';
-    elements.analysisFeedback.textContent = "";
+    analysisSubmit.disabled = true;
+    analysisSubmit.textContent = "分析中…";
+    analysisBack.disabled = true;
+    analysisEmpty.hidden = true;
+    analysisResults.hidden = true;
+    analysisDetail.hidden = false;
+    analysisDetailMeta.hidden = true;
+    analysisDownload.disabled = true;
+    analysisDetailContent.innerHTML = '<div class="analysis-pending">正在分析，请稍候…</div>';
+    analysisFeedback.textContent = "";
     let streamed = "";
     let renderScheduled = false;
     const renderStream = () => {
       if (!isCurrent(sessionVersion, operationVersion)) return;
-      elements.analysisDetailContent.innerHTML = renderMarkdown(streamed);
-      elements.analysisDetailContent.scrollTop = elements.analysisDetailContent.scrollHeight;
+      analysisDetailContent.innerHTML = renderMarkdown(streamed);
+      analysisDetailContent.scrollTop = analysisDetailContent.scrollHeight;
     };
     const scheduleRender = () => {
       if (renderScheduled || !isCurrent(sessionVersion, operationVersion)) return;
@@ -269,8 +276,8 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
       // 库未就绪时在这里等待，按钮已处于「分析中…」禁用态，用户可感知
       await ensureMarkdownLibs();
       const params = new URLSearchParams({
-        gid: String(state.gid), date: elements.analysisDate.value,
-        prompt: elements.analysisPrompt.value
+        gid: String(state.gid), date: analysisDate.value,
+        prompt: analysisPrompt.value
       });
       const response = await fetch("/chat/analyses/stream", {
         method: "POST",
@@ -313,41 +320,41 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
         renderScheduled = false;
         state.currentView = doneView;
         renderMeta(doneView);
-        elements.analysisDownload.disabled = false;
-        elements.analysisDetailContent.innerHTML = renderMarkdown(doneView.result);
-        elements.analysisDetailContent.scrollTop = 0;
+        analysisDownload.disabled = false;
+        analysisDetailContent.innerHTML = renderMarkdown(doneView.result);
+        analysisDetailContent.scrollTop = 0;
       } else {
-        elements.analysisFeedback.textContent = "分析完成。";
+        analysisFeedback.textContent = "分析完成。";
         renderStream();
       }
     } catch (error) {
       if (!isCurrent(sessionVersion, operationVersion)) return;
-      elements.analysisResults.hidden = true;
-      elements.analysisDetail.hidden = false;
+      analysisResults.hidden = true;
+      analysisDetail.hidden = false;
       const notice = document.createElement("div");
       notice.className = "analysis-error";
       notice.textContent = `分析失败：${friendlyErrorMessage(error.message)}`;
-      elements.analysisDetailContent.replaceChildren(notice);
+      analysisDetailContent.replaceChildren(notice);
     } finally {
       if (!isCurrent(sessionVersion, operationVersion)) return;
       state.reader = null;
       state.controller = null;
-      elements.analysisSubmit.disabled = false;
-      elements.analysisSubmit.textContent = "🤖 分析";
-      elements.analysisBack.disabled = false;
+      analysisSubmit.disabled = false;
+      analysisSubmit.textContent = "🤖 分析";
+      analysisBack.disabled = false;
     }
   }
 
   function close() {
     cancelOperation();
     state.sessionVersion += 1;
-    if (elements.analysisDialog.open) elements.analysisDialog.close();
+    if (analysisDialog.open) analysisDialog.close();
   }
 
   function open() {
     if (!state.gid) return;
     resetForOpen();
-    elements.analysisDialog.showModal();
+    analysisDialog.showModal();
     queryList(1);
     // 预热 markdown 库：用户填提示词的功夫多半已加载完成
     ensureMarkdownLibs().catch(() => {});
@@ -357,27 +364,27 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     cancelOperation();
     state.sessionVersion += 1;
     state.gid = group.gid;
-    elements.analysisTitle.textContent = `群聊分析 - ${group.name || `群聊 ${group.gid}`}`;
-    elements.analysisOpen.disabled = false;
+    analysisTitle.textContent = `群聊分析 - ${group.name || `群聊 ${group.gid}`}`;
+    analysisOpen.disabled = false;
   }
 
-  elements.analysisOpen.addEventListener("click", open);
-  elements.analysisClose.addEventListener("click", close);
-  elements.analysisForm.addEventListener("submit", event => {
+  analysisOpen.addEventListener("click", open);
+  analysisClose.addEventListener("click", close);
+  analysisForm.addEventListener("submit", event => {
     event.preventDefault();
     submit();
   });
-  elements.analysisPrev.addEventListener("click", () => queryList(state.page - 1));
-  elements.analysisNext.addEventListener("click", () => queryList(state.page + 1));
-  elements.analysisBack.addEventListener("click", () => {
+  analysisPrev.addEventListener("click", () => queryList(state.page - 1));
+  analysisNext.addEventListener("click", () => queryList(state.page + 1));
+  analysisBack.addEventListener("click", () => {
     cancelOperation();
     state.currentView = null;
-    elements.analysisDetail.hidden = true;
-    elements.analysisFeedback.textContent = "";
-    elements.analysisResults.hidden = false;
+    analysisDetail.hidden = true;
+    analysisFeedback.textContent = "";
+    analysisResults.hidden = false;
     queryList(state.page);
   });
-  elements.analysisDownload.addEventListener("click", () => {
+  analysisDownload.addEventListener("click", () => {
     if (!state.currentView) return;
     const view = state.currentView;
     const header = `# 群聊分析报告\n\n- 分析日期：${view.date}\n- 分析条数：${view.messageCount} 条\n- 分析时间：${view.createdAt}\n- 提示词：${view.prompt}\n\n---\n\n`;

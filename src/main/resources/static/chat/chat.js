@@ -35,7 +35,7 @@ function bootstrap() {
     attitudesToggle: document.querySelector("#attitudes-toggle"),
     emojiPickerOpen: document.querySelector("#emoji-picker-open"), emojiPanel: document.querySelector("#emoji-panel"),
     emojiPanelGrid: document.querySelector("#emoji-panel-grid"), historyDialog: document.querySelector("#history-dialog"),
-    historyClose: document.querySelector("#history-close"),
+    historyClose: document.querySelector("#history-close"), historyTitle: document.querySelector("#history-title"),
     historyForm: document.querySelector("#history-form"), historyStart: document.querySelector("#history-start"),
     historyEnd: document.querySelector("#history-end"), historySender: document.querySelector("#history-sender"),
     historyKeyword: document.querySelector("#history-keyword"), historyEmpty: document.querySelector("#history-empty"),
@@ -87,6 +87,8 @@ function bootstrap() {
     celebration.seed(gid, messages);
     loadAttitudes(gid, messages);
   }
+  // 各工厂只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
+  const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
   const messageView = createMessageView({
     imageViewer: elements.imageViewer, imageViewerImage: elements.imageViewerImage,
     imageViewerState: elements.imageViewerState, getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
@@ -94,7 +96,8 @@ function bootstrap() {
     onSenderClick: (...args) => celebration.openPopover(...args)
   });
   const conversation = createConversationSession({
-    elements, messageView, fetchJson, compareMessages, captureScrollAnchor, restoreScrollAnchor,
+    elements: pickElements("messages", "newMessages"),
+    messageView, fetchJson, compareMessages, captureScrollAnchor, restoreScrollAnchor,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
     onInitialMessages: seedCelebrationAndAttitudes,
     onEarlierMessages: seedCelebrationAndAttitudes,
@@ -103,18 +106,33 @@ function bootstrap() {
       loadAttitudes(gid, messages);
     }
   });
-  const analysis = createAnalysis({elements, fetchJson, localDateValue});
+  const analysis = createAnalysis({
+    elements: pickElements(
+      "analysisDialog", "analysisOpen", "analysisClose", "analysisTitle", "analysisForm",
+      "analysisDate", "analysisPrompt", "analysisSubmit", "analysisBack", "analysisDownload",
+      "analysisEmpty", "analysisFeedback", "analysisResults", "analysisList", "analysisPageState",
+      "analysisPrev", "analysisNext", "analysisDetail", "analysisDetailMeta", "analysisDetailContent"),
+    fetchJson, localDateValue});
   celebration = createCelebration({
-    elements, messageView, getCurrentGid: () => state.currentGid,
+    elements: pickElements(
+      "celebrationRoster", "celebrationStage", "celebrationInterval", "celebrationPopover",
+      "celebrationPopoverTitle", "celebrationPopoverJoin", "celebrationPopoverRemove",
+      "celebrationPopoverClose"),
+    messageView, getCurrentGid: () => state.currentGid,
     getMessages: () => conversation.getMessagesSnapshot(), compareMessages
   });
   const composer = createComposer({
-    elements, getGid: () => state.currentGid,
+    elements: pickElements(
+      "composer", "composerHint", "imagePickerOpen", "imageInput", "videoPickerOpen",
+      "videoInput", "composerAttachment", "composerAttachmentPreview",
+      "composerAttachmentPreviewVideo", "composerAttachmentRemove"),
+    getGid: () => state.currentGid,
     onRefresh: gid => conversation.refreshAfterSend(gid),
     onSent: gid => conversation.followLatest(gid)
   });
   const groupList = createGroupList({
-    elements, messageView, fetchJson,
+    elements: pickElements("groupSearch", "groupsCount", "groupsList"),
+    messageView, fetchJson,
     getCurrentGid: () => state.currentGid, onSelect: selectGroup,
     onGroupsChanged: groups => {
       const current = groups.find(item => item.gid === state.currentGid);
@@ -123,7 +141,13 @@ function bootstrap() {
     }
   });
   const history = createHistory({
-    elements, fetchJson, localDateValue, calendarMonthsAgo,
+    elements: pickElements(
+      "historyDialog", "historyOpen", "historyClose", "historyBack", "historyForm",
+      "historyKeyword", "historySender", "historyStart", "historyEnd", "historySync",
+      "historySyncTime", "historyTitle", "historyMessages", "historyEmpty", "historyFeedback",
+      "historyPageState", "historyNewerState", "historyEarlierState", "historyPrevious",
+      "historyNext", "historyResults", "historyResultsList", "historyContext"),
+    fetchJson, localDateValue, calendarMonthsAgo,
     pageSize: PAGE_SIZE, searchPageSize: HISTORY_SEARCH_PAGE_SIZE, earlierLoadThreshold: 120,
     compareMessages, captureScrollAnchor, restoreScrollAnchor, messageView, formatDateTime,
     mediaTypes: MEDIA_TYPE, redPacketText: RED_PACKET_TEXT
