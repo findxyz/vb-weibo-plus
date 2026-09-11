@@ -1,7 +1,8 @@
+import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
+import {fetchJson} from "../shared/fetch.js";
 import {
   captureScrollAnchor,
   compareMessages,
-  fetchJson,
   restoreScrollAnchor
 } from "./chat-common.js";
 import {createMessageView} from "./message-view.js";
@@ -130,17 +131,6 @@ function bootstrap() {
     popoverClose: elements.dreamPopoverClose,
     dialog: elements.dreamDialog, frame: elements.dreamFrame, closeButton: elements.dreamClose
   });
-
-  function localDateValue(date) {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  }
-
-  function calendarMonthsAgo(date, months) {
-    const result = new Date(date); const day = result.getDate();
-    result.setDate(1); result.setMonth(result.getMonth() - months);
-    result.setDate(Math.min(day, new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()));
-    return result;
-  }
 
   const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
     month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false

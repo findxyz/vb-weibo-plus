@@ -1,9 +1,3 @@
-export async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-}
-
 export function compareMessages(left, right) {
   return left.createdAt - right.createdAt || left.mid - right.mid;
 }
