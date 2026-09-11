@@ -820,6 +820,25 @@ import {appendHighlightedText} from "../shared/highlight.js";
     return content;
   }
 
+  // 纵深防御：content 已是后端清洗过的安全内容，这里在解析后的 DOM 树上
+  // 再做一次白名单清理——移除脚本类元素、on* 事件属性与 javascript: 链接，
+  // 正常微博正文（表情图、链接、@提及）渲染结果不受影响
+  function sanitizeContentTree(root) {
+    for (const el of root.querySelectorAll("script, iframe, style, object, embed")) {
+      el.remove();
+    }
+    for (const el of root.querySelectorAll("*")) {
+      for (const attr of [...el.attributes]) {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith("on")) {
+          el.removeAttribute(attr.name);
+        } else if (name === "href" && /^\s*javascript:/i.test(attr.value)) {
+          el.removeAttribute(attr.name);
+        }
+      }
+    }
+  }
+
   function renderContent(html) {
     if (!html) return "";
     // content 字段是微博富文本 HTML，已是后端处理后的安全内容；
@@ -827,6 +846,7 @@ import {appendHighlightedText} from "../shared/highlight.js";
     // 协议相对地址补全 https，并让所有链接在新窗口打开；
     // 纯文本里的 http/https 地址自动转为可点击链接
     const doc = new DOMParser().parseFromString(html, "text/html");
+    sanitizeContentTree(doc.body);
     linkifyUrls(doc.body);
     linkifyMentions(doc.body);
     for (const a of doc.querySelectorAll("a")) {
