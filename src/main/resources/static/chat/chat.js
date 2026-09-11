@@ -30,7 +30,7 @@ function bootstrap() {
     currentGroup: document.querySelector("#current-group"), currentSize: document.querySelector("#current-size"),
     currentId: document.querySelector("#current-id"), currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"), newMessages: document.querySelector("#new-messages"),
-    followIndicator: document.querySelector("#follow-indicator"), historyOpen: document.querySelector("#history-open"),
+    historyOpen: document.querySelector("#history-open"),
     attitudesToggle: document.querySelector("#attitudes-toggle"),
     emojiPickerOpen: document.querySelector("#emoji-picker-open"), emojiPanel: document.querySelector("#emoji-panel"),
     emojiPanelGrid: document.querySelector("#emoji-panel-grid"), historyDialog: document.querySelector("#history-dialog"),
@@ -315,6 +315,7 @@ function bootstrap() {
   document.addEventListener("click", event => { if (!elements.emojiPanel.hidden && !elements.emojiPanel.contains(event.target) && !elements.emojiPickerOpen.contains(event.target)) toggleEmojiPanel(false); });
   document.addEventListener("keydown", event => { if (event.key === "Escape" && !elements.emojiPanel.hidden) toggleEmojiPanel(false); });
   window.addEventListener("focus", refreshView);
+  window.addEventListener("blur", () => conversation.markAway());
   document.addEventListener("visibilitychange", () => { if (document.hidden) conversation.markAway(); else refreshView(); });
   setInterval(refreshView, 3_000);
   elements.windowToggle.addEventListener("click", () => { location.href = "/post/index.html"; });

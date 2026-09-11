@@ -21,7 +21,6 @@ export function createConversationSession({
   let refreshing = false;
   let switchingGroup = false;
   let loadingEarlier = false;
-  let scrollScheduled = false;
 
   // 滑动窗口：DOM 只保留视口附近的消息，其余区间用占位高度撑起滚动条。
   // 数据始终完整留在 messages Map 里，被回收的消息滚回视口时会重新渲染。
@@ -142,10 +141,6 @@ export function createConversationSession({
 
   function setFollowing(value) {
     followingLatest = value;
-    elements.followIndicator.classList.toggle("paused", !value);
-    elements.followIndicator.setAttribute("aria-label", value
-      ? "正在跟随最新消息"
-      : "已暂停跟随最新消息，新消息不会自动滚动");
   }
 
   function isNearBottom() {
@@ -154,8 +149,7 @@ export function createConversationSession({
       - elements.messages.clientHeight < 80;
   }
 
-  function scrollToBottom(force = false) {
-    if (!force && !followingLatest) return;
+  function scrollToBottom() {
     // 未跟随时窗口可能停在更早位置，滚底前先把最新消息渲染出来
     const ordered = getOrdered();
     if (ordered.length && windowEndIdx !== ordered.length - 1) {
@@ -166,7 +160,7 @@ export function createConversationSession({
     elements.messages.scrollTop = elements.messages.scrollHeight;
   }
 
-  function renderMessages(forceFollow = false) {
+  function renderMessages() {
     const ordered = getOrdered();
     if (!ordered.length) {
       invalidateWindow();
@@ -176,9 +170,11 @@ export function createConversationSession({
     const [start, end] = resolveWindow(ordered);
     const renderGid = currentGid();
     const renderVersion = version;
-    const onLoad = () => {
+    // 媒体加载完成不再回底：仅当视口本来就贴着底部时才重新贴住，
+    // 防止停在底部时上方图片撑高把视口顶漂移，阅读历史时绝不移动视口。
+    const onMediaLoad = () => {
       if (currentGid() !== renderGid || version !== renderVersion) return;
-      scrollToBottom(forceFollow);
+      if (isNearBottom()) scrollToBottom();
     };
     let aboveSum = 0;
     for (let i = 0; i < start; i++) aboveSum += estimateHeight(ordered[i]);
@@ -198,7 +194,7 @@ export function createConversationSession({
     for (let i = start; i <= end; i++) {
       const message = ordered[i];
       let element = existingByMid.get(message.mid);
-      if (!element) element = messageView.messageElement(message, null, onLoad, renderGid);
+      if (!element) element = messageView.messageElement(message, null, onMediaLoad, renderGid);
       if (element !== previous.nextElementSibling) previous.after(element);
       previous = element;
     }
@@ -261,10 +257,10 @@ export function createConversationSession({
         // 新拉到的更早消息直接进入窗口顶部，保持向上翻历史时新内容可见
         windowStartIdx = 0;
       }
-      renderMessages(latestPage);
+      renderMessages();
       if (latestPage) {
         setFollowing(true);
-        scrollToBottom(true);
+        scrollToBottom();
         onInitialMessages(gid, result.items);
       } else {
         restoreScrollAnchor(anchor, elements.messages);
@@ -312,7 +308,7 @@ export function createConversationSession({
         || result.nextAfterMid === null) break;
       cursor = {createdAt: result.nextAfterCreatedAt, mid: result.nextAfterMid};
     }
-    if (added && !followingLatest) elements.newMessages.hidden = false;
+    if (added) elements.newMessages.hidden = false;
     return !document.hidden && currentGid() === gid && version === requestVersion;
   }
 
@@ -326,7 +322,6 @@ export function createConversationSession({
         if (await catchUp()) pendingCatchUp = false;
         return;
       }
-      const followedLatest = followingLatest && isNearBottom();
       const knownMids = new Set(messages.keys());
       const query = new URLSearchParams({gid: String(gid), size: String(pageSize)});
       const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
@@ -334,12 +329,9 @@ export function createConversationSession({
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
       if (fresh.length > 0) {
         appendNewer(fresh);
-        // 请求跨越切走时刻时，followedLatest 已过期，不得覆盖 markAway 的挂起
-        const resumeFollowing = !document.hidden && followedLatest;
-        setFollowing(resumeFollowing);
+        // 新消息一律只弹提示，不再自动贴底；由用户点击提示自行跳转。
         renderMessages();
-        if (resumeFollowing) scrollToBottom();
-        else elements.newMessages.hidden = false;
+        elements.newMessages.hidden = false;
         onNewMessages(gid, fresh);
       }
     } catch (error) {
@@ -515,17 +507,9 @@ export function createConversationSession({
   elements.newMessages.addEventListener("click", async () => {
     await refresh();
     setFollowing(true);
-    scrollToBottom(true);
+    scrollToBottom();
     elements.newMessages.hidden = true;
   });
-  new MutationObserver(() => {
-    if (scrollScheduled) return;
-    scrollScheduled = true;
-    requestAnimationFrame(() => {
-      scrollScheduled = false;
-      scrollToBottom();
-    });
-  }).observe(elements.messages, {childList: true, subtree: true});
   setFollowing(true);
 
   return {

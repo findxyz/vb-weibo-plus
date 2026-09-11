@@ -5,6 +5,7 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Response;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -942,7 +943,7 @@ class GroupChatPageTest {
         page.waitForRequest(
                 request -> request.url().contains("/chat/messages/send"),
                 () -> page.locator("#composer").press("Enter"));
-        // 新群用纯文本消息渲染，避免媒体加载的回底行为干扰跟随状态
+        // 新群用纯文本消息渲染，避免媒体加载噪声影响位置断言
         textOnlyGroup202.set(true);
         page.waitForResponse(
                 item -> item.url().contains("/chat/messages/cursor") && item.url().contains("gid=202"),
@@ -956,10 +957,8 @@ class GroupChatPageTest {
                   element.dispatchEvent(new Event("scroll"));
                 }
                 """);
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
 
         page.waitForResponse(item -> item.url().contains("/chat/messages/send"), () -> {});
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
         assertThat(page.locator("#messages")).not().containsText("切群前发送");
         page.close();
     }
@@ -1521,6 +1520,141 @@ class GroupChatPageTest {
     }
 
     @Test
+    void preserves_reading_position_after_switching_apps_without_hiding_the_page() {
+        try (Page page = openScrollableConversation()) {
+            double scrollTop = ((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue();
+
+            page.evaluate("window.dispatchEvent(new Event('blur'))");
+            Assertions.assertThat(page.evaluate("document.hidden")).isEqualTo(false);
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            assertReadingPositionPaused(page, scrollTop);
+        }
+    }
+
+    @Test
+    void preserves_reading_position_when_a_poll_finishes_after_returning_to_the_page() {
+        try (Page page = openScrollableConversation()) {
+            double scrollTop = ((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue();
+            page.evaluate("""
+                    () => {
+                      const original = window.fetch;
+                      window.fetch = async (input, init) => {
+                        const response = await original(input, init);
+                        if (String(input).includes('/chat/messages/cursor')) {
+                          await new Promise(resolve => { window.__releasePoll = resolve; });
+                        }
+                        return response;
+                      };
+                    }
+                    """);
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+            page.waitForFunction("typeof window.__releasePoll === 'function'");
+            page.evaluate("""
+                    () => {
+                      Object.defineProperty(document, 'hidden', {configurable: true, value: true});
+                      document.dispatchEvent(new Event('visibilitychange'));
+                      Object.defineProperty(document, 'hidden', {configurable: true, value: false});
+                      document.dispatchEvent(new Event('visibilitychange'));
+                      window.__releasePoll();
+                    }
+                    """);
+
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            assertReadingPositionPaused(page, scrollTop);
+        }
+    }
+
+    @Test
+    void keeps_reading_position_when_a_poll_returns_new_messages_while_reading() {
+        try (Page page = openScrollableConversation()) {
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = Math.max(0, element.scrollHeight * 0.25);
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            double scrollTop = ((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue();
+
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            assertReadingPositionPaused(page, scrollTop);
+        }
+    }
+
+    @Test
+    void shows_the_new_messages_button_instead_of_scrolling_when_following_the_latest() {
+        try (Page page = openScrollableConversation()) {
+            // 贴底跟随状态下轮询带回新消息：不再静默贴底滚动，只弹提示
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            assertThat(page.locator("#new-messages")).isVisible();
+        }
+    }
+
+    private Page openScrollableConversation() {
+        Page page = browser.newPage();
+        page.setViewportSize(1000, 400);
+        page.addInitScript("window.setInterval = () => 0;");
+        AtomicInteger requests = new AtomicInteger();
+        page.route("**/chat/messages/cursor?**", route -> route.fulfill(
+                new Route.FulfillOptions()
+                        .setContentType("application/json")
+                        .setBody(route.request().url().contains("afterCreatedAt")
+                                ? afterCursorMessagesJson(false, null, null, messageRangeJson(21, 21))
+                                : cursorMessagesJson(false, null, null,
+                                        messageRangeJson(1, requests.incrementAndGet() == 1 ? 20 : 21)))));
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#messages")).containsText("消息 20");
+        page.waitForFunction("""
+                () => {
+                  const element = document.querySelector('#messages');
+                  return element.scrollTop > 0
+                    && element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                }
+                """);
+        return page;
+    }
+
+    @Test
+    void preserves_reading_position_when_initial_media_loads_after_returning() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(1000, 400);
+            page.addInitScript("window.setInterval = () => 0;");
+            AtomicReference<Route> preview = new AtomicReference<>();
+            page.route("**/chat/media?gid=202&mid=4&variant=preview", preview::set);
+            page.navigate(baseUrl + "/chat/index.html");
+            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+            page.waitForCondition(() -> preview.get() != null);
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = 0;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            page.evaluate("window.dispatchEvent(new Event('blur'))");
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+
+            preview.get().resume();
+            page.waitForFunction("document.querySelector('[data-mid=\"4\"] .image-preview img').naturalHeight > 0");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+
+            Assertions.assertThat(((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue())
+                    .isCloseTo(0, Offset.offset(0.5));
+        }
+    }
+
+    private void assertReadingPositionPaused(Page page, double scrollTop) {
+        page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+        Assertions.assertThat(((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue())
+                .isCloseTo(scrollTop, Offset.offset(0.5));
+        assertThat(page.locator("#new-messages")).isVisible();
+    }
+
+    @Test
     void keeps_follow_paused_when_a_pending_earlier_load_resolves_while_hidden() {
         Page page = browser.newPage();
         // 掐掉 3 秒轮询定时器，让测试序列里的每个请求都可预测
@@ -1556,12 +1690,10 @@ class GroupChatPageTest {
                   element.dispatchEvent(new Event("scroll"));
                 }
                 """);
-        assertThat(page.locator("#follow-indicator")).not().hasClass(Pattern.compile("paused"));
 
         // 切走：跟随挂起
         page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: true})");
         page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
 
         // 放行被按住的响应：渲染与锚点恢复引发的滚动回调此刻才到来
         page.evaluate("() => { window.__releaseEarlier = true; }");
@@ -1573,8 +1705,7 @@ class GroupChatPageTest {
         page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
         assertThat(page.locator("#messages")).containsText("追平消息");
 
-        // 暂停必须保持：指示器不恢复、新消息按钮出现，跟随若被翻回则两者都不成立
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+        // 回来只弹提示：滚动位置不被贴底，新消息按钮出现
         assertThat(page.locator("#new-messages")).isVisible();
         page.close();
     }
@@ -1615,14 +1746,12 @@ class GroupChatPageTest {
                   element.dispatchEvent(new Event("scroll"));
                 }
                 """);
-        assertThat(page.locator("#follow-indicator")).not().hasClass(Pattern.compile("paused"));
         Object scrollTopBefore = page.locator("#messages").evaluate("element => element.scrollTop");
 
         // focus 事件驱动 refreshView 发起一次轮询，请求在途时切走
         page.evaluate("window.dispatchEvent(new Event('focus'))");
         page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: true})");
         page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
 
         // 放行被按住的轮询响应：新消息此刻才渲染
         page.evaluate("() => { window.__releasePoll = true; }");
@@ -1633,8 +1762,7 @@ class GroupChatPageTest {
         page.evaluate("Object.defineProperty(document, 'hidden', {configurable: true, value: false})");
         page.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
 
-        // 暂停必须保持：指示器不恢复、滚动位置不被贴底、新消息按钮出现
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
+        // 暂停必须保持：滚动位置不被贴底、新消息按钮出现
         Object scrollTopAfter = page.locator("#messages").evaluate("element => element.scrollTop");
         Assertions.assertThat(((Number) scrollTopAfter).doubleValue())
                 .isEqualTo(((Number) scrollTopBefore).doubleValue(), Offset.offset(0.5));
@@ -1676,7 +1804,6 @@ class GroupChatPageTest {
                   element.dispatchEvent(new Event("scroll"));
                 }
                 """);
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
 
         page.waitForResponse(
                 item -> item.url().contains("/chat/media") && item.url().contains("mid=4")
@@ -1685,7 +1812,6 @@ class GroupChatPageTest {
         page.waitForTimeout(200);
         Object scrollTop = page.locator("#messages").evaluate("element => element.scrollTop");
         Assertions.assertThat(((Number) scrollTop).doubleValue()).isCloseTo(0, Offset.offset(0.5));
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
         assertThat(page.locator("#messages")).not().containsText("分享图片");
         page.close();
     }
@@ -2032,24 +2158,6 @@ class GroupChatPageTest {
                 () -> page.locator("#composer").press("Enter"));
         page.waitForResponse(item -> item.url().contains("/chat/messages/cursor"), () -> {});
         assertThat(page.locator("#messages")).containsText("刚发出的消息");
-
-        // 消息滚动串联：上翻暂停跟随，回到底部恢复跟随
-        page.locator("#messages").evaluate("""
-                element => {
-                  element.style.height = "40px";
-                  element.scrollTop = 0;
-                  element.dispatchEvent(new Event("scroll"));
-                }
-                """);
-        assertThat(page.locator("#follow-indicator")).hasClass(Pattern.compile("paused"));
-        page.locator("#messages").evaluate("""
-                element => {
-                  element.style.height = "";
-                  element.scrollTop = element.scrollHeight;
-                  element.dispatchEvent(new Event("scroll"));
-                }
-                """);
-        assertThat(page.locator("#follow-indicator")).not().hasClass(Pattern.compile("paused"));
 
         // Return Celebration 串联：新消息命中名单后出现庆祝
         page.evaluate("window.dispatchEvent(new Event('focus'))");
