@@ -998,7 +998,7 @@
         const pics = document.createElement("div");
         pics.className = "post-retweet-pics";
         validRetweetPics.forEach((pic, index) => {
-          const picEl = createPicEl(pic, mblogId, "post-retweet-pic", "转发微博图片", "javascript:void(0)", false);
+          const picEl = createPicEl(pic, mblogId, "post-retweet-pic", "转发微博图片", pic.originalUrl || pic.thumbnailUrl, false);
           picEl.addEventListener("click", (e) => {
             e.preventDefault();
             openImageViewer(validRetweetPics, index);

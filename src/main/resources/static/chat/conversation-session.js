@@ -466,6 +466,7 @@ export function createConversationSession({
     version += 1;
     switchingGroup = true;
     messages.clear();
+    heightByMid.clear();
     orderedCache = null;
     invalidateWindow();
     beforeCursor = null;

@@ -14,8 +14,6 @@ import {createConversationSession} from "./conversation-session.js";
 import {createDream} from "./dream.js";
 
 function bootstrap() {
-  "use strict";
-
   const PAGE_SIZE = 50;
   const HISTORY_SEARCH_PAGE_SIZE = 20;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
@@ -34,7 +32,7 @@ function bootstrap() {
     attitudesToggle: document.querySelector("#attitudes-toggle"),
     emojiPickerOpen: document.querySelector("#emoji-picker-open"), emojiPanel: document.querySelector("#emoji-panel"),
     emojiPanelGrid: document.querySelector("#emoji-panel-grid"), historyDialog: document.querySelector("#history-dialog"),
-    historyClose: document.querySelector("#history-close"), historyTitle: document.querySelector("#history-title"),
+    historyClose: document.querySelector("#history-close"),
     historyForm: document.querySelector("#history-form"), historyStart: document.querySelector("#history-start"),
     historyEnd: document.querySelector("#history-end"), historySender: document.querySelector("#history-sender"),
     historyKeyword: document.querySelector("#history-keyword"), historyEmpty: document.querySelector("#history-empty"),
@@ -81,6 +79,11 @@ function bootstrap() {
   };
 
   let celebration;
+  // 首屏与向上翻页都是「垫高庆祝基线 + 补一次表态」，共用同一回调
+  function seedCelebrationAndAttitudes(gid, messages) {
+    celebration.seed(gid, messages);
+    loadAttitudes(gid, messages);
+  }
   const messageView = createMessageView({
     imageViewer: elements.imageViewer, imageViewerImage: elements.imageViewerImage,
     imageViewerState: elements.imageViewerState, getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
@@ -90,14 +93,8 @@ function bootstrap() {
   const conversation = createConversationSession({
     elements, messageView, fetchJson, compareMessages, captureScrollAnchor, restoreScrollAnchor,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
-    onInitialMessages: (gid, messages) => {
-      celebration.seed(gid, messages);
-      loadAttitudes(gid, messages);
-    },
-    onEarlierMessages: (gid, messages) => {
-      celebration.seed(gid, messages);
-      loadAttitudes(gid, messages);
-    },
+    onInitialMessages: seedCelebrationAndAttitudes,
+    onEarlierMessages: seedCelebrationAndAttitudes,
     onNewMessages: (gid, messages) => {
       celebration.process(gid, messages);
       loadAttitudes(gid, messages);
@@ -218,11 +215,11 @@ function bootstrap() {
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     elements.currentId.textContent = String(group.gid);
-    elements.historyTitle.textContent = `聊天记录 - ${group.name || `群聊 ${group.gid}`}`;
     elements.historyOpen.disabled = false; elements.emojiPickerOpen.disabled = false;
     elements.imagePickerOpen.disabled = false; elements.videoPickerOpen.disabled = false;
-    elements.currentAvatar.replaceWith(messageView.avatar(group, "main-group-avatar"));
-    elements.currentAvatar = document.querySelector(".main-group-avatar");
+    const avatarElement = messageView.avatar(group, "main-group-avatar");
+    elements.currentAvatar.replaceWith(avatarElement);
+    elements.currentAvatar = avatarElement;
     elements.appTitle.textContent = `微博群聊 - ${elements.currentGroup.textContent}`;
     document.title = elements.appTitle.textContent;
     updateCurrentGroupHeader();
@@ -323,8 +320,12 @@ function bootstrap() {
     elements.conversation.classList.toggle("immersive", enabled); elements.immersiveToggle.setAttribute("aria-pressed", String(enabled));
     const label = enabled ? "退出沉浸阅读" : "进入沉浸阅读"; elements.immersiveToggle.setAttribute("aria-label", label); elements.immersiveToggle.setAttribute("title", label);
   }
-  elements.immersiveToggle.addEventListener("click", () => { const enabled = !elements.conversation.classList.contains("immersive"); localStorage.setItem(IMMERSIVE_KEY, enabled ? "1" : "0"); applyImmersive(enabled); });
+  function setImmersive(enabled) {
+    localStorage.setItem(IMMERSIVE_KEY, enabled ? "1" : "0");
+    applyImmersive(enabled);
+  }
   applyImmersive(localStorage.getItem(IMMERSIVE_KEY) === "1");
+  elements.immersiveToggle.addEventListener("click", () => setImmersive(!elements.conversation.classList.contains("immersive")));
   applyAttitudesToggle();
   initialize(); checkLoginStatus();
 }
