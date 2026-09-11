@@ -4,10 +4,12 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] 全文件一行一个语句，无多语句挤压行
-- [ ] 标识符、逻辑、导出接口零变化
-- [ ] 与其它 chat 模块格式观感一致
+- [x] 全文件一行一个语句，无多语句挤压行
+- [x] 标识符、逻辑、导出接口零变化
+- [x] 与其它 chat 模块格式观感一致
 
 ## Comments
+
+- 提交 ffaad6d：history.js 整文件按其它 chat 模块的格式重排（一行一个语句、常规缩进与空行分组），纯格式化，导出接口与逻辑零变化；后续工单 08 又对签名做了元素解构收窄，见其工单记录。
