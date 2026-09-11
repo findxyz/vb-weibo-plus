@@ -54,6 +54,31 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     resetView();
   }
 
+  // marked 与 DOMPurify 改为首次打开分析弹窗时动态加载，首页不再预载；
+  // 加载失败时清空缓存 promise 允许下次重试，renderMarkdown 自身降级为纯文本
+  let markdownLibsPromise = null;
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error(`脚本加载失败：${src}`));
+      document.head.append(script);
+    });
+  }
+  function ensureMarkdownLibs() {
+    if (!markdownLibsPromise) {
+      markdownLibsPromise = Promise.all([
+        loadScript("marked.min.js"),
+        loadScript("dompurify.min.js")
+      ]).catch(error => {
+        markdownLibsPromise = null;
+        throw error;
+      });
+    }
+    return markdownLibsPromise;
+  }
+
   function renderMarkdown(text) {
     const html = window.marked ? window.marked.parse(text) : text;
     return window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
@@ -185,6 +210,7 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     elements.analysisDownload.disabled = true;
     elements.analysisDetailContent.innerHTML = '<div class="analysis-pending">正在加载…</div>';
     try {
+      await ensureMarkdownLibs();
       const result = await fetchJson(`/chat/analyses/${id}`, {cache: "no-store"});
       if (!isCurrent(sessionVersion, operationVersion)) return;
       state.currentView = result;
@@ -240,6 +266,8 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
       });
     };
     try {
+      // 库未就绪时在这里等待，按钮已处于「分析中…」禁用态，用户可感知
+      await ensureMarkdownLibs();
       const params = new URLSearchParams({
         gid: String(state.gid), date: elements.analysisDate.value,
         prompt: elements.analysisPrompt.value
@@ -321,6 +349,8 @@ export function createAnalysis({elements, fetchJson, localDateValue}) {
     resetForOpen();
     elements.analysisDialog.showModal();
     queryList(1);
+    // 预热 markdown 库：用户填提示词的功夫多半已加载完成
+    ensureMarkdownLibs().catch(() => {});
   }
 
   function setGroup(group) {

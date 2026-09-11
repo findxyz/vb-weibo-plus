@@ -498,12 +498,19 @@ export function createConversationSession({
     return Promise.resolve();
   }
 
+  // 滚动合帧：一帧内密集的 scroll 事件只做一次跟随判定、窗口滑动与更早消息加载，
+  // 消除滚动路径上逐帧多次的同步布局测量
+  let scrollFrame = 0;
   elements.messages.addEventListener("scroll", () => {
-    // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此恢复跟随
-    setFollowing(!document.hidden && isNearBottom());
-    if (followingLatest) elements.newMessages.hidden = true;
-    slideWindow();
-    loadEarlierIfNeeded();
+    if (scrollFrame) return;
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此恢复跟随
+      setFollowing(!document.hidden && isNearBottom());
+      if (followingLatest) elements.newMessages.hidden = true;
+      slideWindow();
+      loadEarlierIfNeeded();
+    });
   });
   elements.newMessages.addEventListener("click", async () => {
     await refresh();
