@@ -330,7 +330,7 @@ h1 {
 }
 
 .group-row.active {
-  background: linear-gradient(90deg, #ffffff, var(--active-to));
+  background: linear-gradient(90deg, var(--surface), var(--active-to));
   box-shadow: inset 4px 0 0 var(--amber);
 }
 
@@ -482,7 +482,7 @@ h1 {
   padding: 0 14px;
   border: 1px solid var(--tool-border);
   border-radius: var(--radius-sm);
-  background: linear-gradient(#ffffff, var(--tool-to));
+  background: linear-gradient(var(--surface), var(--tool-to));
 }
 
 .group-header {
