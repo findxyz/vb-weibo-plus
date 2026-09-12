@@ -13,6 +13,10 @@ export function createSearch({
   },
   state, handleApiError, dates, posts}) {
 
+  // 搜索请求序号：关闭弹窗不会取消在途搜索，重新打开时作废旧请求，
+  // 避免上一次的结果写进新弹窗
+  let searchVersion = 0;
+
   // 与后端 Asia/Shanghai 时区保持一致，避免本地时区导致日期错位
   function epochToDateStr(epochMillis) {
     const d = new Date(epochMillis + 8 * 3600 * 1000);
@@ -26,6 +30,8 @@ export function createSearch({
   }
 
   function openSearchDialog() {
+    searchVersion += 1;
+    state.searching = false;
     searchScopeTip.textContent = `在「${currentScopeLabel()}」范围内搜索。`;
     searchKeyword.value = "";
     // 首次打开填默认起止：起 2010-01-01 至今
@@ -53,6 +59,7 @@ export function createSearch({
     }
     state.searching = true;
     searchSubmit.disabled = true;
+    const version = ++searchVersion;
     showState(searchStatus, "搜索中…");
     searchResults.replaceChildren();
 
@@ -68,14 +75,19 @@ export function createSearch({
 
     try {
       const result = await fetchJson(`/post/list?${params}`);
+      if (version !== searchVersion) return;
       renderSearchResults(result, keyword);
     } catch (error) {
+      if (version !== searchVersion) return;
       if (handleApiError(error, (e) => showState(searchStatus, `搜索失败：${e.message}`))) {
         searchDialog.close();
       }
     } finally {
-      state.searching = false;
-      searchSubmit.disabled = false;
+      // 旧请求结束时不得解锁新弹窗的搜索状态
+      if (version === searchVersion) {
+        state.searching = false;
+        searchSubmit.disabled = false;
+      }
     }
   }
 

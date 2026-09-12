@@ -11,7 +11,8 @@ export function createPosts({
   state, handleApiError, openImageViewer}) {
 
   // 加载请求序号：快速切换博主/日期（含搜索跳转绕过 selectDate 守卫）时，
-  // 只有最新一轮请求允许落地，旧响应直接丢弃
+  // 只有最新一轮请求允许落地，旧响应直接丢弃；clear（博主切换的第一步）
+  // 主动作废在途响应并复位 loadingPosts，避免新博主的默认选中被旧请求卡住
   let loadVersion = 0;
 
   // 用户点选某日：加载在途时拒绝本次切换（返回 false，日期高亮保持原位），
@@ -420,8 +421,11 @@ export function createPosts({
     return actions;
   }
 
-  // 程序性清空列表与计数（博主切换时使用），不触碰选中日期等页面状态
+  // 程序性清空列表与计数（博主切换时使用），不触碰选中日期等页面状态；
+  // 同时作废在途加载并复位 loadingPosts，让随后的默认日期选中立即生效
   function clear() {
+    loadVersion += 1;
+    state.loadingPosts = false;
     posts.replaceChildren();
     setStatus("");
     feedCount.textContent = "";
