@@ -78,6 +78,13 @@ class GroupChatPageTest {
             return thread;
         }));
         server.createContext("/chat/groups", exchange -> {
+            // HttpServer 的 context 按字面量前缀匹配，/chat/groups.js 会落进本 context；
+            // 真实后端对这类非 API 路径回退到静态资源，mock 必须同口径，
+            // 否则模块脚本拿到 application/json 会被 MIME 检查拒绝，整个页面初始化失败
+            if (!exchange.getRequestURI().getPath().equals("/chat/groups")) {
+                sendStaticResource(exchange);
+                return;
+            }
             if (failGroups.get()) {
                 exchange.sendResponseHeaders(503, -1);
                 exchange.close();
@@ -1646,6 +1653,94 @@ class GroupChatPageTest {
 
             Assertions.assertThat(((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue())
                     .isCloseTo(0, Offset.offset(0.5));
+        }
+    }
+
+    @Test
+    void first_screen_holds_the_true_bottom_while_media_loads() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(1000, 400);
+            page.addInitScript("window.setInterval = () => 0;");
+            AtomicReference<Route> preview = new AtomicReference<>();
+            page.route("**/chat/media?gid=202&mid=4&variant=preview", preview::set);
+            page.navigate(baseUrl + "/chat/index.html");
+            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+            page.waitForCondition(() -> preview.get() != null);
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                    }
+                    """);
+
+            // 首屏贴底时按住图片不放；放行后图片撑高首屏，视口必须仍按在真底部
+            preview.get().resume();
+            page.waitForFunction("document.querySelector('[data-mid=\"4\"] .image-preview img').naturalHeight > 0");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+            Assertions.assertThat(((Number) page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight")).doubleValue())
+                    .isLessThan(1.0);
+        }
+    }
+
+    @Test
+    void wheel_input_releases_the_first_screen_pin_so_later_growth_never_scrolls() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(1000, 400);
+            page.addInitScript("window.setInterval = () => 0;");
+            AtomicReference<Route> preview = new AtomicReference<>();
+            page.route("**/chat/media?gid=202&mid=4&variant=preview", preview::set);
+            page.navigate(baseUrl + "/chat/index.html");
+            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+            page.waitForCondition(() -> preview.get() != null);
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                    }
+                    """);
+
+            // 停留在首屏底部时滚动滚轮：跳底收尾就此终结
+            page.locator("#messages").dispatchEvent("wheel");
+
+            // 放行图片：撑高只改变滚动条长度，视口不得被拽回底部
+            preview.get().resume();
+            page.waitForFunction("document.querySelector('[data-mid=\"4\"] .image-preview img').naturalHeight > 0");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+            Assertions.assertThat(((Number) page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight")).doubleValue())
+                    .isGreaterThan(1.0);
+        }
+    }
+
+    @Test
+    void scroll_bottom_button_jumps_to_the_true_bottom_and_hides_the_toast() {
+        try (Page page = openScrollableConversation()) {
+            // 上翻到顶部阅读：轮询带回消息 21 只弹提示，不移动视口
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = 0;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            assertThat(page.locator("#new-messages")).isVisible();
+
+            // 常驻滚底按钮与新消息提示同一动作：补刷新、跳真底部、收起提示
+            page.locator("#scroll-bottom").click();
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                    }
+                    """);
+            assertThat(page.locator("#new-messages")).isHidden();
+
+            // 常驻按钮位于表态按钮下方
+            double toggleY = page.locator("#attitudes-toggle").boundingBox().y;
+            double buttonY = page.locator("#scroll-bottom").boundingBox().y;
+            Assertions.assertThat(buttonY).isGreaterThan(toggleY);
         }
     }
 
