@@ -47,6 +47,9 @@ export function createSessions({
   let refreshing = false;
   let switchingGroup = false;
   let loadingEarlier = false;
+  // 首次打开的贴底窗口期：从首屏渲染完成起，到用户主动滚动（滚轮/触摸/点按）为止。
+  // 独立于 followingLatest——新消息到达会清跟随标记，但不得中断首屏图片的贴底补救。
+  let initialSettling = false;
 
   // 滑动窗口：DOM 只保留视口附近的消息，其余区间用占位高度撑起滚动条。
   // 数据始终完整留在 messages Map 里，被回收的消息滚回视口时会重新渲染。
@@ -196,11 +199,13 @@ export function createSessions({
     const [start, end] = resolveWindow(ordered);
     const renderGid = currentGid();
     const renderVersion = version;
-    // 媒体加载完成不再回底：仅当视口本来就贴着底部时才重新贴住，
-    // 防止停在底部时上方图片撑高把视口顶漂移，阅读历史时绝不移动视口。
+    // 媒体加载完成把内容撑高：首屏窗口期（initialSettling）或跟随最新时重新贴底，
+    // 其余时候绝不移动视口。不能靠 isNearBottom 判定——撑高发生在 load 事件之前，
+    // 视口已被顶离底部；也不能只靠 followingLatest——表态行等无 load 事件的 DOM
+    // 变化同样撑高，会先触发 scroll 事件把跟随标记清掉，后续媒体加载便不再贴底。
     const onMediaLoad = () => {
       if (currentGid() !== renderGid || version !== renderVersion) return;
-      if (isNearBottom()) scrollToBottom();
+      if (initialSettling || followingLatest) scrollToBottom();
     };
     let aboveSum = 0;
     for (let i = 0; i < start; i++) aboveSum += estimateHeight(ordered[i]);
@@ -253,6 +258,8 @@ export function createSessions({
         heightByMid.set(Number(mid), element.offsetHeight);
       }
     }
+    // 表态行插入同样撑高消息且无 load 事件，与媒体加载同一贴底口径
+    if (initialSettling || followingLatest) scrollToBottom();
   }
 
   // 当前窗口实际渲染的消息对象，供按需拉取表态等场景使用
@@ -292,6 +299,7 @@ export function createSessions({
       renderMessages();
       if (latestPage) {
         setFollowing(true);
+        initialSettling = true;
         scrollToBottom();
         onInitialMessages(gid, result.items);
       } else {
@@ -362,8 +370,10 @@ export function createSessions({
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
       if (fresh.length > 0) {
         appendNewer(fresh);
-        // 新消息一律只弹提示，不再自动贴底；由用户点击提示自行跳转。
+        // 除首次打开群聊外永不自动贴底：新消息保持视口原位置，弹提示由用户点击跳转。
+        // 视口已落后于最新消息，跟随标记一并清除，避免后续媒体加载把视口拽下去。
         renderMessages();
+        setFollowing(false);
         newMessagesElement.hidden = false;
         onNewMessages(gid, fresh);
       }
@@ -558,6 +568,12 @@ export function createSessions({
       }
     });
   });
+  // 首屏贴底窗口期只被用户主动滚动终结；程序性贴底不触发这些事件
+  for (const eventName of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+    messagesElement.addEventListener(eventName, () => {
+      initialSettling = false;
+    }, {passive: true});
+  }
   newMessagesElement.addEventListener("click", async () => {
     await refresh();
     setFollowing(true);
