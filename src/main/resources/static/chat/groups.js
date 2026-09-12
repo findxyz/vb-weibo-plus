@@ -1,7 +1,8 @@
+// 群聊列表：加载、关键字过滤与最新消息预览。
 import {fetchJson} from "../shared/fetch.js";
 
-export function createGroupList({elements: {groupSearch, groupsCount, groupsList},
-  messageView, getCurrentGid, onSelect, onGroupsChanged}) {
+export function createGroups({elements: {groupSearch, groupsCount, groupsList},
+  messageView, getCurrentGid, onSelect, onGroupsChanged, onAuthExpired}) {
   let groups = null;
   let refreshing = false;
   function groupPreview(group) {
@@ -75,7 +76,10 @@ export function createGroupList({elements: {groupSearch, groupsCount, groupsList
     refreshing = true;
     try {
       applyGroups(await fetchJson("/chat/groups", {cache: "no-store"}));
-    } catch (error) { console.warn("刷新群聊列表失败：", error); }
+    } catch (error) {
+      if (error.status === 401) onAuthExpired();
+      else console.warn("刷新群聊列表失败：", error);
+    }
     finally { refreshing = false; }
   }
   groupSearch.addEventListener("input", event => filter(event.target.value));

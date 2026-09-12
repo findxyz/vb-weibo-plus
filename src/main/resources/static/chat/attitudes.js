@@ -20,7 +20,7 @@ export function createAttitudes({
 
   // 开关打开时立即为当前可见窗口补一次表态，不等下一次查询
   function loadVisible() {
-    load(getCurrentGid(), getRenderedMessages());
+    void load(getCurrentGid(), getRenderedMessages());
   }
 
   async function load(gid, items) {

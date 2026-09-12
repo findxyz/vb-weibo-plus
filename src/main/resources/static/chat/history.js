@@ -1,7 +1,13 @@
 import {appendHighlightedText} from "../shared/highlight.js";
 import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
 import {fetchJson} from "../shared/fetch.js";
-import {MEDIA_TYPE, captureScrollAnchor, compareMessages, formatDateTime, restoreScrollAnchor} from "./chat-common.js";
+import {MEDIA_TYPE} from "./message-view.js";
+import {captureScrollAnchor, compareMessages, restoreScrollAnchor} from "./sessions.js";
+
+const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
+});
+function formatDateTime(timestamp) { return dateTimeFormatter.format(new Date(timestamp)); }
 
 // 红包消息的文本里带这句话，用于把 mediaType=13 从「视频」里区分出来
 const RED_PACKET_TEXT = "收到红包消息";
@@ -172,7 +178,9 @@ export function createHistory({
     }
   }
 
-  async function capture() {
+  // /chat/since 成功时返回 204 无响应体，fetchJson 的 response.json() 会解析失败，
+  // 这里必须用裸 fetch
+  async function requestHistorySync() {
     if (!state.gid) return;
     historyEmpty.hidden = true; historyResults.hidden = true; historyContext.hidden = true;
     const raw = historySyncTime.value;
@@ -180,8 +188,6 @@ export function createHistory({
     const version = ++state.requestVersion;
     try {
       const query = new URLSearchParams({gid: String(state.gid), sinceTime: `${raw} 00:00:00`});
-      // /chat/since 成功时返回 204 无响应体，fetchJson 的 response.json() 会解析失败，
-      // 这里必须用裸 fetch
       const response = await fetch(`/chat/since?${query}`, {method: "POST"});
       if (!response.ok) throw new Error();
       if (version === state.requestVersion) historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";
@@ -218,7 +224,7 @@ export function createHistory({
   });
   historyPrevious.addEventListener("click", () => query(state.page - 1));
   historyNext.addEventListener("click", () => query(state.page + 1));
-  historySync.addEventListener("click", capture);
+  historySync.addEventListener("click", requestHistorySync);
   historyBack.addEventListener("click", () => {
     state.requestVersion += 1;
     historyContext.hidden = true;
@@ -227,10 +233,13 @@ export function createHistory({
   });
   historyMessages.addEventListener("scroll", () => {
     if (historyMessages.scrollHeight <= historyMessages.clientHeight) return;
-    if (historyMessages.scrollTop <= earlierLoadThreshold) return loadMore("before");
+    if (historyMessages.scrollTop <= earlierLoadThreshold) {
+      void loadMore("before");
+      return;
+    }
     const distance = historyMessages.scrollHeight
       - historyMessages.scrollTop - historyMessages.clientHeight;
-    if (distance <= earlierLoadThreshold) loadMore("after");
+    if (distance <= earlierLoadThreshold) void loadMore("after");
   });
 
   return {open, close, setGroup};

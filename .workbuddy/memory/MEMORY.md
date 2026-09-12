@@ -10,3 +10,6 @@
 - post 页性能优化：.post-card 有 content-visibility: auto + contain-intrinsic-size: auto 300px；所有 img 有 decoding="async"；列表图用 thumbnailUrl（点击才加载 originalUrl，与 chat 页 previewUrl/originalUrl 模式一致）
 - 给元素设置 hidden 属性时，若该元素 CSS 里写了 display，必须补一条 [hidden] { display: none } 规则，否则 hidden 不生效
 - CSS 文件中的非 ASCII 字符（如 content 伪元素文本）必须用 Unicode 转义（如 \6765\81EA）或文件头加 @charset "UTF-8"：本项目 CSS 以无 charset 的 text/css 返回，浏览器默认按 Latin-1 解码会乱码
+- JS 文件命名用域名名词（sessions/groups/posts/dates/bloggers），不允许 common/helpers 杂货文件：通用工具按类型归 shared/（fetch/date/dom/popover/highlight/qr-login），页面级共享原语就近放域模块（如消息排序与滚动锚点在 chat/sessions.js），单一调用方的逻辑直接内联进调用方
+- 入口里工厂实例变量名 = 工厂名名词部分（posts = createPosts、sessions = createSessions、groups = createGroups）；返回值无需保存的工厂（createEmojiPanel/createDream）直接调用不赋值；注意别与 elements 上的同名 DOM 属性（如 elements.conversation）混淆
+- fire-and-forget 的 async 调用（不 await）一律写 `void xxx()` 标记有意不等待，消除 IDE「Promise returned is ignored」警告；前提是被调函数内部已 try/catch 不会 reject，否则 void 就是掩盖异常（规范九禁止）

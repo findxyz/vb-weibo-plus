@@ -1,14 +1,41 @@
+// 会话消息流：当前群的消息加载、滑动窗口与滚动跟随。
+// compareMessages 与滚动锚点是无状态原语，history（聊天记录）与 celebration（回归庆祝）
+// 直接 import 复用，全页对「消息顺序」只有这一种定义。
 import {fetchJson} from "../shared/fetch.js";
-import {captureScrollAnchor, compareMessages, restoreScrollAnchor} from "./chat-common.js";
 
-export function createConversationSession({
+export function compareMessages(left, right) {
+  return left.createdAt - right.createdAt || left.mid - right.mid;
+}
+
+export function captureScrollAnchor(container) {
+  const containerTop = container.getBoundingClientRect().top;
+  // 跳过没有消息的占位元素（如滑动窗口的顶部占位），否则贴顶时锚点会落空
+  const anchor = [...container.children].find(element =>
+    element.dataset.mid && element.getBoundingClientRect().bottom > containerTop);
+  if (!anchor) return null;
+  return {
+    mid: anchor.dataset.mid,
+    top: anchor.getBoundingClientRect().top
+  };
+}
+
+export function restoreScrollAnchor(anchor, container) {
+  if (!anchor) return;
+  const renderedAnchor = container.querySelector(`[data-mid="${anchor.mid}"]`);
+  if (renderedAnchor) {
+    container.scrollTop += renderedAnchor.getBoundingClientRect().top - anchor.top;
+  }
+}
+
+export function createSessions({
   elements: {messages: messagesElement, newMessages: newMessagesElement},
   messageView,
   pageSize,
   earlierLoadThreshold,
   onInitialMessages,
   onEarlierMessages,
-  onNewMessages
+  onNewMessages,
+  onAuthExpired
 }) {
   let group = null;
   let messages = new Map();
@@ -210,11 +237,17 @@ export function createConversationSession({
   // 未渲染消息只写缓存，重新进窗口时按缓存展示。
   function applyAttitudes(gid, result) {
     if (currentGid() !== gid) return;
+    // 先一次遍历收集已渲染元素，避免按 mid 逐个 querySelector
+    const renderedByMid = new Map();
+    for (const element of messagesElement.children) {
+      if (isSpacer(element) || !element.dataset.mid) continue;
+      renderedByMid.set(Number(element.dataset.mid), element);
+    }
     for (const [mid, attitudes] of Object.entries(result)) {
       const message = messages.get(Number(mid));
       if (!message) continue;
       message.attitudes = Array.isArray(attitudes) ? attitudes : [];
-      const element = messagesElement.querySelector(`[data-mid="${mid}"]`);
+      const element = renderedByMid.get(Number(mid));
       if (element) {
         messageView.updateAttitudes(element, message);
         heightByMid.set(Number(mid), element.offsetHeight);
@@ -266,7 +299,8 @@ export function createConversationSession({
         onEarlierMessages(gid, result.items);
       }
     } catch (error) {
-      console.warn("加载消息失败：", error);
+      if (error.status === 401) onAuthExpired();
+      else console.warn("加载消息失败：", error);
     }
   }
 
@@ -334,10 +368,11 @@ export function createConversationSession({
         onNewMessages(gid, fresh);
       }
     } catch (error) {
-      console.warn("刷新消息失败：", error);
+      if (error.status === 401) onAuthExpired();
+      else console.warn("刷新消息失败：", error);
     } finally {
       refreshing = false;
-      if (currentGid() === gid) loadEarlierIfNeeded();
+      if (currentGid() === gid) void loadEarlierIfNeeded();
     }
   }
 
@@ -507,7 +542,7 @@ export function createConversationSession({
     setFollowing(!document.hidden && isNearBottom());
     if (followingLatest) newMessagesElement.hidden = true;
     slideWindow();
-    loadEarlierIfNeeded();
+    void loadEarlierIfNeeded();
   }
   messagesElement.addEventListener("scroll", () => {
     if (trailingFrame) {

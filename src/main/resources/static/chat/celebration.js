@@ -1,5 +1,5 @@
 import {attachDismiss, positionPopover} from "../shared/popover.js";
-import {compareMessages} from "./chat-common.js";
+import {compareMessages} from "./sessions.js";
 
 export function createCelebration({
   elements: {

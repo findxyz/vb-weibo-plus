@@ -1,4 +1,9 @@
-import {MEDIA_TYPE, formatTime} from "./chat-common.js";
+export const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
+
+const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
+});
+function formatTime(timestamp) { return timeFormatter.format(new Date(timestamp)); }
 
 const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
 const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;

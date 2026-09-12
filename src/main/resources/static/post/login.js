@@ -1,7 +1,7 @@
 // 登录状态：检测失效并展示扫码登录入口（二维码轮询与防重入在 shared 控制器里）。
 import {fetchJson} from "../shared/fetch.js";
 import {createQrLogin} from "../shared/qr-login.js";
-import {showState} from "./helpers.js";
+import {showState} from "../shared/dom.js";
 
 export function createLogin({elements: {loginExpired, loginQr, loginQrImg, bloggersState}}) {
   // 扫码登录交给 shared 控制器：防重入、首拉延迟、10 秒轮询与按钮 loading 态都在那里
@@ -10,7 +10,7 @@ export function createLogin({elements: {loginExpired, loginQr, loginQrImg, blogg
     image: loginQrImg,
     idleText: "扫码登录",
     loadingText: "扫码中…",
-    onSuccess: () => checkLoginStatus(),
+    onSuccess: () => void checkLoginStatus(),
     onError: error => showState(bloggersState, `登录请求失败：${error.message}`)
   });
 

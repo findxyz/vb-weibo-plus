@@ -1,7 +1,19 @@
-// 跨页面共用的本地日期工具：日期一律按本地时区的 YYYY-MM-DD 处理，
+// 跨页面共用的本地日期时间工具：日期一律按本地时区的 YYYY-MM-DD 处理，
 // 起止时间按后端约定的「YYYY-MM-DD HH:mm:ss」格式拼接。
 export function pad(value) {
   return String(value).padStart(2, "0");
+}
+
+// 起止日期都已填时校验先后顺序
+export function isDateRangeValid(start, end) {
+  return !(start && end && start > end);
+}
+
+// 列表展示用的本地时区格式（YYYY-MM-DD HH:mm）
+export function formatDate(epochMillis) {
+  if (!epochMillis) return "";
+  const d = new Date(epochMillis);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // date 输入框需要的本地日期格式（YYYY-MM-DD）

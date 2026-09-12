@@ -1,5 +1,5 @@
 // 图片查看器：全屏 dialog 展示原图，多图时支持按钮与左右方向键切换。
-import {showState} from "./helpers.js";
+import {showState} from "../shared/dom.js";
 
 export function createViewer({
   elements: {imageViewer, imageViewerState, viewerPrev, viewerNext, viewerCounter},
@@ -75,18 +75,13 @@ export function createViewer({
     showNextImage();
   });
 
+  // Esc 关闭交给原生 dialog 的 cancel 行为，这里只管左右方向键切换
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      if (imageViewer.open) {
-        closeImageViewer();
-      }
-      // 搜索浮层由原生 dialog 处理 Esc，无需额外逻辑
-    } else if (imageViewer.open) {
-      if (e.key === "ArrowLeft") {
-        showPrevImage();
-      } else if (e.key === "ArrowRight") {
-        showNextImage();
-      }
+    if (!imageViewer.open) return;
+    if (e.key === "ArrowLeft") {
+      showPrevImage();
+    } else if (e.key === "ArrowRight") {
+      showNextImage();
     }
   });
 

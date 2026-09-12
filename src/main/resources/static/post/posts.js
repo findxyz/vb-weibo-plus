@@ -1,8 +1,8 @@
 // 微博列表：按日加载与博文卡片渲染（正文 linkify、转发块、图片、视频）。
 // 对外语言只有日期字符串与博文 id，卡片 DOM 是模块内部细节。
 import {fetchJson} from "../shared/fetch.js";
-import {toQueryDateTime, toQueryEndTime} from "../shared/date.js";
-import {showState, createVerifiedBadge, formatDate} from "./helpers.js";
+import {formatDate, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
+import {createVerifiedBadge, showState} from "../shared/dom.js";
 
 const DAY_PAGE_SIZE = 9999;
 
@@ -10,17 +10,23 @@ export function createPosts({
   elements: {posts, postsState, feedCount, retryPosts},
   state, handleApiError, openImageViewer}) {
 
+  // 加载请求序号：快速切换博主/日期（含搜索跳转绕过 selectDate 守卫）时，
+  // 只有最新一轮请求允许落地，旧响应直接丢弃
+  let loadVersion = 0;
+
   // 用户点选某日：加载在途时拒绝本次切换（返回 false，日期高亮保持原位），
   // 否则开始加载并返回 true。返回值供日期时间轴决定是否更新选中高亮。
   function selectDate(date) {
     if (state.loadingPosts) return false;
-    loadPosts(date);
+    void loadPosts(date);
     return true;
   }
 
   // 归位 selectedDate。不带加载中的早退判断：手动点选走 selectDate（有守卫），
-  // 搜索跳转（jumpToPost）是明确的程序性切换，即使上一轮加载未落也必须改选日期。
+  // 搜索跳转（jumpToPost）是明确的程序性切换，即使上一轮加载未落也必须改选日期；
+  // 被抢占的旧请求由 loadVersion 挡下，不会覆盖新结果。
   async function loadPosts(date) {
+    const version = ++loadVersion;
     state.selectedDate = date;
     state.loadingPosts = true;
     showState(postsState, "正在加载…");
@@ -40,6 +46,7 @@ export function createPosts({
 
     try {
       const result = await fetchJson(`/post/list?${params}`);
+      if (version !== loadVersion) return;
       renderPosts(result.items);
       feedCount.textContent = `共 ${result.total} 条`;
       if (result.items.length === 0) {
@@ -48,12 +55,14 @@ export function createPosts({
         showState(postsState, "");
       }
     } catch (error) {
+      if (version !== loadVersion) return;
       handleApiError(error, (e) => {
         showState(postsState, `加载失败：${e.message}`);
         retryPosts.hidden = false;
       });
     } finally {
-      state.loadingPosts = false;
+      // 旧请求结束时不得清掉新请求的 loading 状态
+      if (version === loadVersion) state.loadingPosts = false;
     }
   }
 
@@ -425,7 +434,7 @@ export function createPosts({
   // 滚动定位到指定博文并闪烁提示（搜索跳转后使用）；卡片未渲染时不动作
   function revealPost(mblogId) {
     requestAnimationFrame(() => {
-      const card = document.querySelector(`#post-${mblogId}`);
+      const card = posts.querySelector(`#post-${mblogId}`);
       if (!card) return;
       card.scrollIntoView({behavior: "smooth", block: "center"});
       card.classList.add("flash-highlight");
@@ -434,7 +443,7 @@ export function createPosts({
   }
 
   retryPosts.addEventListener("click", () => {
-    if (state.selectedDate) loadPosts(state.selectedDate);
+    if (state.selectedDate) void loadPosts(state.selectedDate);
   });
 
   return {selectDate, loadPosts, clear, showStatus, revealPost};

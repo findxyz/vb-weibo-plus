@@ -3,13 +3,17 @@
 // 选中高亮只在被接受后更新，保证高亮与列表内容一致。
 // 对外语言只有日期字符串，分组 DOM 是模块内部细节。
 import {fetchJson} from "../shared/fetch.js";
-import {showState} from "./helpers.js";
+import {showState} from "../shared/dom.js";
 
 export function createDates({
   elements: {datesState, datesList},
   state, handleApiError, onSelectDate}) {
 
+  // 加载请求序号：快速切换博主时只有最新一轮 calendar 响应允许落地
+  let loadVersion = 0;
+
   async function loadDates() {
+    const version = ++loadVersion;
     showState(datesState, "加载中…");
     datesList.replaceChildren();
     const params = new URLSearchParams();
@@ -18,9 +22,11 @@ export function createDates({
     }
     try {
       const result = await fetchJson(`/post/calendar?${params}`);
+      if (version !== loadVersion) return;
       renderDates(result.months);
       showState(datesState, result.months.length ? "" : "无数据");
     } catch (error) {
+      if (version !== loadVersion) return;
       handleApiError(error, (e) => showState(datesState, "加载失败"));
     }
   }
@@ -136,8 +142,8 @@ export function createDates({
     const firstMonth = datesList.querySelector(".month-group");
     if (!firstMonth) return null;
     const firstYear = firstMonth.closest(".year-group");
-    if (firstYear) firstYear.classList.add("open");
-    toggleGroup(firstMonth);
+    if (firstYear && !firstYear.classList.contains("open")) toggleGroup(firstYear);
+    if (!firstMonth.classList.contains("open")) toggleGroup(firstMonth);
     const firstDay = firstMonth.querySelector(".date-item");
     if (!firstDay) return null;
     setActiveDate(firstDay.dataset.date);

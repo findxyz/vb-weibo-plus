@@ -1,8 +1,8 @@
 // 高级搜索：关键词 + 起止日期，结果摘要做 DOM 高亮，点击跳转到对应日期与博文。
 import {fetchJson} from "../shared/fetch.js";
-import {localDateValue, pad, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
+import {formatDate, isDateRangeValid, localDateValue, pad, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {appendHighlightedText} from "../shared/highlight.js";
-import {showState, isDateRangeValid, formatDate} from "./helpers.js";
+import {showState} from "../shared/dom.js";
 
 const SEARCH_SIZE_LIMIT = 1000;
 

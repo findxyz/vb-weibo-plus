@@ -1,15 +1,14 @@
-import {fetchJson} from "../shared/fetch.js";
-import {createQrLogin} from "../shared/qr-login.js";
 import {createMessageView} from "./message-view.js";
 import {createAnalysis} from "./analysis.js";
 import {createHistory} from "./history.js";
 import {createCelebration} from "./celebration.js";
 import {createComposer} from "./composer.js";
-import {createGroupList} from "./group-list.js";
-import {createConversationSession} from "./conversation-session.js";
+import {createGroups} from "./groups.js";
+import {createSessions} from "./sessions.js";
 import {createDream} from "./dream.js";
 import {createAttitudes} from "./attitudes.js";
 import {createEmojiPanel} from "./emoji-panel.js";
+import {createLogin} from "./login.js";
 
 function bootstrap() {
   const PAGE_SIZE = 50;
@@ -69,7 +68,7 @@ function bootstrap() {
   };
   const state = {
     currentGid: null, initializing: false,
-    loginCheckTick: 0, pendingRefresh: false,
+    pendingRefresh: false,
     lastSizeGid: null, lastMessageCount: null
   };
 
@@ -77,17 +76,27 @@ function bootstrap() {
   // 首屏与向上翻页都是「垫高庆祝基线 + 补一次表态」，共用同一回调
   function seedCelebrationAndAttitudes(gid, messages) {
     celebration.seed(gid, messages);
-    attitudes.load(gid, messages);
+    void attitudes.load(gid, messages);
   }
   // 各工厂只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
   const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
+  // 登录检测与扫码登录归 login 模块（与 post 页同一模式）；
+  // 扫码成功后重走初始化，失败写回群聊面板状态行
+  const login = createLogin({
+    elements: pickElements("loginExpired", "loginQr", "loginQrImg", "qrLoading"),
+    onRelogin: () => initialize(),
+    onError: () => {
+      elements.groupsState.textContent = "扫码登录失败，请稍后重试。";
+      elements.retryGroups.hidden = false;
+    }
+  });
   const messageView = createMessageView({
     elements: pickElements("imageViewer", "imageViewerImage", "imageViewerState"),
     getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
     isAdminSender,
     onSenderClick: (...args) => celebration.openPopover(...args)
   });
-  const conversation = createConversationSession({
+  const sessions = createSessions({
     elements: pickElements("messages", "newMessages"),
     messageView,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
@@ -95,14 +104,15 @@ function bootstrap() {
     onEarlierMessages: seedCelebrationAndAttitudes,
     onNewMessages: (gid, messages) => {
       celebration.process(gid, messages);
-      attitudes.load(gid, messages);
-    }
+      void attitudes.load(gid, messages);
+    },
+    onAuthExpired: login.showLoginExpired
   });
   const attitudes = createAttitudes({
     elements: pickElements("attitudesToggle"),
     getCurrentGid: () => state.currentGid,
-    getRenderedMessages: () => conversation.getRenderedMessages(),
-    applyAttitudes: conversation.applyAttitudes
+    getRenderedMessages: () => sessions.getRenderedMessages(),
+    applyAttitudes: sessions.applyAttitudes
   });
   createEmojiPanel({
     elements: pickElements("emojiPickerOpen", "emojiPanel", "emojiPanelGrid", "composer"),
@@ -121,26 +131,27 @@ function bootstrap() {
       "celebrationPopoverTitle", "celebrationPopoverJoin", "celebrationPopoverRemove",
       "celebrationPopoverClose"),
     messageView, getCurrentGid: () => state.currentGid,
-    getMessages: () => conversation.getMessagesSnapshot()
+    getMessages: () => sessions.getMessagesSnapshot()
   });
-  createComposer({
+  const composer = createComposer({
     elements: pickElements(
       "composer", "composerHint", "imagePickerOpen", "imageInput", "videoPickerOpen",
       "videoInput", "composerAttachment", "composerAttachmentPreview",
       "composerAttachmentPreviewVideo", "composerAttachmentRemove"),
     getGid: () => state.currentGid,
-    onRefresh: gid => conversation.refreshAfterSend(gid),
-    onSent: gid => conversation.followLatest(gid)
+    onRefresh: gid => sessions.refreshAfterSend(gid),
+    onSent: gid => sessions.followLatest(gid)
   });
-  const groupList = createGroupList({
+  const groups = createGroups({
     elements: pickElements("groupSearch", "groupsCount", "groupsList"),
     messageView,
     getCurrentGid: () => state.currentGid, onSelect: selectGroup,
-    onGroupsChanged: groups => {
-      const current = groups.find(item => item.gid === state.currentGid);
-      if (current) conversation.updateGroup(current);
+    onGroupsChanged: list => {
+      const current = list.find(item => item.gid === state.currentGid);
+      if (current) sessions.updateGroup(current);
       updateCurrentGroupHeader();
-    }
+    },
+    onAuthExpired: login.showLoginExpired
   });
   const history = createHistory({
     elements: pickElements(
@@ -160,12 +171,12 @@ function bootstrap() {
 
   function isAdminSender(senderId) {
     if (!Number.isSafeInteger(senderId) || senderId <= 0) return false;
-    const group = groupList.findGroup(state.currentGid);
+    const group = groups.findGroup(state.currentGid);
     return Array.isArray(group?.admins) && group.admins.includes(senderId);
   }
 
   async function selectGroup(gid) {
-    const group = groupList.findGroup(gid);
+    const group = groups.findGroup(gid);
     if (!group) return;
     if (state.currentGid !== gid) { celebration.cancel(); history.close(); }
     state.currentGid = gid;
@@ -174,8 +185,10 @@ function bootstrap() {
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     elements.currentId.textContent = String(group.gid);
-    elements.historyOpen.disabled = false; elements.emojiPickerOpen.disabled = false;
-    elements.imagePickerOpen.disabled = false; elements.videoPickerOpen.disabled = false;
+    // 按钮可用性各归其主：historyOpen/analysisOpen 由各自模块的 setGroup 启用，
+    // 附件入口由 composer 按「有选中群且未发送中」判定
+    elements.emojiPickerOpen.disabled = false;
+    composer.refreshAvailability();
     const avatarElement = messageView.avatar(group, "main-group-avatar");
     elements.currentAvatar.replaceWith(avatarElement);
     elements.currentAvatar = avatarElement;
@@ -187,12 +200,12 @@ function bootstrap() {
       row.classList.toggle("active", active);
       if (active) row.setAttribute("aria-current", "true"); else row.removeAttribute("aria-current");
     });
-    const loading = conversation.open(group);
+    const loading = sessions.open(group);
     return loading;
   }
 
   function updateCurrentGroupHeader() {
-    const group = groupList.findGroup(state.currentGid);
+    const group = groups.findGroup(state.currentGid);
     if (!group) return;
     if (typeof group.messageCount !== "number") {
       elements.currentSize.textContent = `${group.maxMember || group.memberCount} 人群`;
@@ -215,55 +228,31 @@ function bootstrap() {
 
   function refreshView() {
     if (state.initializing) { state.pendingRefresh = true; return; }
-    groupList.refreshGroups(); conversation.refresh(); maybeCheckLoginStatus();
+    void groups.refreshGroups(); void sessions.refresh(); login.maybeCheck();
   }
 
-  const LOGIN_CHECK_INTERVAL = 60;
-  // 扫码登录交给 shared 控制器：防重入、首拉延迟、10 秒轮询与按钮 loading 态都在那里
-  const qrLogin = createQrLogin({
-    button: elements.loginQr,
-    image: elements.loginQrImg,
-    loading: elements.qrLoading,
-    idleText: "📱 扫码登录",
-    loadingText: "📱 扫码中…",
-    onSuccess: async () => {
-      elements.loginExpired.hidden = true;
-      await initialize();
-    },
-    onError: () => {
-      elements.groupsState.textContent = "扫码登录失败，请稍后重试。";
-      elements.retryGroups.hidden = false;
-    }
-  });
-  function maybeCheckLoginStatus() {
-    if (document.hidden || qrLogin.pending || ++state.loginCheckTick < LOGIN_CHECK_INTERVAL) return;
-    state.loginCheckTick = 0; checkLoginStatus();
-  }
-  async function checkLoginStatus() {
-    try {
-      const result = await fetchJson("/weibo/login/status", {cache: "no-store"});
-      elements.loginExpired.hidden = result.valid !== false;
-    }
-    catch (error) { console.warn("检查登录状态失败：", error); }
-  }
   async function initialize() {
     state.initializing = true; elements.retryGroups.hidden = true; elements.groupsState.textContent = "";
     try {
-      const groups = await groupList.loadInitial();
-      if (!groups.length) return;
+      const list = await groups.loadInitial();
+      if (!list.length) return;
       const savedGid = Number(localStorage.getItem(LAST_GROUP_KEY));
-      await selectGroup((groups.find(group => group.gid === savedGid) || groups[0]).gid);
+      await selectGroup((list.find(group => group.gid === savedGid) || list[0]).gid);
     } catch (error) {
-      console.warn("加载群聊列表失败：", error);
-      elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false;
+      if (error.status === 401) {
+        login.showLoginExpired();
+      } else {
+        console.warn("加载群聊列表失败：", error);
+        elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false;
+      }
     }
     finally { state.initializing = false; if (state.pendingRefresh) { state.pendingRefresh = false; refreshView(); } }
   }
 
   elements.retryGroups.addEventListener("click", initialize);
   window.addEventListener("focus", refreshView);
-  window.addEventListener("blur", () => conversation.markAway());
-  document.addEventListener("visibilitychange", () => { if (document.hidden) conversation.markAway(); else refreshView(); });
+  window.addEventListener("blur", () => sessions.markAway());
+  document.addEventListener("visibilitychange", () => { if (document.hidden) sessions.markAway(); else refreshView(); });
   setInterval(refreshView, 3_000);
   elements.windowToggle.addEventListener("click", () => { location.href = "/post/index.html"; });
   function applyImmersive(enabled) {
@@ -276,7 +265,7 @@ function bootstrap() {
   }
   applyImmersive(localStorage.getItem(IMMERSIVE_KEY) === "1");
   elements.immersiveToggle.addEventListener("click", () => setImmersive(!elements.conversation.classList.contains("immersive")));
-  initialize(); checkLoginStatus();
+  initialize(); login.checkLoginStatus();
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootstrap, {once: true});

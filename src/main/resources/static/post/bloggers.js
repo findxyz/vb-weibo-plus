@@ -2,8 +2,8 @@
 // 切换博主后的列表重置与默认日期选中，一律走 dates/posts 的显式接口，
 // 不直接触碰两个模块渲染出的 DOM。
 import {fetchJson} from "../shared/fetch.js";
-import {localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
-import {showState, isDateRangeValid, createVerifiedBadge} from "./helpers.js";
+import {isDateRangeValid, localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
+import {createVerifiedBadge, showState} from "../shared/dom.js";
 
 export function createBloggers({
   elements: {
@@ -85,7 +85,7 @@ export function createBloggers({
     setActiveBloggerRow(allBloggersRow);
     currentFilter.textContent = "全部微博";
     syncHistoryOpen.hidden = true;
-    onBloggerChanged();
+    void onBloggerChanged();
   }
 
   function selectBlogger(blogger) {
@@ -95,7 +95,7 @@ export function createBloggers({
     setActiveBloggerRow(row);
     currentFilter.textContent = `${blogger.screenName} 的微博`;
     syncHistoryOpen.hidden = false;
-    onBloggerChanged();
+    void onBloggerChanged();
   }
 
   function setActiveBloggerRow(row) {
@@ -104,10 +104,15 @@ export function createBloggers({
     }
   }
 
+  // 编排级序号：连点博主时，旧一轮「加载时间轴 → 选中首日」的后续步骤不得再执行
+  let changeVersion = 0;
+
   async function onBloggerChanged() {
+    const version = ++changeVersion;
     state.selectedDate = null;
     posts.clear();
     await dates.loadDates();
+    if (version !== changeVersion) return;
     // 默认进入时间轴上的第一天；没有可用的日期项时提示空数据
     const firstDate = dates.selectFirstDate();
     if (firstDate) {

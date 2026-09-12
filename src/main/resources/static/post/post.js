@@ -1,7 +1,6 @@
 // 本地微博 post 页引导：收集 DOM 引用与共享状态，按依赖顺序装配各模块。
 // 博主列表 → 日期时间轴 → 微博列表为数据流依赖链，跨模块编排走 dates/posts
 // 的显式接口；图片查看器与登录相互独立，先建后注入。
-import {createApiErrorHandler} from "./helpers.js";
 import {createViewer} from "./viewer.js";
 import {createPosts} from "./posts.js";
 import {createDates} from "./dates.js";
@@ -72,7 +71,15 @@ const state = {
 const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
 
 const login = createLogin({elements: pickElements("loginExpired", "loginQr", "loginQrImg", "bloggersState")});
-const handleApiError = createApiErrorHandler(() => login.showLoginExpired());
+// 统一处理接口错误：登录失效时展示登录过期提示并返回 true，其余错误交给调用方处理
+const handleApiError = (error, onError) => {
+  if (error.status === 401) {
+    login.showLoginExpired();
+    return true;
+  }
+  onError(error);
+  return false;
+};
 
 const viewer = createViewer({
   elements: pickElements("imageViewer", "imageViewerState", "viewerPrev", "viewerNext", "viewerCounter"),
@@ -114,5 +121,5 @@ elements.windowToggle.addEventListener("click", () => {
   location.href = "/chat/index.html";
 });
 
-login.checkLoginStatus();
-bloggers.loadBloggers();
+void login.checkLoginStatus();
+void bloggers.loadBloggers();

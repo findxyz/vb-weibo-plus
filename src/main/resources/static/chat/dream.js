@@ -11,6 +11,8 @@ export function createDream({
   let hoverTimer = null;
   let anchor = null;
   let dreamUrl = "";
+  // 已确认存在梦境页的 uid：反复悬停同一头像不再重复下载整页探测
+  const confirmedUids = new Set();
 
   function dreamPageUrl(uid) {
     return `/chat/dream/${uid}.html`;
@@ -71,13 +73,16 @@ export function createDream({
       hoverTimer = null;
       const uid = avatar.dataset.senderId;
       dreamUrl = dreamPageUrl(uid);
-      const page = await fetch(dreamUrl).catch(() => null);
-      // 悬停可能在探测期间被打断（hidePopover 会清掉 anchor）
-      if (anchor !== avatar) return;
-      if (!page || !page.ok) {
-        // 探测失败时顺手收掉可能残留的上一任弹层
-        popover.hidden = true;
-        return;
+      if (!confirmedUids.has(uid)) {
+        const page = await fetch(dreamUrl).catch(() => null);
+        // 悬停可能在探测期间被打断（hidePopover 会清掉 anchor）
+        if (anchor !== avatar) return;
+        if (!page || !page.ok) {
+          // 探测失败时顺手收掉可能残留的上一任弹层
+          popover.hidden = true;
+          return;
+        }
+        confirmedUids.add(uid);
       }
       popover.hidden = false;
       positionPopover(popover, avatar, {gap: 8, prefer: "above"});

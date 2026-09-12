@@ -68,7 +68,6 @@ export function createQrLogin({
   button.addEventListener("click", start);
   return {
     start,
-    stop: stopImagePolling,
     get pending() { return pending; }
   };
 }
