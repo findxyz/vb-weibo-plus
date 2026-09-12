@@ -28,7 +28,7 @@ export function restoreScrollAnchor(anchor, container) {
 }
 
 export function createSessions({
-  elements: {messages: messagesElement, newMessages: newMessagesElement},
+  elements: {messages: messagesElement, newMessages: newMessagesElement, scrollBottom: scrollBottomElement},
   messageView,
   pageSize,
   earlierLoadThreshold,
@@ -42,14 +42,14 @@ export function createSessions({
   let version = 0;
   let beforeCursor = null;
   let hasMore = false;
-  let followingLatest = true;
   let pendingCatchUp = false;
   let refreshing = false;
   let switchingGroup = false;
   let loadingEarlier = false;
-  // 首次打开的贴底窗口期：从首屏渲染完成起，到用户主动滚动（滚轮/触摸/点按）为止。
-  // 独立于 followingLatest——新消息到达会清跟随标记，但不得中断首屏图片的贴底补救。
-  let initialSettling = false;
+  // 跳底收尾：首屏打开或滚底按钮跳底后，已渲染的图片与表态行会陆续撑高，
+  // 撑高就再贴一次底，保证「到底部」是真的到底部；用户主动滚动或离开页面
+  // 即停止，此后任何代码路径都不再移动视口。
+  let pinning = false;
 
   // 滑动窗口：DOM 只保留视口附近的消息，其余区间用占位高度撑起滚动条。
   // 数据始终完整留在 messages Map 里，被回收的消息滚回视口时会重新渲染。
@@ -138,38 +138,27 @@ export function createSessions({
     return element === topSpacer || element === bottomSpacer;
   }
 
-  // 把窗口边界解析为排序后的渲染区间；跟随最新时窗口贴住列表尾部
+  // 把窗口边界解析为排序后的渲染区间；新消息不移动窗口，由窗口滑动与跳底按需物化
   function resolveWindow(ordered) {
     if (ordered.length <= WINDOW_CAP) {
       windowStartIdx = 0;
       windowEndIdx = ordered.length - 1;
       return [windowStartIdx, windowEndIdx];
     }
-    let start;
-    let end;
-    if (followingLatest) {
+    let start = windowStartIdx;
+    let end = windowEndIdx;
+    if (!Number.isInteger(start) || start < 0
+      || !Number.isInteger(end) || end >= ordered.length || end < start) {
       end = ordered.length - 1;
       start = end - WINDOW_CAP + 1;
-    } else {
-      start = windowStartIdx;
-      end = windowEndIdx;
-      if (!Number.isInteger(start) || start < 0
-        || !Number.isInteger(end) || end >= ordered.length || end < start) {
-        end = ordered.length - 1;
-        start = end - WINDOW_CAP + 1;
-      } else if (end - start + 1 > WINDOW_CAP) {
-        // 超上限时从远离视口的一侧裁剪
-        const excess = end - start + 1 - WINDOW_CAP;
-        if (isNearBottom()) start += excess; else end -= excess;
-      }
+    } else if (end - start + 1 > WINDOW_CAP) {
+      // 超上限时从远离视口的一侧裁剪
+      const excess = end - start + 1 - WINDOW_CAP;
+      if (isNearBottom()) start += excess; else end -= excess;
     }
     windowStartIdx = start;
     windowEndIdx = end;
     return [start, end];
-  }
-
-  function setFollowing(value) {
-    followingLatest = value;
   }
 
   function isNearBottom() {
@@ -179,11 +168,11 @@ export function createSessions({
   }
 
   function scrollToBottom() {
-    // 未跟随时窗口可能停在更早位置，滚底前先把最新消息渲染出来
+    // 窗口可能停在更早位置，滚底前先把最新消息渲染出来
     const ordered = getOrdered();
     if (ordered.length && windowEndIdx !== ordered.length - 1) {
       windowEndIdx = ordered.length - 1;
-      if (!followingLatest) windowStartIdx = Math.max(0, windowEndIdx - WINDOW_CAP + 1);
+      windowStartIdx = Math.max(0, windowEndIdx - WINDOW_CAP + 1);
       renderMessages();
     }
     messagesElement.scrollTop = messagesElement.scrollHeight;
@@ -199,13 +188,11 @@ export function createSessions({
     const [start, end] = resolveWindow(ordered);
     const renderGid = currentGid();
     const renderVersion = version;
-    // 媒体加载完成把内容撑高：首屏窗口期（initialSettling）或跟随最新时重新贴底，
-    // 其余时候绝不移动视口。不能靠 isNearBottom 判定——撑高发生在 load 事件之前，
-    // 视口已被顶离底部；也不能只靠 followingLatest——表态行等无 load 事件的 DOM
-    // 变化同样撑高，会先触发 scroll 事件把跟随标记清掉，后续媒体加载便不再贴底。
+    // 跳底收尾期间图片加载撑高内容，撑高就再贴一次底；不能靠 isNearBottom
+    // 判定——撑高发生在 load 事件之前，视口已被顶离底部。
     const onMediaLoad = () => {
       if (currentGid() !== renderGid || version !== renderVersion) return;
-      if (initialSettling || followingLatest) scrollToBottom();
+      if (pinning) scrollToBottom();
     };
     let aboveSum = 0;
     for (let i = 0; i < start; i++) aboveSum += estimateHeight(ordered[i]);
@@ -248,6 +235,7 @@ export function createSessions({
       if (isSpacer(element) || !element.dataset.mid) continue;
       renderedByMid.set(Number(element.dataset.mid), element);
     }
+    let updated = false;
     for (const [mid, attitudes] of Object.entries(result)) {
       const message = messages.get(Number(mid));
       if (!message) continue;
@@ -256,10 +244,11 @@ export function createSessions({
       if (element) {
         messageView.updateAttitudes(element, message);
         heightByMid.set(Number(mid), element.offsetHeight);
+        updated = true;
       }
     }
-    // 表态行插入同样撑高消息且无 load 事件，与媒体加载同一贴底口径
-    if (initialSettling || followingLatest) scrollToBottom();
+    // 表态行插入撑高已渲染消息且无 load 事件，与媒体加载同一收尾口径
+    if (updated && pinning) scrollToBottom();
   }
 
   // 当前窗口实际渲染的消息对象，供按需拉取表态等场景使用
@@ -298,8 +287,7 @@ export function createSessions({
       }
       renderMessages();
       if (latestPage) {
-        setFollowing(true);
-        initialSettling = true;
+        pinning = true;
         scrollToBottom();
         onInitialMessages(gid, result.items);
       } else {
@@ -369,11 +357,9 @@ export function createSessions({
       if (currentGid() !== gid || version !== requestVersion) return;
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
       if (fresh.length > 0) {
+        // 新消息永不移动视口：保持原位置，弹提示由用户点击跳转。
         appendNewer(fresh);
-        // 除首次打开群聊外永不自动贴底：新消息保持视口原位置，弹提示由用户点击跳转。
-        // 视口已落后于最新消息，跟随标记一并清除，避免后续媒体加载把视口拽下去。
         renderMessages();
-        setFollowing(false);
         newMessagesElement.hidden = false;
         onNewMessages(gid, fresh);
       }
@@ -437,10 +423,6 @@ export function createSessions({
     const aboveWindow = topSpacer.nextElementSibling.getBoundingClientRect().top >= rect.bottom;
     const belowWindow = bottomSpacer.previousElementSibling.getBoundingClientRect().bottom <= rect.top;
     if (aboveWindow || belowWindow) {
-      if (followingLatest) {
-        scrollToBottom();
-        return;
-      }
       sliding = true;
       try {
         let target = aboveWindow ? 0 : windowEndIdx + 1;
@@ -528,13 +510,9 @@ export function createSessions({
   }
 
   function markAway() {
-    setFollowing(false);
+    // 离开即结束跳底收尾：回来补拉的内容不再参与补救
+    pinning = false;
     pendingCatchUp = true;
-  }
-
-  function followLatest(gid) {
-    if (currentGid() !== gid) return;
-    setFollowing(true);
   }
 
   function refreshAfterSend(gid) {
@@ -548,9 +526,8 @@ export function createSessions({
   let trailingFrame = 0;
   let trailingPending = false;
   function handleScroll() {
-    // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此恢复跟随
-    setFollowing(!document.hidden && isNearBottom());
-    if (followingLatest) newMessagesElement.hidden = true;
+    // 离开期间锚点恢复等程序性滚动会触发 scroll 事件，不得借此隐藏提示
+    if (!document.hidden && isNearBottom()) newMessagesElement.hidden = true;
     slideWindow();
     void loadEarlierIfNeeded();
   }
@@ -568,26 +545,27 @@ export function createSessions({
       }
     });
   });
-  // 首屏贴底窗口期只被用户主动滚动终结；程序性贴底不触发这些事件
+  // 跳底收尾只被用户主动滚动终结；程序性贴底不触发这些事件
   for (const eventName of ["wheel", "touchstart", "pointerdown", "keydown"]) {
     messagesElement.addEventListener(eventName, () => {
-      initialSettling = false;
+      pinning = false;
     }, {passive: true});
   }
-  newMessagesElement.addEventListener("click", async () => {
+  // 新消息提示与常驻滚底按钮同一动作：补一次刷新后跳底，并收起提示
+  const jumpToLatest = async () => {
     await refresh();
-    setFollowing(true);
+    pinning = true;
     scrollToBottom();
     newMessagesElement.hidden = true;
-  });
-  setFollowing(true);
+  };
+  newMessagesElement.addEventListener("click", jumpToLatest);
+  scrollBottomElement.addEventListener("click", jumpToLatest);
 
   return {
     open,
     updateGroup,
     refresh,
     markAway,
-    followLatest,
     refreshAfterSend,
     applyAttitudes,
     getRenderedMessages,

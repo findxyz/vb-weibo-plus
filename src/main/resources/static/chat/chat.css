@@ -734,6 +734,37 @@ h1 {
   background: var(--paused-bg);
 }
 
+/* 表态开关正下方的常驻按钮：一键滚到最新消息，动作与新消息提示一致 */
+.scroll-bottom-button {
+  position: absolute;
+  right: 26px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: rgb(255 255 255 / 85%);
+  box-shadow: 0 2px 8px rgb(17 67 115 / 18%);
+  cursor: pointer;
+}
+
+.scroll-bottom-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.scroll-bottom-button path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 
 .media-preview,
 .message video {

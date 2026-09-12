@@ -11,7 +11,7 @@ export function createComposer({
     composer, composerHint, imagePickerOpen, imageInput, videoPickerOpen, videoInput,
     composerAttachment, composerAttachmentPreview, composerAttachmentPreviewVideo, composerAttachmentRemove
   },
-  getGid, onRefresh, onSent}) {
+  getGid, onRefresh}) {
   let sending = false;
   let pendingAttachment = null;
   // 提示状态由变量管理，不从 DOM 文本反读
@@ -110,7 +110,6 @@ export function createComposer({
       formData.append("file", pendingAttachment.file);
       await fetchJson(endpoint, {method: "POST", body: formData});
       clearPendingAttachment();
-      onSent(gid);
       await onRefresh(gid);
       setComposerHint(HINT_DEFAULT);
     }, fallbackError);
@@ -132,7 +131,6 @@ export function createComposer({
         body: new URLSearchParams({gid: String(gid), content})
       });
       composer.value = "";
-      onSent(gid);
       await onRefresh(gid);
       setComposerHint(HINT_DEFAULT);
     }, "消息发送失败，请稍后重试。");

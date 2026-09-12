@@ -133,7 +133,7 @@ export function createMessageView({
     const button = document.createElement("button");
     button.type = "button";
     const image = document.createElement("img");
-    image.loading = onLoad ? "eager" : "lazy";
+    image.loading = "lazy";
     image.alt = "";
     if (onLoad) image.addEventListener("load", onLoad, {once: true});
     image.src = message.previewUrl;

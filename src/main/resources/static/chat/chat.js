@@ -22,6 +22,7 @@ function bootstrap() {
     currentGroup: document.querySelector("#current-group"), currentSize: document.querySelector("#current-size"),
     currentId: document.querySelector("#current-id"), currentAvatar: document.querySelector("#current-group-avatar"),
     messages: document.querySelector("#messages"), newMessages: document.querySelector("#new-messages"),
+    scrollBottom: document.querySelector("#scroll-bottom"),
     historyOpen: document.querySelector("#history-open"),
     attitudesToggle: document.querySelector("#attitudes-toggle"),
     emojiPickerOpen: document.querySelector("#emoji-picker-open"), emojiPanel: document.querySelector("#emoji-panel"),
@@ -97,7 +98,7 @@ function bootstrap() {
     onSenderClick: (...args) => celebration.openPopover(...args)
   });
   const sessions = createSessions({
-    elements: pickElements("messages", "newMessages"),
+    elements: pickElements("messages", "newMessages", "scrollBottom"),
     messageView,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
     onInitialMessages: seedCelebrationAndAttitudes,
@@ -139,8 +140,7 @@ function bootstrap() {
       "videoInput", "composerAttachment", "composerAttachmentPreview",
       "composerAttachmentPreviewVideo", "composerAttachmentRemove"),
     getGid: () => state.currentGid,
-    onRefresh: gid => sessions.refreshAfterSend(gid),
-    onSent: gid => sessions.followLatest(gid)
+    onRefresh: gid => sessions.refreshAfterSend(gid)
   });
   const groups = createGroups({
     elements: pickElements("groupSearch", "groupsCount", "groupsList"),
