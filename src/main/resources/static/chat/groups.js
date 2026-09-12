@@ -63,7 +63,8 @@ export function createGroups({elements: {groupSearch, groupsCount, groupsList},
     render();
     onGroupsChanged(snapshot());
   }
-  async function loadInitial() {
+  // 首次加载与轮询刷新共用同一请求与渲染核心；refreshing 由 loadGroups 独占管理
+  async function loadGroups() {
     if (refreshing) return snapshot();
     refreshing = true;
     try {
@@ -73,15 +74,13 @@ export function createGroups({elements: {groupSearch, groupsCount, groupsList},
   }
   async function refreshGroups() {
     if (refreshing || document.hidden) return;
-    refreshing = true;
     try {
-      applyGroups(await fetchJson("/chat/groups", {cache: "no-store"}));
+      await loadGroups();
     } catch (error) {
       if (error.status === 401) onAuthExpired();
       else console.warn("刷新群聊列表失败：", error);
     }
-    finally { refreshing = false; }
   }
   groupSearch.addEventListener("input", event => filter(event.target.value));
-  return {findGroup, loadInitial, refreshGroups};
+  return {findGroup, loadGroups, refreshGroups};
 }

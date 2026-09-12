@@ -1,8 +1,8 @@
 import {appendHighlightedText} from "../shared/highlight.js";
-import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
+import {calendarMonthsAgo, localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {fetchJson} from "../shared/fetch.js";
 import {MEDIA_TYPE} from "./message-view.js";
-import {captureScrollAnchor, compareMessages, restoreScrollAnchor} from "./sessions.js";
+import {captureScrollAnchor, compareMessages, fetchMessagePage, nextCursor, restoreScrollAnchor} from "./sessions.js";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
@@ -93,13 +93,6 @@ export function createHistory({
       - containerTop - paddingTop;
   }
 
-  function cursorRequest(direction, message) {
-    const query = new URLSearchParams({gid: String(state.gid), size: String(pageSize)});
-    query.set(`${direction}CreatedAt`, String(message.createdAt));
-    query.set(`${direction}Mid`, String(message.mid));
-    return fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
-  }
-
   async function openContext(target) {
     const version = ++state.requestVersion;
     state.loadingMore = false; state.targetMid = target.mid;
@@ -108,10 +101,13 @@ export function createHistory({
     historyNewerState.textContent = ""; historyFeedback.textContent = "";
     historyMessages.replaceChildren(...messageElements([target]));
     try {
-      const [before, after] = await Promise.all([cursorRequest("before", target), cursorRequest("after", target)]);
+      const [before, after] = await Promise.all([
+        fetchMessagePage(state.gid, pageSize, target, "before"),
+        fetchMessagePage(state.gid, pageSize, target, "after")
+      ]);
       if (version !== state.requestVersion) return;
-      state.beforeCursor = before.hasMore ? {createdAt: before.nextBeforeCreatedAt, mid: before.nextBeforeMid} : null;
-      state.afterCursor = after.hasMore ? {createdAt: after.nextAfterCreatedAt, mid: after.nextAfterMid} : null;
+      state.beforeCursor = nextCursor(before, "before");
+      state.afterCursor = nextCursor(after, "after");
       historyMessages.replaceChildren(...messageElements([...before.items, target, ...after.items]));
       updateEdges();
       historyMessages.querySelector(`[data-mid="${target.mid}"]`)?.scrollIntoView({block: "center"});
@@ -128,13 +124,10 @@ export function createHistory({
     const version = state.requestVersion;
     const anchor = earlier ? captureScrollAnchor(historyMessages) : null;
     try {
-      const result = await cursorRequest(direction, cursor);
+      const result = await fetchMessagePage(state.gid, pageSize, cursor, direction);
       if (version !== state.requestVersion) return;
       const loaded = messageElements(result.items);
-      const next = result.hasMore ? {
-        createdAt: earlier ? result.nextBeforeCreatedAt : result.nextAfterCreatedAt,
-        mid: earlier ? result.nextBeforeMid : result.nextAfterMid
-      } : null;
+      const next = nextCursor(result, direction);
       if (earlier) {
         state.beforeCursor = next;
         historyMessages.prepend(...loaded);
@@ -157,15 +150,15 @@ export function createHistory({
 
   async function query(page) {
     const version = ++state.requestVersion;
-    const query = new URLSearchParams({gid: String(state.gid), page: String(page), size: String(searchPageSize)});
+    const params = new URLSearchParams({gid: String(state.gid), page: String(page), size: String(searchPageSize)});
     const filters = state.query;
-    if (filters.start) query.set("start", `${filters.start} 00:00:00`);
-    if (filters.end) query.set("end", `${filters.end} 23:59:59`);
-    if (filters.sender) query.set("senderName", filters.sender);
-    if (filters.keyword) query.set("keyword", filters.keyword);
+    if (filters.start) params.set("start", toQueryDateTime(filters.start));
+    if (filters.end) params.set("end", toQueryEndTime(filters.end));
+    if (filters.sender) params.set("senderName", filters.sender);
+    if (filters.keyword) params.set("keyword", filters.keyword);
     historyEmpty.hidden = true; historyContext.hidden = true;
     try {
-      const result = await fetchJson(`/chat/messages?${query}`, {cache: "no-store"});
+      const result = await fetchJson(`/chat/messages?${params}`, {cache: "no-store"});
       if (version !== state.requestVersion) return;
       state.page = result.page; state.total = result.total;
       renderResults(result.items);
@@ -187,8 +180,8 @@ export function createHistory({
     if (!raw) { historyFeedback.textContent = "请先选择要同步到的历史日期。"; return; }
     const version = ++state.requestVersion;
     try {
-      const query = new URLSearchParams({gid: String(state.gid), sinceTime: `${raw} 00:00:00`});
-      const response = await fetch(`/chat/since?${query}`, {method: "POST"});
+      const params = new URLSearchParams({gid: String(state.gid), sinceTime: toQueryDateTime(raw)});
+      const response = await fetch(`/chat/since?${params}`, {method: "POST"});
       if (!response.ok) throw new Error();
       if (version === state.requestVersion) historyFeedback.textContent = "已开始同步更早的历史消息，稍后请手动刷新查看。";
     } catch {

@@ -27,6 +27,24 @@ export function restoreScrollAnchor(anchor, container) {
   }
 }
 
+export function fetchMessagePage(gid, size, cursor, direction) {
+  const query = new URLSearchParams({gid: String(gid), size: String(size)});
+  if (cursor) {
+    query.set(`${direction}CreatedAt`, String(cursor.createdAt));
+    query.set(`${direction}Mid`, String(cursor.mid));
+  }
+  return fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
+}
+
+// 从一页结果提取下一页游标；hasMore 为假或游标字段缺失时返回 null，
+// 调用方据此停止翻页，不必各自拼字段名。
+export function nextCursor(result, direction) {
+  if (!result.hasMore) return null;
+  const createdAt = direction === "before" ? result.nextBeforeCreatedAt : result.nextAfterCreatedAt;
+  const mid = direction === "before" ? result.nextBeforeMid : result.nextAfterMid;
+  return createdAt != null && mid != null ? {createdAt, mid} : null;
+}
+
 export function createSessions({
   elements: {messages: messagesElement, newMessages: newMessagesElement, scrollBottom: scrollBottomElement},
   messageView,
@@ -267,19 +285,11 @@ export function createSessions({
     const anchor = latestPage ? null : captureScrollAnchor(messagesElement);
     const gid = currentGid();
     const requestVersion = version;
-    const query = new URLSearchParams({gid: String(gid), size: String(pageSize)});
-    if (!latestPage) {
-      query.set("beforeCreatedAt", String(cursor.createdAt));
-      query.set("beforeMid", String(cursor.mid));
-    }
     try {
-      const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
+      const result = await fetchMessagePage(gid, pageSize, cursor, "before");
       if (currentGid() !== gid || version !== requestVersion) return;
       if (latestPage) appendNewer(result.items); else prependOlder(result.items);
-      beforeCursor = result.hasMore && result.nextBeforeCreatedAt !== null
-        && result.nextBeforeMid !== null
-        ? {createdAt: result.nextBeforeCreatedAt, mid: result.nextBeforeMid}
-        : null;
+      beforeCursor = nextCursor(result, "before");
       hasMore = result.hasMore;
       if (!latestPage && result.items.length) {
         // 新拉到的更早消息直接进入窗口顶部，保持向上翻历史时新内容可见
@@ -321,11 +331,7 @@ export function createSessions({
     let cursor = {createdAt: latest.createdAt, mid: latest.mid};
     let added = false;
     while (!document.hidden && currentGid() === gid && version === requestVersion) {
-      const query = new URLSearchParams({
-        gid: String(gid), size: String(pageSize),
-        afterCreatedAt: String(cursor.createdAt), afterMid: String(cursor.mid)
-      });
-      const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
+      const result = await fetchMessagePage(gid, pageSize, cursor, "after");
       if (currentGid() !== gid || version !== requestVersion) return false;
       if (result.items.length > 0) {
         appendNewer(result.items);
@@ -333,9 +339,9 @@ export function createSessions({
         renderMessages();
         onNewMessages(gid, result.items);
       }
-      if (!result.hasMore || result.nextAfterCreatedAt === null
-        || result.nextAfterMid === null) break;
-      cursor = {createdAt: result.nextAfterCreatedAt, mid: result.nextAfterMid};
+      const next = nextCursor(result, "after");
+      if (!next) break;
+      cursor = next;
     }
     if (added) newMessagesElement.hidden = false;
     return !document.hidden && currentGid() === gid && version === requestVersion;
@@ -352,8 +358,7 @@ export function createSessions({
         return;
       }
       const knownMids = new Set(messages.keys());
-      const query = new URLSearchParams({gid: String(gid), size: String(pageSize)});
-      const result = await fetchJson(`/chat/messages/cursor?${query}`, {cache: "no-store"});
+      const result = await fetchMessagePage(gid, pageSize);
       if (currentGid() !== gid || version !== requestVersion) return;
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
       if (fresh.length > 0) {

@@ -29,7 +29,7 @@ export function createPosts({
     const version = ++loadVersion;
     state.selectedDate = date;
     state.loadingPosts = true;
-    showState(postsState, "正在加载…");
+    setStatus("正在加载…");
     retryPosts.hidden = true;
     posts.replaceChildren();
 
@@ -50,14 +50,14 @@ export function createPosts({
       renderPosts(result.items);
       feedCount.textContent = `共 ${result.total} 条`;
       if (result.items.length === 0) {
-        showState(postsState, "该日无微博");
+        setStatus("该日无微博");
       } else {
-        showState(postsState, "");
+        setStatus("");
       }
     } catch (error) {
       if (version !== loadVersion) return;
       handleApiError(error, (e) => {
-        showState(postsState, `加载失败：${e.message}`);
+        setStatus(`加载失败：${e.message}`);
         retryPosts.hidden = false;
       });
     } finally {
@@ -423,11 +423,12 @@ export function createPosts({
   // 程序性清空列表与计数（博主切换时使用），不触碰选中日期等页面状态
   function clear() {
     posts.replaceChildren();
-    showState(postsState, "");
+    setStatus("");
     feedCount.textContent = "";
   }
 
-  function showStatus(message) {
+  // 模块状态行写入，与 dates.setStatus 同名同义
+  function setStatus(message) {
     showState(postsState, message);
   }
 
@@ -446,5 +447,5 @@ export function createPosts({
     if (state.selectedDate) void loadPosts(state.selectedDate);
   });
 
-  return {selectDate, loadPosts, clear, showStatus, revealPost};
+  return {selectDate, loadPosts, clear, setStatus, revealPost};
 }

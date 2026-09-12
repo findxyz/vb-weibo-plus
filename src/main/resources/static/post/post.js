@@ -7,6 +7,7 @@ import {createDates} from "./dates.js";
 import {createBloggers} from "./bloggers.js";
 import {createSearch} from "./search.js";
 import {createLogin} from "./login.js";
+import {pickElements} from "../shared/dom.js";
 
 const elements = {
   globalTip: document.querySelector("#global-tip"),
@@ -68,9 +69,7 @@ const state = {
 };
 
 // 各模块只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
-const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
-
-const login = createLogin({elements: pickElements("loginExpired", "loginQr", "loginQrImg", "bloggersState")});
+const login = createLogin({elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg", "bloggersState")});
 // 统一处理接口错误：登录失效时展示登录过期提示并返回 true，其余错误交给调用方处理
 const handleApiError = (error, onError) => {
   if (error.status === 401) {
@@ -82,24 +81,24 @@ const handleApiError = (error, onError) => {
 };
 
 const viewer = createViewer({
-  elements: pickElements("imageViewer", "imageViewerState", "viewerPrev", "viewerNext", "viewerCounter"),
+  elements: pickElements(elements, "imageViewer", "imageViewerState", "viewerPrev", "viewerNext", "viewerCounter"),
   state
 });
 
 const posts = createPosts({
-  elements: pickElements("posts", "postsState", "feedCount", "retryPosts"),
+  elements: pickElements(elements, "posts", "postsState", "feedCount", "retryPosts"),
   state, handleApiError,
   openImageViewer: viewer.openImageViewer
 });
 
 const dates = createDates({
-  elements: pickElements("datesState", "datesList"),
+  elements: pickElements(elements, "datesState", "datesList"),
   state, handleApiError,
   onSelectDate: posts.selectDate
 });
 
 const bloggers = createBloggers({
-  elements: pickElements(
+  elements: pickElements(elements, 
     "bloggersCount", "bloggersList", "bloggersState", "allBloggersRow", "bloggerSearch",
     "currentFilter", "syncHistoryOpen", "globalTip",
     "bloggerAdd", "addBloggerDialog", "addBloggerCancel", "addBloggerSubmit", "addBloggerInput",
@@ -110,7 +109,7 @@ const bloggers = createBloggers({
 });
 
 createSearch({
-  elements: pickElements(
+  elements: pickElements(elements, 
     "searchOpen", "searchDialog", "searchCancel", "searchSubmit", "searchKeyword",
     "searchStart", "searchEnd", "searchStatus", "searchResults", "searchScopeTip"),
   state, handleApiError,

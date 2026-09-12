@@ -137,16 +137,11 @@ export function createDates({
   }
 
   // 展开时间轴上的第一天并标记选中，返回日期字符串；没有可用的日期项时返回 null。
-  // 博主切换后的默认选中使用。
+  // 博主切换后的默认选中使用，展开与高亮复用 revealDate 的同一段逻辑。
   function selectFirstDate() {
-    const firstMonth = datesList.querySelector(".month-group");
-    if (!firstMonth) return null;
-    const firstYear = firstMonth.closest(".year-group");
-    if (firstYear && !firstYear.classList.contains("open")) toggleGroup(firstYear);
-    if (!firstMonth.classList.contains("open")) toggleGroup(firstMonth);
-    const firstDay = firstMonth.querySelector(".date-item");
+    const firstDay = datesList.querySelector(".month-group .date-item");
     if (!firstDay) return null;
-    setActiveDate(firstDay.dataset.date);
+    revealDate(firstDay.dataset.date);
     return firstDay.dataset.date;
   }
 

@@ -118,7 +118,7 @@ export function createBloggers({
     if (firstDate) {
       posts.selectDate(firstDate);
     } else {
-      posts.showStatus("无微博数据");
+      posts.setStatus("无微博数据");
     }
   }
 

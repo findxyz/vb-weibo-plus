@@ -9,6 +9,7 @@ import {createDream} from "./dream.js";
 import {createAttitudes} from "./attitudes.js";
 import {createEmojiPanel} from "./emoji-panel.js";
 import {createLogin} from "./login.js";
+import {pickElements} from "../shared/dom.js";
 
 function bootstrap() {
   const PAGE_SIZE = 50;
@@ -80,11 +81,10 @@ function bootstrap() {
     void attitudes.load(gid, messages);
   }
   // 各工厂只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
-  const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
   // 登录检测与扫码登录归 login 模块（与 post 页同一模式）；
   // 扫码成功后重走初始化，失败写回群聊面板状态行
   const login = createLogin({
-    elements: pickElements("loginExpired", "loginQr", "loginQrImg", "qrLoading"),
+    elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg", "qrLoading"),
     onRelogin: () => initialize(),
     onError: () => {
       elements.groupsState.textContent = "扫码登录失败，请稍后重试。";
@@ -92,13 +92,13 @@ function bootstrap() {
     }
   });
   const messageView = createMessageView({
-    elements: pickElements("imageViewer", "imageViewerImage", "imageViewerState"),
+    elements: pickElements(elements, "imageViewer", "imageViewerImage", "imageViewerState"),
     getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
     isAdminSender,
     onSenderClick: (...args) => celebration.openPopover(...args)
   });
   const sessions = createSessions({
-    elements: pickElements("messages", "newMessages", "scrollBottom"),
+    elements: pickElements(elements, "messages", "newMessages", "scrollBottom"),
     messageView,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
     onInitialMessages: seedCelebrationAndAttitudes,
@@ -110,24 +110,24 @@ function bootstrap() {
     onAuthExpired: login.showLoginExpired
   });
   const attitudes = createAttitudes({
-    elements: pickElements("attitudesToggle"),
+    elements: pickElements(elements, "attitudesToggle"),
     getCurrentGid: () => state.currentGid,
     getRenderedMessages: () => sessions.getRenderedMessages(),
     applyAttitudes: sessions.applyAttitudes
   });
   createEmojiPanel({
-    elements: pickElements("emojiPickerOpen", "emojiPanel", "emojiPanelGrid", "composer"),
+    elements: pickElements(elements, "emojiPickerOpen", "emojiPanel", "emojiPanelGrid", "composer"),
     getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {}
   });
   const analysis = createAnalysis({
-    elements: pickElements(
+    elements: pickElements(elements, 
       "analysisDialog", "analysisOpen", "analysisClose", "analysisTitle", "analysisForm",
       "analysisDate", "analysisPrompt", "analysisSubmit", "analysisBack", "analysisDownload",
       "analysisEmpty", "analysisFeedback", "analysisResults", "analysisList", "analysisPageState",
       "analysisPrev", "analysisNext", "analysisDetail", "analysisDetailMeta", "analysisDetailContent")
   });
   celebration = createCelebration({
-    elements: pickElements(
+    elements: pickElements(elements, 
       "celebrationRoster", "celebrationStage", "celebrationInterval", "celebrationPopover",
       "celebrationPopoverTitle", "celebrationPopoverJoin", "celebrationPopoverRemove",
       "celebrationPopoverClose"),
@@ -135,7 +135,7 @@ function bootstrap() {
     getMessages: () => sessions.getMessagesSnapshot()
   });
   const composer = createComposer({
-    elements: pickElements(
+    elements: pickElements(elements, 
       "composer", "composerHint", "imagePickerOpen", "imageInput", "videoPickerOpen",
       "videoInput", "composerAttachment", "composerAttachmentPreview",
       "composerAttachmentPreviewVideo", "composerAttachmentRemove"),
@@ -143,7 +143,7 @@ function bootstrap() {
     onRefresh: gid => sessions.refreshAfterSend(gid)
   });
   const groups = createGroups({
-    elements: pickElements("groupSearch", "groupsCount", "groupsList"),
+    elements: pickElements(elements, "groupSearch", "groupsCount", "groupsList"),
     messageView,
     getCurrentGid: () => state.currentGid, onSelect: selectGroup,
     onGroupsChanged: list => {
@@ -154,7 +154,7 @@ function bootstrap() {
     onAuthExpired: login.showLoginExpired
   });
   const history = createHistory({
-    elements: pickElements(
+    elements: pickElements(elements, 
       "historyDialog", "historyOpen", "historyClose", "historyBack", "historyForm",
       "historyKeyword", "historySender", "historyStart", "historyEnd", "historySync",
       "historySyncTime", "historyTitle", "historyMessages", "historyEmpty", "historyFeedback",
@@ -164,7 +164,7 @@ function bootstrap() {
     messageView
   });
   createDream({
-    elements: pickElements(
+    elements: pickElements(elements, 
       "messages", "dreamPopover", "dreamEnter", "dreamPopoverClose",
       "dreamDialog", "dreamFrame", "dreamClose")
   });
@@ -200,8 +200,7 @@ function bootstrap() {
       row.classList.toggle("active", active);
       if (active) row.setAttribute("aria-current", "true"); else row.removeAttribute("aria-current");
     });
-    const loading = sessions.open(group);
-    return loading;
+    return sessions.open(group);
   }
 
   function updateCurrentGroupHeader() {
@@ -234,7 +233,7 @@ function bootstrap() {
   async function initialize() {
     state.initializing = true; elements.retryGroups.hidden = true; elements.groupsState.textContent = "";
     try {
-      const list = await groups.loadInitial();
+      const list = await groups.loadGroups();
       if (!list.length) return;
       const savedGid = Number(localStorage.getItem(LAST_GROUP_KEY));
       await selectGroup((list.find(group => group.gid === savedGid) || list[0]).gid);
