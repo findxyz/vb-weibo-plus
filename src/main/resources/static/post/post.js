@@ -1,5 +1,5 @@
 // 本地微博 post 页引导：收集 DOM 引用与共享状态，按依赖顺序装配各模块。
-// 博主列表 → 日期时间轴 → 微博列表为数据流依赖链，跨模块编排走 datesApi/postsApi
+// 博主列表 → 日期时间轴 → 微博列表为数据流依赖链，跨模块编排走 dates/posts
 // 的显式接口；图片查看器与登录相互独立，先建后注入。
 import {createApiErrorHandler} from "./helpers.js";
 import {createViewer} from "./viewer.js";
@@ -80,7 +80,7 @@ const viewer = createViewer({
 });
 
 const posts = createPosts({
-  elements: pickElements("posts", "postsState", "feedCount", "retryPosts", "datesList"),
+  elements: pickElements("posts", "postsState", "feedCount", "retryPosts"),
   state, handleApiError,
   openImageViewer: viewer.openImageViewer
 });
@@ -99,7 +99,7 @@ const bloggers = createBloggers({
     "addBloggerError", "syncHistoryDialog", "syncHistoryBlogger", "syncHistoryStart",
     "syncHistoryEnd", "syncHistoryStatus", "syncHistoryCancel", "syncHistorySubmit"),
   state, handleApiError,
-  datesApi: dates, postsApi: posts
+  dates, posts
 });
 
 createSearch({
@@ -107,7 +107,7 @@ createSearch({
     "searchOpen", "searchDialog", "searchCancel", "searchSubmit", "searchKeyword",
     "searchStart", "searchEnd", "searchStatus", "searchResults", "searchScopeTip"),
   state, handleApiError,
-  datesApi: dates, postsApi: posts
+  dates, posts
 });
 
 elements.windowToggle.addEventListener("click", () => {

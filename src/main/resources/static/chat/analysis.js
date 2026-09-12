@@ -1,11 +1,13 @@
+import {fetchJson} from "../shared/fetch.js";
+import {localDateValue} from "../shared/date.js";
+
 export function createAnalysis({
   elements: {
     analysisDialog, analysisOpen, analysisClose, analysisTitle, analysisForm,
     analysisDate, analysisPrompt, analysisSubmit, analysisBack, analysisDownload,
     analysisEmpty, analysisFeedback, analysisResults, analysisList, analysisPageState,
     analysisPrev, analysisNext, analysisDetail, analysisDetailMeta, analysisDetailContent
-  },
-  fetchJson, localDateValue}) {
+  }}) {
   const state = {
     gid: null,
     page: 1,

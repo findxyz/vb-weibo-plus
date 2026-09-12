@@ -1,5 +1,7 @@
+import {fetchJson} from "../shared/fetch.js";
+
 export function createGroupList({elements: {groupSearch, groupsCount, groupsList},
-  messageView, fetchJson, getCurrentGid, onSelect, onGroupsChanged}) {
+  messageView, getCurrentGid, onSelect, onGroupsChanged}) {
   let groups = null;
   let refreshing = false;
   function groupPreview(group) {

@@ -1,3 +1,5 @@
+import {MEDIA_TYPE, formatTime} from "./chat-common.js";
+
 const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
 const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
 const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
@@ -14,12 +16,8 @@ const ATTITUDE_ICONS = {
 };
 
 export function createMessageView({
-  imageViewer,
-  imageViewerImage,
-  imageViewerState,
+  elements: {imageViewer, imageViewerImage, imageViewerState},
   getWeiboEmojiMap,
-  mediaTypes,
-  formatTime,
   isAdminSender,
   onSenderClick
 }) {
@@ -220,7 +218,7 @@ export function createMessageView({
       link.rel = "noopener noreferrer";
       link.textContent = message.text || "下载文件";
       bubble.append(link);
-    } else if (message.mediaType === mediaTypes.WEIBO_CARD && message.urlObjects?.[0]?.status) {
+    } else if (message.mediaType === MEDIA_TYPE.WEIBO_CARD && message.urlObjects?.[0]?.status) {
       appendWeiboCard(bubble, message.urlObjects[0]);
     } else {
       appendMessageText(bubble, message.text || `[${message.msgTypeName || "消息"}]`);

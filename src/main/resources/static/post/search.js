@@ -1,8 +1,8 @@
 // 高级搜索：关键词 + 起止日期，结果摘要做 DOM 高亮，点击跳转到对应日期与博文。
 import {fetchJson} from "../shared/fetch.js";
-import {localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
+import {localDateValue, pad, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {appendHighlightedText} from "../shared/highlight.js";
-import {showState, isDateRangeValid, formatDate, epochToDateStr} from "./helpers.js";
+import {showState, isDateRangeValid, formatDate} from "./helpers.js";
 
 const SEARCH_SIZE_LIMIT = 1000;
 
@@ -11,7 +11,13 @@ export function createSearch({
     searchOpen, searchDialog, searchCancel, searchSubmit, searchKeyword,
     searchStart, searchEnd, searchStatus, searchResults, searchScopeTip
   },
-  state, handleApiError, datesApi, postsApi}) {
+  state, handleApiError, dates, posts}) {
+
+  // 与后端 Asia/Shanghai 时区保持一致，避免本地时区导致日期错位
+  function epochToDateStr(epochMillis) {
+    const d = new Date(epochMillis + 8 * 3600 * 1000);
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  }
 
   function currentScopeLabel() {
     if (!state.selectedUid) return "全部博主";
@@ -141,21 +147,10 @@ export function createSearch({
   async function jumpToPost(post) {
     searchDialog.close();
     const dateStr = epochToDateStr(post.createdAt);
-    // 展开日期树上该日所在的年与月，拿到日期项后程序性切换选中
-    const dayItem = datesApi.revealDate(dateStr);
-    if (dayItem) {
-      // 程序性切换：activateDate 不做加载中的早退判断，语义见 posts 模块
-      postsApi.activateDate(dateStr, dayItem);
-    }
-    await postsApi.loadPosts(dateStr);
-    requestAnimationFrame(() => {
-      const card = document.querySelector(`#post-${post.mblogId}`);
-      if (card) {
-        card.scrollIntoView({behavior: "smooth", block: "center"});
-        card.classList.add("flash-highlight");
-        setTimeout(() => card.classList.remove("flash-highlight"), 1600);
-      }
-    });
+    // 展开日期树上该日所在的年与月并标记选中；该日不在时间轴上时列表仍按日期加载
+    dates.revealDate(dateStr);
+    await posts.loadPosts(dateStr);
+    posts.revealPost(post.mblogId);
   }
 
   /* ---------- 事件绑定 ---------- */

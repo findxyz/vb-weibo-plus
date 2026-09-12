@@ -1,5 +1,5 @@
 // 博主列表与博主管理：加载/筛选/选中，添加博主与同步历史微博两个弹窗。
-// 切换博主后的列表重置与默认日期选中，一律走 datesApi/postsApi 的显式接口，
+// 切换博主后的列表重置与默认日期选中，一律走 dates/posts 的显式接口，
 // 不直接触碰两个模块渲染出的 DOM。
 import {fetchJson} from "../shared/fetch.js";
 import {localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
@@ -13,7 +13,7 @@ export function createBloggers({
     addBloggerError, syncHistoryDialog, syncHistoryBlogger, syncHistoryStart,
     syncHistoryEnd, syncHistoryStatus, syncHistoryCancel, syncHistorySubmit
   },
-  state, handleApiError, datesApi, postsApi}) {
+  state, handleApiError, dates, posts}) {
 
   async function loadBloggers(selectAll = true) {
     showState(bloggersState, "");
@@ -106,14 +106,14 @@ export function createBloggers({
 
   async function onBloggerChanged() {
     state.selectedDate = null;
-    postsApi.clear();
-    await datesApi.loadDates();
+    posts.clear();
+    await dates.loadDates();
     // 默认进入时间轴上的第一天；没有可用的日期项时提示空数据
-    const firstDay = datesApi.selectFirstDate();
-    if (firstDay) {
-      postsApi.selectDate(firstDay.dataset.date, firstDay);
+    const firstDate = dates.selectFirstDate();
+    if (firstDate) {
+      posts.selectDate(firstDate);
     } else {
-      postsApi.showStatus("无微博数据");
+      posts.showStatus("无微博数据");
     }
   }
 
@@ -228,8 +228,8 @@ export function createBloggers({
     try {
       await fetchJson(`/post/range?${params}`, {method: "POST"});
       // 刷新日期时间轴，让新同步的日期出现在面板里
-      await datesApi.loadDates();
-      datesApi.setStatus("同步完成");
+      await dates.loadDates();
+      dates.setStatus("同步完成");
     } catch (error) {
       // 错误在主窗口右上角醒目提示，不再写进日期标题旁的 #dates-state 造成重影
       handleApiError(error, (e) => showGlobalTip(`同步历史微博失败：${e.message}`));

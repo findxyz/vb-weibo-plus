@@ -1,4 +1,7 @@
 // 日期时间轴：年 → 月 → 日三级折叠，点某天进入当日微博列表。
+// onSelectDate(dateStr) 请求切换日期，返回是否被接受（列表加载中时拒绝）；
+// 选中高亮只在被接受后更新，保证高亮与列表内容一致。
+// 对外语言只有日期字符串，分组 DOM 是模块内部细节。
 import {fetchJson} from "../shared/fetch.js";
 import {showState} from "./helpers.js";
 
@@ -92,7 +95,9 @@ export function createDates({
       dayCount.textContent = day.count;
       item.appendChild(label);
       item.appendChild(dayCount);
-      item.addEventListener("click", () => onSelectDate(day.date, item));
+      item.addEventListener("click", () => {
+        if (onSelectDate(day.date)) setActiveDate(day.date);
+      });
       days.appendChild(item);
     }
     group.appendChild(days);
@@ -103,26 +108,40 @@ export function createDates({
     group.classList.toggle("open");
   }
 
-  // 展开指定日期所在的年份与月份分组，返回该日元素；日期不在时间轴上时返回 null。
-  // 搜索结果跳转等程序性定位使用，避免外部了解分组 DOM 结构。
+  // 选中高亮归位：清掉旧高亮，标记命中日期；日期不在时间轴上时不新增高亮
+  function setActiveDate(dateStr) {
+    for (const el of datesList.querySelectorAll(".date-item.active")) {
+      el.classList.remove("active");
+    }
+    const item = datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
+    if (item) item.classList.add("active");
+  }
+
+  // 展开指定日期所在的年份与月份分组并标记选中，返回日期字符串；
+  // 日期不在时间轴上时返回 null。搜索结果跳转等程序性定位使用。
   function revealDate(dateStr) {
     const monthGroup = datesList.querySelector(`.month-group[data-month="${dateStr.slice(0, 7)}"]`);
     if (!monthGroup) return null;
     const yearGroup = monthGroup.closest(".year-group");
     if (yearGroup && !yearGroup.classList.contains("open")) toggleGroup(yearGroup);
     if (!monthGroup.classList.contains("open")) toggleGroup(monthGroup);
-    return datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
+    const dayItem = datesList.querySelector(`.date-item[data-date="${dateStr}"]`);
+    if (dayItem) setActiveDate(dateStr);
+    return dateStr;
   }
 
-  // 展开并返回时间轴上的第一天；没有可用的日期项时返回 null。
-  // 博主切换后的默认选中使用，避免外部了解分组 DOM 结构。
+  // 展开时间轴上的第一天并标记选中，返回日期字符串；没有可用的日期项时返回 null。
+  // 博主切换后的默认选中使用。
   function selectFirstDate() {
     const firstMonth = datesList.querySelector(".month-group");
     if (!firstMonth) return null;
     const firstYear = firstMonth.closest(".year-group");
     if (firstYear) firstYear.classList.add("open");
     toggleGroup(firstMonth);
-    return firstMonth.querySelector(".date-item");
+    const firstDay = firstMonth.querySelector(".date-item");
+    if (!firstDay) return null;
+    setActiveDate(firstDay.dataset.date);
+    return firstDay.dataset.date;
   }
 
   // 日期面板状态行（如同步完成后由博主模块写入提示）

@@ -1,4 +1,5 @@
 // post 页内通用小工具：状态文案、日期校验、认证徽标、时间格式与统一接口错误分流。
+// 单一调用方的逻辑不放在这里（如搜索跳转的时区日期换算在 search.js 内）。
 import {pad} from "../shared/date.js";
 
 export function showState(el, message) {
@@ -23,12 +24,6 @@ export function formatDate(epochMillis) {
   if (!epochMillis) return "";
   const d = new Date(epochMillis);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// 与后端 Asia/Shanghai 时区保持一致，避免本地时区导致日期错位
-export function epochToDateStr(epochMillis) {
-  const d = new Date(epochMillis + 8 * 3600 * 1000);
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
 // 统一处理接口错误：登录失效时展示登录过期提示并返回 true，其余错误交给调用方处理

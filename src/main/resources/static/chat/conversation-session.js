@@ -1,10 +1,9 @@
+import {fetchJson} from "../shared/fetch.js";
+import {captureScrollAnchor, compareMessages, restoreScrollAnchor} from "./chat-common.js";
+
 export function createConversationSession({
   elements: {messages: messagesElement, newMessages: newMessagesElement},
   messageView,
-  fetchJson,
-  compareMessages,
-  captureScrollAnchor,
-  restoreScrollAnchor,
   pageSize,
   earlierLoadThreshold,
   onInitialMessages,
@@ -541,7 +540,6 @@ export function createConversationSession({
     refreshAfterSend,
     applyAttitudes,
     getRenderedMessages,
-    getCurrentGid: currentGid,
     getMessagesSnapshot: () => [...messages.values()]
   };
 }

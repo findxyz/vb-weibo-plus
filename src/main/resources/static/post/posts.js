@@ -1,4 +1,5 @@
 // 微博列表：按日加载与博文卡片渲染（正文 linkify、转发块、图片、视频）。
+// 对外语言只有日期字符串与博文 id，卡片 DOM 是模块内部细节。
 import {fetchJson} from "../shared/fetch.js";
 import {toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {showState, createVerifiedBadge, formatDate} from "./helpers.js";
@@ -6,26 +7,21 @@ import {showState, createVerifiedBadge, formatDate} from "./helpers.js";
 const DAY_PAGE_SIZE = 9999;
 
 export function createPosts({
-  elements: {posts, postsState, feedCount, retryPosts, datesList},
+  elements: {posts, postsState, feedCount, retryPosts},
   state, handleApiError, openImageViewer}) {
 
-  async function selectDate(date, itemEl) {
-    if (state.loadingPosts) return;
-    activateDate(date, itemEl);
-    await loadPosts(date);
+  // 用户点选某日：加载在途时拒绝本次切换（返回 false，日期高亮保持原位），
+  // 否则开始加载并返回 true。返回值供日期时间轴决定是否更新选中高亮。
+  function selectDate(date) {
+    if (state.loadingPosts) return false;
+    loadPosts(date);
+    return true;
   }
 
-  // 归位选中态与 selectedDate。不带加载中的早退判断：手动点选走 selectDate（有守卫），
+  // 归位 selectedDate。不带加载中的早退判断：手动点选走 selectDate（有守卫），
   // 搜索跳转（jumpToPost）是明确的程序性切换，即使上一轮加载未落也必须改选日期。
-  function activateDate(date, itemEl) {
-    for (const el of datesList.querySelectorAll(".date-item.active")) {
-      el.classList.remove("active");
-    }
-    if (itemEl) itemEl.classList.add("active");
-    state.selectedDate = date;
-  }
-
   async function loadPosts(date) {
+    state.selectedDate = date;
     state.loadingPosts = true;
     showState(postsState, "正在加载…");
     retryPosts.hidden = true;
@@ -426,9 +422,20 @@ export function createPosts({
     showState(postsState, message);
   }
 
+  // 滚动定位到指定博文并闪烁提示（搜索跳转后使用）；卡片未渲染时不动作
+  function revealPost(mblogId) {
+    requestAnimationFrame(() => {
+      const card = document.querySelector(`#post-${mblogId}`);
+      if (!card) return;
+      card.scrollIntoView({behavior: "smooth", block: "center"});
+      card.classList.add("flash-highlight");
+      setTimeout(() => card.classList.remove("flash-highlight"), 1600);
+    });
+  }
+
   retryPosts.addEventListener("click", () => {
     if (state.selectedDate) loadPosts(state.selectedDate);
   });
 
-  return {selectDate, activateDate, loadPosts, clear, showStatus};
+  return {selectDate, loadPosts, clear, showStatus, revealPost};
 }

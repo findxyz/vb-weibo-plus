@@ -1,4 +1,10 @@
 import {appendHighlightedText} from "../shared/highlight.js";
+import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
+import {fetchJson} from "../shared/fetch.js";
+import {MEDIA_TYPE, captureScrollAnchor, compareMessages, formatDateTime, restoreScrollAnchor} from "./chat-common.js";
+
+// 红包消息的文本里带这句话，用于把 mediaType=13 从「视频」里区分出来
+const RED_PACKET_TEXT = "收到红包消息";
 
 export function createHistory({
   elements: {
@@ -8,9 +14,7 @@ export function createHistory({
     historyEarlierState, historyPrevious, historyNext, historyResults, historyResultsList,
     historyContext
   },
-  fetchJson, localDateValue, calendarMonthsAgo,
-  pageSize, searchPageSize, earlierLoadThreshold, compareMessages, captureScrollAnchor,
-  restoreScrollAnchor, messageView, formatDateTime, mediaTypes, redPacketText, group = {}}) {
+  pageSize, searchPageSize, earlierLoadThreshold, messageView, group = {}}) {
   const state = {
     gid: group.gid || null, page: 1, total: 0, query: null, targetMid: null,
     beforeCursor: null, afterCursor: null, loadingMore: false, requestVersion: 0,
@@ -18,11 +22,11 @@ export function createHistory({
   };
 
   function historySummary(message) {
-    if (message.videoUrl || message.mediaType === mediaTypes.VIDEO
-      || (message.mediaType === mediaTypes.VIDEO_OR_REDPACKET
-        && !(message.text || "").includes(redPacketText))) return "[视频]";
-    if (message.mediaType === mediaTypes.WEIBO_CARD) return "[微博]";
-    if (message.mediaType === mediaTypes.IMAGE || message.previewUrl) return "[图片]";
+    if (message.videoUrl || message.mediaType === MEDIA_TYPE.VIDEO
+      || (message.mediaType === MEDIA_TYPE.VIDEO_OR_REDPACKET
+        && !(message.text || "").includes(RED_PACKET_TEXT))) return "[视频]";
+    if (message.mediaType === MEDIA_TYPE.WEIBO_CARD) return "[微博]";
+    if (message.mediaType === MEDIA_TYPE.IMAGE || message.previewUrl) return "[图片]";
     return message.text?.trim() || `[${message.msgTypeName || "消息"}]`;
   }
 

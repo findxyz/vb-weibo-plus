@@ -3,7 +3,10 @@ import {positionPopover} from "../shared/popover.js";
 // 盗梦空间彩蛋：每个群友的梦境页面按用户 id 放在 /chat/dream/<uid>.html，
 // 悬停头像 3 秒后探测该页面，存在才弹出入口提示；弹层保持显示，直到点击
 // 自身的关闭按钮、进入游戏或滚动消息，确认后以蒙版对话框打开游戏。
-export function createDream({messages, popover, enterButton, popoverClose, dialog, frame, closeButton}) {
+export function createDream({
+  elements: {
+    messages, dreamPopover: popover, dreamEnter: enterButton, dreamPopoverClose: popoverClose,
+    dreamDialog: dialog, dreamFrame: frame, dreamClose: closeButton}}) {
   const HOVER_OPEN_MS = 3000;
   let hoverTimer = null;
   let anchor = null;

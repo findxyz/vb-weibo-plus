@@ -1,11 +1,5 @@
-import {calendarMonthsAgo, localDateValue} from "../shared/date.js";
 import {fetchJson} from "../shared/fetch.js";
 import {createQrLogin} from "../shared/qr-login.js";
-import {
-  captureScrollAnchor,
-  compareMessages,
-  restoreScrollAnchor
-} from "./chat-common.js";
 import {createMessageView} from "./message-view.js";
 import {createAnalysis} from "./analysis.js";
 import {createHistory} from "./history.js";
@@ -22,8 +16,6 @@ function bootstrap() {
   const HISTORY_SEARCH_PAGE_SIZE = 20;
   const LAST_GROUP_KEY = "weibo-chat:last-gid";
   const IMMERSIVE_KEY = "weibo-chat:immersive";
-  const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
-  const RED_PACKET_TEXT = "收到红包消息";
   const elements = {
     appTitle: document.querySelector("#app-title"), groupsCount: document.querySelector("#groups-count"),
     groupsList: document.querySelector("#groups-list"), groupsState: document.querySelector("#groups-state"),
@@ -90,14 +82,14 @@ function bootstrap() {
   // 各工厂只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
   const pickElements = (...keys) => Object.fromEntries(keys.map(key => [key, elements[key]]));
   const messageView = createMessageView({
-    imageViewer: elements.imageViewer, imageViewerImage: elements.imageViewerImage,
-    imageViewerState: elements.imageViewerState, getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
-    mediaTypes: MEDIA_TYPE, formatTime, isAdminSender,
+    elements: pickElements("imageViewer", "imageViewerImage", "imageViewerState"),
+    getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
+    isAdminSender,
     onSenderClick: (...args) => celebration.openPopover(...args)
   });
   const conversation = createConversationSession({
     elements: pickElements("messages", "newMessages"),
-    messageView, fetchJson, compareMessages, captureScrollAnchor, restoreScrollAnchor,
+    messageView,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
     onInitialMessages: seedCelebrationAndAttitudes,
     onEarlierMessages: seedCelebrationAndAttitudes,
@@ -121,17 +113,17 @@ function bootstrap() {
       "analysisDialog", "analysisOpen", "analysisClose", "analysisTitle", "analysisForm",
       "analysisDate", "analysisPrompt", "analysisSubmit", "analysisBack", "analysisDownload",
       "analysisEmpty", "analysisFeedback", "analysisResults", "analysisList", "analysisPageState",
-      "analysisPrev", "analysisNext", "analysisDetail", "analysisDetailMeta", "analysisDetailContent"),
-    fetchJson, localDateValue});
+      "analysisPrev", "analysisNext", "analysisDetail", "analysisDetailMeta", "analysisDetailContent")
+  });
   celebration = createCelebration({
     elements: pickElements(
       "celebrationRoster", "celebrationStage", "celebrationInterval", "celebrationPopover",
       "celebrationPopoverTitle", "celebrationPopoverJoin", "celebrationPopoverRemove",
       "celebrationPopoverClose"),
     messageView, getCurrentGid: () => state.currentGid,
-    getMessages: () => conversation.getMessagesSnapshot(), compareMessages
+    getMessages: () => conversation.getMessagesSnapshot()
   });
-  const composer = createComposer({
+  createComposer({
     elements: pickElements(
       "composer", "composerHint", "imagePickerOpen", "imageInput", "videoPickerOpen",
       "videoInput", "composerAttachment", "composerAttachmentPreview",
@@ -142,7 +134,7 @@ function bootstrap() {
   });
   const groupList = createGroupList({
     elements: pickElements("groupSearch", "groupsCount", "groupsList"),
-    messageView, fetchJson,
+    messageView,
     getCurrentGid: () => state.currentGid, onSelect: selectGroup,
     onGroupsChanged: groups => {
       const current = groups.find(item => item.gid === state.currentGid);
@@ -157,26 +149,15 @@ function bootstrap() {
       "historySyncTime", "historyTitle", "historyMessages", "historyEmpty", "historyFeedback",
       "historyPageState", "historyNewerState", "historyEarlierState", "historyPrevious",
       "historyNext", "historyResults", "historyResultsList", "historyContext"),
-    fetchJson, localDateValue, calendarMonthsAgo,
     pageSize: PAGE_SIZE, searchPageSize: HISTORY_SEARCH_PAGE_SIZE, earlierLoadThreshold: 120,
-    compareMessages, captureScrollAnchor, restoreScrollAnchor, messageView, formatDateTime,
-    mediaTypes: MEDIA_TYPE, redPacketText: RED_PACKET_TEXT
+    messageView
   });
   createDream({
-    messages: elements.messages, popover: elements.dreamPopover, enterButton: elements.dreamEnter,
-    popoverClose: elements.dreamPopoverClose,
-    dialog: elements.dreamDialog, frame: elements.dreamFrame, closeButton: elements.dreamClose
+    elements: pickElements(
+      "messages", "dreamPopover", "dreamEnter", "dreamPopoverClose",
+      "dreamDialog", "dreamFrame", "dreamClose")
   });
 
-  const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
-  });
-  const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
-  });
-
-  function formatTime(timestamp) { return timeFormatter.format(new Date(timestamp)); }
-  function formatDateTime(timestamp) { return dateTimeFormatter.format(new Date(timestamp)); }
   function isAdminSender(senderId) {
     if (!Number.isSafeInteger(senderId) || senderId <= 0) return false;
     const group = groupList.findGroup(state.currentGid);

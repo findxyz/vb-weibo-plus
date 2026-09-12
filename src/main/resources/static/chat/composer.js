@@ -158,5 +158,4 @@ export function createComposer({
   composerAttachmentRemove.addEventListener("click", clearPendingAttachment);
   // JS 运行后提示文案以这里为唯一来源；HTML 里的初始文案只是未加载时的兜底
   setComposerHint(HINT_DEFAULT);
-  return {sendMessage, clearPendingAttachment, setPendingAttachment};
 }

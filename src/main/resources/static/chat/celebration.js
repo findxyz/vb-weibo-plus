@@ -1,4 +1,5 @@
 import {attachDismiss, positionPopover} from "../shared/popover.js";
+import {compareMessages} from "./chat-common.js";
 
 export function createCelebration({
   elements: {
@@ -6,7 +7,7 @@ export function createCelebration({
     celebrationPopover, celebrationPopoverTitle, celebrationPopoverJoin,
     celebrationPopoverRemove, celebrationPopoverClose
   },
-  messageView, getCurrentGid, getMessages, compareMessages}) {
+  messageView, getCurrentGid, getMessages}) {
   const CELEBRATION_ROSTER_KEY = "weibo-chat:celebration-roster";
   const CELEBRATION_SEEN_KEY = "weibo-chat:celebration-seen";
   // 回归间隔默认值，单位秒
