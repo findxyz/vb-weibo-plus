@@ -1823,7 +1823,7 @@ class GroupChatPageTest {
     }
 
     @Test
-    void restores_reading_position_when_switching_back_to_a_group_in_the_list() {
+    void switches_to_the_bottom_each_time_a_group_is_selected_from_the_list() {
         try (Page page = openReadingPositionConversation()) {
             page.locator("#messages").evaluate("""
                     element => {
@@ -1831,22 +1831,23 @@ class GroupChatPageTest {
                       element.dispatchEvent(new Event('scroll'));
                     }
                     """);
-            String[] before = readingPositionOf(page).split("\\|");
 
-            // 列表切到群 202 再切回：101 的阅读位应恢复，而不是落底
+            // 列表切到群 202 再切回：每次选群都是一次性落底。
             page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
             assertThat(page.locator("#current-group")).hasText("LinkNow");
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+            double firstDistance = ((Number) page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight")).doubleValue();
+            Assertions.assertThat(firstDistance).isLessThan(1.0);
+
             page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click();
             assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-            waitForRestoredPosition(page);
-            String[] after = readingPositionOf(page).split("\\|");
-
-            Assertions.assertThat(after[0]).isEqualTo(before[0]);
-            Assertions.assertThat(Double.parseDouble(after[1]))
-                    .isCloseTo(Double.parseDouble(before[1]), Offset.offset(0.5));
-            Object distanceFromBottom = page.locator("#messages").evaluate(
-                    "element => element.scrollHeight - element.scrollTop - element.clientHeight");
-            Assertions.assertThat(((Number) distanceFromBottom).doubleValue()).isGreaterThan(1.0);
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+            double secondDistance = ((Number) page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight")).doubleValue();
+            Assertions.assertThat(secondDistance).isLessThan(1.0);
         }
     }
 
@@ -1993,23 +1994,12 @@ class GroupChatPageTest {
     }
 
     @Test
-    void keeps_a_groups_reading_position_when_an_old_jump_finishes_in_another_group() {
+    void old_groups_jump_does_not_move_the_new_group_after_switching() {
         textOnlyGroup202.set(true);
         try (Page page = browser.newPage()) {
             page.setViewportSize(1000, 400);
             page.addInitScript("window.setInterval = () => 0;");
             page.navigate(baseUrl + "/chat/index.html");
-            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
-            assertThat(page.locator("#messages")).containsText("消息 40");
-            page.locator("#messages").evaluate("""
-                    element => {
-                      element.scrollTop = element.scrollHeight * 0.25;
-                      element.dispatchEvent(new Event('scroll'));
-                    }
-                    """);
-            String before = readingPositionOf(page);
-
-            page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click();
             assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
             AtomicReference<Route> pendingJumpRefresh = new AtomicReference<>();
             page.route("**/chat/messages/cursor?**", route -> {
@@ -2024,8 +2014,14 @@ class GroupChatPageTest {
 
             page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
             assertThat(page.locator("#current-group")).hasText("LinkNow");
-            waitForRestoredPosition(page);
-            Assertions.assertThat(readingPositionOf(page)).isEqualTo(before);
+            assertThat(page.locator("#messages")).containsText("消息 40");
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = element.scrollHeight * 0.25;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            String before = readingPositionOf(page);
 
             // 群 101 的旧按钮请求此时才结束，不得把群 202 拖到底。
             pendingJumpRefresh.get().resume();

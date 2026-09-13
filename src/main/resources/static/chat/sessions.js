@@ -317,7 +317,7 @@ export function createSessions({
     return rendered;
   }
 
-  async function loadMessages(cursor = null) {
+  async function loadMessages(cursor = null, restoreSavedPosition = false) {
     const latestPage = cursor === null;
     const anchor = latestPage ? null : captureScrollAnchor(messagesElement);
     const gid = currentGid();
@@ -334,7 +334,8 @@ export function createSessions({
       }
       renderMessages();
       if (latestPage) {
-        await restoreReadingPosition(gid);
+        if (restoreSavedPosition) await restoreReadingPosition(gid);
+        else holdBottom();
         onInitialMessages(gid, result.items);
       } else {
         restoreScrollAnchor(anchor, messagesElement);
@@ -535,7 +536,7 @@ export function createSessions({
       compareMessages(left, right) >= 0 ? left : right);
   }
 
-  // 阅读位离开即存：整页跳转走 markAway，列表切群走 open。真正落在底部只记
+  // 阅读位离开页面时保存。真正落在底部只记
   // atBottom（恢复时等同首开落底），否则记锚点消息与容器内偏移，供再进同群恢复。
   function saveReadingPosition() {
     const gid = currentGid();
@@ -604,8 +605,8 @@ export function createSessions({
   }
 
   function open(nextGroup) {
-    // 列表切群与整页跳转同一口径：离开当前群先记下阅读位
-    if (group) saveReadingPosition();
+    // 只有页面首次初始化才恢复跨页面阅读位，列表里每次选群都落底。
+    const restoreSavedPosition = !group;
     settle = null;
     group = nextGroup;
     version += 1;
@@ -619,7 +620,7 @@ export function createSessions({
     pendingCatchUp = false;
     messagesElement.replaceChildren();
     newMessagesElement.hidden = true;
-    return loadMessages().finally(() => {
+    return loadMessages(null, restoreSavedPosition).finally(() => {
       if (currentGid() === nextGroup.gid) switchingGroup = false;
     });
   }
