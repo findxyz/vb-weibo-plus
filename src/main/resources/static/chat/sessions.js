@@ -64,10 +64,11 @@ export function createSessions({
   let refreshing = false;
   let switchingGroup = false;
   let loadingEarlier = false;
-  // 跳底收尾：首屏打开或滚底按钮跳底后，已渲染的图片与表态行会陆续撑高，
-  // 撑高就再贴一次底，保证「到底部」是真的到底部；用户主动滚动或离开页面
-  // 即停止，此后任何代码路径都不再移动视口。
-  let pinning = false;
+  // 收尾：一次性落底或阅读位恢复动作之后，已渲染的图片与表态行会陆续撑高内容，
+  // 撑高就按动作目标补偿视口（落底补回底部，恢复把锚点按回记录偏移），保证动作
+  // 承诺的位置是真的。用户主动输入或离开页面即停止，此后任何代码路径都不再移动
+  // 视口；新消息永远只弹提示，不参与收尾。
+  let settle = null;
 
   // 滑动窗口：DOM 只保留视口附近的消息，其余区间用占位高度撑起滚动条。
   // 数据始终完整留在 messages Map 里，被回收的消息滚回视口时会重新渲染。
@@ -196,6 +197,39 @@ export function createSessions({
     messagesElement.scrollTop = messagesElement.scrollHeight;
   }
 
+  // 一次性落底动作的统一入口：落底并进入收尾
+  function holdBottom() {
+    settle = {kind: "bottom"};
+    scrollToBottom();
+  }
+
+  // 恢复阅读位：以锚点消息为参照物化窗口，再按记录偏移精确落位。
+  // 落位按渲染后的实测位置计算，估算误差不影响锚点回到记录偏移。
+  function placeAnchor(mid, offset) {
+    const ordered = getOrdered();
+    const anchorIdx = ordered.findIndex(message => message.mid === mid);
+    if (anchorIdx < 0) return;
+    windowStartIdx = Math.max(0, Math.min(anchorIdx - WINDOW_KEEP_ABOVE, ordered.length - WINDOW_CAP));
+    windowEndIdx = Math.min(ordered.length - 1, windowStartIdx + WINDOW_CAP - 1);
+    renderMessages();
+    const anchorElement = messagesElement.querySelector(`[data-mid="${mid}"]`);
+    if (!anchorElement) return;
+    messagesElement.scrollTop += anchorElement.getBoundingClientRect().top
+      - messagesElement.getBoundingClientRect().top - offset;
+  }
+
+  function holdAnchor(record) {
+    settle = {kind: "anchor", mid: record.mid, offset: record.offset};
+    placeAnchor(record.mid, record.offset);
+  }
+
+  // 收尾补偿：媒体加载或表态行撑高内容时，把视口按回本次动作的目标位置
+  function compensateSettle() {
+    if (!settle) return;
+    if (settle.kind === "bottom") scrollToBottom();
+    else placeAnchor(settle.mid, settle.offset);
+  }
+
   function renderMessages() {
     const ordered = getOrdered();
     if (!ordered.length) {
@@ -206,11 +240,11 @@ export function createSessions({
     const [start, end] = resolveWindow(ordered);
     const renderGid = currentGid();
     const renderVersion = version;
-    // 跳底收尾期间图片加载撑高内容，撑高就再贴一次底；不能靠 isNearBottom
+    // 收尾期间图片加载撑高内容，撑高就按动作目标补偿视口；不能靠 isNearBottom
     // 判定——撑高发生在 load 事件之前，视口已被顶离底部。
     const onMediaLoad = () => {
       if (currentGid() !== renderGid || version !== renderVersion) return;
-      if (pinning) scrollToBottom();
+      compensateSettle();
     };
     let aboveSum = 0;
     for (let i = 0; i < start; i++) aboveSum += estimateHeight(ordered[i]);
@@ -266,7 +300,7 @@ export function createSessions({
       }
     }
     // 表态行插入撑高已渲染消息且无 load 事件，与媒体加载同一收尾口径
-    if (updated && pinning) scrollToBottom();
+    if (updated) compensateSettle();
   }
 
   // 当前窗口实际渲染的消息对象，供按需拉取表态等场景使用
@@ -297,8 +331,7 @@ export function createSessions({
       }
       renderMessages();
       if (latestPage) {
-        pinning = true;
-        scrollToBottom();
+        await restoreReadingPosition(gid);
         onInitialMessages(gid, result.items);
       } else {
         restoreScrollAnchor(anchor, messagesElement);
@@ -492,7 +525,83 @@ export function createSessions({
     }
   }
 
+  const READING_POSITION_PREFIX = "weibo-chat:reading-position:";
+
+  function lastMessage() {
+    return [...messages.values()].reduce((left, right) =>
+      compareMessages(left, right) >= 0 ? left : right);
+  }
+
+  // 阅读位离开即存：整页跳转走 markAway，列表切群走 open。落在底部只记
+  // atBottom（恢复时等同首开落底），否则记锚点消息与容器内偏移，供再进同群恢复。
+  function saveReadingPosition() {
+    const gid = currentGid();
+    if (!gid || !messages.size) return;
+    let record;
+    if (isNearBottom()) {
+      record = {atBottom: true};
+    } else {
+      const anchor = captureScrollAnchor(messagesElement);
+      const latest = lastMessage();
+      if (!anchor || !latest) return;
+      record = {
+        mid: Number(anchor.mid),
+        offset: anchor.top - messagesElement.getBoundingClientRect().top,
+        lastSeen: {createdAt: latest.createdAt, mid: latest.mid}
+      };
+    }
+    try {
+      sessionStorage.setItem(READING_POSITION_PREFIX + gid, JSON.stringify(record));
+    } catch {
+      // 存不进去就当没有阅读位，下次进群按首开处理
+    }
+  }
+
+  function readReadingPosition(gid) {
+    try {
+      const record = JSON.parse(sessionStorage.getItem(READING_POSITION_PREFIX + gid));
+      if (!record) return null;
+      if (record.atBottom === true) return record;
+      if (Number.isInteger(record.mid) && Number.isFinite(record.offset) && record.lastSeen
+        && Number.isFinite(record.lastSeen.createdAt) && Number.isInteger(record.lastSeen.mid)) {
+        return record;
+      }
+    } catch {
+      // 记录损坏或存储不可用视为不存在
+    }
+    return null;
+  }
+
+  // 进群落位：有可恢复的阅读位就恢复原位置，否则按首开落底。锚点不在最新页时
+  // 逐页向前补齐到锚点所在页，补齐失败（锚点已拉不到）落底部兜底。
+  async function restoreReadingPosition(gid) {
+    const record = readReadingPosition(gid);
+    if (!record || record.atBottom) {
+      holdBottom();
+      return;
+    }
+    while (!messages.has(record.mid) && beforeCursor && hasMore) {
+      const knownCount = messages.size;
+      await loadMessages(beforeCursor);
+      if (currentGid() !== gid) return;
+      // 加载失败或空页不再推进：停止补页，交给下方落底兜底，避免同游标死循环
+      if (messages.size === knownCount) break;
+    }
+    if (!messages.has(record.mid)) {
+      holdBottom();
+      return;
+    }
+    holdAnchor(record);
+    // 离开期间到达的消息只弹提示：恢复的视口归用户，跳不跳由用户决定；
+    // 恢复后本就落在底部附近时不弹，与滚动判定的收起口径一致
+    if (!isNearBottom() && compareMessages(lastMessage(), record.lastSeen) > 0) {
+      newMessagesElement.hidden = false;
+    }
+  }
+
   function open(nextGroup) {
+    // 列表切群与整页跳转同一口径：离开当前群先记下阅读位
+    if (group) saveReadingPosition();
     group = nextGroup;
     version += 1;
     switchingGroup = true;
@@ -515,8 +624,9 @@ export function createSessions({
   }
 
   function markAway() {
-    // 离开即结束跳底收尾：回来补拉的内容不再参与补救
-    pinning = false;
+    // 离开即记下阅读位并结束收尾：回来补拉的内容不再参与补救
+    saveReadingPosition();
+    settle = null;
     pendingCatchUp = true;
   }
 
@@ -550,17 +660,16 @@ export function createSessions({
       }
     });
   });
-  // 跳底收尾只被用户主动滚动终结；程序性贴底不触发这些事件
+  // 收尾只被用户主动输入终结；程序性落位不触发这些事件
   for (const eventName of ["wheel", "touchstart", "pointerdown", "keydown"]) {
     messagesElement.addEventListener(eventName, () => {
-      pinning = false;
+      settle = null;
     }, {passive: true});
   }
-  // 新消息提示与常驻滚底按钮同一动作：补一次刷新后跳底，并收起提示
+  // 新消息提示与常驻滚底按钮同一动作：补一次刷新后一次性落底，并收起提示
   const jumpToLatest = async () => {
     await refresh();
-    pinning = true;
-    scrollToBottom();
+    holdBottom();
     newMessagesElement.hidden = true;
   };
   newMessagesElement.addEventListener("click", jumpToLatest);

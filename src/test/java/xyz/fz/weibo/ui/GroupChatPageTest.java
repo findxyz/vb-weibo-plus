@@ -1628,6 +1628,55 @@ class GroupChatPageTest {
         return page;
     }
 
+    // 阅读位恢复场景的会话页：首屏 20 条消息，第二次加载起 21 条，
+    // 掐掉轮询让离开期间恰好积累一条未读新消息
+    private Page openReadingPositionConversation() {
+        Page page = browser.newPage();
+        page.setViewportSize(1000, 400);
+        page.addInitScript("window.setInterval = () => 0;");
+        AtomicInteger requests = new AtomicInteger();
+        page.route("**/chat/messages/cursor?**", route -> route.fulfill(
+                new Route.FulfillOptions()
+                        .setContentType("application/json")
+                        .setBody(cursorMessagesJson(false, null, null,
+                                messageRangeJson(1, requests.incrementAndGet() == 1 ? 20 : 21)))));
+        page.navigate(baseUrl + "/chat/index.html");
+        assertThat(page.locator("#messages")).containsText("消息 20");
+        page.waitForFunction("""
+                () => {
+                  const element = document.querySelector('#messages');
+                  return element.scrollTop > 0
+                    && element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                }
+                """);
+        return page;
+    }
+
+    // 阅读位的页面观测口径：视口内最靠上那条消息的 mid 与它距容器顶的偏移
+    private String readingPositionOf(Page page) {
+        return (String) page.locator("#messages").evaluate("""
+                element => {
+                  const containerTop = element.getBoundingClientRect().top;
+                  const anchor = [...element.children].find(item =>
+                    item.dataset.mid && item.getBoundingClientRect().bottom > containerTop);
+                  return anchor
+                    ? anchor.dataset.mid + "|" + (anchor.getBoundingClientRect().top - containerTop)
+                    : "";
+                }
+                """);
+    }
+
+    private void waitForRestoredPosition(Page page) {
+        page.waitForFunction("""
+                () => {
+                  const element = document.querySelector('#messages');
+                  const containerTop = element.getBoundingClientRect().top;
+                  return [...element.children].some(item =>
+                    item.dataset.mid && item.getBoundingClientRect().bottom > containerTop);
+                }
+                """);
+    }
+
     @Test
     void preserves_reading_position_when_initial_media_loads_after_returning() {
         try (Page page = browser.newPage()) {
@@ -1741,6 +1790,124 @@ class GroupChatPageTest {
             double toggleY = page.locator("#attitudes-toggle").boundingBox().y;
             double buttonY = page.locator("#scroll-bottom").boundingBox().y;
             Assertions.assertThat(buttonY).isGreaterThan(toggleY);
+        }
+    }
+
+    @Test
+    void restores_reading_position_when_returning_to_the_chat_page() {
+        try (Page page = openReadingPositionConversation()) {
+            // 上翻到视口 1/4 处阅读，锚点落在中部消息上
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = element.scrollHeight * 0.25;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            String[] before = readingPositionOf(page).split("\\|");
+
+            // 整页切走再切回（同一标签页，sessionStorage 保留）
+            page.navigate(baseUrl + "/chat/index.html");
+            waitForRestoredPosition(page);
+            String[] after = readingPositionOf(page).split("\\|");
+
+            // 恢复到原阅读位：锚点消息回到原视口位置，而不是落底
+            Assertions.assertThat(after[0]).isEqualTo(before[0]);
+            Assertions.assertThat(Double.parseDouble(after[1]))
+                    .isCloseTo(Double.parseDouble(before[1]), Offset.offset(0.5));
+            Object distanceFromBottom = page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight");
+            Assertions.assertThat(((Number) distanceFromBottom).doubleValue()).isGreaterThan(1.0);
+            // 离开期间到达的新消息只弹提示，不移动视口
+            assertThat(page.locator("#new-messages")).isVisible();
+        }
+    }
+
+    @Test
+    void restores_reading_position_when_switching_back_to_a_group_in_the_list() {
+        try (Page page = openReadingPositionConversation()) {
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = element.scrollHeight * 0.25;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            String[] before = readingPositionOf(page).split("\\|");
+
+            // 列表切到群 202 再切回：101 的阅读位应恢复，而不是落底
+            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+            assertThat(page.locator("#current-group")).hasText("LinkNow");
+            page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click();
+            assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+            waitForRestoredPosition(page);
+            String[] after = readingPositionOf(page).split("\\|");
+
+            Assertions.assertThat(after[0]).isEqualTo(before[0]);
+            Assertions.assertThat(Double.parseDouble(after[1]))
+                    .isCloseTo(Double.parseDouble(before[1]), Offset.offset(0.5));
+            Object distanceFromBottom = page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight");
+            Assertions.assertThat(((Number) distanceFromBottom).doubleValue()).isGreaterThan(1.0);
+        }
+    }
+
+    @Test
+    void falls_back_to_the_bottom_when_the_recorded_position_cannot_be_restored() {
+        Page page = browser.newPage();
+        page.addInitScript("""
+                sessionStorage.setItem("weibo-chat:reading-position:101",
+                  JSON.stringify({mid: 999, offset: 0, lastSeen: {createdAt: 2000, mid: 2}}));
+                """);
+        page.navigate(baseUrl + "/chat/index.html");
+
+        // 锚点消息拉不到：按首开处理，落底
+        assertThat(page.locator("#messages")).containsText("较早消息");
+        Object distanceFromBottom = page.locator("#messages").evaluate(
+                "element => element.scrollHeight - element.scrollTop - element.clientHeight");
+        Assertions.assertThat(((Number) distanceFromBottom).doubleValue())
+                .isLessThan(1.0);
+        page.close();
+    }
+
+    @Test
+    void holds_the_restored_position_while_initial_media_loads() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(1000, 400);
+            page.addInitScript("window.setInterval = () => 0;");
+            AtomicReference<Route> preview = new AtomicReference<>();
+            page.route("**/chat/media?gid=202&mid=4&variant=preview", preview::set);
+            page.navigate(baseUrl + "/chat/index.html");
+            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+            page.waitForCondition(() -> preview.get() != null);
+
+            // 上翻到顶：阅读位锚在首条图片消息上，随即整页切走
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = 0;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            page.evaluate("window.dispatchEvent(new Event('blur'))");
+
+            // 切回后先恢复到原位置，再放行图片：撑高只改变滚动条长度，
+            // 收尾必须把锚点按回原偏移，而不是把视口拽回底部
+            page.reload();
+            assertThat(page.locator("#current-group")).hasText("LinkNow");
+            assertThat(page.locator("[data-mid='4']")).isVisible();
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+            Object scrollTopAfterRestore = page.locator("#messages").evaluate("element => element.scrollTop");
+            Assertions.assertThat(((Number) scrollTopAfterRestore).doubleValue())
+                    .isLessThan(200.0);
+
+            preview.get().resume();
+            page.waitForFunction("document.querySelector('[data-mid=\"4\"] .image-preview img').naturalHeight > 0");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+
+            Object scrollTopAfterLoad = page.locator("#messages").evaluate("element => element.scrollTop");
+            Assertions.assertThat(((Number) scrollTopAfterLoad).doubleValue())
+                    .isCloseTo(((Number) scrollTopAfterRestore).doubleValue(), Offset.offset(0.5));
+            Object distanceFromBottom = page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight");
+            Assertions.assertThat(((Number) distanceFromBottom).doubleValue()).isGreaterThan(1.0);
         }
     }
 
