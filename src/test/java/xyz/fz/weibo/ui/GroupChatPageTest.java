@@ -1948,6 +1948,133 @@ class GroupChatPageTest {
         }
     }
 
+    @Test
+    void keeps_the_new_messages_button_after_returning_from_another_page() {
+        try (Page page = openReadingPositionConversation()) {
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = element.scrollHeight * 0.25;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            String before = readingPositionOf(page);
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            assertThat(page.locator("#new-messages")).isVisible();
+
+            page.navigate(baseUrl + "/post/index.html");
+            page.navigate(baseUrl + "/chat/index.html");
+            waitForRestoredPosition(page);
+
+            Assertions.assertThat(readingPositionOf(page)).isEqualTo(before);
+            assertThat(page.locator("#new-messages")).isVisible();
+        }
+    }
+
+    @Test
+    void restores_a_reading_position_even_when_it_was_close_to_the_bottom() {
+        try (Page page = openReadingPositionConversation()) {
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = element.scrollHeight - element.clientHeight - 40;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            String before = readingPositionOf(page);
+
+            page.navigate(baseUrl + "/chat/index.html");
+            waitForRestoredPosition(page);
+
+            Assertions.assertThat(readingPositionOf(page)).isEqualTo(before);
+            double distanceFromBottom = ((Number) page.locator("#messages").evaluate(
+                    "element => element.scrollHeight - element.scrollTop - element.clientHeight")).doubleValue();
+            Assertions.assertThat(distanceFromBottom).isGreaterThan(40);
+        }
+    }
+
+    @Test
+    void keeps_a_groups_reading_position_when_an_old_jump_finishes_in_another_group() {
+        textOnlyGroup202.set(true);
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(1000, 400);
+            page.addInitScript("window.setInterval = () => 0;");
+            page.navigate(baseUrl + "/chat/index.html");
+            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+            assertThat(page.locator("#messages")).containsText("消息 40");
+            page.locator("#messages").evaluate("""
+                    element => {
+                      element.scrollTop = element.scrollHeight * 0.25;
+                      element.dispatchEvent(new Event('scroll'));
+                    }
+                    """);
+            String before = readingPositionOf(page);
+
+            page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click();
+            assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
+            AtomicReference<Route> pendingJumpRefresh = new AtomicReference<>();
+            page.route("**/chat/messages/cursor?**", route -> {
+                if (route.request().url().contains("gid=101") && !route.request().url().contains("CreatedAt")) {
+                    pendingJumpRefresh.set(route);
+                } else {
+                    route.resume();
+                }
+            });
+            page.locator("#scroll-bottom").click();
+            page.waitForCondition(() -> pendingJumpRefresh.get() != null);
+
+            page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
+            assertThat(page.locator("#current-group")).hasText("LinkNow");
+            waitForRestoredPosition(page);
+            Assertions.assertThat(readingPositionOf(page)).isEqualTo(before);
+
+            // 群 101 的旧按钮请求此时才结束，不得把群 202 拖到底。
+            pendingJumpRefresh.get().resume();
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+            Assertions.assertThat(readingPositionOf(page)).isEqualTo(before);
+        }
+    }
+
+    @Test
+    void old_image_finishing_after_new_message_does_not_jump_to_the_new_bottom() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(1000, 400);
+            page.addInitScript("window.setInterval = () => 0;");
+            AtomicInteger requests = new AtomicInteger();
+            AtomicReference<Route> preview = new AtomicReference<>();
+            page.route("**/chat/image?gid=101&mid=20", preview::set);
+            page.route("**/chat/messages/cursor?**", route -> route.fulfill(
+                    new Route.FulfillOptions()
+                            .setContentType("application/json")
+                            .setBody(cursorMessagesJson(false, null, null,
+                                    (requests.incrementAndGet() > 1 ? messageRangeJson(21, 21) + "," : "")
+                                            + historyMediaMessageJson(20, 1, "旧图片", "/chat/image?gid=101&mid=20", "")
+                                            + "," + messageRangeJson(1, 19)))));
+            page.navigate(baseUrl + "/chat/index.html");
+            page.waitForCondition(() -> preview.get() != null);
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollTop > 0
+                        && element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                    }
+                    """);
+
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            double beforeLoad = ((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue();
+            assertThat(page.locator("#new-messages")).isVisible();
+
+            // 新消息已到达后，旧图片才撑高：不应借首屏收尾跳到新消息
+            preview.get().resume();
+            page.waitForFunction("document.querySelector('[data-mid=\"20\"] .image-preview img').naturalHeight > 0");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+
+            double afterLoad = ((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue();
+            Assertions.assertThat(afterLoad).isCloseTo(beforeLoad, Offset.offset(0.5));
+            assertThat(page.locator("#new-messages")).isVisible();
+        }
+    }
+
     private void assertReadingPositionPaused(Page page, double scrollTop) {
         page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
         Assertions.assertThat(((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue())

@@ -126,6 +126,8 @@ export function createSessions({
 
   function appendNewer(items) {
     if (!items.length) return;
+    // 新消息一到就结束落底收尾，旧媒体随后加载也不能借旧动作跳到新底部。
+    if (settle?.kind === "bottom") settle = null;
     items.forEach(message => messages.set(message.mid, message));
     const block = items.slice().sort(compareMessages);
     if (!orderedCache?.length) {
@@ -533,13 +535,13 @@ export function createSessions({
       compareMessages(left, right) >= 0 ? left : right);
   }
 
-  // 阅读位离开即存：整页跳转走 markAway，列表切群走 open。落在底部只记
+  // 阅读位离开即存：整页跳转走 markAway，列表切群走 open。真正落在底部只记
   // atBottom（恢复时等同首开落底），否则记锚点消息与容器内偏移，供再进同群恢复。
   function saveReadingPosition() {
     const gid = currentGid();
     if (!gid || !messages.size) return;
     let record;
-    if (isNearBottom()) {
+    if (messagesElement.scrollHeight - messagesElement.scrollTop - messagesElement.clientHeight < 1) {
       record = {atBottom: true};
     } else {
       const anchor = captureScrollAnchor(messagesElement);
@@ -548,7 +550,8 @@ export function createSessions({
       record = {
         mid: Number(anchor.mid),
         offset: anchor.top - messagesElement.getBoundingClientRect().top,
-        lastSeen: {createdAt: latest.createdAt, mid: latest.mid}
+        lastSeen: {createdAt: latest.createdAt, mid: latest.mid},
+        hadNewMessages: !newMessagesElement.hidden
       };
     }
     try {
@@ -595,7 +598,7 @@ export function createSessions({
     holdAnchor(record);
     // 离开期间到达的消息只弹提示：恢复的视口归用户，跳不跳由用户决定；
     // 恢复后本就落在底部附近时不弹，与滚动判定的收起口径一致
-    if (!isNearBottom() && compareMessages(lastMessage(), record.lastSeen) > 0) {
+    if (!isNearBottom() && (record.hadNewMessages || compareMessages(lastMessage(), record.lastSeen) > 0)) {
       newMessagesElement.hidden = false;
     }
   }
@@ -603,6 +606,7 @@ export function createSessions({
   function open(nextGroup) {
     // 列表切群与整页跳转同一口径：离开当前群先记下阅读位
     if (group) saveReadingPosition();
+    settle = null;
     group = nextGroup;
     version += 1;
     switchingGroup = true;
@@ -661,7 +665,7 @@ export function createSessions({
       }
     });
   });
-  // 收尾只被用户主动输入终结；程序性落位不触发这些事件
+  // 用户主动输入也会终结收尾；程序性落位不触发这些事件
   for (const eventName of ["wheel", "touchstart", "pointerdown", "keydown"]) {
     messagesElement.addEventListener(eventName, () => {
       settle = null;
@@ -669,7 +673,10 @@ export function createSessions({
   }
   // 新消息提示与常驻滚底按钮同一动作：补一次刷新后一次性落底，并收起提示
   const jumpToLatest = async () => {
+    const gid = currentGid();
+    const requestVersion = version;
     await refresh();
+    if (currentGid() !== gid || version !== requestVersion) return;
     holdBottom();
     newMessagesElement.hidden = true;
   };
