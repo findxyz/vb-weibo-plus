@@ -199,7 +199,7 @@ export function createSessions({
 
   // 一次性落底动作的统一入口：落底并进入收尾
   function holdBottom() {
-    settle = {kind: "bottom"};
+    settle = {kind: "bottom", boundary: messages.size ? lastMessage() : null};
     scrollToBottom();
   }
 
@@ -219,13 +219,14 @@ export function createSessions({
   }
 
   function holdAnchor(record) {
-    settle = {kind: "anchor", mid: record.mid, offset: record.offset};
+    settle = {kind: "anchor", mid: record.mid, offset: record.offset, boundary: lastMessage()};
     placeAnchor(record.mid, record.offset);
   }
 
-  // 收尾补偿：媒体加载或表态行撑高内容时，把视口按回本次动作的目标位置
-  function compensateSettle() {
-    if (!settle) return;
+  // 收尾补偿：媒体加载或表态行撑高内容时，把视口按回本次动作的目标位置。
+  // 只补救动作发生时已存在的消息；之后到达的新消息不参与收尾，永远只弹提示
+  function settleGrowth(message) {
+    if (!settle?.boundary || compareMessages(message, settle.boundary) > 0) return;
     if (settle.kind === "bottom") scrollToBottom();
     else placeAnchor(settle.mid, settle.offset);
   }
@@ -240,12 +241,6 @@ export function createSessions({
     const [start, end] = resolveWindow(ordered);
     const renderGid = currentGid();
     const renderVersion = version;
-    // 收尾期间图片加载撑高内容，撑高就按动作目标补偿视口；不能靠 isNearBottom
-    // 判定——撑高发生在 load 事件之前，视口已被顶离底部。
-    const onMediaLoad = () => {
-      if (currentGid() !== renderGid || version !== renderVersion) return;
-      compensateSettle();
-    };
     let aboveSum = 0;
     for (let i = 0; i < start; i++) aboveSum += estimateHeight(ordered[i]);
     let belowSum = 0;
@@ -264,7 +259,12 @@ export function createSessions({
     for (let i = start; i <= end; i++) {
       const message = ordered[i];
       let element = existingByMid.get(message.mid);
-      if (!element) element = messageView.messageElement(message, null, onMediaLoad, renderGid);
+      if (!element) element = messageView.messageElement(message, null, () => {
+        // 收尾期间图片加载撑高内容，撑高就按动作目标补偿视口；不能靠 isNearBottom
+        // 判定——撑高发生在 load 事件之前，视口已被顶离底部
+        if (currentGid() !== renderGid || version !== renderVersion) return;
+        settleGrowth(message);
+      }, renderGid);
       if (element !== previous.nextElementSibling) previous.after(element);
       previous = element;
     }
@@ -287,7 +287,9 @@ export function createSessions({
       if (isSpacer(element) || !element.dataset.mid) continue;
       renderedByMid.set(Number(element.dataset.mid), element);
     }
-    let updated = false;
+    // 表态行插入撑高已渲染消息且无 load 事件，与媒体加载同一收尾口径；
+    // 多条同时撑高时取最旧一条判定，一次补偿即覆盖
+    let oldestGrowth = null;
     for (const [mid, attitudes] of Object.entries(result)) {
       const message = messages.get(Number(mid));
       if (!message) continue;
@@ -296,11 +298,10 @@ export function createSessions({
       if (element) {
         messageView.updateAttitudes(element, message);
         heightByMid.set(Number(mid), element.offsetHeight);
-        updated = true;
+        if (!oldestGrowth || compareMessages(message, oldestGrowth) < 0) oldestGrowth = message;
       }
     }
-    // 表态行插入撑高已渲染消息且无 load 事件，与媒体加载同一收尾口径
-    if (updated) compensateSettle();
+    if (oldestGrowth) settleGrowth(oldestGrowth);
   }
 
   // 当前窗口实际渲染的消息对象，供按需拉取表态等场景使用

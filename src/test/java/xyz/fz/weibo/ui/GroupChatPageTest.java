@@ -1911,6 +1911,43 @@ class GroupChatPageTest {
         }
     }
 
+    @Test
+    void keeps_viewport_still_when_a_new_messages_image_loads_while_settling() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(1000, 400);
+            page.addInitScript("window.setInterval = () => 0;");
+            AtomicInteger requests = new AtomicInteger();
+            page.route("**/chat/messages/cursor?**", route -> route.fulfill(
+                    new Route.FulfillOptions()
+                            .setContentType("application/json")
+                            .setBody(cursorMessagesJson(false, null, null, requests.incrementAndGet() == 1
+                                    ? messageRangeJson(1, 4)
+                                    : historyMediaMessageJson(5, 1, "新图片", "/chat/image?gid=101&mid=5", "")
+                                            + "," + messageRangeJson(1, 4)))));
+            page.route("**/chat/image?**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setContentType("image/svg+xml")
+                    .setBody("<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'></svg>")));
+            page.navigate(baseUrl + "/chat/index.html");
+            assertThat(page.locator("#messages")).containsText("消息 4");
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                    }
+                    """);
+            Object scrollTopBeforeArrival = page.locator("#messages").evaluate("element => element.scrollTop");
+
+            // 收尾期间新消息（含图片）到达：视口必须原地不动，只弹提示
+            page.evaluate("window.dispatchEvent(new Event('focus'))");
+            page.waitForFunction("document.querySelector('[data-mid=\"5\"] .image-preview img')?.naturalHeight > 0");
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+
+            Assertions.assertThat(((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue())
+                    .isCloseTo(((Number) scrollTopBeforeArrival).doubleValue(), Offset.offset(0.5));
+            assertThat(page.locator("#new-messages")).isVisible();
+        }
+    }
+
     private void assertReadingPositionPaused(Page page, double scrollTop) {
         page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
         Assertions.assertThat(((Number) page.locator("#messages").evaluate("element => element.scrollTop")).doubleValue())
