@@ -21,3 +21,4 @@
 ## Comments
 
 - 提交 1a25a40。全量 mvn test 420 例通过（含 SecurityHeadersFilterTest 2 例与两套 UI 页面测试）。
+- **回归修复**：CSP 上线后用户实测 chat 页发送附件的预览图塌缩成一条线——预览图 src 是 `URL.createObjectURL` 生成的 `blob:` 地址，`img-src`/`media-src` 原清单没有 `blob:` 被整体拦截，img 只剩边框。已把 `blob:` 补进两个指令并加断言（测试内注释说明用途），重新打包重启 18080 实例生效。教训：CSP 收紧后必须对着「所有动态 src 来源清单」核一遍，blob:/data: 这类运行时生成的地址最容易漏。

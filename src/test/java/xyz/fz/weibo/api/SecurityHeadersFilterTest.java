@@ -24,7 +24,10 @@ class SecurityHeadersFilterTest {
         for (String path : new String[]{"/chat", "/chat/", "/chat/index.html",
             "/post", "/post/", "/post/index.html"}) {
             assertThat(header(path)).as("CSP on %s", path)
-                .contains("script-src 'self'").contains("base-uri 'none'");
+                .contains("script-src 'self'").contains("base-uri 'none'")
+                // 附件预览图/预览视频走 blob: URL，img-src 与 media-src 必须放行
+                .contains("img-src 'self' data: blob: https:")
+                .contains("media-src 'self' blob: https:");
         }
     }
 
