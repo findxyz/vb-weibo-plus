@@ -21,3 +21,4 @@
 ## Comments
 
 - 提交 e503aaf。键盘/读屏走查项由既有 Playwright UI 测试（GroupChatPageTest 79 例、PostPageTest 36 例）覆盖功能不回归，手动 a11y 走查待用户日常使用确认。
+- **1.4 部分回滚**（提交 fc08f9f）：用户实测选中附件后整条预览框闪琥珀焦点框——composer.js 在选完文件后程序化聚焦附件条（支撑 Enter 发送），master 的 `.composer-attachment:focus-visible { outline: none }` 是有意压制该程序化聚焦，不是遗漏。已恢复该规则并补注释；键盘可达性由 ✕ 按钮自身的焦点环承担。教训：删「抹焦点」规则前先查焦点是怎么进来的——程序化聚焦与键盘 Tab 要区别对待。
