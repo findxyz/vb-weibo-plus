@@ -901,16 +901,16 @@ h1 {
 }
 
 .composer-attachment-preview {
+  width: 120px;
   height: 60px;
-  max-width: 120px;
   border: 1px solid var(--media-border);
   border-radius: var(--radius-md);
   object-fit: contain;
 }
 
 .composer-attachment-preview-video {
+  width: 120px;
   height: 60px;
-  max-width: 120px;
   border: 1px solid var(--media-border);
   border-radius: var(--radius-md);
   object-fit: contain;
