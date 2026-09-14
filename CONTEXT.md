@@ -45,12 +45,8 @@ Re-reading local data so the browser UI reflects newly captured content. It neve
 _Avoid_: sync, capture, remote refresh
 
 **Catch-up**:
-A View Refresh performed when the chat page becomes visible again after being away, or when the chat page reopens with a restored Reading Position: fetching the Group Messages between the last read message boundary and the newest captured ones, so no gap remains between what was read and what was captured. It neither calls Weibo nor writes to the store.
+A View Refresh performed when the chat page becomes visible again after being away: fetching the Group Messages between the last read message boundary and the newest captured ones, so no gap remains between what was read and what was captured. It neither calls Weibo nor writes to the store.
 _Avoid_: 回来补拉, backfill sync, catch-up sync
-
-**Reading Position**:
-The Group Message the chat viewport is anchored on, together with its offset, remembered when the user leaves the chat page and restored when that page reopens, so reading continues where it stopped. Selecting a group from the list always opens it at the newest messages. Arriving new messages never move the viewport; they are announced for the user to jump to. When the remembered position cannot be restored, the group opens at the newest messages as on first entry.
-_Avoid_: scroll position, bookmark, 贴底状态
 
 **Media Send**:
 Posting an image or video into a Weibo group chat by orchestrating Weibo's multi-step upload (init -> upload -> send_message). Unlike Media Proxy which is read-only download, Media Send uploads local bytes upstream to Weibo using the current Credential.

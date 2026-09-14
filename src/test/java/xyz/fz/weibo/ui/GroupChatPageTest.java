@@ -1628,9 +1628,9 @@ class GroupChatPageTest {
         return page;
     }
 
-    // 阅读位恢复场景的会话页：首屏 20 条消息，第二次加载起 21 条，
-    // 掐掉轮询让离开期间恰好积累一条未读新消息
-    private Page openReadingPositionConversation() {
+    // 「离开期间积累一条未读」场景的会话页：首屏 20 条消息，第二次加载起 21 条，
+    // 掐掉轮询让那条消息恰好等到下一次加载才出现
+    private Page openConversationWithPendingMessage() {
         Page page = browser.newPage();
         page.setViewportSize(1000, 400);
         page.addInitScript("window.setInterval = () => 0;");
@@ -1652,7 +1652,7 @@ class GroupChatPageTest {
         return page;
     }
 
-    // 阅读位的页面观测口径：视口内最靠上那条消息的 mid 与它距容器顶的偏移
+    // 视口锚点的页面观测口径：视口内最靠上那条消息的 mid 与它距容器顶的偏移
     private String readingPositionOf(Page page) {
         return (String) page.locator("#messages").evaluate("""
                 element => {
@@ -1662,17 +1662,6 @@ class GroupChatPageTest {
                   return anchor
                     ? anchor.dataset.mid + "|" + (anchor.getBoundingClientRect().top - containerTop)
                     : "";
-                }
-                """);
-    }
-
-    private void waitForRestoredPosition(Page page) {
-        page.waitForFunction("""
-                () => {
-                  const element = document.querySelector('#messages');
-                  const containerTop = element.getBoundingClientRect().top;
-                  return [...element.children].some(item =>
-                    item.dataset.mid && item.getBoundingClientRect().bottom > containerTop);
                 }
                 """);
     }
@@ -1794,37 +1783,34 @@ class GroupChatPageTest {
     }
 
     @Test
-    void restores_reading_position_when_returning_to_the_chat_page() {
-        try (Page page = openReadingPositionConversation()) {
-            // 上翻到视口 1/4 处阅读，锚点落在中部消息上
+    void opens_at_the_bottom_when_returning_to_the_chat_page() {
+        try (Page page = openConversationWithPendingMessage()) {
+            // 上翻到视口 1/4 处阅读，随后整页刷新
             page.locator("#messages").evaluate("""
                     element => {
                       element.scrollTop = element.scrollHeight * 0.25;
                       element.dispatchEvent(new Event('scroll'));
                     }
                     """);
-            String[] before = readingPositionOf(page).split("\\|");
 
-            // 整页切走再切回（同一标签页，sessionStorage 保留）
             page.navigate(baseUrl + "/chat/index.html");
-            waitForRestoredPosition(page);
-            String[] after = readingPositionOf(page).split("\\|");
 
-            // 恢复到原阅读位：锚点消息回到原视口位置，而不是落底
-            Assertions.assertThat(after[0]).isEqualTo(before[0]);
-            Assertions.assertThat(Double.parseDouble(after[1]))
-                    .isCloseTo(Double.parseDouble(before[1]), Offset.offset(0.5));
-            Object distanceFromBottom = page.locator("#messages").evaluate(
-                    "element => element.scrollHeight - element.scrollTop - element.clientHeight");
-            Assertions.assertThat(((Number) distanceFromBottom).doubleValue()).isGreaterThan(1.0);
-            // 离开期间到达的新消息只弹提示，不移动视口
-            assertThat(page.locator("#new-messages")).isVisible();
+            // 刷新与列表选群同一口径：一次性落底，离开期间到达的消息随首屏渲染，不弹提示
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollTop > 0
+                        && element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                    }
+                    """, null, new Page.WaitForFunctionOptions().setTimeout(3_000));
+            assertThat(page.locator("#new-messages")).isHidden();
         }
     }
 
     @Test
     void switches_to_the_bottom_each_time_a_group_is_selected_from_the_list() {
-        try (Page page = openReadingPositionConversation()) {
+        try (Page page = openConversationWithPendingMessage()) {
             page.locator("#messages").evaluate("""
                     element => {
                       element.scrollTop = element.scrollHeight * 0.25;
@@ -1860,7 +1846,7 @@ class GroupChatPageTest {
                 """);
         page.navigate(baseUrl + "/chat/index.html");
 
-        // 锚点消息拉不到：按首开处理，落底
+        // 旧版本遗留的阅读位记录一律忽略：按首开处理，落底
         assertThat(page.locator("#messages")).containsText("较早消息");
         Object distanceFromBottom = page.locator("#messages").evaluate(
                 "element => element.scrollHeight - element.scrollTop - element.clientHeight");
@@ -1870,7 +1856,7 @@ class GroupChatPageTest {
     }
 
     @Test
-    void holds_the_restored_position_while_initial_media_loads() {
+    void holds_the_bottom_after_reload_while_initial_media_loads() {
         try (Page page = browser.newPage()) {
             page.setViewportSize(1000, 400);
             page.addInitScript("window.setInterval = () => 0;");
@@ -1880,7 +1866,7 @@ class GroupChatPageTest {
             page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
             page.waitForCondition(() -> preview.get() != null);
 
-            // 上翻到顶：阅读位锚在首条图片消息上，随即整页切走
+            // 上翻到顶阅读，随即刷新页面：与列表选群同一口径，一次性落底
             page.locator("#messages").evaluate("""
                     element => {
                       element.scrollTop = 0;
@@ -1889,26 +1875,24 @@ class GroupChatPageTest {
                     """);
             page.evaluate("window.dispatchEvent(new Event('blur'))");
 
-            // 切回后先恢复到原位置，再放行图片：撑高只改变滚动条长度，
-            // 收尾必须把锚点按回原偏移，而不是把视口拽回底部
+            preview.set(null);
             page.reload();
             assertThat(page.locator("#current-group")).hasText("LinkNow");
-            assertThat(page.locator("[data-mid='4']")).isVisible();
-            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-            Object scrollTopAfterRestore = page.locator("#messages").evaluate("element => element.scrollTop");
-            Assertions.assertThat(((Number) scrollTopAfterRestore).doubleValue())
-                    .isLessThan(200.0);
+            page.waitForCondition(() -> preview.get() != null);
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollHeight - element.scrollTop - element.clientHeight < 1;
+                    }
+                    """);
 
+            // 落底收尾期间放行图片：撑高只改变滚动条长度，收尾必须把视口按回真底部
             preview.get().resume();
             page.waitForFunction("document.querySelector('[data-mid=\"4\"] .image-preview img').naturalHeight > 0");
             page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-
-            Object scrollTopAfterLoad = page.locator("#messages").evaluate("element => element.scrollTop");
-            Assertions.assertThat(((Number) scrollTopAfterLoad).doubleValue())
-                    .isCloseTo(((Number) scrollTopAfterRestore).doubleValue(), Offset.offset(0.5));
             Object distanceFromBottom = page.locator("#messages").evaluate(
                     "element => element.scrollHeight - element.scrollTop - element.clientHeight");
-            Assertions.assertThat(((Number) distanceFromBottom).doubleValue()).isGreaterThan(1.0);
+            Assertions.assertThat(((Number) distanceFromBottom).doubleValue()).isLessThan(1.0);
         }
     }
 
@@ -1950,46 +1934,31 @@ class GroupChatPageTest {
     }
 
     @Test
-    void keeps_the_new_messages_button_after_returning_from_another_page() {
-        try (Page page = openReadingPositionConversation()) {
+    void opens_at_the_bottom_after_returning_from_another_page() {
+        try (Page page = openConversationWithPendingMessage()) {
             page.locator("#messages").evaluate("""
                     element => {
                       element.scrollTop = element.scrollHeight * 0.25;
                       element.dispatchEvent(new Event('scroll'));
                     }
                     """);
-            String before = readingPositionOf(page);
             page.evaluate("window.dispatchEvent(new Event('focus'))");
             assertThat(page.locator("#messages")).containsText("消息 21");
             assertThat(page.locator("#new-messages")).isVisible();
 
+            // 经别的页面整页来回：等同刷新，一次性落底，未读提示不再保留
             page.navigate(baseUrl + "/post/index.html");
             page.navigate(baseUrl + "/chat/index.html");
-            waitForRestoredPosition(page);
 
-            Assertions.assertThat(readingPositionOf(page)).isEqualTo(before);
-            assertThat(page.locator("#new-messages")).isVisible();
-        }
-    }
-
-    @Test
-    void restores_a_reading_position_even_when_it_was_close_to_the_bottom() {
-        try (Page page = openReadingPositionConversation()) {
-            page.locator("#messages").evaluate("""
-                    element => {
-                      element.scrollTop = element.scrollHeight - element.clientHeight - 40;
-                      element.dispatchEvent(new Event('scroll'));
+            assertThat(page.locator("#messages")).containsText("消息 21");
+            page.waitForFunction("""
+                    () => {
+                      const element = document.querySelector('#messages');
+                      return element.scrollTop > 0
+                        && element.scrollHeight - element.scrollTop - element.clientHeight < 1;
                     }
-                    """);
-            String before = readingPositionOf(page);
-
-            page.navigate(baseUrl + "/chat/index.html");
-            waitForRestoredPosition(page);
-
-            Assertions.assertThat(readingPositionOf(page)).isEqualTo(before);
-            double distanceFromBottom = ((Number) page.locator("#messages").evaluate(
-                    "element => element.scrollHeight - element.scrollTop - element.clientHeight")).doubleValue();
-            Assertions.assertThat(distanceFromBottom).isGreaterThan(40);
+                    """, null, new Page.WaitForFunctionOptions().setTimeout(3_000));
+            assertThat(page.locator("#new-messages")).isHidden();
         }
     }
 
