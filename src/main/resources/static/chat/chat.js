@@ -11,12 +11,13 @@ import {createEmojiPanel} from "./emoji-panel.js";
 import {createChatLogin} from "./login.js";
 import {pickElements} from "../shared/dom.js";
 import {createAnnouncer} from "../shared/announcer.js";
+import {STORAGE_KEYS} from "../shared/storage-keys.js";
 
 function bootstrap() {
   const PAGE_SIZE = 50;
   const HISTORY_SEARCH_PAGE_SIZE = 20;
-  const LAST_GROUP_KEY = "weibo-chat:last-gid";
-  const IMMERSIVE_KEY = "weibo-chat:immersive";
+  const LAST_GROUP_KEY = STORAGE_KEYS.CHAT_LAST_GROUP;
+  const IMMERSIVE_KEY = STORAGE_KEYS.CHAT_IMMERSIVE;
   const elements = {
     appTitle: document.querySelector("#app-title"), groupsCount: document.querySelector("#groups-count"),
     groupsList: document.querySelector("#groups-list"), groupsState: document.querySelector("#groups-state"),
@@ -74,6 +75,12 @@ function bootstrap() {
     pendingRefresh: false,
     lastSizeGid: null, lastMessageCount: null
   };
+  // 登录失效后业务轮询暂停，扫码成功重走 initialize 时复位
+  let authExpired = false;
+  function markAuthExpired() {
+    authExpired = true;
+    login.showLoginExpired();
+  }
 
   let celebration;
   // 大列表容器不带 aria-live（见 shared/announcer.js 头注释），事件级摘要走这里
@@ -113,7 +120,7 @@ function bootstrap() {
       void attitudes.load(gid, messages);
       announce(`收到 ${messages.length} 条新消息`);
     },
-    onAuthExpired: login.showLoginExpired
+    onAuthExpired: markAuthExpired
   });
   const attitudes = createAttitudes({
     elements: pickElements(elements, "attitudesToggle"),
@@ -158,7 +165,7 @@ function bootstrap() {
       if (current) sessions.updateGroup(current);
       updateCurrentGroupHeader();
     },
-    onAuthExpired: login.showLoginExpired
+    onAuthExpired: markAuthExpired
   });
   const history = createHistory({
     elements: pickElements(elements, 
@@ -234,10 +241,12 @@ function bootstrap() {
 
   function refreshView() {
     if (state.initializing) { state.pendingRefresh = true; return; }
-    void groups.refreshGroups(); void sessions.refresh(); login.maybeCheck();
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = 0; }
+    void pollTick();
   }
 
   async function initialize() {
+    authExpired = false;
     state.initializing = true; elements.retryGroups.hidden = true; elements.groupsState.textContent = "";
     try {
       const list = await groups.loadGroups();
@@ -259,7 +268,35 @@ function bootstrap() {
   window.addEventListener("focus", refreshView);
   window.addEventListener("blur", () => sessions.markAway());
   document.addEventListener("visibilitychange", () => { if (document.hidden) sessions.markAway(); else refreshView(); });
-  setInterval(refreshView, 3_000);
+  // 轮询退避：连续失败按 3s × 2^n 退避封顶 30s，任一成功归零；事件触发
+  // （focus / visibilitychange / 重试）会打断等待立即执行一轮。登录失效后
+  // 业务轮询暂停只留登录检测，扫码成功重走 initialize 复位
+  const BASE_POLL_MS = 3000;
+  const MAX_POLL_MS = 30000;
+  let pollFailures = 0;
+  let pollTimer = 0;
+  let polling = false;
+  async function pollTick() {
+    if (polling) return;
+    polling = true;
+    try {
+      if (authExpired || state.initializing || document.hidden) { pollFailures = 0; return; }
+      const [groupsOk, sessionsOk] = await Promise.all([groups.refreshGroups(), sessions.refresh()]);
+      pollFailures = groupsOk && sessionsOk ? 0 : pollFailures + 1;
+    } finally {
+      polling = false;
+      login.maybeCheck();
+      schedulePoll();
+    }
+  }
+  function schedulePoll() {
+    if (pollTimer) return;
+    pollTimer = setTimeout(() => {
+      pollTimer = 0;
+      void pollTick();
+    }, Math.min(BASE_POLL_MS * 2 ** pollFailures, MAX_POLL_MS));
+  }
+  schedulePoll();
   elements.windowToggle.addEventListener("click", () => { location.href = "/post/index.html"; });
   function applyImmersive(enabled) {
     elements.conversation.classList.toggle("immersive", enabled); elements.immersiveToggle.setAttribute("aria-pressed", String(enabled));

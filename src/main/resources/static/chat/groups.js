@@ -72,13 +72,16 @@ export function createGroups({elements: {groupSearch, groupsCount, groupsList},
       return snapshot();
     } finally { refreshing = false; }
   }
+  // 返回是否成功：供轮询退避判定，早退守卫不算失败
   async function refreshGroups() {
-    if (refreshing || document.hidden) return;
+    if (refreshing || document.hidden) return true;
     try {
       await loadGroups();
+      return true;
     } catch (error) {
       if (error.status === 401) onAuthExpired();
       else console.warn("刷新群聊列表失败：", error);
+      return false;
     }
   }
   groupSearch.addEventListener("input", event => filter(event.target.value));

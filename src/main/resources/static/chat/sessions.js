@@ -2,6 +2,7 @@
 // compareMessages 与滚动锚点是无状态原语，history（聊天记录）与 celebration（回归庆祝）
 // 直接 import 复用，全页对「消息顺序」只有这一种定义。
 import {fetchJson} from "../shared/fetch.js";
+import {STORAGE_KEYS} from "../shared/storage-keys.js";
 
 export function compareMessages(left, right) {
   return left.createdAt - right.createdAt || left.mid - right.mid;
@@ -79,6 +80,11 @@ export function createSessions({
   const WINDOW_CAP = WINDOW_KEEP_ABOVE + WINDOW_KEEP_BELOW;
   const ESTIMATED_HEIGHT = 96;
   const GAP_HEIGHT = 16;
+  // 数据侧上限：DOM 有滑动窗口控制，messages Map 仍只增不减，长会话会撑内存。
+  // 超限裁掉最旧一批；更早区间已被丢弃，向上翻页不再可能，直接关掉 beforeCursor。
+  // history 弹窗走独立接口，不受影响。
+  const MAX_MESSAGES = 20000;
+  const TRIM_TO = 18000;
   let orderedCache = null;
   let windowStartIdx = 0;
   let windowEndIdx = -1;
@@ -139,6 +145,24 @@ export function createSessions({
       rebuildOrdered();
       invalidateWindow();
     }
+    trimOverflow();
+  }
+
+  // 裁剪只发生在新消息追加后（只有尾部增长会把总量顶过上限）：
+  // 删最旧一批并同步收缩有序缓存、高度缓存与窗口下标
+  function trimOverflow() {
+    if (messages.size <= MAX_MESSAGES) return;
+    const drop = messages.size - TRIM_TO;
+    for (let i = 0; i < drop; i++) {
+      messages.delete(orderedCache[i].mid);
+      heightByMid.delete(orderedCache[i].mid);
+    }
+    orderedCache = orderedCache.slice(drop);
+    windowStartIdx = Math.max(0, windowStartIdx - drop);
+    windowEndIdx = Math.max(-1, windowEndIdx - drop);
+    if (windowEndIdx < 0) invalidateWindow();
+    beforeCursor = null;
+    hasMore = false;
   }
 
   function getOrdered() {
@@ -384,19 +408,20 @@ export function createSessions({
     return !document.hidden && currentGid() === gid && version === requestVersion;
   }
 
+  // 返回是否成功：供轮询退避判定，早退守卫不算失败
   async function refresh() {
-    if (!currentGid() || refreshing || switchingGroup || document.hidden) return;
+    if (!currentGid() || refreshing || switchingGroup || document.hidden) return true;
     refreshing = true;
     const gid = currentGid();
     const requestVersion = version;
     try {
       if (pendingCatchUp && messages.size > 0) {
         if (await catchUp()) pendingCatchUp = false;
-        return;
+        return true;
       }
       const knownMids = new Set(messages.keys());
       const result = await fetchMessagePage(gid, pageSize);
-      if (currentGid() !== gid || version !== requestVersion) return;
+      if (currentGid() !== gid || version !== requestVersion) return true;
       const fresh = result.items.filter(message => !knownMids.has(message.mid));
       if (fresh.length > 0) {
         // 新消息永不移动视口：保持原位置，弹提示由用户点击跳转。
@@ -405,9 +430,11 @@ export function createSessions({
         newMessagesElement.hidden = false;
         onNewMessages(gid, fresh);
       }
+      return true;
     } catch (error) {
       if (error.status === 401) onAuthExpired();
       else console.warn("刷新消息失败：", error);
+      return false;
     } finally {
       refreshing = false;
       if (currentGid() === gid) void loadEarlierIfNeeded();
@@ -529,7 +556,7 @@ export function createSessions({
     }
   }
 
-  const READING_POSITION_PREFIX = "weibo-chat:reading-position:";
+  const READING_POSITION_PREFIX = STORAGE_KEYS.CHAT_READING_POSITION_PREFIX;
 
   function lastMessage() {
     return [...messages.values()].reduce((left, right) =>

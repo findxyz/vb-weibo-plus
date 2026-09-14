@@ -432,11 +432,9 @@ h1 {
   align-self: center;
 }
 
-.qr-loading[hidden] {
-  display: none !important;
-}
-
-.qr-loading {
+/* 与 .login-expired:not([hidden]) 同一套写法：只在可见时声明 display，
+   消掉全仓唯一的 !important */
+.qr-loading:not([hidden]) {
   width: 180px;
   height: 180px;
   align-self: center;

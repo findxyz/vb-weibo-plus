@@ -2,8 +2,9 @@
 // 补一次表态，之后由页面在消息到达回调里随批刷新；结果经会话模块统一应用，
 // 失败静默降级，不影响消息本身展示。
 import {fetchJson} from "../shared/fetch.js";
+import {STORAGE_KEYS} from "../shared/storage-keys.js";
 
-const ATTITUDES_KEY = "weibo-chat:attitudes";
+const ATTITUDES_KEY = STORAGE_KEYS.CHAT_ATTITUDES;
 
 export function createAttitudes({
   elements: {attitudesToggle},

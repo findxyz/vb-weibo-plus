@@ -1,4 +1,5 @@
 import {attachDismiss, positionPopover} from "../shared/popover.js";
+import {STORAGE_KEYS} from "../shared/storage-keys.js";
 import {compareMessages} from "./sessions.js";
 
 export function createCelebration({
@@ -8,8 +9,8 @@ export function createCelebration({
     celebrationPopoverRemove, celebrationPopoverClose
   },
   messageView, getCurrentGid, getMessages, announce = () => {}}) {
-  const CELEBRATION_ROSTER_KEY = "weibo-chat:celebration-roster";
-  const CELEBRATION_SEEN_KEY = "weibo-chat:celebration-seen";
+  const CELEBRATION_ROSTER_KEY = STORAGE_KEYS.CHAT_CELEBRATION_ROSTER;
+  const CELEBRATION_SEEN_KEY = STORAGE_KEYS.CHAT_CELEBRATION_SEEN;
   // 回归间隔默认值，单位秒
   const CELEBRATION_DEFAULT_INTERVAL = 30;
 
@@ -221,6 +222,8 @@ export function createCelebration({
   });
 
   async function spawnCelebration(gid, entry) {
+    // reduce 动效偏好下跳过表演：通报已在函数外保证，这里只剩静默
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     // 表演本身对屏幕阅读器不可见，触发即通报，与视觉动效解耦
     announce(`欢迎 ${entry.name || "未知成员"} 回归`);
     const run = {cancelled: false, cancel: null};

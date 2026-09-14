@@ -80,6 +80,8 @@ export function createMessageView({
 
   function appendMessageText(container, text) {
     let offset = 0;
+    // 正则对象与 post 页共享，防别处遗留的 lastIndex 污染起点
+    URL_TEXT_RE.lastIndex = 0;
     for (const match of text.matchAll(URL_TEXT_RE)) {
       // 剥掉末尾标点后才算链接终点，被剥掉的标点留在后续文本段里
       const url = stripUrlTrailing(match[0]);

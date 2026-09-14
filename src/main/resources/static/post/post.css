@@ -14,7 +14,10 @@
   --highlight:    #f9d27c;
   --danger:       #b42318;
   --focus:        #d8482b;
-  /* 不使用任何网络/本地字体文件，中英文统一用微软雅黑 */
+  /* 不使用任何网络/本地字体文件，中英文统一用微软雅黑。
+     四个字体令牌刻意同值（差异只在无雅黑平台的 fallback 上体现）：
+     --serif/--hand/--hand-b/--mono 保留分层是为了语义可循——标题、手写正文、
+     手写强调与数据各归各的令牌，日后换字体时不必逐条改规则 */
   --serif:    'Microsoft YaHei', serif;
   --hand:     'Microsoft YaHei', cursive;
   --hand-b:   'Microsoft YaHei', cursive;

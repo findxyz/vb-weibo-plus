@@ -18,7 +18,7 @@ export function createAnalysis({
     currentView: null,
     reader: null,
     controller: null,
-    renderFrame: null
+    renderTimer: null
   };
 
   function isCurrent(sessionVersion, operationVersion = null) {
@@ -32,9 +32,9 @@ export function createAnalysis({
     state.controller = null;
     state.reader?.cancel().catch(() => {});
     state.reader = null;
-    if (state.renderFrame !== null) {
-      cancelAnimationFrame(state.renderFrame);
-      state.renderFrame = null;
+    if (state.renderTimer !== null) {
+      clearTimeout(state.renderTimer);
+      state.renderTimer = null;
     }
   }
 
@@ -266,14 +266,15 @@ export function createAnalysis({
       analysisDetailContent.innerHTML = renderMarkdown(streamed);
       analysisDetailContent.scrollTop = analysisDetailContent.scrollHeight;
     };
+    // 250ms 尾帧节流：每帧全文 parse + sanitize 是 O(n²)，流式场景肉眼无感
     const scheduleRender = () => {
       if (renderScheduled || !isCurrent(sessionVersion, operationVersion)) return;
       renderScheduled = true;
-      state.renderFrame = requestAnimationFrame(() => {
+      state.renderTimer = setTimeout(() => {
         renderScheduled = false;
-        state.renderFrame = null;
+        state.renderTimer = null;
         renderStream();
-      });
+      }, 250);
     };
     try {
       // 库未就绪时在这里等待，按钮已处于「分析中…」禁用态，用户可感知
@@ -316,9 +317,9 @@ export function createAnalysis({
       }
       if (!isCurrent(sessionVersion, operationVersion)) return;
       if (doneView) {
-        if (state.renderFrame !== null) {
-          cancelAnimationFrame(state.renderFrame);
-          state.renderFrame = null;
+        if (state.renderTimer !== null) {
+          clearTimeout(state.renderTimer);
+          state.renderTimer = null;
         }
         renderScheduled = false;
         state.currentView = doneView;
