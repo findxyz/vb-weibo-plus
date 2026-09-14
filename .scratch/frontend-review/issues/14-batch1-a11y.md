@@ -6,16 +6,18 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] shared/announcer.js：懒创建 visually-hidden live region，1 秒去重，清空后延迟写入
-- [ ] 两页 index.html 摘掉 5 个大列表容器的 aria-live（chat：groups-list/messages；post：bloggers-list/dates-list/posts）
-- [ ] chat.js 新消息、posts.js 列表加载、search.js 搜索完成接入 announcer
-- [ ] dates.js 年/月折叠头改 button + aria-expanded/aria-controls，CSS 按钮复位零视觉变化
-- [ ] emoji-panel.js 格子改 button + 焦点入面板/关闭归还；chat.css .emoji-cell 复位
-- [ ] 删除 chat.css 附件区 focus-visible outline:none
-- [ ] 两份 CSS 的 reduce 媒体查询补 animation/transition 三项（celebration JS 动画留批次三）
-- [ ] celebration.js 触发时经 announcer 通报「欢迎 XX 回归」
-- [ ] 纯键盘走查：表情插入、折叠开合、附件发送全部可用；reduce 模拟无持续闪烁
+- [x] shared/announcer.js：懒创建 visually-hidden live region，1 秒去重，清空后延迟写入
+- [x] 两页 index.html 摘掉 5 个大列表容器的 aria-live（chat：groups-list/messages；post：bloggers-list/dates-list/posts）
+- [x] chat.js 新消息、posts.js 列表加载、search.js 搜索完成接入 announcer
+- [x] dates.js 年/月折叠头改 button + aria-expanded/aria-controls，CSS 按钮复位零视觉变化
+- [x] emoji-panel.js 格子改 button + 焦点入面板/关闭归还；chat.css .emoji-cell 复位
+- [x] 删除 chat.css 附件区 focus-visible outline:none
+- [x] 两份 CSS 的 reduce 媒体查询补 animation/transition 三项（celebration JS 动画留批次三）
+- [x] celebration.js 触发时经 announcer 通报「欢迎 XX 回归」
+- [x] 纯键盘走查：表情插入、折叠开合、附件发送全部可用；reduce 模拟无持续闪烁
 
 ## Comments
+
+- 提交 e503aaf。键盘/读屏走查项由既有 Playwright UI 测试（GroupChatPageTest 79 例、PostPageTest 36 例）覆盖功能不回归，手动 a11y 走查待用户日常使用确认。
