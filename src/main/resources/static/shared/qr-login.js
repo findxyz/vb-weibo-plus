@@ -18,20 +18,36 @@ export function createQrLogin({
   let imageTimer = null;
   let firstFetchTimer = null;
   let pending = false;
+  // loading 元素的原始文案：二维码图加载失败要改写它，重拉成功前先复原
+  const loadingIdleText = loading?.textContent ?? "";
 
   function refreshImage() {
     const preload = new Image();
     preload.onload = () => {
       image.src = preload.src;
       image.hidden = false;
-      if (loading) loading.hidden = true;
+      if (loading) {
+        loading.textContent = loadingIdleText;
+        loading.hidden = true;
+      }
+    };
+    // 图片加载失败只改提示，不终止登录流程：10 秒轮询会自动重拉
+    preload.onerror = () => {
+      image.hidden = true;
+      if (loading) {
+        loading.hidden = false;
+        loading.textContent = "二维码加载失败，自动重试中…";
+      }
     };
     preload.src = `/weibo/login/qr/image?t=${Date.now()}`;
   }
 
   function startImagePolling() {
     image.hidden = true;
-    if (loading) loading.hidden = false;
+    if (loading) {
+      loading.textContent = loadingIdleText;
+      loading.hidden = false;
+    }
     firstFetchTimer = setTimeout(refreshImage, QR_FIRST_FETCH_DELAY);
     imageTimer = setInterval(refreshImage, QR_IMAGE_INTERVAL);
   }

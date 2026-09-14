@@ -3,6 +3,7 @@
 import {fetchJson} from "../shared/fetch.js";
 import {formatDate, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {createVerifiedBadge, showState} from "../shared/dom.js";
+import {URL_TEXT_RE, stripUrlTrailing} from "../shared/linkify.js";
 
 const DAY_PAGE_SIZE = 9999;
 
@@ -46,7 +47,8 @@ export function createPosts({
     if (end) params.set("end", end);
 
     try {
-      const result = await fetchJson(`/post/list?${params}`);
+      // 单日页可能拉全量（size 9999），放宽超时
+      const result = await fetchJson(`/post/list?${params}`, {timeoutMs: 30000});
       if (version !== loadVersion) return;
       renderPosts(result.items);
       feedCount.textContent = `共 ${result.total} 条`;
@@ -190,33 +192,18 @@ export function createPosts({
     return content;
   }
 
-  // 纵深防御：content 已是后端清洗过的安全内容，这里在解析后的 DOM 树上
-  // 再做一次白名单清理——移除脚本类元素、on* 事件属性与 javascript: 链接，
-  // 正常微博正文（表情图、链接、@提及）渲染结果不受影响
-  function sanitizeContentTree(root) {
-    for (const el of root.querySelectorAll("script, iframe, style, object, embed")) {
-      el.remove();
-    }
-    for (const el of root.querySelectorAll("*")) {
-      for (const attr of [...el.attributes]) {
-        const name = attr.name.toLowerCase();
-        if (name.startsWith("on")) {
-          el.removeAttribute(attr.name);
-        } else if (name === "href" && /^\s*javascript:/i.test(attr.value)) {
-          el.removeAttribute(attr.name);
-        }
-      }
-    }
-  }
-
+  // content 字段是微博富文本 HTML，经 DOMPurify 白名单清洗后做链接修整：
+  // 相对地址（如 @ 用户的 /n/xxx）补全为微博域名，协议相对地址补全 https，
+  // 并让所有链接在新窗口打开；纯文本里的 http/https 地址与 @用户名: 自动转链接
   function renderContent(html) {
     if (!html) return "";
-    // content 字段是微博富文本 HTML，已是后端处理后的安全内容；
-    // 这里统一修正链接：相对地址（如 @ 用户的 /n/xxx）补全为微博域名，
-    // 协议相对地址补全 https，并让所有链接在新窗口打开；
-    // 纯文本里的 http/https 地址自动转为可点击链接
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    sanitizeContentTree(doc.body);
+    // 库未就绪（同源静态脚本，正常不会发生）时降级为纯文本，宁缺勿脏
+    if (!window.DOMPurify) {
+      const fallback = new DOMParser().parseFromString(html, "text/html");
+      return fallback.body.textContent || "";
+    }
+    const clean = window.DOMPurify.sanitize(html);
+    const doc = new DOMParser().parseFromString(clean, "text/html");
     linkifyUrls(doc.body);
     linkifyMentions(doc.body);
     for (const a of doc.querySelectorAll("a")) {
@@ -232,10 +219,7 @@ export function createPosts({
     return doc.body.innerHTML;
   }
 
-  // 匹配 http/https 地址，字符类里排除空白、引号（含中文弯引号）、尖括号与常见中文标点
-  const URL_TEXT_RE = /https?:\/\/[^\s<>"'“”‘’（）【】《》，。；：、！？…]+/gi;
-  // 地址末尾容易粘带的英文标点，链接化时剥掉
-  const URL_TRAILING_RE = /[.,;:!?)\]}'"]/;
+  // URL 识别与尾随标点剥离全站同源（shared/linkify.js），这里只做 DOM 树内替换
 
   // 在文本节点里按正则替换：跳过已在 <a> 内的文本，命中处由 buildReplacement 生成替换节点
   function replaceTextMatches(root, testRe, matchRe, buildReplacement) {
@@ -273,14 +257,7 @@ export function createPosts({
 
   function linkifyUrls(root) {
     replaceTextMatches(root, /https?:\/\//i, URL_TEXT_RE, (m, _text, doc) => {
-      let url = m[0];
-      while (url && URL_TRAILING_RE.test(url[url.length - 1])) {
-        const tail = url[url.length - 1];
-        // 成对括号只剥不成对的（如 wiki/A_(B) 的右括号保留）
-        if (tail === ")" && (url.split("(").length - 1) >= (url.split(")").length - 1)) break;
-        if (tail === "]" && (url.split("[").length - 1) >= (url.split("]").length - 1)) break;
-        url = url.slice(0, -1);
-      }
+      const url = stripUrlTrailing(m[0]);
       if (!url) return null;
       const a = doc.createElement("a");
       a.setAttribute("href", url);

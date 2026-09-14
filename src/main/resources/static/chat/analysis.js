@@ -1,5 +1,5 @@
 import {fetchJson} from "../shared/fetch.js";
-import {localDateValue} from "../shared/date.js";
+import {shanghaiToday} from "../shared/date.js";
 
 export function createAnalysis({
   elements: {
@@ -58,7 +58,8 @@ export function createAnalysis({
     state.sessionVersion += 1;
     state.page = 1;
     state.total = 0;
-    analysisDate.value = localDateValue(new Date());
+    // 分析日期默认上海时区的今天，与聊天记录查询同口径（shared/date.js 头注释）
+    analysisDate.value = shanghaiToday();
     analysisPrompt.value = "请总结今天群聊的主要讨论话题和参与者";
     resetView();
   }
@@ -79,7 +80,7 @@ export function createAnalysis({
     if (!markdownLibsPromise) {
       markdownLibsPromise = Promise.all([
         loadScript("marked.min.js"),
-        loadScript("dompurify.min.js")
+        loadScript("../shared/dompurify.min.js")
       ]).catch(error => {
         markdownLibsPromise = null;
         throw error;

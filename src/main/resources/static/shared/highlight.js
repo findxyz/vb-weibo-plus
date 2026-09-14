@@ -12,7 +12,7 @@
 export function appendHighlightedText(element, value, keyword, {max = Infinity} = {}) {
   const text = value || "", needle = keyword?.trim() || "";
   if (!needle) { element.textContent = text; return; }
-  const lowerText = text.toLocaleLowerCase(), lowerNeedle = needle.toLocaleLowerCase();
+  const lowerText = text.toLowerCase(), lowerNeedle = needle.toLowerCase();
   let start = 0, match = lowerText.indexOf(lowerNeedle), marked = 0;
   while (match >= 0 && marked < max) {
     element.append(document.createTextNode(text.slice(start, match)));

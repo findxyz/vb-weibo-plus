@@ -8,7 +8,7 @@ import {createSessions} from "./sessions.js";
 import {createDream} from "./dream.js";
 import {createAttitudes} from "./attitudes.js";
 import {createEmojiPanel} from "./emoji-panel.js";
-import {createLogin} from "./login.js";
+import {createChatLogin} from "./login.js";
 import {pickElements} from "../shared/dom.js";
 import {createAnnouncer} from "../shared/announcer.js";
 
@@ -84,10 +84,12 @@ function bootstrap() {
     void attitudes.load(gid, messages);
   }
   // 各工厂只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
-  // 登录检测与扫码登录归 login 模块（与 post 页同一模式）；
+  // 登录检测与扫码登录归 login 模块（检测与扫码入口在 shared/login.js）；
   // 扫码成功后重走初始化，失败写回群聊面板状态行
-  const login = createLogin({
+  const login = createChatLogin({
     elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg", "qrLoading"),
+    idleText: "📱 扫码登录",
+    loadingText: "📱 扫码中…",
     onRelogin: () => initialize(),
     onError: () => {
       elements.groupsState.textContent = "扫码登录失败，请稍后重试。";

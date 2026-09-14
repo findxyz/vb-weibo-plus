@@ -5,6 +5,8 @@ export function createViewer({
   elements: {imageViewer, imageViewerState, viewerPrev, viewerNext, viewerCounter},
   state}) {
   const img = imageViewer.querySelector("img");
+  // 加载令牌：快速连按方向键时，旧图的晚到事件不得覆盖新图状态
+  let loadToken = 0;
 
   function openImageViewer(pics, index) {
     if (!pics || pics.length === 0) return;
@@ -18,13 +20,16 @@ export function createViewer({
   function showViewerImage(index) {
     const url = state.viewerImages[index];
     if (!url) return;
+    const token = ++loadToken;
     showState(imageViewerState, "加载中…");
     img.hidden = true;
     img.onload = () => {
+      if (token !== loadToken) return;
       img.hidden = false;
       showState(imageViewerState, "");
     };
     img.onerror = () => {
+      if (token !== loadToken) return;
       img.hidden = true;
       showState(imageViewerState, "图片加载失败");
     };

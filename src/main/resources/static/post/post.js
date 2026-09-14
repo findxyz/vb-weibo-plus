@@ -6,8 +6,8 @@ import {createPosts} from "./posts.js";
 import {createDates} from "./dates.js";
 import {createBloggers} from "./bloggers.js";
 import {createSearch} from "./search.js";
-import {createLogin} from "./login.js";
-import {pickElements} from "../shared/dom.js";
+import {createLogin} from "../shared/login.js";
+import {pickElements, showState} from "../shared/dom.js";
 import {createAnnouncer} from "../shared/announcer.js";
 
 const elements = {
@@ -72,7 +72,12 @@ const state = {
 // 各模块只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
 // 大列表容器不带 aria-live（见 shared/announcer.js 头注释），事件级摘要走这里
 const announce = createAnnouncer();
-const login = createLogin({elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg", "bloggersState")});
+const login = createLogin({
+  elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg"),
+  idleText: "扫码登录",
+  loadingText: "扫码中…",
+  onError: error => showState(elements.bloggersState, `登录请求失败：${error.message}`)
+});
 // 统一处理接口错误：登录失效时展示登录过期提示并返回 true，其余错误交给调用方处理
 const handleApiError = (error, onError) => {
   if (error.status === 401) {

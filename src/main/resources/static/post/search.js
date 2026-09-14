@@ -1,6 +1,6 @@
 // 高级搜索：关键词 + 起止日期，结果摘要做 DOM 高亮，点击跳转到对应日期与博文。
 import {fetchJson} from "../shared/fetch.js";
-import {formatDate, isDateRangeValid, localDateValue, pad, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
+import {epochToShanghaiDate, formatDate, isDateRangeValid, shanghaiToday, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {appendHighlightedText} from "../shared/highlight.js";
 import {showState} from "../shared/dom.js";
 
@@ -17,11 +17,8 @@ export function createSearch({
   // 避免上一次的结果写进新弹窗
   let searchVersion = 0;
 
-  // 与后端 Asia/Shanghai 时区保持一致，避免本地时区导致日期错位
-  function epochToDateStr(epochMillis) {
-    const d = new Date(epochMillis + 8 * 3600 * 1000);
-    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-  }
+  // 目标日期按上海时区计算，与时间轴分组、博文列表的日期口径一致
+  // （原实现把这段换算写在页内，现收编 shared/date.js，见其头注释）
 
   function currentScopeLabel() {
     if (!state.selectedUid) return "全部博主";
@@ -34,9 +31,9 @@ export function createSearch({
     state.searching = false;
     searchScopeTip.textContent = `在「${currentScopeLabel()}」范围内搜索。`;
     searchKeyword.value = "";
-    // 首次打开填默认起止：起 2010-01-01 至今
+    // 首次打开填默认起止：起 2010-01-01 至上海时区的今天
     searchStart.value = "2010-01-01";
-    searchEnd.value = localDateValue(new Date());
+    searchEnd.value = shanghaiToday();
     showState(searchStatus, "");
     searchResults.replaceChildren();
     searchSubmit.disabled = false;
@@ -74,7 +71,7 @@ export function createSearch({
     if (end) params.set("end", toQueryEndTime(end));
 
     try {
-      const result = await fetchJson(`/post/list?${params}`);
+      const result = await fetchJson(`/post/list?${params}`, {timeoutMs: 30000});
       if (version !== searchVersion) return;
       renderSearchResults(result, keyword);
     } catch (error) {
@@ -117,7 +114,7 @@ export function createSearch({
     const text = (post.contentRaw || stripHtml(post.content || "")).trim();
     if (!text) return;
     const needle = keyword?.trim() || "";
-    const lower = text.toLocaleLowerCase(), lowerNeedle = needle.toLocaleLowerCase();
+    const lower = text.toLowerCase(), lowerNeedle = needle.toLowerCase();
     const idx = needle ? lower.indexOf(lowerNeedle) : -1;
     if (idx < 0) {
       snippet.textContent = text.slice(0, 80);
@@ -146,7 +143,6 @@ export function createSearch({
     const dateText = formatDate(post.createdAt);
     const author = post.blogger ? post.blogger.screenName : "未知博主";
     meta.textContent = `${dateText} · ${author}`;
-
     const snippet = document.createElement("div");
     snippet.className = "search-result-snippet";
     appendSearchSnippet(snippet, post, keyword);
@@ -159,7 +155,7 @@ export function createSearch({
 
   async function jumpToPost(post) {
     searchDialog.close();
-    const dateStr = epochToDateStr(post.createdAt);
+    const dateStr = epochToShanghaiDate(post.createdAt);
     // 展开日期树上该日所在的年与月并标记选中；该日不在时间轴上时列表仍按日期加载
     dates.revealDate(dateStr);
     await posts.loadPosts(dateStr);

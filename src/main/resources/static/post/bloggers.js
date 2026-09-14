@@ -2,7 +2,7 @@
 // 切换博主后的列表重置与默认日期选中，一律走 dates/posts 的显式接口，
 // 不直接触碰两个模块渲染出的 DOM。
 import {fetchJson} from "../shared/fetch.js";
-import {isDateRangeValid, localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
+import {calendarMonthsAgo, isDateRangeValid, localDateValue, shanghaiToday, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {createVerifiedBadge, showState} from "../shared/dom.js";
 
 export function createBloggers({
@@ -191,12 +191,12 @@ export function createBloggers({
       (b) => Number(b.uid) === Number(state.selectedUid));
     if (!blogger) return;
     syncHistoryBlogger.textContent = `@${blogger.screenName}`;
-    // 与群聊页保持一致：默认同步最近两年到今天
-    const end = new Date();
-    const start = new Date();
-    start.setFullYear(start.getFullYear() - 2);
-    syncHistoryStart.value = localDateValue(start);
-    syncHistoryEnd.value = localDateValue(end);
+    // 与群聊页保持一致：默认同步最近两年到今天；起止锚点都挂在
+    // 上海时区的「今天」上（后端按上海时区解释区间，见 shared/date.js 头注释）
+    const today = shanghaiToday();
+    const anchor = new Date(`${today}T12:00:00`);
+    syncHistoryStart.value = localDateValue(calendarMonthsAgo(anchor, 24));
+    syncHistoryEnd.value = today;
     showSyncHistoryStatus("", false);
     syncHistorySubmit.disabled = false;
     syncHistoryDialog.showModal();

@@ -1,3 +1,6 @@
+// URL 识别与尾随标点剥离全站同源（shared/linkify.js），这里只做分段与渲染
+import {URL_TEXT_RE, stripUrlTrailing} from "../shared/linkify.js";
+
 export const MEDIA_TYPE = {IMAGE: 1, VIDEO: 10, VIDEO_OR_REDPACKET: 13, WEIBO_CARD: 14};
 
 const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -5,7 +8,6 @@ const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
 });
 function formatTime(timestamp) { return timeFormatter.format(new Date(timestamp)); }
 
-const MESSAGE_URL_PATTERN = /https?:\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]+/g;
 const EMOJI_PHRASE_PATTERN = /\[[^\[\]]+\]/g;
 const EMOJI_IMAGE_TEST = /\[(\/[0-9a-z]+\.png)\]/i;
 const EMOJI_IMAGE_BASE = "https://img.t.sinajs.cn/t4/appstyle/expression/emimage";
@@ -78,15 +80,18 @@ export function createMessageView({
 
   function appendMessageText(container, text) {
     let offset = 0;
-    for (const match of text.matchAll(MESSAGE_URL_PATTERN)) {
+    for (const match of text.matchAll(URL_TEXT_RE)) {
+      // 剥掉末尾标点后才算链接终点，被剥掉的标点留在后续文本段里
+      const url = stripUrlTrailing(match[0]);
+      if (!url) continue;
       appendTextSegment(container, text.slice(offset, match.index));
       const link = document.createElement("a");
-      link.href = match[0];
+      link.href = url;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.textContent = match[0];
+      link.textContent = url;
       container.append(link);
-      offset = match.index + match[0].length;
+      offset = match.index + url.length;
     }
     appendTextSegment(container, text.slice(offset));
   }

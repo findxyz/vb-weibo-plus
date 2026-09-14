@@ -11,8 +11,8 @@ export function createGroups({elements: {groupSearch, groupsCount, groupsList},
     return sender || message ? (sender ? `${sender}：${message}` : message) : `${group.maxMember || group.memberCount} 人群`;
   }
   function filter(value) {
-    const keyword = value.trim().toLocaleLowerCase("zh-CN");
-    groupsList.querySelectorAll(".group-row").forEach(row => { row.hidden = !row.textContent.toLocaleLowerCase("zh-CN").includes(keyword); });
+    const keyword = value.trim().toLowerCase();
+    groupsList.querySelectorAll(".group-row").forEach(row => { row.hidden = !row.textContent.toLowerCase().includes(keyword); });
   }
   function render() {
     if (!groups.length) {

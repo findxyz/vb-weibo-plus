@@ -1,5 +1,5 @@
 import {appendHighlightedText} from "../shared/highlight.js";
-import {calendarMonthsAgo, localDateValue, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
+import {calendarMonthsAgo, localDateValue, shanghaiToday, toQueryDateTime, toQueryEndTime} from "../shared/date.js";
 import {fetchJson} from "../shared/fetch.js";
 import {MEDIA_TYPE} from "./message-view.js";
 import {captureScrollAnchor, compareMessages, fetchMessagePage, nextCursor, restoreScrollAnchor} from "./sessions.js";
@@ -37,14 +37,16 @@ export function createHistory({
   }
 
   function reset() {
-    const start = calendarMonthsAgo(new Date(), 3);
+    // 查询区间按上海时区的「今天」为锚（后端按此时区解释区间与日历，
+    // 见 shared/date.js 头注释）；日期串按本地午时解析，纯日期算术不受时区影响
+    const today = shanghaiToday();
+    const anchor = new Date(`${today}T12:00:00`);
     state.requestVersion += 1;
     state.page = 1; state.total = 0; state.query = null; state.targetMid = null;
     state.beforeCursor = null; state.afterCursor = null; state.loadingMore = false;
-    historyStart.value = localDateValue(start);
-    historyEnd.value = localDateValue(new Date());
-    const syncDate = new Date(); syncDate.setFullYear(syncDate.getFullYear() - 2);
-    historySyncTime.value = localDateValue(syncDate);
+    historyStart.value = localDateValue(calendarMonthsAgo(anchor, 3));
+    historyEnd.value = today;
+    historySyncTime.value = localDateValue(calendarMonthsAgo(anchor, 24));
     historySender.value = ""; historyKeyword.value = "";
     historyResultsList.replaceChildren(); historyMessages.replaceChildren();
     historyEarlierState.textContent = ""; historyNewerState.textContent = "";
