@@ -896,6 +896,13 @@ h1 {
   display: none;
 }
 
+/* 选中文件后 composer.js 会程序化聚焦本条（支撑 Enter 发送附件），
+   全局琥珀焦点框在每次发附件时都会闪一圈，这里有意压制；
+   ✕ 删除按钮是真按钮，键盘 Tab 到它仍有自己的焦点环 */
+.composer-attachment:focus-visible {
+  outline: none;
+}
+
 .composer:has(.composer-attachment:not([hidden])) #composer {
   display: none;
 }
