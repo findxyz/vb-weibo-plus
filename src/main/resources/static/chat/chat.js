@@ -10,6 +10,7 @@ import {createAttitudes} from "./attitudes.js";
 import {createEmojiPanel} from "./emoji-panel.js";
 import {createLogin} from "./login.js";
 import {pickElements} from "../shared/dom.js";
+import {createAnnouncer} from "../shared/announcer.js";
 
 function bootstrap() {
   const PAGE_SIZE = 50;
@@ -75,6 +76,8 @@ function bootstrap() {
   };
 
   let celebration;
+  // 大列表容器不带 aria-live（见 shared/announcer.js 头注释），事件级摘要走这里
+  const announce = createAnnouncer();
   // 首屏与向上翻页都是「垫高庆祝基线 + 补一次表态」，共用同一回调
   function seedCelebrationAndAttitudes(gid, messages) {
     celebration.seed(gid, messages);
@@ -106,6 +109,7 @@ function bootstrap() {
     onNewMessages: (gid, messages) => {
       celebration.process(gid, messages);
       void attitudes.load(gid, messages);
+      announce(`收到 ${messages.length} 条新消息`);
     },
     onAuthExpired: login.showLoginExpired
   });
@@ -132,7 +136,8 @@ function bootstrap() {
       "celebrationPopoverTitle", "celebrationPopoverJoin", "celebrationPopoverRemove",
       "celebrationPopoverClose"),
     messageView, getCurrentGid: () => state.currentGid,
-    getMessages: () => sessions.getMessagesSnapshot()
+    getMessages: () => sessions.getMessagesSnapshot(),
+    announce
   });
   const composer = createComposer({
     elements: pickElements(elements, 

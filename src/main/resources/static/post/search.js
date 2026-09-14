@@ -11,7 +11,7 @@ export function createSearch({
     searchOpen, searchDialog, searchCancel, searchSubmit, searchKeyword,
     searchStart, searchEnd, searchStatus, searchResults, searchScopeTip
   },
-  state, handleApiError, dates, posts}) {
+  state, handleApiError, announce = () => {}, dates, posts}) {
 
   // 搜索请求序号：关闭弹窗不会取消在途搜索，重新打开时作废旧请求，
   // 避免上一次的结果写进新弹窗
@@ -106,6 +106,7 @@ export function createSearch({
     } else {
       showState(searchStatus, `找到 ${result.total} 条结果`);
     }
+    announce(`找到 ${result.total} 条结果`);
     for (const post of result.items) {
       searchResults.appendChild(createSearchResultItem(post, keyword));
     }

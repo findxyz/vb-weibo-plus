@@ -7,7 +7,7 @@ export function createCelebration({
     celebrationPopover, celebrationPopoverTitle, celebrationPopoverJoin,
     celebrationPopoverRemove, celebrationPopoverClose
   },
-  messageView, getCurrentGid, getMessages}) {
+  messageView, getCurrentGid, getMessages, announce = () => {}}) {
   const CELEBRATION_ROSTER_KEY = "weibo-chat:celebration-roster";
   const CELEBRATION_SEEN_KEY = "weibo-chat:celebration-seen";
   // 回归间隔默认值，单位秒
@@ -221,6 +221,8 @@ export function createCelebration({
   });
 
   async function spawnCelebration(gid, entry) {
+    // 表演本身对屏幕阅读器不可见，触发即通报，与视觉动效解耦
+    announce(`欢迎 ${entry.name || "未知成员"} 回归`);
     const run = {cancelled: false, cancel: null};
     const generation = celebrationGeneration;
     activeCelebrations.add(run);

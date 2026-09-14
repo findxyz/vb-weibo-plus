@@ -8,6 +8,7 @@ import {createBloggers} from "./bloggers.js";
 import {createSearch} from "./search.js";
 import {createLogin} from "./login.js";
 import {pickElements} from "../shared/dom.js";
+import {createAnnouncer} from "../shared/announcer.js";
 
 const elements = {
   globalTip: document.querySelector("#global-tip"),
@@ -69,6 +70,8 @@ const state = {
 };
 
 // 各模块只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
+// 大列表容器不带 aria-live（见 shared/announcer.js 头注释），事件级摘要走这里
+const announce = createAnnouncer();
 const login = createLogin({elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg", "bloggersState")});
 // 统一处理接口错误：登录失效时展示登录过期提示并返回 true，其余错误交给调用方处理
 const handleApiError = (error, onError) => {
@@ -87,7 +90,7 @@ const viewer = createViewer({
 
 const posts = createPosts({
   elements: pickElements(elements, "posts", "postsState", "feedCount", "retryPosts"),
-  state, handleApiError,
+  state, handleApiError, announce,
   openImageViewer: viewer.openImageViewer
 });
 
@@ -112,7 +115,7 @@ createSearch({
   elements: pickElements(elements, 
     "searchOpen", "searchDialog", "searchCancel", "searchSubmit", "searchKeyword",
     "searchStart", "searchEnd", "searchStatus", "searchResults", "searchScopeTip"),
-  state, handleApiError,
+  state, handleApiError, announce,
   dates, posts
 });
 

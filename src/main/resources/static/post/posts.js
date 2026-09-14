@@ -8,7 +8,7 @@ const DAY_PAGE_SIZE = 9999;
 
 export function createPosts({
   elements: {posts, postsState, feedCount, retryPosts},
-  state, handleApiError, openImageViewer}) {
+  state, handleApiError, announce = () => {}, openImageViewer}) {
 
   // 加载请求序号：快速切换博主/日期（含搜索跳转绕过 selectDate 守卫）时，
   // 只有最新一轮请求允许落地，旧响应直接丢弃；clear（博主切换的第一步）
@@ -53,6 +53,7 @@ export function createPosts({
       if (result.items.length === 0) {
         setStatus("该日无微博");
       } else {
+        announce(`已加载 ${result.items.length} 条微博`);
         setStatus("");
       }
     } catch (error) {

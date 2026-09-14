@@ -52,8 +52,12 @@ export function createDates({
     group.className = "year-group";
     group.dataset.year = year;
 
-    const header = document.createElement("div");
+    // 折叠头是可开合控件：button + aria-expanded/aria-controls，键盘可达
+    const header = document.createElement("button");
+    header.type = "button";
     header.className = "year-header";
+    header.setAttribute("aria-expanded", "false");
+    header.setAttribute("aria-controls", `months-${year}`);
     header.textContent = year + " 年";
     const count = document.createElement("span");
     count.className = "year-count";
@@ -65,6 +69,7 @@ export function createDates({
 
     const monthsEl = document.createElement("div");
     monthsEl.className = "year-months";
+    monthsEl.id = `months-${year}`;
     for (const month of months) {
       monthsEl.appendChild(createMonthGroup(month));
     }
@@ -77,8 +82,11 @@ export function createDates({
     group.className = "month-group";
     group.dataset.month = month.month;
 
-    const header = document.createElement("div");
+    const header = document.createElement("button");
+    header.type = "button";
     header.className = "month-header";
+    header.setAttribute("aria-expanded", "false");
+    header.setAttribute("aria-controls", `days-${month.month}`);
     header.textContent = month.month.slice(5) + " 月";
     const count = document.createElement("span");
     count.className = "month-count";
@@ -89,6 +97,7 @@ export function createDates({
 
     const days = document.createElement("div");
     days.className = "month-days";
+    days.id = `days-${month.month}`;
     for (const day of month.days) {
       const item = document.createElement("button");
       item.type = "button";
@@ -112,6 +121,9 @@ export function createDates({
 
   function toggleGroup(group) {
     group.classList.toggle("open");
+    // aria-expanded 与折叠态同步；折叠头是组内第一个子元素
+    group.firstElementChild.setAttribute("aria-expanded",
+      String(group.classList.contains("open")));
   }
 
   // 选中高亮归位：清掉旧高亮，标记命中日期；日期不在时间轴上时不新增高亮

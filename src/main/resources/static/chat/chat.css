@@ -898,10 +898,6 @@ h1 {
   display: none;
 }
 
-.composer-attachment:focus-visible {
-  outline: none;
-}
-
 .composer:has(.composer-attachment:not([hidden])) #composer {
   display: none;
 }
@@ -988,10 +984,21 @@ h1 {
 }
 
 .emoji-cell {
+  display: grid;
+  place-items: center;
   width: 32px;
   height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
   cursor: pointer;
   border-radius: var(--radius-sm);
+}
+
+.emoji-cell img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .emoji-cell:hover {
@@ -1407,6 +1414,10 @@ h1 {
   *::before,
   *::after {
     scroll-behavior: auto !important;
+    /* 无限闪烁（panel-state）等 CSS 动画一并停掉；celebration 的 JS 驱动动画另行跳过 */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

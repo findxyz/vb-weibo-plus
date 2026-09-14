@@ -18,24 +18,35 @@ export function createEmojiPanel({
   function toggle(forceOpen) {
     const open = forceOpen ?? emojiPanel.hidden;
     if (open && !built) {
+      // 格子是按钮：键盘 Tab 可达，Enter/Space 插入
       for (const [phrase, url] of Object.entries(getWeiboEmojiMap())) {
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "emoji-cell";
+        cell.dataset.phrase = phrase;
+        cell.title = phrase;
         const image = document.createElement("img");
-        image.className = "emoji-cell";
         image.src = url;
         image.alt = phrase;
-        image.title = phrase;
         image.loading = "lazy";
-        emojiPanelGrid.append(image);
+        cell.append(image);
+        emojiPanelGrid.append(cell);
       }
       built = true;
     }
     emojiPanel.hidden = !open;
+    if (open) {
+      emojiPanelGrid.querySelector("button")?.focus();
+    } else if (emojiPanelGrid.contains(document.activeElement)) {
+      // 关闭时焦点还到触发钮；外点关闭时焦点已在别处，不抢
+      emojiPickerOpen.focus();
+    }
   }
 
   emojiPickerOpen.addEventListener("click", () => toggle());
   emojiPanelGrid.addEventListener("click", event => {
     const cell = event.target.closest(".emoji-cell");
-    if (cell) insertAtCursor(cell.alt);
+    if (cell) insertAtCursor(cell.dataset.phrase);
   });
   attachDismiss(emojiPanel, () => toggle(false), {ignoreClosest: "#emoji-picker-open"});
 }

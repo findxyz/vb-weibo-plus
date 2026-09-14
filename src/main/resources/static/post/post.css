@@ -411,11 +411,16 @@ h1#app-title {
 
 /* 年 → 月 → 日 三级聚合 */
 .year-group { border-bottom: 1.5px solid var(--rule); }
+/* 折叠头是按钮（键盘可达 + aria-expanded），只做按钮复位，视觉与原 div 一致 */
 .year-header {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
   cursor: pointer;
   font: 700 18px/1.2 var(--hand-b);
   color: var(--ink);
@@ -440,7 +445,11 @@ h1#app-title {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
   cursor: pointer;
   font: 600 17px/1.2 var(--hand-b);
   color: var(--ink);
@@ -1223,5 +1232,10 @@ h1#app-title {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
