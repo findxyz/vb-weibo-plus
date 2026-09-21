@@ -36,7 +36,7 @@ export function createQrLogin({
       image.hidden = true;
       if (loading) {
         loading.hidden = false;
-        loading.textContent = "二维码加载失败，自动重试中…";
+        loading.textContent = "二维码加载重试…";
       }
     };
     preload.src = `/weibo/login/qr/image?t=${Date.now()}`;
