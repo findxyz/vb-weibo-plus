@@ -78,7 +78,6 @@ function bootstrap() {
   // 登录失效后业务轮询暂停，扫码成功重走 initialize 时复位
   let authExpired = false;
   function markAuthExpired() {
-    authExpired = true;
     login.showLoginExpired();
   }
 
@@ -98,9 +97,14 @@ function bootstrap() {
     idleText: "📱 扫码登录",
     loadingText: "📱 扫码中…",
     onRelogin: () => initialize(),
+    onExpired: () => {
+      authExpired = true;
+      elements.groupsState.textContent = "";
+      elements.retryGroups.hidden = true;
+      elements.loginExpired.querySelector(".panel-state").textContent = "登录已失效";
+    },
     onError: () => {
-      elements.groupsState.textContent = "扫码登录失败，请稍后重试。";
-      elements.retryGroups.hidden = false;
+      elements.loginExpired.querySelector(".panel-state").textContent = "扫码登录失败，请重新扫码。";
     }
   });
   const messageView = createMessageView({
@@ -246,6 +250,7 @@ function bootstrap() {
   }
 
   async function initialize() {
+    if (!elements.loginExpired.hidden) return;
     authExpired = false;
     state.initializing = true; elements.retryGroups.hidden = true; elements.groupsState.textContent = "";
     try {
@@ -256,7 +261,7 @@ function bootstrap() {
     } catch (error) {
       if (error.status === 401) {
         login.showLoginExpired();
-      } else {
+      } else if (elements.loginExpired.hidden) {
         console.warn("加载群聊列表失败：", error);
         elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false;
       }

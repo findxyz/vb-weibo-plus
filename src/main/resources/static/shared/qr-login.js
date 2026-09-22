@@ -31,10 +31,9 @@ export function createQrLogin({
         loading.hidden = true;
       }
     };
-    // 图片加载失败只改提示，不终止登录流程：10 秒轮询会自动重拉
+    // 保留已显示的二维码；首图失败时提示重试，轮询继续
     preload.onerror = () => {
-      image.hidden = true;
-      if (loading) {
+      if (loading && image.hidden) {
         loading.hidden = false;
         loading.textContent = "二维码加载重试…";
       }

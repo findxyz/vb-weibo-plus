@@ -5,8 +5,8 @@ import {createLogin} from "../shared/login.js";
 
 const LOGIN_CHECK_INTERVAL = 60;
 
-export function createChatLogin({elements, idleText, loadingText, onRelogin, onError}) {
-  const login = createLogin({elements, idleText, loadingText, onRelogin, onError});
+export function createChatLogin({elements, idleText, loadingText, onRelogin, onExpired, onError}) {
+  const login = createLogin({elements, idleText, loadingText, onRelogin, onExpired, onError});
   let checkTick = 0;
 
   function maybeCheck() {

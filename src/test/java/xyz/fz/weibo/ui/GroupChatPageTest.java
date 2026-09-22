@@ -22,7 +22,9 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,6 +47,7 @@ class GroupChatPageTest {
     private static final AtomicInteger mediaRequests = new AtomicInteger();
     private static final AtomicReference<String> lastHistoryQuery = new AtomicReference<>();
     private static final AtomicBoolean failGroups = new AtomicBoolean();
+    private static final AtomicReference<CountDownLatch> groupResponseGate = new AtomicReference<>();
     private static final AtomicBoolean delayGroups = new AtomicBoolean();
     private static final AtomicBoolean failMessages = new AtomicBoolean();
     private static final AtomicBoolean delayEarlierHistory = new AtomicBoolean();
@@ -58,6 +61,8 @@ class GroupChatPageTest {
     private static final AtomicInteger loginStatusRequests = new AtomicInteger();
     private static final AtomicInteger qrLoginRequests = new AtomicInteger();
     private static final AtomicBoolean failQrLogin = new AtomicBoolean();
+    private static final AtomicBoolean failQrImage = new AtomicBoolean();
+    private static final AtomicReference<CountDownLatch> qrResponseGate = new AtomicReference<>();
     private static final AtomicBoolean delayGroup202Latest = new AtomicBoolean();
     private static final AtomicBoolean delayGroup202Preview = new AtomicBoolean();
     private static final AtomicBoolean emptyGroup202 = new AtomicBoolean();
@@ -85,6 +90,7 @@ class GroupChatPageTest {
                 sendStaticResource(exchange);
                 return;
             }
+            awaitGate(groupResponseGate.get());
             if (failGroups.get()) {
                 exchange.sendResponseHeaders(503, -1);
                 exchange.close();
@@ -461,6 +467,7 @@ class GroupChatPageTest {
         });
         server.createContext("/weibo/login/qr", exchange -> {
             qrLoginRequests.incrementAndGet();
+            awaitGate(qrResponseGate.get());
             if (failQrLogin.get()) {
                 exchange.sendResponseHeaders(502, -1);
                 exchange.close();
@@ -474,6 +481,19 @@ class GroupChatPageTest {
             loginInvalid.set(false);
             sendJson(exchange, "{\"sub\":\"SUB\",\"subp\":\"SUBP\",\"ssoLoginState\":\"1\",\"alf\":\"1\"}");
         });
+        server.createContext("/weibo/login/qr/image", exchange -> {
+            if (failQrImage.get()) {
+                exchange.sendResponseHeaders(404, -1);
+                exchange.close();
+                return;
+            }
+            byte[] body = Base64.getDecoder().decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
         server.createContext("/chat/", GroupChatPageTest::sendStaticResource);
         // 前端重构后 chat 页模块从 /shared/ 加载公共模块，测试服务器必须一并伺服
         server.createContext("/shared/", GroupChatPageTest::sendStaticResource);
@@ -482,6 +502,16 @@ class GroupChatPageTest {
 
         playwright = Playwright.create();
         browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+    }
+
+    private static void awaitGate(CountDownLatch gate) {
+        if (gate == null) return;
+        try {
+            if (!gate.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Timed out waiting for test response gate");
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     @AfterAll
@@ -509,6 +539,7 @@ class GroupChatPageTest {
         mediaRequests.set(0);
         lastHistoryQuery.set(null);
         failGroups.set(false);
+        groupResponseGate.set(null);
         failMessages.set(false);
         delayEarlierHistory.set(false);
         failSend.set(false);
@@ -521,6 +552,8 @@ class GroupChatPageTest {
         loginStatusRequests.set(0);
         qrLoginRequests.set(0);
         failQrLogin.set(false);
+        failQrImage.set(false);
+        qrResponseGate.set(null);
         delayGroup202Latest.set(false);
         delayGroup202Preview.set(false);
         emptyGroup202.set(false);
@@ -1449,6 +1482,58 @@ class GroupChatPageTest {
         assertThat(page.locator(".group-row")).hasCount(2);
 
         page.close();
+    }
+
+    @Test
+    void keeps_qr_visible_without_group_error_when_initial_list_fails_during_scan() {
+        loginInvalid.set(true);
+        failGroups.set(true);
+        CountDownLatch groupsGate = new CountDownLatch(1);
+        CountDownLatch qrGate = new CountDownLatch(1);
+        groupResponseGate.set(groupsGate);
+        qrResponseGate.set(qrGate);
+        Page page = browser.newPage();
+        try {
+            page.navigate(baseUrl + "/chat/index.html");
+            assertThat(page.locator("#login-expired")).isVisible();
+            page.locator("#login-qr").click();
+            assertThat(page.locator("#login-qr-img")).isVisible();
+
+            page.waitForResponse(response -> response.url().endsWith("/chat/groups"), groupsGate::countDown);
+            page.waitForTimeout(200);
+            assertThat(page.locator("#groups-state")).isEmpty();
+            assertThat(page.locator("#retry-groups")).isHidden();
+            assertThat(page.locator("#login-qr-img")).isVisible();
+        } finally {
+            groupsGate.countDown();
+            qrGate.countDown();
+            page.close();
+        }
+    }
+
+    @Test
+    void keeps_last_qr_image_when_a_refresh_temporarily_fails() {
+        loginInvalid.set(true);
+        CountDownLatch qrGate = new CountDownLatch(1);
+        qrResponseGate.set(qrGate);
+        Page page = browser.newPage();
+        try {
+            page.navigate(baseUrl + "/chat/index.html");
+            assertThat(page.locator("#login-expired")).isVisible();
+            page.locator("#login-qr").click();
+            assertThat(page.locator("#login-qr-img")).isVisible();
+
+            failQrImage.set(true);
+            page.waitForResponse(response -> response.url().contains("/weibo/login/qr/image?t=")
+                    && response.status() == 404, () -> {});
+            page.waitForTimeout(200);
+
+            assertThat(page.locator("#login-qr-img")).isVisible();
+            assertThat(page.locator("#qr-loading")).isHidden();
+        } finally {
+            qrGate.countDown();
+            page.close();
+        }
     }
 
     @Test
@@ -2388,7 +2473,8 @@ class GroupChatPageTest {
         page.locator("#login-qr").click();
         assertThat(page.locator("#login-qr")).hasText("📱 扫码登录");
         assertThat(page.locator("#login-qr")).isEnabled();
-        assertThat(page.locator("#groups-state")).containsText("扫码登录失败");
+        assertThat(page.locator("#login-expired .panel-state")).containsText("扫码登录失败");
+        assertThat(page.locator("#retry-groups")).isHidden();
 
         page.close();
     }

@@ -9,6 +9,7 @@ export function createLogin({
   idleText,
   loadingText,
   onRelogin = null,
+  onExpired = null,
   onError = null}) {
 
   // 扫码登录交给 shared 控制器：防重入、首拉延迟、10 秒轮询与按钮 loading 态都在那里
@@ -31,12 +32,15 @@ export function createLogin({
 
   function showLoginExpired() {
     loginExpired.hidden = false;
+    if (onExpired) onExpired();
   }
 
   async function checkLoginStatus() {
     try {
       const result = await fetchJson("/weibo/login/status", {cache: "no-store"});
-      loginExpired.hidden = result.valid === true;
+      if (qrLogin.pending) return;
+      if (result.valid === true) loginExpired.hidden = true;
+      else showLoginExpired();
     } catch (error) {
       // 登录检测失败不打扰用户，仅留调试信息
       console.warn("检查登录状态失败：", error);
