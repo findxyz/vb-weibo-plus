@@ -122,8 +122,8 @@ mvn spring-boot:run
 - `weibo.cookie-file`：登录态 cookie 文件路径
 - `weibo.qr-timeout-seconds`：扫码登录等待确认的超时秒数，超时后报「扫码登录超时」
 - `weibo.database-path`：本地 SQLite 数据库路径
-- `weibo.chat.auto-sync-gids`：定时增量同步的群号，逗号分隔，留空则不同步任何群
-- `weibo.chat.sync-group-fixed-delay`：群消息增量同步间隔，支持 `20s` / `30000ms` 等 Duration 写法
+- `weibo.chat.auto-sync-gids`：自动接收和增量同步的群号，逗号分隔，留空则不同步任何群
+- `weibo.chat.sync-group-fixed-delay`：群消息兜底检查间隔；WebSocket 已订阅时每 5 分钟拉取一次，未订阅时按此间隔拉取，支持 `20s` / `30000ms` 等 Duration 写法
 - `weibo.media.ffmpeg-path`：ffmpeg 可执行文件路径
 - `weibo.ai.base-url`：OpenAI 兼容 API 地址，留空则禁用 AI 分析
 - `weibo.ai.api-key`：AI API 密钥

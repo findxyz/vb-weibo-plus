@@ -22,16 +22,19 @@ public class SyncTask implements CommandLineRunner {
 
     private final ChatService chatService;
     private final PostService postService;
+    private final WeiboPushClient pushClient;
     private final Set<Long> autoSyncGids;
+    private long lastGroupFallbackAt;
 
-    public SyncTask(ChatService chatService, PostService postService,
+    public SyncTask(ChatService chatService, PostService postService, WeiboPushClient pushClient,
                     @Value("${weibo.chat.auto-sync-gids:}") String autoSyncGids) {
         this.chatService = chatService;
         this.postService = postService;
+        this.pushClient = pushClient;
         this.autoSyncGids = parseGids(autoSyncGids);
     }
 
-    private static Set<Long> parseGids(String value) {
+    static Set<Long> parseGids(String value) {
         if (value == null || value.isBlank()) {
             return Set.of();
         }
@@ -53,9 +56,11 @@ public class SyncTask implements CommandLineRunner {
 
     @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:20s}", initialDelay = 5_000)
     public void syncGroupMessages() {
-        if (autoSyncGids.isEmpty()) {
+        if (autoSyncGids.isEmpty() || (pushClient.isSubscribed()
+                && System.currentTimeMillis() - lastGroupFallbackAt < 300_000)) {
             return;
         }
+        boolean succeeded = true;
         for (var group : chatService.queryGroups()) {
             if (!autoSyncGids.contains(group.gid())) {
                 continue;
@@ -63,8 +68,12 @@ public class SyncTask implements CommandLineRunner {
             try {
                 chatService.saveIncremental(group.gid());
             } catch (WeiboException e) {
+                succeeded = false;
                 log.warn("群消息增量拉取失败：gid = {}，error = {}", group.gid(), e.getMessage());
             }
+        }
+        if (succeeded) {
+            lastGroupFallbackAt = System.currentTimeMillis();
         }
     }
 

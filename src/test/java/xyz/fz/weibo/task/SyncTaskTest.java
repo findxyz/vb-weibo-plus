@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,11 +36,14 @@ class SyncTaskTest {
     @Mock
     private PostService postService;
 
+    @Mock
+    private WeiboPushClient pushClient;
+
     private SyncTask syncTask;
 
     @BeforeEach
     void setUp() {
-        syncTask = new SyncTask(chatService, postService, "4761715839862414");
+        syncTask = new SyncTask(chatService, postService, pushClient, "4761715839862414");
     }
 
     @Test
@@ -69,7 +73,7 @@ class SyncTaskTest {
 
     @Test
     void group_message_check_continues_after_one_group_fails() {
-        SyncTask twoGidTask = new SyncTask(chatService, postService, "4761715839862414, 4761715839862415");
+        SyncTask twoGidTask = new SyncTask(chatService, postService, pushClient, "4761715839862414, 4761715839862415");
         when(chatService.queryGroups()).thenReturn(List.of(
                 group(4761715839862414L), group(4761715839862415L)));
         doThrow(new WeiboException("上游失败。"))
@@ -82,7 +86,7 @@ class SyncTaskTest {
 
     @Test
     void group_message_check_skips_all_when_auto_sync_gids_is_empty() {
-        SyncTask emptyTask = new SyncTask(chatService, postService, "");
+        SyncTask emptyTask = new SyncTask(chatService, postService, pushClient, "");
 
         emptyTask.syncGroupMessages();
 
@@ -91,7 +95,7 @@ class SyncTaskTest {
 
     @Test
     void group_message_check_supports_multiple_comma_separated_gids() {
-        SyncTask multiTask = new SyncTask(chatService, postService, "101, 202");
+        SyncTask multiTask = new SyncTask(chatService, postService, pushClient, "101, 202");
         when(chatService.queryGroups()).thenReturn(List.of(group(101), group(202), group(303)));
 
         multiTask.syncGroupMessages();
@@ -99,6 +103,17 @@ class SyncTaskTest {
         verify(chatService).saveIncremental(101);
         verify(chatService).saveIncremental(202);
         verify(chatService, never()).saveIncremental(303);
+    }
+
+    @Test
+    void subscribed_push_reduces_periodic_pulls() {
+        when(pushClient.isSubscribed()).thenReturn(true);
+        when(chatService.queryGroups()).thenReturn(List.of(group(4761715839862414L)));
+
+        syncTask.syncGroupMessages();
+        syncTask.syncGroupMessages();
+
+        verify(chatService, times(1)).saveIncremental(4761715839862414L);
     }
 
     @Test
