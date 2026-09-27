@@ -1,51 +1,46 @@
-package xyz.fz.weibo.task;
+package xyz.fz.weibo.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboCookieHolder;
 import xyz.fz.weibo.client.WeiboHttpClient;
-import xyz.fz.weibo.service.ChatService;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.security.GeneralSecurityException;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 @Component
-public class WeiboPushClient {
+public class GroupPushApi {
 
-    private static final Logger log = LoggerFactory.getLogger(WeiboPushClient.class);
+    private static final Logger log = LoggerFactory.getLogger(GroupPushApi.class);
     private static final String PROFILE_URL = "https://api.weibo.com/webim/query_primary_info.json";
     private static final URI SOCKET_URL = URI.create("wss://web.im.weibo.com/im");
     private static final long STALE_AFTER_MS = 200_000;
 
     private final WeiboCookieHolder cookieHolder;
     private final WeiboHttpClient weiboHttpClient;
-    private final ChatService chatService;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
-    private final Set<Long> autoSyncGids;
-    private final Set<Long> queuedGids = ConcurrentHashMap.newKeySet();
-    private final ScheduledExecutorService syncExecutor = Executors.newSingleThreadScheduledExecutor();
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient = HttpClient.newBuilder().sslContext(socketSslContext()).build();
     private final AtomicBoolean connecting = new AtomicBoolean();
     private final AtomicLong requestId = new AtomicLong();
 
@@ -53,27 +48,39 @@ public class WeiboPushClient {
     private volatile String socketCredential;
     private volatile String clientId;
     private volatile long lastFrameAt;
-    private volatile boolean subscribed;
 
-    public WeiboPushClient(WeiboCookieHolder cookieHolder, WeiboHttpClient weiboHttpClient,
-                           ChatService chatService, ObjectMapper objectMapper,
-                           @Value("${weibo.chat.auto-sync-gids:}") String autoSyncGids) {
+    public GroupPushApi(WeiboCookieHolder cookieHolder, WeiboHttpClient weiboHttpClient,
+                           ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
         this.cookieHolder = cookieHolder;
         this.weiboHttpClient = weiboHttpClient;
-        this.chatService = chatService;
+        this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
-        this.autoSyncGids = SyncTask.parseGids(autoSyncGids);
     }
 
-    public boolean isSubscribed() {
-        return subscribed;
-    }
+    private static SSLContext socketSslContext() {
+        try {
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, new TrustManager[]{new X509TrustManager() {
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType) {
+                }
 
-    @Scheduled(fixedDelay = 60_000, initialDelay = 5_000)
-    public void maintainConnection() {
-        if (autoSyncGids.isEmpty()) {
-            return;
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType) {
+                }
+
+                @Override
+                public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
+                }
+            }}, null);
+            return context;
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("微博 WebSocket TLS 初始化失败", e);
         }
+    }
+
+    public void open() {
         String credential = cookieHolder.get();
         if (credential == null || credential.isBlank()) {
             closeCurrent();
@@ -120,7 +127,6 @@ public class WeiboPushClient {
     private void closeCurrent() {
         WebSocket old = socket;
         socket = null;
-        subscribed = false;
         clientId = null;
         if (old != null) {
             old.sendClose(WebSocket.NORMAL_CLOSURE, "");
@@ -149,24 +155,13 @@ public class WeiboPushClient {
         send(webSocket, connect);
     }
 
-    private void queueSync(long gid) {
-        if (!autoSyncGids.contains(gid) || !queuedGids.add(gid)) {
-            return;
-        }
-        syncExecutor.schedule(() -> {
-            queuedGids.remove(gid);
-            try {
-                chatService.saveIncremental(gid);
-            } catch (Exception e) {
-                log.warn("群消息推送后补拉失败：gid = {}，error = {}", gid, e.getMessage());
-            }
-        }, 200, TimeUnit.MILLISECONDS);
+    public void closeConnection() {
+        closeCurrent();
     }
 
     @PreDestroy
     public void close() {
         closeCurrent();
-        syncExecutor.shutdownNow();
         httpClient.close();
     }
 
@@ -230,9 +225,7 @@ public class WeiboPushClient {
                 subscribe.put("clientId", clientId);
                 send(webSocket, subscribe).thenRun(() -> sendConnect(webSocket, true));
             } else if ("/meta/subscribe".equals(channel)) {
-                subscribed = message.path("successful").asBoolean();
-                if (subscribed) {
-                    autoSyncGids.forEach(WeiboPushClient.this::queueSync);
+                if (message.path("successful").asBoolean()) {
                     log.info("微博 WebSocket 已订阅群消息推送");
                 } else {
                     closeCurrent();
@@ -243,9 +236,8 @@ public class WeiboPushClient {
                 } else {
                     closeCurrent();
                 }
-            } else if (channel.equals("/im/" + uid)
-                    && "groupchat".equals(message.path("data").path("type").asText())) {
-                queueSync(message.path("data").path("info").path("gid").asLong());
+            } else if (channel.equals("/im/" + uid) && message.has("data")) {
+                eventPublisher.publishEvent(new GroupPushEvent(message.get("data")));
             }
         }
 
@@ -253,7 +245,6 @@ public class WeiboPushClient {
         public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
             if (socket == webSocket) {
                 socket = null;
-                subscribed = false;
             }
             return null;
         }
@@ -262,7 +253,6 @@ public class WeiboPushClient {
         public void onError(WebSocket webSocket, Throwable error) {
             if (socket == webSocket) {
                 socket = null;
-                subscribed = false;
             }
             log.warn("微博 WebSocket 连接中断：{}", error.getMessage());
         }

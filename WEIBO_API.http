@@ -27,9 +27,11 @@ GET {{host}}/weibo/group/list
 
 ### 官方群聊 WebSocket（协议备忘，当前项目无本地 WebSocket 接口）
 # 官方连接：wss://web.im.weibo.com/im
+# 本地群聊 WebSocket 连接不校验服务端证书；连接携带登录 Credential，伪造服务器可获取它。
 # 先通过 query_primary_info.json 的 profile.id 获取当前账号 UID；官方网页端根据 websocket_gray 决定是否启用 WebSocket。
 # Bayeux 1.0：/meta/handshake → 取得 clientId → 订阅 /im/<当前账号 UID> → 持续发送 /meta/connect。
 # 群聊推送的 data.type 为 groupchat，data.info.gid 为群 gid；完整探测记录见 WEIBO_API_RAW.md。
+# 本地 WebSocket 组件发布原始 data 的 Spring 事件；SyncTask 判断群号并调用 ChatService 增量保存，同时默认每 1 分钟定时拉取。
 # 此处不提供可执行请求：当前接口文件只调用本地 HTTP 端点，WebSocket 需要保持连接并交换多帧。
 
 ### 群聊消息 - 第 1 页（不传 maxMid，拉最新一批）

@@ -4,8 +4,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import xyz.fz.weibo.api.GroupPushEvent;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.service.ChatService;
@@ -22,19 +25,16 @@ public class SyncTask implements CommandLineRunner {
 
     private final ChatService chatService;
     private final PostService postService;
-    private final WeiboPushClient pushClient;
     private final Set<Long> autoSyncGids;
-    private long lastGroupFallbackAt;
 
-    public SyncTask(ChatService chatService, PostService postService, WeiboPushClient pushClient,
+    public SyncTask(ChatService chatService, PostService postService,
                     @Value("${weibo.chat.auto-sync-gids:}") String autoSyncGids) {
         this.chatService = chatService;
         this.postService = postService;
-        this.pushClient = pushClient;
         this.autoSyncGids = parseGids(autoSyncGids);
     }
 
-    static Set<Long> parseGids(String value) {
+    private static Set<Long> parseGids(String value) {
         if (value == null || value.isBlank()) {
             return Set.of();
         }
@@ -54,13 +54,11 @@ public class SyncTask implements CommandLineRunner {
         }
     }
 
-    @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:20s}", initialDelay = 5_000)
+    @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:1m}", initialDelay = 5_000)
     public void syncGroupMessages() {
-        if (autoSyncGids.isEmpty() || (pushClient.isSubscribed()
-                && System.currentTimeMillis() - lastGroupFallbackAt < 300_000)) {
+        if (autoSyncGids.isEmpty()) {
             return;
         }
-        boolean succeeded = true;
         for (var group : chatService.queryGroups()) {
             if (!autoSyncGids.contains(group.gid())) {
                 continue;
@@ -68,12 +66,32 @@ public class SyncTask implements CommandLineRunner {
             try {
                 chatService.saveIncremental(group.gid());
             } catch (WeiboException e) {
-                succeeded = false;
                 log.warn("群消息增量拉取失败：gid = {}，error = {}", group.gid(), e.getMessage());
             }
         }
-        if (succeeded) {
-            lastGroupFallbackAt = System.currentTimeMillis();
+    }
+
+    @Scheduled(fixedDelay = 60_000, initialDelay = 5_000)
+    public void openWebSocket() {
+        if (!autoSyncGids.isEmpty()) {
+            chatService.openWebSocket();
+        }
+    }
+
+    @Async
+    @EventListener
+    public void onGroupPush(GroupPushEvent event) {
+        if (!"groupchat".equals(event.data().path("type").asText())) {
+            return;
+        }
+        long gid = event.data().path("info").path("gid").asLong();
+        if (!autoSyncGids.contains(gid)) {
+            return;
+        }
+        try {
+            chatService.saveIncremental(gid);
+        } catch (Exception e) {
+            log.warn("群消息推送后补拉失败：gid = {}，error = {}", gid, e.getMessage());
         }
     }
 

@@ -485,7 +485,7 @@ source=209678993、t=当前毫秒时间戳、count=50 固定。contacts 数组�
 | 订阅频道 | `/im/<当前账号 UID>` | UID 来自 `profile.id`，不是群 gid |
 | HTTP 升级响应 | 101 | Playwright 观察到连接成功 |
 
-实测该站点的 TLS 握手未附带中间证书 `GeoTrust G2 TLS CN RSA4096 SHA256 2022 CA1`。Windows 浏览器可完成验证；当前 JDK 21 独立连接会报 `PKIX path building failed`。允许 JDK 从证书 AIA 指定的 `http://cacerts.digicert.cn/GeoTrustG2TLSCNRSA4096SHA2562022CA1.crt` 补全证书链后，Java WebSocket 握手返回成功；不需要关闭证书校验。
+实测该站点的 TLS 握手未附带中间证书 `GeoTrust G2 TLS CN RSA4096 SHA256 2022 CA1`。Windows 浏览器可完成验证；当前 JDK 21 独立连接会报 `PKIX path building failed`。探测时，允许 JDK 从证书 AIA 指定的 `http://cacerts.digicert.cn/GeoTrustG2TLSCNRSA4096SHA2562022CA1.crt` 补全证书链后，Java WebSocket 握手返回成功。当前项目仅对群聊 WebSocket 的 `HttpClient` 关闭服务端证书校验，以避免证书过期或证书链缺失导致连接失败；该连接携带登录 Credential，伪造服务器可获取它。其他 HTTP 请求仍使用原有证书校验。
 
 首次连接的收发顺序如下。`id` 和 `clientId` 是本次连接的动态值，示例以占位符表示；响应仅摘录与连接流程有关的字段。
 
@@ -501,7 +501,7 @@ source=209678993、t=当前毫秒时间戳、count=50 固定。contacts 数组�
 
 当日加载的官方脚本 [`app.48f8ddda.js`](https://h5.sinaimg.cn/m/pcweibochat/js/app.48f8ddda.js) 中，群聊分支以 `data.type == "groupchat"` 识别事件，从 `data.info.gid` 读取群 gid，从 `data.info.id` 读取消息 ID，并读取 `content`、`media_type`、`time`、`fids`、`annotations` 等字段更新界面。这些字段来自官方脚本的处理逻辑；本次观察到了业务推送帧，但没有捕获到完整的 `groupchat` 实帧，因此这里不提供伪造的群聊原始响应，也不保证 WebSocket 消息与 `query_messages.json` 响应字段完全一致。
 
-若在本项目中接入，可将 `groupchat` 事件作为增量拉取触发信号，按 `gid` 调用现有的 `query_messages.json` 保存流程；重连后补拉，定时拉取保留为兜底。这样无需把未经核对的推送字段直接写入本地消息库。
+本项目由 `GroupPushApi` 处理连接、Bayeux 协议和原始 `data` 的 Spring 事件发布；它不读取群号配置，也不执行消息保存。`SyncTask` 每 1 分钟通过 `ChatService` 请求开启或维持连接；`GroupPushApi` 仅在 `websocket_gray` 为真时连接，登录 Credential 缺失时关闭连接，Credential 变化或超过 200 秒未收到帧时重连。`SyncTask` 异步接收 `GroupPushEvent`，仅对配置内的 `groupchat` 群号调用 `ChatService.saveIncremental(gid)`。无论 WebSocket 是否已连接，`SyncTask` 仍按 `weibo.chat.sync-group-fixed-delay` 定时增量拉取群消息，默认间隔为 1 分钟。保存的数据只来自 `query_messages.json`，WebSocket 推送字段不直接写入本地消息库。
 
 ## 群聊消息 第 1 页
 

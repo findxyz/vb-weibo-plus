@@ -31,7 +31,8 @@ graph TB
     subgraph SpringBoot["Spring Boot :18080"]
         Controller["Controller 层<br/>8 个 REST 控制器"]
         Service["Service 层<br/>ChatService · PostService<br/>AnalysisService · ImageProxyService"]
-        API["API 适配层<br/>8 个微博端点封装"]
+        API["API 适配层<br/>8 个微博 HTTP 端点封装"]
+        Push["GroupPushApi<br/>Bayeux WebSocket"]
         Client["Client 层<br/>WeiboHttpClient · AiClient"]
         Repo["Repository 层<br/>5 个 JPA Repository"]
         SyncTask["SyncTask<br/>CommandLineRunner + @Scheduled"]
@@ -53,14 +54,17 @@ graph TB
     PostUI -->|HTTP| Controller
     Controller --> Service
     Service --> API
+    Service -->|开启 / 关闭| Push
     Service --> Repo
     API --> Client
     Client -->|带 Cookie HTTP| Weibo
+    Push -->|携带 Credential 的 WebSocket| Weibo
+    Push -->|原始 data 的 Spring 事件| SyncTask
     Client -->|SSE / 同步| AiAPI
     API --> Playwright
     Service --> FFmpeg
     Repo --> SQLite
-    SyncTask -->|定时增量同步| Service
+    SyncTask -->|定时拉取 / 维持连接| Service
     Playwright -.->|写入 Cookie| CookieFile
     CookieFile -.->|启动恢复| Client
 ```
@@ -105,8 +109,8 @@ mvn spring-boot:run
 | `weibo.cookie-file` | - | `.weibo_cookie.txt` |
 | `weibo.qr-timeout-seconds` | - | `300` |
 | `weibo.database-path` | `WEIBO_DATABASE_PATH` | `weibo.db` |
-| `weibo.chat.auto-sync-gids` | `WEIBO_AUTO_SYNC_GIDS` | `4761715839862414` |
-| `weibo.chat.sync-group-fixed-delay` | `WEIBO_SYNC_GROUP_FIXED_DELAY` | `20s` |
+| `weibo.chat.auto-sync-gids` | `WEIBO_AUTO_SYNC_GIDS` | `4761715839862414,5046020575330655` |
+| `weibo.chat.sync-group-fixed-delay` | `WEIBO_SYNC_GROUP_FIXED_DELAY` | `1m` |
 | `weibo.media.ffmpeg-path` | `WEIBO_FFMPEG_PATH` | `ffmpeg` |
 | `weibo.ai.base-url` | `WEIBO_AI_BASE_URL` | 空 |
 | `weibo.ai.api-key` | `WEIBO_AI_API_KEY` | 空 |
@@ -123,7 +127,7 @@ mvn spring-boot:run
 - `weibo.qr-timeout-seconds`：扫码登录等待确认的超时秒数，超时后报「扫码登录超时」
 - `weibo.database-path`：本地 SQLite 数据库路径
 - `weibo.chat.auto-sync-gids`：自动接收和增量同步的群号，逗号分隔，留空则不同步任何群
-- `weibo.chat.sync-group-fixed-delay`：群消息兜底检查间隔；WebSocket 已订阅时每 5 分钟拉取一次，未订阅时按此间隔拉取，支持 `20s` / `30000ms` 等 Duration 写法
+- `weibo.chat.sync-group-fixed-delay`：群消息定时增量拉取间隔，默认每 1 分钟执行一次，与 WebSocket 连接状态无关，支持 `1m` / `60000ms` 等 Duration 写法
 - `weibo.media.ffmpeg-path`：ffmpeg 可执行文件路径
 - `weibo.ai.base-url`：OpenAI 兼容 API 地址，留空则禁用 AI 分析
 - `weibo.ai.api-key`：AI API 密钥

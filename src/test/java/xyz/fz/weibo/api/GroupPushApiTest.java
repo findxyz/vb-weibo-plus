@@ -1,4 +1,4 @@
-package xyz.fz.weibo.task;
+package xyz.fz.weibo.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,23 +9,23 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import xyz.fz.weibo.client.WeiboCookieHolder;
 import xyz.fz.weibo.client.WeiboHttpClient;
-import xyz.fz.weibo.service.ChatService;
 
 import java.net.http.WebSocket;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class WeiboPushClientTest {
+class GroupPushApiTest {
 
     @Mock
     private WeiboCookieHolder cookieHolder;
@@ -34,17 +34,17 @@ class WeiboPushClientTest {
     private WeiboHttpClient weiboHttpClient;
 
     @Mock
-    private ChatService chatService;
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private WebSocket webSocket;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private WeiboPushClient client;
+    private GroupPushApi client;
 
     @BeforeEach
     void setUp() {
-        client = new WeiboPushClient(cookieHolder, weiboHttpClient, chatService, objectMapper, "42");
+        client = new GroupPushApi(cookieHolder, weiboHttpClient, eventPublisher, objectMapper);
         when(webSocket.sendText(anyString(), eq(true)))
                 .thenReturn(CompletableFuture.completedFuture(webSocket));
     }
@@ -74,21 +74,21 @@ class WeiboPushClientTest {
     }
 
     @Test
-    void groupchat_event_pulls_only_configured_group() {
+    void business_message_publishes_raw_data() {
         var listener = client.new PushListener(123, "credential");
         listener.onOpen(webSocket);
 
         listener.onText(webSocket,
-                "[{\"channel\":\"/im/123\",\"data\":{\"type\":\"groupchat\",\"info\":{\"gid\":43,\"id\":1}}}]", true);
-        listener.onText(webSocket,
-                "[{\"channel\":\"/im/123\",\"data\":{\"type\":\"groupchat\",\"info\":{\"gid\":42,\"id\":2}}}]", true);
+                "[{\"channel\":\"/im/123\",\"data\":{\"type\":\"presence\",\"info\":{\"id\":2}}}]", true);
 
-        verify(chatService, timeout(3_000)).saveIncremental(42);
-        verify(chatService, times(0)).saveIncremental(43);
+        ArgumentCaptor<GroupPushEvent> event = ArgumentCaptor.forClass(GroupPushEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().data().path("type").asText()).isEqualTo("presence");
+        assertThat(event.getValue().data().path("info").path("id").asLong()).isEqualTo(2);
     }
 
     @Test
-    void subscription_catches_up_configured_group() {
+    void subscription_does_not_publish_business_event() {
         var listener = client.new PushListener(123, "credential");
         listener.onOpen(webSocket);
         listener.onText(webSocket,
@@ -96,7 +96,6 @@ class WeiboPushClientTest {
         listener.onText(webSocket,
                 "[{\"channel\":\"/meta/subscribe\",\"successful\":true,\"subscription\":\"/im/123\"}]", true);
 
-        assertThat(client.isSubscribed()).isTrue();
-        verify(chatService, timeout(3_000)).saveIncremental(42);
+        verify(eventPublisher, times(0)).publishEvent(any());
     }
 }

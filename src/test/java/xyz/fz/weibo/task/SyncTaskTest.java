@@ -1,5 +1,6 @@
 package xyz.fz.weibo.task;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import xyz.fz.weibo.WeiboApplication;
+import xyz.fz.weibo.api.GroupPushEvent;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.BloggerRecord;
@@ -36,14 +38,11 @@ class SyncTaskTest {
     @Mock
     private PostService postService;
 
-    @Mock
-    private WeiboPushClient pushClient;
-
     private SyncTask syncTask;
 
     @BeforeEach
     void setUp() {
-        syncTask = new SyncTask(chatService, postService, pushClient, "4761715839862414");
+        syncTask = new SyncTask(chatService, postService, "4761715839862414");
     }
 
     @Test
@@ -73,7 +72,7 @@ class SyncTaskTest {
 
     @Test
     void group_message_check_continues_after_one_group_fails() {
-        SyncTask twoGidTask = new SyncTask(chatService, postService, pushClient, "4761715839862414, 4761715839862415");
+        SyncTask twoGidTask = new SyncTask(chatService, postService, "4761715839862414, 4761715839862415");
         when(chatService.queryGroups()).thenReturn(List.of(
                 group(4761715839862414L), group(4761715839862415L)));
         doThrow(new WeiboException("上游失败。"))
@@ -86,7 +85,7 @@ class SyncTaskTest {
 
     @Test
     void group_message_check_skips_all_when_auto_sync_gids_is_empty() {
-        SyncTask emptyTask = new SyncTask(chatService, postService, pushClient, "");
+        SyncTask emptyTask = new SyncTask(chatService, postService, "");
 
         emptyTask.syncGroupMessages();
 
@@ -95,7 +94,7 @@ class SyncTaskTest {
 
     @Test
     void group_message_check_supports_multiple_comma_separated_gids() {
-        SyncTask multiTask = new SyncTask(chatService, postService, pushClient, "101, 202");
+        SyncTask multiTask = new SyncTask(chatService, postService, "101, 202");
         when(chatService.queryGroups()).thenReturn(List.of(group(101), group(202), group(303)));
 
         multiTask.syncGroupMessages();
@@ -106,25 +105,43 @@ class SyncTaskTest {
     }
 
     @Test
-    void subscribed_push_reduces_periodic_pulls() {
-        when(pushClient.isSubscribed()).thenReturn(true);
+    void group_message_check_keeps_periodic_pulls() {
         when(chatService.queryGroups()).thenReturn(List.of(group(4761715839862414L)));
 
         syncTask.syncGroupMessages();
         syncTask.syncGroupMessages();
 
-        verify(chatService, times(1)).saveIncremental(4761715839862414L);
+        verify(chatService, times(2)).saveIncremental(4761715839862414L);
     }
 
     @Test
-    void group_message_check_runs_every_20_seconds_by_default() throws NoSuchMethodException {
+    void websocket_check_opens_through_chat_service() {
+        syncTask.openWebSocket();
+
+        verify(chatService).openWebSocket();
+    }
+
+    @Test
+    void groupchat_push_saves_only_configured_group() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+
+        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"other\"}")));
+        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"groupchat\",\"info\":{\"gid\":2}}")));
+        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"groupchat\",\"info\":{\"gid\":4761715839862414}}")));
+
+        verify(chatService).saveIncremental(4761715839862414L);
+        verify(chatService, never()).saveIncremental(2);
+    }
+
+    @Test
+    void group_message_check_runs_every_minute_by_default() throws NoSuchMethodException {
         Method method = SyncTask.class.getMethod("syncGroupMessages");
 
         Scheduled scheduled = method.getAnnotation(Scheduled.class);
 
         assertThat(scheduled).isNotNull();
         assertThat(scheduled.fixedDelayString())
-                .isEqualTo("${weibo.chat.sync-group-fixed-delay:20s}");
+                .isEqualTo("${weibo.chat.sync-group-fixed-delay:1m}");
         assertThat(scheduled.initialDelay()).isEqualTo(5_000);
         assertThat(WeiboApplication.class).hasAnnotation(EnableScheduling.class);
     }
