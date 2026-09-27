@@ -346,7 +346,12 @@ h1#app-title {
   border-bottom: 1.5px solid var(--ink);
 }
 .all-avatar {
-  background: var(--avatar-hatch);
+  background: var(--paper-tint);
+}
+.all-avatar img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
 }
 
 .panel-feedback {
@@ -643,13 +648,12 @@ h1#app-title {
 .post-content a,
 .post-retweet-content a {
   color: var(--accent);
-  text-decoration: underline;
-  text-decoration-style: wavy;
+  text-decoration: none;
   text-underline-offset: 3px;
   word-break: break-all;
 }
 .post-content a:hover,
-.post-retweet-content a:hover { text-decoration-style: solid; }
+.post-retweet-content a:hover { text-decoration: underline; }
 
 /* nine-grid image = hatched sketch cells */
 .post-pics {
@@ -812,12 +816,11 @@ h1#app-title {
   margin-left: auto;
   color: var(--accent);
   font: 14px/1 var(--hand-b);
-  text-decoration: underline;
-  text-decoration-style: wavy;
+  text-decoration: none;
   text-underline-offset: 3px;
   white-space: nowrap;
 }
-.post-link:hover { text-decoration-style: solid; }
+.post-link:hover { text-decoration: underline; }
 
 /* loading / feedback */
 .posts-feedback {
