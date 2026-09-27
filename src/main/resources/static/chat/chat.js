@@ -273,10 +273,10 @@ function bootstrap() {
   window.addEventListener("focus", refreshView);
   window.addEventListener("blur", () => sessions.markAway());
   document.addEventListener("visibilitychange", () => { if (document.hidden) sessions.markAway(); else refreshView(); });
-  // 轮询退避：连续失败按 3s × 2^n 退避封顶 30s，任一成功归零；事件触发
+  // 轮询退避：连续失败按 1s × 2^n 退避封顶 30s，任一成功归零；事件触发
   // （focus / visibilitychange / 重试）会打断等待立即执行一轮。登录失效后
   // 业务轮询暂停只留登录检测，扫码成功重走 initialize 复位
-  const BASE_POLL_MS = 3000;
+  const BASE_POLL_MS = 1000;
   const MAX_POLL_MS = 30000;
   let pollFailures = 0;
   let pollTimer = 0;

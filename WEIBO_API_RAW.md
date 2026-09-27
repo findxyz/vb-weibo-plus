@@ -472,6 +472,37 @@ page 递增，starttime / endtime 保持不变。list 为空且 total=0 表示�
 说明
 source=209678993、t=当前毫秒时间戳、count=50 固定。contacts 数组包含群聊与单聊，user.type=2 为群聊（其他忽略），user.id 为 gid（后续 query_messages 的 id 参数）。count=50 通常一次返回全部群，无翻页机制。
 
+## 群聊 WebSocket 推送（官方网页端）
+
+2026-09-27 使用 Playwright 打开 `https://api.weibo.com/chat`，在已有登录态下观察网页端连接和收发帧。此处记录的是微博官方网页端协议，当前项目尚无对应的本地 WebSocket 接口。
+
+连接前，网页端请求 `GET https://api.weibo.com/webim/query_primary_info.json?source=209678993&t=<当前毫秒时间戳>`。响应的 `profile.id` 是当前账号 UID，`websocket_gray` 决定官方网页端是否启用 WebSocket；未启用时不能假定仍会建立下述连接。
+
+| 项目 | 实测值 | 说明 |
+|------|--------|------|
+| URL | `wss://web.im.weibo.com/im` | 浏览器 WebSocket 连接，无查询参数 |
+| 协议 | Bayeux 1.0（CometD） | 每个收发帧是 JSON 数组 |
+| 订阅频道 | `/im/<当前账号 UID>` | UID 来自 `profile.id`，不是群 gid |
+| HTTP 升级响应 | 101 | Playwright 观察到连接成功 |
+
+实测该站点的 TLS 握手未附带中间证书 `GeoTrust G2 TLS CN RSA4096 SHA256 2022 CA1`。Windows 浏览器可完成验证；当前 JDK 21 独立连接会报 `PKIX path building failed`。探测时，允许 JDK 从证书 AIA 指定的 `http://cacerts.digicert.cn/GeoTrustG2TLSCNRSA4096SHA2562022CA1.crt` 补全证书链后，Java WebSocket 握手返回成功。当前项目仅对群聊 WebSocket 的 `HttpClient` 关闭服务端证书校验，以避免证书过期或证书链缺失导致连接失败；该连接携带登录 Credential，伪造服务器可获取它。其他 HTTP 请求仍使用原有证书校验。
+
+首次连接的收发顺序如下。`id` 和 `clientId` 是本次连接的动态值，示例以占位符表示；响应仅摘录与连接流程有关的字段。
+
+| 步骤 | 方向 | 帧内容（脱敏节选） |
+|------|------|--------------------|
+| 握手 | 发送 | `[{"id":"<请求 ID>","version":"1.0","minimumVersion":"1.0","channel":"/meta/handshake","supportedConnectionTypes":["websocket","long-polling","callback-polling"],"advice":{"timeout":60000,"interval":0}}]` |
+| 握手成功 | 接收 | `[{"channel":"/meta/handshake","successful":true,"clientId":"<动态 clientId>","version":"1.0","minimumVersion":"1.0","id":"<请求 ID>"}]` |
+| 订阅 | 发送 | `[{"id":"<请求 ID>","channel":"/meta/subscribe","subscription":"/im/<当前账号 UID>","clientId":"<动态 clientId>"}]` |
+| 首次持续连接 | 发送 | `[{"id":"<请求 ID>","channel":"/meta/connect","connectionType":"websocket","advice":{"timeout":0},"clientId":"<动态 clientId>"}]` |
+| 持续连接结果 | 接收 | `[{"channel":"/meta/connect","successful":true,"advice":{"interval":0,"timeout":170000,"reconnect":"retry"},"id":"<请求 ID>"}]` |
+
+表中占位符需替换，且“脱敏节选”并非完整帧。实际观察到订阅成功响应，随后客户端继续发送不带 `advice` 的 `/meta/connect`。服务器推送业务事件时，帧的 `channel` 为 `/im/<当前账号 UID>`，`data` 包含 `sub_type`、`push_did`、`type`、`info`。
+
+当日加载的官方脚本 [`app.48f8ddda.js`](https://h5.sinaimg.cn/m/pcweibochat/js/app.48f8ddda.js) 中，群聊分支以 `data.type == "groupchat"` 识别事件，从 `data.info.gid` 读取群 gid，从 `data.info.id` 读取消息 ID，并读取 `content`、`media_type`、`time`、`fids`、`annotations` 等字段更新界面。这些字段来自官方脚本的处理逻辑；本次观察到了业务推送帧，但没有捕获到完整的 `groupchat` 实帧，因此这里不提供伪造的群聊原始响应，也不保证 WebSocket 消息与 `query_messages.json` 响应字段完全一致。
+
+本项目由 `GroupPushApi` 处理连接、Bayeux 协议和原始 `data` 的 Spring 事件发布；它不读取群号配置，也不执行消息保存。`SyncTask` 每 1 分钟通过 `ChatService` 请求开启或维持连接；`GroupPushApi` 仅在 `websocket_gray` 为真时连接，登录 Credential 缺失时关闭连接，Credential 变化或超过 200 秒未收到帧时重连。`SyncTask` 异步接收 `GroupPushEvent`，仅对配置内的 `groupchat` 群号调用 `ChatService.saveIncremental(gid)`。无论 WebSocket 是否已连接，`SyncTask` 仍按 `weibo.chat.sync-group-fixed-delay` 定时增量拉取群消息，默认间隔为 1 分钟。保存的数据只来自 `query_messages.json`，WebSocket 推送字段不直接写入本地消息库。
+
 ## 群聊消息 第 1 页
 
 请求

@@ -1,5 +1,6 @@
 package xyz.fz.weibo.task;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import xyz.fz.weibo.WeiboApplication;
+import xyz.fz.weibo.api.GroupPushEvent;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.BloggerRecord;
@@ -23,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -102,14 +105,43 @@ class SyncTaskTest {
     }
 
     @Test
-    void group_message_check_runs_every_20_seconds_by_default() throws NoSuchMethodException {
+    void group_message_check_keeps_periodic_pulls() {
+        when(chatService.queryGroups()).thenReturn(List.of(group(4761715839862414L)));
+
+        syncTask.syncGroupMessages();
+        syncTask.syncGroupMessages();
+
+        verify(chatService, times(2)).saveIncremental(4761715839862414L);
+    }
+
+    @Test
+    void websocket_check_opens_through_chat_service() {
+        syncTask.openWebSocket();
+
+        verify(chatService).openWebSocket();
+    }
+
+    @Test
+    void groupchat_push_saves_only_configured_group() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+
+        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"other\"}")));
+        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"groupchat\",\"info\":{\"gid\":2}}")));
+        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"groupchat\",\"info\":{\"gid\":4761715839862414}}")));
+
+        verify(chatService).saveIncremental(4761715839862414L);
+        verify(chatService, never()).saveIncremental(2);
+    }
+
+    @Test
+    void group_message_check_runs_every_minute_by_default() throws NoSuchMethodException {
         Method method = SyncTask.class.getMethod("syncGroupMessages");
 
         Scheduled scheduled = method.getAnnotation(Scheduled.class);
 
         assertThat(scheduled).isNotNull();
         assertThat(scheduled.fixedDelayString())
-                .isEqualTo("${weibo.chat.sync-group-fixed-delay:20s}");
+                .isEqualTo("${weibo.chat.sync-group-fixed-delay:1m}");
         assertThat(scheduled.initialDelay()).isEqualTo(5_000);
         assertThat(WeiboApplication.class).hasAnnotation(EnableScheduling.class);
     }

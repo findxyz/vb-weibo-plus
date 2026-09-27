@@ -16,10 +16,10 @@ weibo:
   qr-timeout-seconds: 300
   database-path: ${WEIBO_DATABASE_PATH:weibo.db}
   chat:
-    # auto-sync-gids：定时增量同步的群号，逗号分割，留空则不同步
-    auto-sync-gids: ${WEIBO_AUTO_SYNC_GIDS:4761715839862414}
-    # sync-group-fixed-delay：群消息增量同步间隔，支持 20s / 30000ms 等 Duration 写法
-    sync-group-fixed-delay: ${WEIBO_SYNC_GROUP_FIXED_DELAY:20s}
+    # auto-sync-gids：自动接收和增量同步的群号，逗号分割，留空则不同步
+    auto-sync-gids: ${WEIBO_AUTO_SYNC_GIDS:4761715839862414,5046020575330655}
+    # sync-group-fixed-delay：群消息定时拉取间隔，与 WebSocket 连接状态无关
+    sync-group-fixed-delay: ${WEIBO_SYNC_GROUP_FIXED_DELAY:1m}
   media:
     ffmpeg-path: ${WEIBO_FFMPEG_PATH:ffmpeg}
   ai:

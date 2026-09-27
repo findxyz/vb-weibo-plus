@@ -17,6 +17,7 @@ import org.springframework.web.client.ResponseExtractor;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
+import xyz.fz.weibo.api.GroupPushApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
@@ -67,6 +68,9 @@ class ChatServiceTest {
     @Mock
     private VideoProbe videoProbe;
 
+    @Mock
+    private GroupPushApi pushApi;
+
     private ChatService chatService;
 
     @BeforeEach
@@ -74,7 +78,16 @@ class ChatServiceTest {
         chatService = new ChatService(
                 groupListApi, groupMessagesApi, groupMediaApi,
                 messageMapper, groupRepository, messageRepository,
-                new HeicConverter("ffmpeg"), videoProbe);
+                new HeicConverter("ffmpeg"), videoProbe, pushApi);
+    }
+
+    @Test
+    void websocket_controls_delegate_to_push_client() {
+        chatService.openWebSocket();
+        chatService.closeWebSocket();
+
+        verify(pushApi).open();
+        verify(pushApi).closeConnection();
     }
 
     @Test

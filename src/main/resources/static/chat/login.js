@@ -1,9 +1,9 @@
 // chat 页登录壳：检测与扫码入口在 shared/login.js，这里只补 chat 独有的
 // 周期检测——外部每次刷新时调 maybeCheck，累计 LOGIN_CHECK_INTERVAL 次才真正
-// 请求，避免随 3 秒轮询刷接口。
+// 请求，避免随 1 秒轮询刷接口。
 import {createLogin} from "../shared/login.js";
 
-const LOGIN_CHECK_INTERVAL = 60;
+const LOGIN_CHECK_INTERVAL = 180;
 
 export function createChatLogin({elements, idleText, loadingText, onRelogin, onExpired, onError}) {
   const login = createLogin({elements, idleText, loadingText, onRelogin, onExpired, onError});

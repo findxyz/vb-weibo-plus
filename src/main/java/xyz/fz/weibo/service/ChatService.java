@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
+import xyz.fz.weibo.api.GroupPushApi;
 import xyz.fz.weibo.client.DigestUtils;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
@@ -82,12 +83,14 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final HeicConverter heicConverter;
     private final VideoProbe videoProbe;
+    private final GroupPushApi pushApi;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
 
     public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
                        GroupMediaApi groupMediaApi, MessageMapper messageMapper,
                        GroupRepository groupRepository, MessageRepository messageRepository,
-                       HeicConverter heicConverter, VideoProbe videoProbe) {
+                       HeicConverter heicConverter, VideoProbe videoProbe,
+                       GroupPushApi pushApi) {
         this.groupListApi = groupListApi;
         this.groupMessagesApi = groupMessagesApi;
         this.groupMediaApi = groupMediaApi;
@@ -96,6 +99,15 @@ public class ChatService {
         this.messageRepository = messageRepository;
         this.heicConverter = heicConverter;
         this.videoProbe = videoProbe;
+        this.pushApi = pushApi;
+    }
+
+    public void openWebSocket() {
+        pushApi.open();
+    }
+
+    public void closeWebSocket() {
+        pushApi.closeConnection();
     }
 
     public List<GroupRecord> syncGroups() {

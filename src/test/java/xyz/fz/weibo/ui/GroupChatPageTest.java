@@ -71,6 +71,7 @@ class GroupChatPageTest {
     private static final AtomicBoolean multipleCelebrationMessages = new AtomicBoolean();
     private static final AtomicBoolean delayAnalysisDetail = new AtomicBoolean();
     private static final AtomicBoolean dreamEggMessage = new AtomicBoolean();
+    private static final AtomicBoolean holdNewMessages = new AtomicBoolean();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
@@ -267,8 +268,8 @@ class GroupChatPageTest {
                 return;
             }
             int requestNumber = latestPageRequests.incrementAndGet();
-            boolean refreshed = requestNumber > 1;
-            String dreamEgg = !refreshed && dreamEggMessage.getAndSet(false)
+            boolean refreshed = requestNumber > 1 && !holdNewMessages.get();
+            String dreamEgg = requestNumber == 1 && dreamEggMessage.getAndSet(false)
                     ? dreamMessageJson(14) + ","
                     : "";
             String newMessage;
@@ -276,7 +277,7 @@ class GroupChatPageTest {
                 newMessage = messageJson(4, "小凯", "第二条刷新后消息", 4000) + ","
                         + messageJson(3, "阿呆", "第一条刷新后消息", 3000) + ",";
             } else {
-                newMessage = requestNumber > 2
+                newMessage = !refreshed ? "" : requestNumber > 2
                         ? messageJson(4, "小凯", "点击后消息", 4000) + ","
                                 + messageJson(3, "阿呆", "刷新后消息", 3000) + ","
                         : refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
@@ -562,6 +563,7 @@ class GroupChatPageTest {
         multipleCelebrationMessages.set(false);
         delayAnalysisDetail.set(false);
         dreamEggMessage.set(false);
+        holdNewMessages.set(false);
     }
 
     @Test
@@ -582,6 +584,7 @@ class GroupChatPageTest {
 
     @Test
     void loads_real_groups_and_renders_latest_messages_in_chronological_order() {
+        holdNewMessages.set(true);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
 
@@ -1598,6 +1601,7 @@ class GroupChatPageTest {
 
     @Test
     void catches_up_messages_after_returning_from_a_hidden_page() {
+        holdNewMessages.set(true);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
         assertThat(page.locator("#messages")).not().containsText("追平消息");
@@ -2509,6 +2513,7 @@ class GroupChatPageTest {
 
     @Test
     void dream_popup_launches_the_mickey_game_after_hovering_the_easter_egg_avatar() {
+        holdNewMessages.set(true);
         dreamEggMessage.set(true);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -2536,6 +2541,7 @@ class GroupChatPageTest {
 
     @Test
     void dream_popup_stays_visible_until_its_close_button_dismisses_it() {
+        holdNewMessages.set(true);
         dreamEggMessage.set(true);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");
@@ -2577,6 +2583,7 @@ class GroupChatPageTest {
 
     @Test
     void dream_popup_requires_a_full_hover_and_only_reacts_to_the_easter_egg_avatar() {
+        holdNewMessages.set(true);
         dreamEggMessage.set(true);
         Page page = browser.newPage();
         page.navigate(baseUrl + "/chat/index.html");

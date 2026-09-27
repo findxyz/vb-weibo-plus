@@ -33,7 +33,7 @@ The first persisted version of a Blogger Blog entry or Group Message. Fetching t
 _Avoid_: latest state, synchronized copy, revision history
 
 **Background Capture**:
-The scheduled process that pulls new Weibo content into the local database without being initiated by the browser UI.
+The automatic process that pulls new Weibo content into the local database without being initiated by the browser UI. It can be triggered by a schedule or by a Weibo push event.
 _Avoid_: page refresh, UI sync, polling
 
 **Historical Capture**:
