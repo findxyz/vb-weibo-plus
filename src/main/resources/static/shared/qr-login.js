@@ -1,5 +1,5 @@
 // 二维码扫码登录控制器：POST 拉起登录、二维码图片 3 秒后首拉、10 秒轮询换新；
-// start 带防重入并接管按钮 loading 态，stop 清掉全部定时器并复位图片与占位。
+// start 带防重入并接管按钮 loading 态；请求失败时保留最后一张二维码。
 // 群聊页与 post 页以元素句柄接入，成功/失败的页面侧收尾由回调提供。
 import {fetchJson} from "./fetch.js";
 
@@ -24,6 +24,7 @@ export function createQrLogin({
   function refreshImage() {
     const preload = new Image();
     preload.onload = () => {
+      if (!pending) return;
       image.src = preload.src;
       image.hidden = false;
       if (loading) {
@@ -33,6 +34,7 @@ export function createQrLogin({
     };
     // 保留已显示的二维码；首图失败时提示重试，轮询继续
     preload.onerror = () => {
+      if (!pending) return;
       if (loading && image.hidden) {
         loading.hidden = false;
         loading.textContent = "二维码加载重试…";
@@ -42,8 +44,7 @@ export function createQrLogin({
   }
 
   function startImagePolling() {
-    image.hidden = true;
-    if (loading) {
+    if (loading && image.hidden) {
       loading.textContent = loadingIdleText;
       loading.hidden = false;
     }
@@ -51,13 +52,18 @@ export function createQrLogin({
     imageTimer = setInterval(refreshImage, QR_IMAGE_INTERVAL);
   }
 
-  function stopImagePolling() {
+  function stopImagePolling(clearImage) {
     clearTimeout(firstFetchTimer);
     firstFetchTimer = null;
     clearInterval(imageTimer);
     imageTimer = null;
-    image.hidden = true;
-    if (loading) loading.hidden = true;
+    if (clearImage) {
+      image.hidden = true;
+      if (loading) loading.hidden = true;
+    } else if (loading && image.hidden) {
+      loading.textContent = "暂无二维码";
+      loading.hidden = false;
+    }
   }
 
   async function start() {
@@ -66,14 +72,17 @@ export function createQrLogin({
     button.disabled = true;
     button.textContent = loadingText;
     startImagePolling();
+    let succeeded = false;
     try {
-      await fetchJson("/weibo/login/qr", {method: "POST"});
+      // 后端最多等待扫码 300 秒，额外留出群列表同步时间。
+      await fetchJson("/weibo/login/qr", {method: "POST", timeoutMs: 360000});
       await onSuccess();
+      succeeded = true;
     } catch (error) {
       if (onError) onError(error);
       else console.warn("扫码登录失败：", error);
     } finally {
-      stopImagePolling();
+      stopImagePolling(succeeded);
       pending = false;
       button.disabled = false;
       button.textContent = idleText;

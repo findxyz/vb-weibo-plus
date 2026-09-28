@@ -393,6 +393,21 @@ h1#app-title {
   align-self: center;
 }
 
+.qr-loading:not([hidden]) {
+  width: 180px;
+  height: 180px;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border: 1.5px dashed var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--paper-tint);
+  color: var(--pencil);
+  font: 13px/1.4 var(--hand);
+  text-align: center;
+}
+
 /* ---------- dates timeline panel ---------- */
 
 .dates-panel {

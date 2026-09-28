@@ -99,6 +99,7 @@ function bootstrap() {
     onRelogin: () => initialize(),
     onExpired: () => {
       authExpired = true;
+      elements.groupsCount.textContent = "";
       elements.groupsState.textContent = "";
       elements.retryGroups.hidden = true;
       elements.loginExpired.querySelector(".panel-state").textContent = "登录已失效";
@@ -263,7 +264,7 @@ function bootstrap() {
         login.showLoginExpired();
       } else if (elements.loginExpired.hidden) {
         console.warn("加载群聊列表失败：", error);
-        elements.groupsCount.textContent = "加载失败"; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false;
+        elements.groupsCount.textContent = ""; elements.groupsState.textContent = "群聊列表加载失败，请稍后重试。"; elements.retryGroups.hidden = false;
       }
     }
     finally { state.initializing = false; if (state.pendingRefresh) { state.pendingRefresh = false; refreshView(); } }

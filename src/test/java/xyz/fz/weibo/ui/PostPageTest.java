@@ -456,7 +456,9 @@ class PostPageTest {
         assertThat(page.locator("#login-expired")).isVisible();
         page.locator("#login-qr").click();
         assertThat(page.locator("#login-qr")).isEnabled();
-        assertThat(page.locator("#bloggers-state")).containsText("登录请求失败");
+        assertThat(page.locator("#login-expired .panel-state")).containsText("扫码登录失败");
+        assertThat(page.locator("#bloggers-state")).isEmpty();
+        assertThat(page.locator("#qr-loading")).isVisible();
 
         page.close();
     }

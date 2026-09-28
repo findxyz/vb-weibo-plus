@@ -2478,9 +2478,60 @@ class GroupChatPageTest {
         assertThat(page.locator("#login-qr")).hasText("📱 扫码登录");
         assertThat(page.locator("#login-qr")).isEnabled();
         assertThat(page.locator("#login-expired .panel-state")).containsText("扫码登录失败");
+        assertThat(page.locator("#qr-loading")).isVisible();
         assertThat(page.locator("#retry-groups")).isHidden();
 
         page.close();
+    }
+
+    @Test
+    void keeps_qr_image_after_login_request_fails() {
+        loginInvalid.set(true);
+        failQrLogin.set(true);
+        CountDownLatch qrGate = new CountDownLatch(1);
+        qrResponseGate.set(qrGate);
+        Page page = browser.newPage();
+        try {
+            page.navigate(baseUrl + "/chat/index.html");
+            assertThat(page.locator("#login-expired")).isVisible();
+            page.locator("#login-qr").click();
+            assertThat(page.locator("#qr-loading")).isVisible();
+            assertThat(page.locator("#login-qr-img")).isVisible();
+
+            qrGate.countDown();
+            assertThat(page.locator("#login-qr")).isEnabled();
+            assertThat(page.locator("#login-qr-img")).isVisible();
+            assertThat(page.locator("#qr-loading")).isHidden();
+        } finally {
+            qrGate.countDown();
+            page.close();
+        }
+    }
+
+    @Test
+    void waits_for_scan_longer_than_default_api_timeout() {
+        loginInvalid.set(true);
+        CountDownLatch qrGate = new CountDownLatch(1);
+        qrResponseGate.set(qrGate);
+        Page page = browser.newPage();
+        try {
+            page.addInitScript("""
+                    const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
+                    AbortSignal.timeout = milliseconds => originalTimeout(milliseconds === 15000 ? 200 : milliseconds);
+                    """);
+            page.navigate(baseUrl + "/chat/index.html");
+            assertThat(page.locator("#login-expired")).isVisible();
+            page.locator("#login-qr").click();
+            page.waitForTimeout(400);
+            assertThat(page.locator("#login-qr")).isDisabled();
+            assertThat(page.locator("#login-expired .panel-state")).hasText("登录已失效");
+
+            qrGate.countDown();
+            assertThat(page.locator("#login-expired")).isHidden();
+        } finally {
+            qrGate.countDown();
+            page.close();
+        }
     }
 
     @Test

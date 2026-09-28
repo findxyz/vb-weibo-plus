@@ -28,7 +28,7 @@ export function createBloggers({
       }
     } catch (error) {
       handleApiError(error, (e) => showState(bloggersState, `加载失败：${e.message}`));
-      bloggersCount.textContent = "加载失败";
+      bloggersCount.textContent = "";
     }
   }
 

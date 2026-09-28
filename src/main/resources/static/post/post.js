@@ -7,7 +7,7 @@ import {createDates} from "./dates.js";
 import {createBloggers} from "./bloggers.js";
 import {createSearch} from "./search.js";
 import {createLogin} from "../shared/login.js";
-import {pickElements, showState} from "../shared/dom.js";
+import {pickElements} from "../shared/dom.js";
 import {createAnnouncer} from "../shared/announcer.js";
 
 const elements = {
@@ -19,6 +19,7 @@ const elements = {
   loginExpired: document.querySelector("#login-expired"),
   loginQr: document.querySelector("#login-qr"),
   loginQrImg: document.querySelector("#login-qr-img"),
+  qrLoading: document.querySelector("#qr-loading"),
   currentFilter: document.querySelector("#current-filter"),
   feedCount: document.querySelector("#feed-count"),
   datesState: document.querySelector("#dates-state"),
@@ -73,10 +74,19 @@ const state = {
 // 大列表容器不带 aria-live（见 shared/announcer.js 头注释），事件级摘要走这里
 const announce = createAnnouncer();
 const login = createLogin({
-  elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg"),
+  elements: pickElements(elements, "loginExpired", "loginQr", "loginQrImg", "qrLoading"),
   idleText: "扫码登录",
   loadingText: "扫码中…",
-  onError: error => showState(elements.bloggersState, `登录请求失败：${error.message}`)
+  onExpired: () => {
+    elements.bloggersState.textContent = "";
+    elements.bloggersCount.textContent = "";
+    elements.datesState.textContent = "";
+    elements.postsState.textContent = "";
+    elements.loginExpired.querySelector(".panel-state").textContent = "登录已失效";
+  },
+  onError: () => {
+    elements.loginExpired.querySelector(".panel-state").textContent = "扫码登录失败，请重新扫码。";
+  }
 });
 // 统一处理接口错误：登录失效时展示登录过期提示并返回 true，其余错误交给调用方处理
 const handleApiError = (error, onError) => {
