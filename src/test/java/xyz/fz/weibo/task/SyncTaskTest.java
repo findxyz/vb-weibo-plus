@@ -71,7 +71,7 @@ class SyncTaskTest {
     }
 
     @Test
-    void group_message_check_continues_after_one_group_fails() {
+    void group_message_check_stops_after_one_group_fails() {
         SyncTask twoGidTask = new SyncTask(chatService, postService, "4761715839862414, 4761715839862415");
         when(chatService.queryGroups()).thenReturn(List.of(
                 group(4761715839862414L), group(4761715839862415L)));
@@ -80,7 +80,7 @@ class SyncTaskTest {
 
         twoGidTask.syncGroupMessages();
 
-        verify(chatService).saveIncremental(4761715839862415L);
+        verify(chatService, never()).saveIncremental(4761715839862415L);
     }
 
     @Test
@@ -122,6 +122,14 @@ class SyncTaskTest {
     }
 
     @Test
+    void websocket_check_handles_weibo_failure() {
+        doThrow(new WeiboException("上游失败。"))
+                .when(chatService).openWebSocket();
+
+        assertThatCode(syncTask::openWebSocket).doesNotThrowAnyException();
+    }
+
+    @Test
     void groupchat_push_saves_only_configured_group() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
 
@@ -157,14 +165,14 @@ class SyncTaskTest {
     }
 
     @Test
-    void blogger_blog_check_continues_after_one_blogger_fails() {
+    void blogger_blog_check_stops_after_one_blogger_fails() {
         when(postService.queryBloggers()).thenReturn(List.of(blogger(303), blogger(404)));
         doThrow(new WeiboException("上游失败。"))
                 .when(postService).saveIncremental(303);
 
         syncTask.syncBloggerBlogs();
 
-        verify(postService).saveIncremental(404);
+        verify(postService, never()).saveIncremental(404);
     }
 
     @Test

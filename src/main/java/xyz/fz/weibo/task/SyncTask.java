@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import xyz.fz.weibo.api.GroupPushEvent;
-import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.PostService;
@@ -47,11 +46,7 @@ public class SyncTask implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        try {
-            chatService.syncGroups();
-        } catch (WeiboCookieExpiredException e) {
-            log.warn("启动时同步群列表失败，应用将继续运行：{}", e.getMessage());
-        }
+        runSafely("启动时同步群列表", chatService::syncGroups);
     }
 
     @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:1m}", initialDelay = 5_000)
@@ -59,22 +54,20 @@ public class SyncTask implements CommandLineRunner {
         if (autoSyncGids.isEmpty()) {
             return;
         }
-        for (var group : chatService.queryGroups()) {
-            if (!autoSyncGids.contains(group.gid())) {
-                continue;
-            }
-            try {
+        runSafely("群消息增量同步", () -> {
+            for (var group : chatService.queryGroups()) {
+                if (!autoSyncGids.contains(group.gid())) {
+                    continue;
+                }
                 chatService.saveIncremental(group.gid());
-            } catch (WeiboException e) {
-                log.warn("群消息增量拉取失败：gid = {}，error = {}", group.gid(), e.getMessage());
             }
-        }
+        });
     }
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 5_000)
     public void openWebSocket() {
         if (!autoSyncGids.isEmpty()) {
-            chatService.openWebSocket();
+            runSafely("微博 WebSocket 初始化", chatService::openWebSocket);
         }
     }
 
@@ -88,21 +81,24 @@ public class SyncTask implements CommandLineRunner {
         if (!autoSyncGids.contains(gid)) {
             return;
         }
-        try {
-            chatService.saveIncremental(gid);
-        } catch (Exception e) {
-            log.warn("群消息推送后补拉失败：gid = {}，error = {}", gid, e.getMessage());
-        }
+        runSafely("群消息推送后补拉：gid = " + gid,
+                () -> chatService.saveIncremental(gid));
     }
 
     @Scheduled(fixedDelay = 600_000, initialDelay = 5_000)
     public void syncBloggerBlogs() {
-        for (var blogger : postService.queryBloggers()) {
-            try {
+        runSafely("博主微博增量同步", () -> {
+            for (var blogger : postService.queryBloggers()) {
                 postService.saveIncremental(blogger.uid());
-            } catch (WeiboException e) {
-                log.warn("博主微博增量拉取失败：uid = {}，error = {}", blogger.uid(), e.getMessage());
             }
+        });
+    }
+
+    private void runSafely(String taskName, Runnable task) {
+        try {
+            task.run();
+        } catch (WeiboException e) {
+            log.warn("{}失败：{}", taskName, e.getMessage());
         }
     }
 }
