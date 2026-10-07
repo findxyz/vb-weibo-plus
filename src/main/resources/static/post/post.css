@@ -576,9 +576,6 @@ h1#app-title {
   border: 2px solid var(--pencil);
   border-radius: 10px;
   background: var(--paper);
-  /* 跳过屏外卡片的渲染，300px 为占位估计高度 */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 300px;
 }
 .post-card.pure-retweet { grid-template-columns: minmax(0, 1fr); }
 

@@ -5,10 +5,12 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitUntilState;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -269,6 +271,39 @@ class PostPageTest {
         failQrLogin.set(false);
         failSyncRange.set(false);
         rangeRequests.set(0);
+    }
+
+    @Test
+    void scrolling_long_posts_keeps_the_feed_height_stable() {
+        try (Page page = browser.newPage()) {
+            StringBuilder items = new StringBuilder();
+            for (int i = 0; i < 24; i++) {
+                if (i > 0) items.append(",");
+                items.append(postJson("scroll-" + i, "第一位",
+                        "用于滚动回归测试的长微博正文。".repeat(100), 1783612800000L));
+            }
+            page.route("**/post/list?*", route -> route.fulfill(
+                    new Route.FulfillOptions()
+                            .setContentType("application/json")
+                            .setBody("{\"items\":[" + items + "],\"page\":1,\"size\":24,\"total\":24}")));
+            page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
+            assertThat(page.locator("#posts .post-card")).hasCount(24);
+
+            Number heightDrift = (Number) page.evaluate("""
+                    async () => {
+                      const posts = document.querySelector('#posts');
+                      await new Promise(resolve => requestAnimationFrame(resolve));
+                      const initialHeight = posts.scrollHeight;
+                      for (let frame = 0; frame < 200; frame++) {
+                        posts.scrollTop += posts.clientHeight;
+                        await new Promise(resolve => requestAnimationFrame(resolve));
+                        if (posts.scrollTop + posts.clientHeight >= posts.scrollHeight - 1) break;
+                      }
+                      return Math.abs(posts.scrollHeight - initialHeight);
+                    }
+                    """);
+            Assertions.assertThat(heightDrift.intValue()).isLessThanOrEqualTo(1);
+        }
     }
 
     @Test
