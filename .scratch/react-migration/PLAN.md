@@ -2,7 +2,7 @@
 
 日期：2026-10-12。
 分支：`codex/react-migration`。
-当前进度：任务 01 已完成并集成，开始实施任务 02。
+当前进度：任务 01 与 02 已完成并集成，开始实施任务 03。
 
 ## 执行方式
 
@@ -18,8 +18,8 @@
 | 编号 | 交付 | Blocked by | 当前进度 |
 | --- | --- | --- | --- |
 | [01](issues/01-react-dev-preview.md) | 两个 React 预览入口可开发，post 显示现有查询返回的博主名称 | 无 | 已完成 |
-| [02](issues/02-maven-generated-resources.md) | 干净 Maven 构建将预览页面与原页面一起打进可运行 JAR | 01 | 实施中 |
-| [03](issues/03-post-default-day-reading.md) | 默认全部博主、最新有效日期的本地 Blogger Blog 阅读路径 | 02 | 等待 02 |
+| [02](issues/02-maven-generated-resources.md) | 干净 Maven 构建将预览页面与原页面一起打进可运行 JAR | 01 | 已完成 |
+| [03](issues/03-post-default-day-reading.md) | 默认全部博主、最新有效日期的本地 Blogger Blog 阅读路径 | 02 | 实施中 |
 
 依赖为 01 → 02 → 03。任务 03 依赖已打通的开发、测试和发布资源路径。
 任务 03 是 post 阶段的起步切片；首阶段发布它以明确工程通路之后的第一条真实业务路径。
@@ -71,3 +71,5 @@
 2026-10-12，实施前基线通过：PostPageTest 37 项、GroupChatPageTest 82 项，共 119 项；无失败、错误或跳过。
 
 2026-10-12，任务 01 集成于 8c80ba9。8 项 Chrome 浏览器测试、npm ci、类型检查、双入口构建与差异检查通过，包含组件和 CSS 热更新。默认 Chromium 下载未验收，本机 Chrome 已验证。
+
+2026-10-12，任务 02 集成于 e15deb6。Maven 干净打包、120 项 UI 检查、前端错误阻断打包、隔离 JAR 同源查询、资源 MIME 与 7z 完整性／JAR 哈希检查通过；证据见票 02。
