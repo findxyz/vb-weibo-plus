@@ -1,0 +1,39 @@
+/* Tokens from docs/design/DESIGN.md: blue skeuomorphic skin. */
+:root {
+  color-scheme: light;
+  --surface: #ffffff;
+  --text: #101820;
+  --frame: #075fd2;
+  --desktop-backdrop: #b9d8f2;
+  --titlebar-top: #1394fa;
+  --titlebar-upper: #0879ed;
+  --titlebar-deep: #0060d8;
+  --titlebar-bottom: #006bea;
+  --titlebar-text-shadow: #003692;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; min-width: 900px; }
+body {
+  color: var(--text);
+  background: var(--desktop-backdrop);
+  font: 15px/1.55 Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
+}
+.app {
+  min-height: 560px;
+  height: 100%;
+  border: 2px solid var(--frame);
+  background: var(--surface);
+}
+.titlebar {
+  height: 38px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  color: var(--surface);
+  background: linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
+    linear-gradient(var(--titlebar-top) 0, var(--titlebar-upper) 28%, var(--titlebar-deep) 72%, var(--titlebar-bottom) 100%);
+  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+}
+h1 { margin: 0; font-size: 18px; letter-spacing: 0.4px; text-shadow: 0 1px 1px var(--titlebar-text-shadow); }
+main { padding: 16px; }
