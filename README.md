@@ -118,11 +118,27 @@ npx playwright install chromium
 npm test
 ```
 
-构建将两个 HTML 入口和 hash 资源写入专用目录 `target/generated-resources/frontend`，不写回手写源码目录。当前尚未接入 Maven 打包。浏览器测试使用隔离的本地 HTTP 服务并经过真实 Vite 代理，无需运行 Spring Boot。
+构建将两个 HTML 入口和 hash 资源写入专用目录 `target/generated-resources/frontend`，不写回手写源码目录。浏览器测试使用隔离的本地 HTTP 服务并经过真实 Vite 代理，无需运行 Spring Boot。
 
 测试默认使用 Playwright 安装的 Chromium；已有 Chrome 时，可以省略浏览器下载，设置 `PREVIEW_BROWSER_CHANNEL=chrome` 后运行 `npm test`。PowerShell 中使用 `$env:PREVIEW_BROWSER_CHANNEL='chrome'`，本次开发预览验收使用此方式。
 
 工程依据：React 的 [createRoot](https://react.dev/reference/react-dom/client/createRoot)、Vite 的[多入口构建](https://vite.dev/guide/build.html#multi-page-app)与[精确正则代理](https://vite.dev/config/server-options.html#server-proxy)，以及 TanStack Query 的[默认查询策略](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)。查询将显式关闭自动重试、窗口聚焦和网络重连刷新，避免在预览中引入额外的 View Refresh。
+
+### 构建和发布
+
+```bash
+mvn clean package
+```
+
+Maven 在 `generate-resources` 阶段安装固定的 Node.js 24.15.0 和 npm 11.14.1，执行 `npm ci` 和 `npm run build`（包含 TypeScript 检查）。工具链位于 `target/frontend-toolchain`，依赖位于 `frontend/node_modules`，首次构建需要联网。无需预先在系统中安装 Node.js；开发时运行 Vite 仍使用自己的 Node.js。
+
+`process-resources` 将前端产物不经内容过滤复制到 `target/classes/static`，同时保留原资源，使 Java 浏览器测试读取与发布相同的构建文件。前端类型检查或构建失败会中止 Maven。使用 `clean` 清除旧发布产物，避免将旧 JAR 当成新构建结果。页面测试需要 Playwright Chromium，首次运行会下载浏览器；已有相应版本的缓存时，可设置 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`。
+
+最终 `target/weibo-plus.jar` 同时包含两条 React 预览入口和原正式页面，`target/weibo-plus.7z` 包含该可执行 JAR 与 `run.bat`。发布后只需 JDK 21，无需 Vite 或 Node.js 进程；预览使用同源相对接口地址。启动 JAR 后访问 `http://localhost:18080/preview/post/index.html` 或 `http://localhost:18080/preview/chat/index.html`。原入口 `/post/index.html` 和 `/chat/index.html` 继续可用。
+
+只检查页面资源集成时，可运行 `mvn clean package -Dtest=PostPageTest,GroupChatPageTest,ReactPreviewPageTest`。隔离生产冒烟应在唯一临时工作目录启动 JAR，直接指定 `spring.datasource.url=jdbc:sqlite:临时数据库绝对路径?busy_timeout=5000&journal_mode=WAL`，同时设置 `weibo.database-path` 为同一路径、`weibo.cookie-file` 为不存在的临时文件、`weibo.chat.auto-sync-gids=` 和 `server.address=127.0.0.1`，使用空闲端口。空群号不能关闭所有后台调度；缺少 Credential 时，外部采集在请求构造阶段被拒绝。仅通过本地只读接口验证，不使用生产数据库或登录凭据。
+
+构建配置依据：[Maven 生命周期](https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html)、[frontend-maven-plugin](https://github.com/eirslett/frontend-maven-plugin)和 [Spring Boot 可执行 JAR 打包](https://docs.spring.io/spring-boot/3.5/maven-plugin/packaging.html)。
 
 也可直接使用 `run.bat` 启动：将打包产物 `weibo-plus.jar` 放到 run.bat 同目录后双击运行。脚本会自动检查 JDK 版本（要求 21 及以上），并以固定参数启动服务（端口 18080、默认同步群号 `4761715839862414`、AI 指向 DeepSeek），启动 5 秒后自动打开群聊页面。如需调整参数，直接修改 run.bat 中 java 命令行的值即可。
 
