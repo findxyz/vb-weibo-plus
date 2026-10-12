@@ -107,9 +107,13 @@ npm ci
 npm run dev
 ```
 
-访问 [本地微博预览](http://127.0.0.1:5173/preview/post/index.html) 或 [群聊入口预览](http://127.0.0.1:5173/preview/chat/index.html)。修改组件或样式后自动热更新。post 预览只读取博主名称，chat 预览只展示入口；正式页面仍由 Spring Boot 的 `/post/index.html` 与 `/chat/index.html` 提供。
+访问 [本地微博预览](http://127.0.0.1:5173/preview/post/index.html) 或 [群聊入口预览](http://127.0.0.1:5173/preview/chat/index.html)。修改组件或样式后自动热更新。post 预览默认读取全部博主最新有效日期的本地博文，显示博主、日期和博文三个区域；chat 预览只展示入口。正式页面仍由 Spring Boot 的 `/post/index.html` 与 `/chat/index.html` 提供。
 
-开发查询使用相对路径 `GET /post/bloggers`，Vite 将该精确 API 路径代理到 `http://127.0.0.1:18080`，HTML 和模块资源由 Vite 提供。后端使用其他端口时，可以设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
+开发查询使用相对路径 `GET /post/bloggers`、`GET /post/calendar` 和 `GET /post/list`，Vite 将这三个精确 API 路径代理到 `http://127.0.0.1:18080`，HTML 和模块资源由 Vite 提供。后端使用其他端口时，可以设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
+
+post 预览只覆盖默认阅读路径，尚不支持切换博主或日期、搜索、完整媒体与转发展示、扫码和博主管理。列表沿用 `page=1`、`size=9999`，起止时间为所选日期的 `00:00:00` 与 `23:59:59`，由后端按 `Asia/Shanghai` 解释；页面总数显示后端 `total`。普通查询超时 15 秒，当日列表超时 30 秒，失败时保留后端消息；列表重试只重新读取当日列表，不重载博主与日期。预览不触发采集，不启动定时 View Refresh。
+
+查询依赖与请求清理遵循 TanStack Query 的[串行查询](https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries)与[查询取消](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation)。正文经 [DOMPurify](https://github.com/cure53/DOMPurify) 清洗后呈现，链接化与上海时间复用现有共享原语；清洗失败时通过 React 文本节点安全降级。浏览器测试覆盖恶意富文本、后端错误、局部重试、空状态、旧响应隔离与卸载取消。
 
 ```bash
 npm run typecheck

@@ -42,12 +42,12 @@ h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.2px; }
 .columns { display: grid; grid-template-columns: 280px 200px minmax(0, 1fr); flex: 1; min-height: 0; }
 section { padding: 16px; overflow: auto; }
 section + section { border-left: 1.5px solid var(--rule); }
-.selected { background: var(--highlight); padding: 8px; border-radius: 4px; }
+.selected { background: color-mix(in srgb, var(--highlight) 28%, transparent); padding: 8px; border-radius: 4px; }
 .post-card { padding: 16px; margin-bottom: 18px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow-card); }
 .post-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 time { color: var(--pencil); font-size: 12px; font-variant-numeric: tabular-nums; }
 .post-content { font-size: 19px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
-.post-content img { max-width: 100%; }
+.post-content img { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
 a { color: var(--accent); text-decoration: underline wavy; }
 a:hover { text-decoration-style: solid; }
 button { background: var(--accent); color: var(--paper); border: 1.5px solid var(--ink); border-radius: 4px; min-height: 34px; padding: 4px 12px; font: inherit; cursor: pointer; }

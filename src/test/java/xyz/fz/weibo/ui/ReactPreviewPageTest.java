@@ -15,9 +15,11 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -27,16 +29,25 @@ class ReactPreviewPageTest {
     private static Playwright playwright;
     private static Browser browser;
     private static String baseUrl;
+    private static final AtomicReference<String> listQuery = new AtomicReference<>();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/post/bloggers", exchange -> {
-            byte[] body = "[{\"uid\":1,\"screenName\":\"打包资源博主\"}]".getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
-            exchange.sendResponseHeaders(200, body.length);
-            exchange.getResponseBody().write(body);
-            exchange.close();
+            sendJson(exchange, "[{\"uid\":1,\"screenName\":\"打包资源博主\"}]");
+        });
+        server.createContext("/post/calendar", exchange -> sendJson(exchange, """
+                {"months":[{"month":"2026-08","count":4,"days":[{"date":"2026-08-05","count":4}]}]}
+                """));
+        server.createContext("/post/list", exchange -> {
+            listQuery.set(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8));
+            sendJson(exchange, """
+                    {"items":[{"mblogId":"fixture-1","createdAt":1785889800000,
+                    "blogger":{"uid":1,"screenName":"打包资源博主"},
+                    "content":"<b>打包后的正文</b><br>第二行 https://example.com. <a href='/n/用户'>用户</a><script>window.attack=1</script><svg onload='window.attack=2'></svg>"}],
+                    "page":1,"size":9999,"total":4}
+                    """);
         });
         server.createContext("/preview/", ReactPreviewPageTest::sendStaticResource);
         server.createContext("/assets/", ReactPreviewPageTest::sendStaticResource);
@@ -54,7 +65,7 @@ class ReactPreviewPageTest {
     }
 
     @Test
-    void classpath_preview_reads_bloggers_and_loads_both_entries_without_browser_errors() {
+    void classpath_preview_reads_default_day_safely_and_loads_both_entries_without_browser_errors() {
         List<String> errors = new ArrayList<>();
         try (Page page = browser.newPage()) {
             page.onResponse(response -> {
@@ -72,11 +83,29 @@ class ReactPreviewPageTest {
             page.navigate(baseUrl + "/preview/post/index.html");
             assertThat(page.getByRole(AriaRole.LIST, new Page.GetByRoleOptions().setName("博主")))
                     .containsText("打包资源博主");
+            assertThat(page.locator("article")).containsText("打包后的正文");
+            assertThat(page.getByLabel("当前范围")).hasText("全部博主");
+            assertThat(page.getByLabel("当前日期")).hasText("2026-08-05");
+            assertThat(page.getByLabel("博文总数")).hasText("共 4 条");
+            assertThat(page.locator("article time")).hasText("2026-08-05 08:30");
+            assertThat(page.locator(".post-content script, .post-content svg, .post-content [onload]")).hasCount(0);
+            assertThat(page.locator(".post-content a").first()).hasAttribute("href", "https://example.com");
+            assertThat(page.locator(".post-content a").last()).hasAttribute("href", "https://weibo.com/n/用户");
+            Assertions.assertThat(page.evaluate("window.attack")).isNull();
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-08-05 00:00:00&end=2026-08-05 23:59:59");
             page.navigate(baseUrl + "/preview/chat/index.html");
             assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("微博群聊预览")))
                     .isVisible();
             Assertions.assertThat(errors).isEmpty();
         }
+    }
+
+    private static void sendJson(HttpExchange exchange, String json) throws IOException {
+        byte[] body = json.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+        exchange.sendResponseHeaders(200, body.length);
+        exchange.getResponseBody().write(body);
+        exchange.close();
     }
 
     private static void sendStaticResource(HttpExchange exchange) throws IOException {

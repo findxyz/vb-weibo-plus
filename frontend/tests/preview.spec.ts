@@ -9,8 +9,11 @@ let baseUrl: string;
 let requests: string[];
 let bloggers = [{ uid: 1, screenName: '第一位' }, { uid: 2, screenName: '第二位' }];
 let holdResponse = false;
+let holdPath = '/post/bloggers';
 let releaseResponse: (() => void) | undefined;
 let status = 200;
+let calendarStatus = 200;
+let listStatus = 200;
 let calendar = { months: [{ month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] }] };
 let posts = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
 let pageErrors: string[];
@@ -19,11 +22,15 @@ let writeRequests: string[];
 test.beforeAll(async () => {
   backend = createHttpServer((request, response) => {
     requests.push(`${request.method} ${request.url}`);
+    const path = new URL(request.url!, 'http://fixture').pathname;
+    const responseStatus = path === '/post/calendar' ? calendarStatus : path === '/post/list' ? listStatus : status;
+    const payload = JSON.stringify(responseStatus === 200 ? (path === '/post/calendar' ? calendar : path === '/post/list' ? posts : bloggers) : responseStatus === 503 ? bloggers : { msg: '本地读取暂时不可用' });
     const send = () => {
-      response.writeHead(status, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify(request.url?.startsWith('/post/calendar') ? calendar : request.url?.startsWith('/post/list') ? posts : bloggers));
+      if (releaseResponse === send) releaseResponse = undefined;
+      response.writeHead(responseStatus, { 'Content-Type': 'application/json' });
+      response.end(payload);
     };
-    if (holdResponse) releaseResponse = send;
+    if (holdResponse && path === holdPath) releaseResponse = send;
     else send();
   });
   await new Promise<void>((resolve) => backend.listen(0, '127.0.0.1', resolve));
@@ -45,8 +52,11 @@ test.beforeEach(({ page }) => {
   requests = [];
   bloggers = [{ uid: 1, screenName: '第一位' }, { uid: 2, screenName: '第二位' }];
   holdResponse = false;
+  holdPath = '/post/bloggers';
   releaseResponse = undefined;
   status = 200;
+  calendarStatus = 200;
+  listStatus = 200;
   calendar = { months: [{ month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] }] };
   posts = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
   pageErrors = [];
@@ -79,6 +89,135 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
   expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2026-08-05 00:00:00', end: '2026-08-05 23:59:59' });
 });
 
+test('zero_count_day_does_not_replace_latest_day_with_captured_content', async ({ page }) => {
+  calendar.months.unshift({ month: '2060-01', count: 0, days: [{ date: '2060-01-01', count: 0 }] });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');
+});
+
+test('rich_text_removes_executable_content_and_preserves_links_and_line_breaks', async ({ page }) => {
+  posts.items[0].content = '<script>window.attack=1</script><svg onload="window.attack=2"></svg><a href="javascript:window.attack=3">危险链接</a><iframe srcdoc="<script>parent.attack=4</script>"></iframe><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="window.attack=5"><b>正常正文</b>\n第二行<br>第三行 https://example.com/A_(B). //@测试用户: 文本 <a href="/n/现有用户">现有用户</a> <a href="//weibo.com/u/1">主页</a>';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const content = page.locator('.post-content');
+  await expect(content).toContainText('正常正文');
+  await expect(content.locator('script, svg, iframe, [onload], [onerror], [onclick], a[href^="javascript:"]')).toHaveCount(0);
+  await content.locator('img').evaluate(element => element.dispatchEvent(new Event('error')));
+  expect(await page.evaluate(() => (window as Window & { attack?: number }).attack)).toBeUndefined();
+  await expect(content.getByRole('link', { name: 'https://example.com/A_(B)' })).toHaveAttribute('href', 'https://example.com/A_(B)');
+  await expect(content.getByRole('link', { name: '@测试用户' })).toHaveAttribute('href', 'https://weibo.com/n/测试用户');
+  await expect(content.getByRole('link', { name: '现有用户' })).toHaveAttribute('href', 'https://weibo.com/n/现有用户');
+  await expect(content.getByRole('link', { name: '主页' })).toHaveAttribute('href', 'https://weibo.com/u/1');
+  for (const link of await content.locator('a').all()) {
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener');
+  }
+  await expect(content).toHaveCSS('white-space', 'pre-wrap');
+  await expect(content.locator('br')).toHaveCount(1);
+});
+
+test('sanitizer_failure_renders_escaped_text_without_reinterpreting_markup', async ({ page }) => {
+  posts.items[0].content = 'fallback-marker &lt;img src=x onerror="window.attack=1"&gt;<b>安全降级</b>';
+  await page.addInitScript(() => {
+    DOMParser.prototype.parseFromString = function() { throw new Error('Sanitizer unavailable'); };
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toHaveText(posts.items[0].content);
+  await expect(page.locator('.post-content img, .post-content b')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as Window & { attack?: number }).attack)).toBeUndefined();
+});
+
+test('calendar_empty_and_day_empty_are_distinct_reading_states', async ({ page }) => {
+  calendar = { months: [] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('status')).toHaveText('暂无有博文的日期。');
+  expect(requests).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
+  calendar = { months: [{ month: '2026-08', count: 1, days: [{ date: '2026-08-05', count: 1 }] }] };
+  posts.items = [];
+  posts.total = 0;
+  await page.reload();
+  await expect(page.getByRole('status')).toHaveText('该日无微博。');
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');
+  await expect(page.getByLabel('博文总数')).toHaveText('共 0 条');
+});
+
+test('calendar_error_retains_loaded_bloggers_and_backend_message', async ({ page }) => {
+  calendarStatus = 500;
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('alert')).toHaveText('日期加载失败，请刷新页面重试。（本地读取暂时不可用）');
+  await expect(page.getByRole('listitem')).toHaveText(['第一位', '第二位']);
+  expect(requests).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
+});
+
+test('list_retry_only_recovers_list_and_keeps_blogger_and_date_regions', async ({ page }) => {
+  listStatus = 500;
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('alert')).toHaveText('博文加载失败。（本地读取暂时不可用）');
+  await expect(page.getByRole('listitem')).toHaveText(['第一位', '第二位']);
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');
+  const initial = requests.slice();
+  listStatus = 200;
+  await page.getByRole('button', { name: '重试博文' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('article')).toContainText('第一行');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(requests.slice(initial.length)).toEqual([initial.at(-1)]);
+});
+
+test('unloaded_reading_discards_old_list_response_without_polling', async ({ page }) => {
+  await page.clock.install();
+  holdResponse = true;
+  holdPath = '/post/list';
+  posts.items[0].content = '旧请求正文';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('status')).toHaveText('正在加载博文……');
+  await page.goto(`${baseUrl}preview/chat/index.html`);
+  releaseResponse?.();
+  holdResponse = false;
+  posts.items[0].content = '新请求正文';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('article')).toContainText('新请求正文');
+  await expect(page.getByRole('article')).not.toContainText('旧请求正文');
+  const completed = requests.slice();
+  await page.evaluate(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('online')); });
+  await page.clock.runFor(65000);
+  await expect(page.getByRole('article')).toContainText('新请求正文');
+  expect(requests).toEqual(completed);
+});
+
+test('component_unmount_aborts_its_inflight_http_query_and_remount_loads_fresh_data', async ({ page }) => {
+  const component = new URL('../src/post/PostPreview.tsx', import.meta.url);
+  const original = await readFile(component, 'utf8');
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch;
+    window.fetch = (input, init) => {
+      if (String(input).startsWith('/post/list?')) {
+        init?.signal?.addEventListener('abort', () => Object.assign(window, { readingAborted: true }));
+      }
+      return originalFetch(input, init);
+    };
+  });
+  holdResponse = true;
+  holdPath = '/post/list';
+  posts.items[0].content = '过期正文';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('status')).toHaveText('正在加载博文……');
+  try {
+    await writeFile(component, "export default function PostPreview() { return <h1>阅读已退出</h1>; }");
+    await expect(page.getByRole('heading', { name: '阅读已退出' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as Window & { readingAborted?: boolean }).readingAborted)).toBe(true);
+    await page.waitForLoadState('networkidle');
+    releaseResponse?.();
+    holdResponse = false;
+    posts.items[0].content = '恢复后的正文';
+  } finally {
+    holdResponse = false;
+    await writeFile(component, original);
+    releaseResponse?.();
+  }
+  await expect(page.getByRole('article')).toContainText('恢复后的正文');
+  await expect(page.getByRole('article')).not.toContainText('过期正文');
+});
+
 test('post_announces_loading_before_names_arrive', async ({ page }) => {
   holdResponse = true;
   await page.goto(`${baseUrl}preview/post/index.html`);
@@ -88,13 +227,15 @@ test('post_announces_loading_before_names_arrive', async ({ page }) => {
     releaseResponse?.();
   }
   await expect(page.getByRole('listitem')).toHaveText(['第一位', '第二位']);
+  await expect(page.getByRole('article')).toBeVisible();
   await expect(page.getByRole('status')).toHaveCount(0);
 });
 
 test('post_displays_names_from_proxied_query', async ({ page }, testInfo) => {
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('listitem')).toHaveText(['第一位', '第二位']);
-  expect(requests).toEqual(['GET /post/bloggers']);
+  await expect(page.getByRole('article')).toBeVisible();
+  expect(requests.map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
   await page.screenshot({ path: testInfo.outputPath('post.png') });
 });
 
@@ -103,6 +244,7 @@ test('post_explains_empty_blogger_list', async ({ page }) => {
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('status')).toHaveText('暂无博主。');
   await expect(page.getByRole('listitem')).toHaveCount(0);
+  expect(requests).toEqual(['GET /post/bloggers']);
 });
 
 test('post_announces_query_failure', async ({ page }) => {
@@ -126,11 +268,13 @@ test('chat_entry_refreshes_with_its_own_skin_without_business_requests', async (
 test('post_entry_refreshes_with_paper_skin', async ({ page }) => {
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('listitem')).toHaveText(['第一位', '第二位']);
+  await expect(page.getByRole('article')).toBeVisible();
   await expect(page.locator('body')).toHaveCSS('color', 'rgb(43, 38, 32)');
   await expect(page.locator('body')).toHaveCSS('background-image', /radial-gradient/);
   await page.reload();
   await expect(page.getByRole('listitem')).toHaveText(['第一位', '第二位']);
-  expect(requests).toEqual(['GET /post/bloggers', 'GET /post/bloggers']);
+  await expect(page.getByRole('article')).toBeVisible();
+  expect(requests.map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list', 'GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
 });
 
 test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ request }) => {

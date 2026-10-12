@@ -30,7 +30,7 @@ async function getJson<T>(url: string, signal: AbortSignal, timeoutMs = 15000): 
 }
 
 function latestDay(calendar: Calendar | undefined) {
-  return calendar?.months.flatMap(month => month.days).map(day => day.date)
+  return calendar?.months.flatMap(month => month.days).filter(day => day.count > 0).map(day => day.date)
     .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))
       && new Date(date).toISOString().slice(0, 10) === date).sort().at(-1);
 }
