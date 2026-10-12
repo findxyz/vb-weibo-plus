@@ -7,11 +7,12 @@ function BloggerList({ bloggers }: { bloggers: Blogger[] }) {
 
 export default function PostPreview() {
   const { bloggers, calendar, date, posts } = useDefaultReading();
+  const formalPage = import.meta.env.DEV ? new URL('/post/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/post/index.html';
 
   return (
     <div className="app">
       <header className="titlebar"><h1>本地微博预览</h1></header>
-      <p className="preview-note">当前仅提供默认阅读路径，完整功能请使用<a href="/post/index.html">正式 post 页面</a>。</p>
+      <p className="preview-note">当前仅提供默认阅读路径，完整功能请使用<a href={formalPage}>正式 post 页面</a>。</p>
       <main className="columns">
         <section aria-label="博主区域">
         <h2>博主</h2>

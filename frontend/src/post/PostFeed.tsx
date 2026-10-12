@@ -15,7 +15,7 @@ function PostContent({ content }: { content: string }) {
 
 export default function PostFeed({ result }: { result: PostList }) {
   return <>
-    <p aria-label="博文总数">共 {result.total} 条</p>
+    <p className="feed-count" aria-label="博文总数">共 {result.total} 条</p>
     {result.items.length === 0 && <p role="status">该日无微博。</p>}
     {result.items.map(post => <article className="post-card" key={post.mblogId}>
       <header className="post-header"><strong>{post.blogger?.screenName || '未知博主'}</strong><time dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time></header>
