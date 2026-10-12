@@ -23,6 +23,11 @@ test.beforeAll(async () => {
   backend = createHttpServer((request, response) => {
     requests.push(`${request.method} ${request.url}`);
     const path = new URL(request.url!, 'http://fixture').pathname;
+    if (path === '/post/index.html') {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+      response.end('<h1>后端正式页面</h1>');
+      return;
+    }
     const responseStatus = path === '/post/calendar' ? calendarStatus : path === '/post/list' ? listStatus : status;
     const payload = JSON.stringify(responseStatus === 200 ? (path === '/post/calendar' ? calendar : path === '/post/list' ? posts : bloggers) : responseStatus === 503 ? bloggers : { msg: '本地读取暂时不可用' });
     const send = () => {
@@ -83,10 +88,21 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
   await expect(page.getByLabel('当前范围')).toHaveText('全部博主');
   await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');
   await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
+  await expect(page.getByLabel('博文总数')).toHaveCSS('font-size', '12px');
+  await expect(page.getByLabel('博文总数')).toHaveCSS('font-variant-numeric', 'tabular-nums');
   await expect(page.getByRole('article')).toContainText('2026-08-05 08:30');
   await expect(page.locator('.post-content')).toHaveCSS('white-space', 'pre-wrap');
   const query = new URL(requests.find(value => value.startsWith('GET /post/list'))!.slice(4), 'http://fixture').searchParams;
   expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2026-08-05 00:00:00', end: '2026-08-05 23:59:59' });
+});
+
+test('dev_formal_link_opens_the_configured_backend_page', async ({ page }) => {
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const destination = `${process.env.API_PROXY_TARGET}/post/index.html`;
+  await expect(page.getByRole('link', { name: '正式 post 页面' })).toHaveAttribute('href', destination);
+  await page.getByRole('link', { name: '正式 post 页面' }).click();
+  await expect(page).toHaveURL(destination);
+  await expect(page.getByRole('heading', { name: '后端正式页面' })).toBeVisible();
 });
 
 test('zero_count_day_does_not_replace_latest_day_with_captured_content', async ({ page }) => {

@@ -87,6 +87,10 @@ class ReactPreviewPageTest {
             assertThat(page.getByLabel("当前范围")).hasText("全部博主");
             assertThat(page.getByLabel("当前日期")).hasText("2026-08-05");
             assertThat(page.getByLabel("博文总数")).hasText("共 4 条");
+            assertThat(page.getByLabel("博文总数")).hasCSS("font-size", "12px");
+            assertThat(page.getByLabel("博文总数")).hasCSS("font-variant-numeric", "tabular-nums");
+            assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("正式 post 页面")))
+                    .hasAttribute("href", "/post/index.html");
             assertThat(page.locator("article time")).hasText("2026-08-05 08:30");
             assertThat(page.locator(".post-content script, .post-content svg, .post-content [onload]")).hasCount(0);
             assertThat(page.locator(".post-content a").first()).hasAttribute("href", "https://example.com");

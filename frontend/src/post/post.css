@@ -46,6 +46,7 @@ section + section { border-left: 1.5px solid var(--rule); }
 .post-card { padding: 16px; margin-bottom: 18px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow-card); }
 .post-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 time { color: var(--pencil); font-size: 12px; font-variant-numeric: tabular-nums; }
+.feed-count { color: var(--pencil); font-size: 12px; font-variant-numeric: tabular-nums; }
 .post-content { font-size: 19px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .post-content img { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
 a { color: var(--accent); text-decoration: underline wavy; }

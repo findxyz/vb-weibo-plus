@@ -4,13 +4,15 @@ import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const backendUrl = env.API_PROXY_TARGET || 'http://127.0.0.1:18080';
   return {
     plugins: [react()],
+    define: { 'import.meta.env.VITE_API_PROXY_TARGET': JSON.stringify(backendUrl) },
     server: {
       strictPort: true,
       proxy: {
         '^/post/(?:bloggers|calendar|list)(?:\\?.*)?$': {
-          target: env.API_PROXY_TARGET || 'http://127.0.0.1:18080',
+          target: backendUrl,
         },
       },
     },
