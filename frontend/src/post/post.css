@@ -1,0 +1,41 @@
+/* Tokens from docs/design/DESIGN.md: paper sketch skin. */
+:root {
+  color-scheme: light;
+  --paper: #fbf6ec;
+  --ink: #2b2620;
+  --pencil: #4d473d;
+  --rule: #c8bfa9;
+  --danger: #b42318;
+  --shadow-card: 6px 8px 0 -3px rgb(43 38 32 / 18%);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; min-width: 900px; }
+body {
+  color: var(--ink);
+  background: radial-gradient(circle, rgb(43 38 32 / 4.5%) 1px, transparent 1.4px) 0 0 / 22px 22px, var(--paper);
+  font: 15px/1.55 Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
+}
+.app {
+  min-height: 560px;
+  height: 100%;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.titlebar {
+  height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  color: var(--paper);
+  background: repeating-linear-gradient(135deg, rgb(0 0 0 / 5%) 0 2px, transparent 2px 6px), var(--ink);
+  border-bottom: 2px solid var(--ink);
+}
+h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.2px; }
+main { padding: 16px; }
+h2 { margin: 0 0 12px; font-size: 17px; }
+ul { margin: 0; padding-left: 18px; }
+li { padding: 8px; border-bottom: 1.5px solid var(--rule); }
+[role="alert"] { color: var(--danger); }

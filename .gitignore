@@ -49,3 +49,9 @@ run-target.bat
 
 # 调试脚本与本地 playwright 依赖（浏览器复现回路，不进版本控制）
 .scratch/debug/
+
+# Frontend dependencies and browser test output
+frontend/node_modules/
+frontend/test-results/
+frontend/playwright-report/
+frontend/.env.local

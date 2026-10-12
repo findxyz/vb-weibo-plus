@@ -97,6 +97,33 @@ mvn spring-boot:run
 
 应用默认监听 `http://localhost:18080`。HTTP 接口集合见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
 
+### React 开发预览
+
+前端位于 `frontend`，需要 Node.js 22.12.0 或更新版本，以及 npm 10 或更新版本。本次验证使用 Node.js 24.15.0、npm 11.14.1。先启动上述 Spring Boot 服务，再在另一个终端运行：
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+访问 [本地微博预览](http://127.0.0.1:5173/preview/post/index.html) 或 [群聊入口预览](http://127.0.0.1:5173/preview/chat/index.html)。修改组件或样式后自动热更新。post 预览只读取博主名称，chat 预览只展示入口；正式页面仍由 Spring Boot 的 `/post/index.html` 与 `/chat/index.html` 提供。
+
+开发查询使用相对路径 `GET /post/bloggers`，Vite 将该精确 API 路径代理到 `http://127.0.0.1:18080`，HTML 和模块资源由 Vite 提供。后端使用其他端口时，可以设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
+
+```bash
+npm run typecheck
+npm run build
+npx playwright install chromium
+npm test
+```
+
+构建将两个 HTML 入口和 hash 资源写入专用目录 `target/generated-resources/frontend`，不写回手写源码目录。当前尚未接入 Maven 打包。浏览器测试使用隔离的本地 HTTP 服务并经过真实 Vite 代理，无需运行 Spring Boot。
+
+测试默认使用 Playwright 安装的 Chromium；已有 Chrome 时，可以省略浏览器下载，设置 `PREVIEW_BROWSER_CHANNEL=chrome` 后运行 `npm test`。PowerShell 中使用 `$env:PREVIEW_BROWSER_CHANNEL='chrome'`，本次开发预览验收使用此方式。
+
+工程依据：React 的 [createRoot](https://react.dev/reference/react-dom/client/createRoot)、Vite 的[多入口构建](https://vite.dev/guide/build.html#multi-page-app)与[精确正则代理](https://vite.dev/config/server-options.html#server-proxy)，以及 TanStack Query 的[默认查询策略](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)。查询将显式关闭自动重试、窗口聚焦和网络重连刷新，避免在预览中引入额外的 View Refresh。
+
 也可直接使用 `run.bat` 启动：将打包产物 `weibo-plus.jar` 放到 run.bat 同目录后双击运行。脚本会自动检查 JDK 版本（要求 21 及以上），并以固定参数启动服务（端口 18080、默认同步群号 `4761715839862414`、AI 指向 DeepSeek），启动 5 秒后自动打开群聊页面。如需调整参数，直接修改 run.bat 中 java 命令行的值即可。
 
 ### 配置说明
