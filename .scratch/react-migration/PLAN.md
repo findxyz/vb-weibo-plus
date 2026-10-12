@@ -86,5 +86,6 @@
 - 独立 JAR 的默认阅读与新旧入口冒烟通过，详见票 03。测试使用临时 SQLite、缺少 Credential、空自动采集群号，未调用业务写接口。
 - 主工作目录旧 JAR 正在运行并被占用，最终验证与打包采用独立 worktree。新产物保存于 `target/react-migration-release/weibo-plus.jar` 与同目录 `weibo-plus.7z`，未替换运行中的旧 JAR。
 - 全量与最终打包日志保存在仓库外的研究笔记目录，分别为 `react-full-verify.log`、`react-final-package.log`。生成文件不进入 Git。
+- 已向 Codex 提交 4 个受管实施／验证 worktree 的归档请求，工具返回 queued，当前尚未确认目录清理完成。任务 02 的冒烟临时目录删除被自动审批拒绝，仅返回 blocked by policy；测试进程已停止，临时证据保留。
 
 本批只完成工程通路与 post 默认阅读切片。正式入口尚未切换；博主／日期切换、搜索、媒体查看和完整 chat 迁移继续按后续阶段推进。
