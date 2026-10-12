@@ -2,7 +2,7 @@
 
 日期：2026-10-12。
 分支：`codex/react-migration`。
-当前进度：已开始执行前三张票，正在建立测试基线与实施任务 01。
+当前进度：任务 01 已完成并集成，开始实施任务 02。
 
 ## 执行方式
 
@@ -17,8 +17,8 @@
 
 | 编号 | 交付 | Blocked by | 当前进度 |
 | --- | --- | --- | --- |
-| [01](issues/01-react-dev-preview.md) | 两个 React 预览入口可开发，post 显示现有查询返回的博主名称 | 无 | 实施中 |
-| [02](issues/02-maven-generated-resources.md) | 干净 Maven 构建将预览页面与原页面一起打进可运行 JAR | 01 | 等待 01 |
+| [01](issues/01-react-dev-preview.md) | 两个 React 预览入口可开发，post 显示现有查询返回的博主名称 | 无 | 已完成 |
+| [02](issues/02-maven-generated-resources.md) | 干净 Maven 构建将预览页面与原页面一起打进可运行 JAR | 01 | 实施中 |
 | [03](issues/03-post-default-day-reading.md) | 默认全部博主、最新有效日期的本地 Blogger Blog 阅读路径 | 02 | 等待 02 |
 
 依赖为 01 → 02 → 03。任务 03 依赖已打通的开发、测试和发布资源路径。
@@ -69,3 +69,5 @@
 2026-10-12，本轮仅形成文档。当前没有通过的迁移验收项，也没有已完成的实现任务。
 2026-10-12，用户调用 implement-spec，开始执行当前已发布的三票。集成分支沿用 codex/react-migration，逐票在独立 worktree 实施并合入。
 2026-10-12，实施前基线通过：PostPageTest 37 项、GroupChatPageTest 82 项，共 119 项；无失败、错误或跳过。
+
+2026-10-12，任务 01 集成于 8c80ba9。8 项 Chrome 浏览器测试、npm ci、类型检查、双入口构建与差异检查通过，包含组件和 CSS 热更新。默认 Chromium 下载未验收，本机 Chrome 已验证。
