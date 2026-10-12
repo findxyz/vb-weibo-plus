@@ -1,0 +1,68 @@
+# React 迁移阶段计划
+
+日期：2026-10-12。
+分支：`codex/react-migration`。
+当前进度：规格和前三张票已发布，尚未开始实现，尚未运行迁移测试基线。
+
+## 执行方式
+
+先读取总纲和当前票，再按其依赖读取对应事实依据。
+一次实现用户指定的一张票；完成相关检查并报告后，由用户决定下一票。
+后续票以已完成工作的实际接口和证据为前提，后续阶段只保留轮廓。
+实现中出现范围或契约变化时，先记录并说明影响，调整当前任务；不顺带执行下一票。
+`ready-for-agent` 表示任务内容已具体化，不表示依赖已完成，也不表示用户已指定开始。
+
+## 当前任务
+
+| 编号 | 交付 | Blocked by | 当前进度 |
+| --- | --- | --- | --- |
+| [01](issues/01-react-dev-preview.md) | 两个 React 预览入口可开发，post 显示现有查询返回的博主名称 | 无 | 尚未实施 |
+| [02](issues/02-maven-generated-resources.md) | 干净 Maven 构建将预览页面与原页面一起打进可运行 JAR | 01 | 等待 01 |
+| [03](issues/03-post-default-day-reading.md) | 默认全部博主、最新有效日期的本地 Blogger Blog 阅读路径 | 02 | 等待 02 |
+
+依赖为 01 → 02 → 03。任务 03 依赖已打通的开发、测试和发布资源路径。
+任务 03 是 post 阶段的起步切片；首阶段发布它以明确工程通路之后的第一条真实业务路径。
+
+## 阶段与完成标准
+
+1. 工程通路，任务 01 与 02。开发预览及独立 JAR 资源加载通过，原正式页面回归保持绿色。
+2. post 阅读与交互，以任务 03 起步。随后逐步细化博主和日期选择、完整卡片、搜索定位、查看器、博主管理、按时段采集 Blogger Blog 和扫码能力。
+3. post 切换。全部已实现功能回归通过，预览验收完成，保留旧产物后切换正式入口；旧 chat 保持可用。
+4. chat 会话与交互。先验证消息窗口、动态高度和滚动锚点，再细化群选择、发送、历史、分析、表态、庆祝及既有特殊交互。
+5. chat 切换与收尾。整页回归、长列表及打包验证通过，再切换正式入口并清理已替代的旧实现和临时预览入口。
+
+阶段 2 至 5 的后续任务尚未发布；进入相应范围时再细化。
+每页切换前检查完整已实现功能，不能仅凭任务 03 的最小路径通过就替换 post 正式入口。
+
+## 验证与报告
+
+- 首票建立当前两页测试基线，有既存失败时如实记录并与新增回归区分。
+- 每票报告验收结果、实际验证、遗留问题和下一票的阻塞状态。
+- 每票完成后检查差异并保存可回退提交；测试输出和构建产物保持为生成文件。
+- 工程阶段检查开发代理、生成资源、classpath 静态资源、生产模块 MIME 与原页面资源共存。
+- 整页切换阶段使用既有用户路径、视觉参照和生产产物验证。
+- 生产冒烟使用隔离临时数据库、Credential 与后台采集配置，沿用已有测试约定。
+
+## 实施参考
+
+仅在进入相关功能时读取其文档与源码，不要求每票加载全部参考。
+
+| 场景 | 事实依据 |
+| --- | --- |
+| 所有任务的范围 | [PRD.md](PRD.md)、[访谈记录](DISCOVERY.md) |
+| 领域行为 | [CONTEXT.md](../../CONTEXT.md) |
+| Maven 与资源 | [pom.xml](../../pom.xml)、[应用配置](../../src/main/resources/application.yml) |
+| UI 测试与 HTTP 替身 | [PostPageTest](../../src/test/java/xyz/fz/weibo/ui/PostPageTest.java)、[GroupChatPageTest](../../src/test/java/xyz/fz/weibo/ui/GroupChatPageTest.java) |
+| post 查询接口 | [PostController](../../src/main/java/xyz/fz/weibo/controller/PostController.java) |
+| post 初始选择与正文 | [post 入口](../../src/main/resources/static/post/post.js)、[博主](../../src/main/resources/static/post/bloggers.js)、[日期](../../src/main/resources/static/post/dates.js)、[博文](../../src/main/resources/static/post/posts.js) |
+| 两套皮肤 | [DESIGN.md](../../docs/design/DESIGN.md) |
+| post 导航与待办区别 | [三栏导航 ADR](../../docs/adr/0006-weibo-page-three-column-date-calendar-navigation.md)、[视图刷新 ADR](../../docs/adr/0005-weibo-page-view-refresh-only-no-sync-button.md)、[未完成的刷新任务](../weibo-post-page/issues/05-new-posts-banner-and-view-refresh.md) |
+| chat 发送、扫码与滚动 | [发送语义 ADR](../../docs/adr/0002-send-does-not-write-to-store-directly.md)、[扫码 ADR](../../docs/adr/0007-headless-qr-login-inline-display.md)、[一次性落底 ADR](../../docs/adr/0008-scroll-to-bottom-is-one-shot.md) |
+
+既有 chat 模块化 ADR 中“未引入构建工具”描述的是当时的实施范围，本次经用户确认新增构建工具。
+若实现需要改变现有业务 ADR，先指出具体冲突并请用户决定，不能用技术迁移隐含覆盖它。
+
+## 记录
+
+2026-10-12，用户已确认范围、逐页切换、独立问题处理、逐票推进、产物回退和视觉一致性要求。
+2026-10-12，本轮仅形成文档。当前没有通过的迁移验收项，也没有已完成的实现任务。
