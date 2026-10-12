@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
     server: {
       strictPort: true,
       proxy: {
-        '^/post/bloggers(?:\\?.*)?$': {
+        '^/post/(?:bloggers|calendar|list)(?:\\?.*)?$': {
           target: env.API_PROXY_TARGET || 'http://127.0.0.1:18080',
         },
       },

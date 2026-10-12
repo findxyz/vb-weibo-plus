@@ -11,6 +11,8 @@ let bloggers = [{ uid: 1, screenName: '第一位' }, { uid: 2, screenName: '第�
 let holdResponse = false;
 let releaseResponse: (() => void) | undefined;
 let status = 200;
+let calendar = { months: [{ month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] }] };
+let posts = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
 let pageErrors: string[];
 let writeRequests: string[];
 
@@ -19,7 +21,7 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const send = () => {
       response.writeHead(status, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify(bloggers));
+      response.end(JSON.stringify(request.url?.startsWith('/post/calendar') ? calendar : request.url?.startsWith('/post/list') ? posts : bloggers));
     };
     if (holdResponse) releaseResponse = send;
     else send();
@@ -45,6 +47,8 @@ test.beforeEach(({ page }) => {
   holdResponse = false;
   releaseResponse = undefined;
   status = 200;
+  calendar = { months: [{ month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] }] };
+  posts = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
   pageErrors = [];
   writeRequests = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -56,6 +60,23 @@ test.beforeEach(({ page }) => {
 test.afterEach(() => {
   expect(pageErrors).toEqual([]);
   expect(writeRequests).toEqual([]);
+});
+
+test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', async ({ page }) => {
+  calendar.months = [
+    { month: '2026-09', count: 0, days: [{ date: '2026-09-31', count: 1 }] },
+    { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
+    { month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] },
+  ];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('article')).toContainText('第一行');
+  await expect(page.getByLabel('当前范围')).toHaveText('全部博主');
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');
+  await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
+  await expect(page.getByRole('article')).toContainText('2026-08-05 08:30');
+  await expect(page.locator('.post-content')).toHaveCSS('white-space', 'pre-wrap');
+  const query = new URL(requests.find(value => value.startsWith('GET /post/list'))!.slice(4), 'http://fixture').searchParams;
+  expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2026-08-05 00:00:00', end: '2026-08-05 23:59:59' });
 });
 
 test('post_announces_loading_before_names_arrive', async ({ page }) => {
