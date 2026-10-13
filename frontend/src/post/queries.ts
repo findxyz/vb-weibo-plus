@@ -40,25 +40,33 @@ function validMonths(calendar: Calendar | undefined) {
 // https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries
 // https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation
 export function useDefaultReading() {
-  const [selectedDate, setSelectedDate] = useState<string>();
+  const [selection, setSelection] = useState<{ uid: number | null; visit: number }>({ uid: null, visit: 0 });
+  const [selectedDate, setSelectedDate] = useState<{ visit: number; value: string }>();
   const bloggers = useQuery({ queryKey: ['post', 'bloggers'], queryFn: ({ signal }) => getJson<Blogger[]>('/post/bloggers', signal) });
+  // A visit isolates each explicit scope selection, including selecting the same blogger again.
+  // https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
   const calendar = useQuery({
-    queryKey: ['post', 'calendar', 'all'], enabled: bloggers.isSuccess && bloggers.data.length > 0,
-    queryFn: ({ signal }) => getJson<Calendar>('/post/calendar', signal),
+    queryKey: ['post', 'calendar', selection.uid, selection.visit], gcTime: 0,
+    enabled: bloggers.isSuccess && bloggers.data.length > 0,
+    queryFn: ({ signal }) => getJson<Calendar>(selection.uid === null ? '/post/calendar' : `/post/calendar?uid=${selection.uid}`, signal),
   });
   const months = validMonths(calendar.data);
-  const date = selectedDate ?? months[0]?.days[0]?.date;
+  const date = selectedDate?.visit === selection.visit ? selectedDate.value : months[0]?.days[0]?.date;
   const posts = useQuery({
-    queryKey: ['post', 'list', 'all', date], enabled: Boolean(date),
+    queryKey: ['post', 'list', selection.uid, selection.visit, date], gcTime: 0, enabled: Boolean(date),
     queryFn: ({ signal }) => {
       const params = new URLSearchParams({ page: '1', size: '9999', start: `${date} 00:00:00`, end: `${date} 23:59:59` });
+      if (selection.uid !== null) params.set('uids', String(selection.uid));
       return getJson<PostList>(`/post/list?${params}`, signal, 30000);
     },
   });
   function selectDate(nextDate: string) {
     if (posts.isFetching) return;
     if (nextDate === date) void posts.refetch();
-    else setSelectedDate(nextDate);
+    else setSelectedDate({ visit: selection.visit, value: nextDate });
   }
-  return { bloggers, calendar, months, date, posts, selectDate };
+  function selectBlogger(uid: number | null) {
+    setSelection(previous => ({ uid, visit: previous.visit + 1 }));
+  }
+  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger };
 }

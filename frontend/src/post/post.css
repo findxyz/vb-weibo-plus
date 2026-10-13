@@ -64,3 +64,5 @@ li { padding: 8px; border-bottom: 1.5px solid var(--rule); }
 .year-header { font-weight: 700; border-bottom-color: var(--rule); }
 .month-group { margin-left: 8px; }
 .date-item { padding-left: 16px; }
+.blogger-list { padding-left: 0; list-style: none; }
+.blogger-list li { padding: 0; }

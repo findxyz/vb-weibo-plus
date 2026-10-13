@@ -16,26 +16,31 @@ let calendarStatus = 200;
 let listStatus = 200;
 let calendar = { months: [{ month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] }] };
 let posts = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
+let calendarsByUid: Record<string, typeof calendar>;
+let postsByUid: Record<string, typeof posts>;
+let holdUid: string | undefined;
 let pageErrors: string[];
 let writeRequests: string[];
 
 test.beforeAll(async () => {
   backend = createHttpServer((request, response) => {
     requests.push(`${request.method} ${request.url}`);
-    const path = new URL(request.url!, 'http://fixture').pathname;
+    const url = new URL(request.url!, 'http://fixture');
+    const path = url.pathname;
+    const uid = url.searchParams.get('uid') ?? url.searchParams.get('uids') ?? 'all';
     if (path === '/post/index.html') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
       response.end('<h1>后端正式页面</h1>');
       return;
     }
     const responseStatus = path === '/post/calendar' ? calendarStatus : path === '/post/list' ? listStatus : status;
-    const payload = JSON.stringify(responseStatus === 200 ? (path === '/post/calendar' ? calendar : path === '/post/list' ? posts : bloggers) : responseStatus === 503 ? bloggers : { msg: '本地读取暂时不可用' });
+    const payload = JSON.stringify(responseStatus === 200 ? (path === '/post/calendar' ? calendarsByUid[uid] ?? calendar : path === '/post/list' ? postsByUid[uid] ?? posts : bloggers) : responseStatus === 503 ? bloggers : { msg: '本地读取暂时不可用' });
     const send = () => {
       if (releaseResponse === send) releaseResponse = undefined;
       response.writeHead(responseStatus, { 'Content-Type': 'application/json' });
       response.end(payload);
     };
-    if (holdResponse && path === holdPath) releaseResponse = send;
+    if (holdResponse && path === holdPath && (!holdUid || uid === holdUid)) releaseResponse = send;
     else send();
   });
   await new Promise<void>((resolve) => backend.listen(0, '127.0.0.1', resolve));
@@ -59,6 +64,9 @@ test.beforeEach(({ page }) => {
   holdResponse = false;
   holdPath = '/post/bloggers';
   releaseResponse = undefined;
+  calendarsByUid = {};
+  postsByUid = {};
+  holdUid = undefined;
   status = 200;
   calendarStatus = 200;
   listStatus = 200;
@@ -123,6 +131,37 @@ test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async 
   const query = new URL(requests.at(-1)!.slice(4), 'http://fixture').searchParams;
   expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2025-12-31 00:00:00', end: '2025-12-31 23:59:59' });
   await page.screenshot({ path: testInfo.outputPath('date-navigation.png') });
+});
+
+test('blogger_selection_resets_to_latest_day_and_returning_to_all_reloads_its_scope', async ({ page }) => {
+  calendarsByUid['1'] = { months: [{ month: '2026-07', count: 2, days: [{ date: '2026-07-10', count: 1 }, { date: '2026-07-09', count: 1 }] }] };
+  postsByUid['1'] = { ...posts, items: [{ ...posts.items[0], content: '单博主正文' }], total: 1 };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('article')).toContainText('第一行');
+  await page.getByRole('button', { name: '第一位', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('当前范围')).toHaveText('第一位');
+  await expect(page.getByRole('heading', { name: '第一位的微博', exact: true })).toBeVisible();
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-07-10');
+  await expect(page.getByRole('article')).toContainText('单博主正文');
+  await expect(page.getByRole('button', { name: '第一位', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const singleQuery = new URL(requests.at(-1)!.slice(4), 'http://fixture').searchParams;
+  expect(Object.fromEntries(singleQuery)).toEqual({ page: '1', size: '9999', start: '2026-07-10 00:00:00', end: '2026-07-10 23:59:59', uids: '1' });
+  expect(requests).toContain('GET /post/calendar?uid=1');
+  await page.getByRole('button', { name: '2026-07-09', exact: true }).click();
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-07-09');
+  await expect(page.getByRole('article')).toBeVisible();
+  const beforeRepeat = requests.length;
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-07-10');
+  await expect(page.getByRole('article')).toBeVisible();
+  expect(requests.slice(beforeRepeat).map(value => value.split('?')[0])).toEqual(['GET /post/calendar', 'GET /post/list']);
+  await page.getByRole('button', { name: '全部博主', exact: true }).click();
+  await expect(page.getByLabel('当前范围')).toHaveText('全部博主');
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');
+  await expect(page.getByRole('article')).toContainText('第一行');
+  expect(new URL(requests.at(-1)!.slice(4), 'http://fixture').searchParams.has('uids')).toBe(false);
+  expect(requests.filter(value => value.startsWith('GET /post/bloggers'))).toHaveLength(1);
 });
 
 test('dev_formal_link_opens_the_configured_backend_page', async ({ page }) => {
