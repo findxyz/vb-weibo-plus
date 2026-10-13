@@ -1,12 +1,13 @@
 import { useDefaultReading, type Blogger } from './queries';
 import PostFeed from './PostFeed';
+import DateTimeline from './DateTimeline';
 
 function BloggerList({ bloggers }: { bloggers: Blogger[] }) {
   return <ul aria-label="博主">{bloggers.map(blogger => <li key={blogger.uid}>{blogger.screenName}</li>)}</ul>;
 }
 
 export default function PostPreview() {
-  const { bloggers, calendar, date, posts } = useDefaultReading();
+  const { bloggers, calendar, months, date, posts, selectDate } = useDefaultReading();
   const formalPage = import.meta.env.DEV ? new URL('/post/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/post/index.html';
 
   return (
@@ -28,12 +29,13 @@ export default function PostPreview() {
           {calendar.isError && <p role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
           {calendar.isSuccess && !date && <p role="status">暂无有博文的日期。</p>}
           {date && <p className="selected" aria-label="当前日期">{date}</p>}
+          {date && <DateTimeline months={months} date={date} onSelectDate={selectDate} />}
         </section>
         <section className="feed" aria-label="博文区域">
           <h2>全部微博</h2>
           {posts.isFetching && <p role="status">正在加载博文……</p>}
           {posts.isError && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
-          {posts.isSuccess && <PostFeed result={posts.data} />}
+          {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} />}
         </section>
       </main>
     </div>

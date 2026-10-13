@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export type Blogger = { uid: number; screenName: string };
 export type Calendar = { months: { month: string; count: number; days: { date: string; count: number }[] }[] };
@@ -29,21 +30,24 @@ async function getJson<T>(url: string, signal: AbortSignal, timeoutMs = 15000): 
   }
 }
 
-function latestDay(calendar: Calendar | undefined) {
-  return calendar?.months.flatMap(month => month.days).filter(day => day.count > 0).map(day => day.date)
-    .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))
-      && new Date(date).toISOString().slice(0, 10) === date).sort().at(-1);
+function validMonths(calendar: Calendar | undefined) {
+  return (calendar?.months ?? []).map(month => ({ ...month, days: month.days.filter(day => day.count > 0
+    && /^\d{4}-\d{2}-\d{2}$/.test(day.date) && !Number.isNaN(Date.parse(day.date))
+    && new Date(day.date).toISOString().slice(0, 10) === day.date).sort((a, b) => b.date.localeCompare(a.date)) }))
+    .filter(month => month.days.length > 0).sort((a, b) => b.month.localeCompare(a.month));
 }
 
 // https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries
 // https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation
 export function useDefaultReading() {
+  const [selectedDate, setSelectedDate] = useState<string>();
   const bloggers = useQuery({ queryKey: ['post', 'bloggers'], queryFn: ({ signal }) => getJson<Blogger[]>('/post/bloggers', signal) });
   const calendar = useQuery({
     queryKey: ['post', 'calendar', 'all'], enabled: bloggers.isSuccess && bloggers.data.length > 0,
     queryFn: ({ signal }) => getJson<Calendar>('/post/calendar', signal),
   });
-  const date = latestDay(calendar.data);
+  const months = validMonths(calendar.data);
+  const date = selectedDate ?? months[0]?.days[0]?.date;
   const posts = useQuery({
     queryKey: ['post', 'list', 'all', date], enabled: Boolean(date),
     queryFn: ({ signal }) => {
@@ -51,5 +55,10 @@ export function useDefaultReading() {
       return getJson<PostList>(`/post/list?${params}`, signal, 30000);
     },
   });
-  return { bloggers, calendar, date, posts };
+  function selectDate(nextDate: string) {
+    if (posts.isFetching) return;
+    if (nextDate === date) void posts.refetch();
+    else setSelectedDate(nextDate);
+  }
+  return { bloggers, calendar, months, date, posts, selectDate };
 }

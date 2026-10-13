@@ -96,6 +96,35 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
   expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2026-08-05 00:00:00', end: '2026-08-05 23:59:59' });
 });
 
+test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async ({ page }, testInfo) => {
+  calendar.months = [
+    { month: '2025-12', count: 1, days: [{ date: '2025-12-31', count: 1 }] },
+    { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
+    { month: '2026-08', count: 3, days: [{ date: '2026-08-04', count: 1 }, { date: '2026-08-05', count: 2 }] },
+  ];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('article')).toContainText('第一行');
+  await expect(page.getByRole('button', { name: '2026 年，4 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: '2026-08，3 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '2025 年，1 条', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  const beforeToggle = requests.slice();
+  await page.getByRole('button', { name: '2025 年，1 条', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: '2025-12，1 条', exact: true }).focus();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeVisible();
+  expect(requests).toEqual(beforeToggle);
+  posts.items[0].content = '较早日期正文';
+  await page.getByRole('button', { name: '2025-12-31', exact: true }).click();
+  await expect(page.getByRole('article')).toContainText('较早日期正文');
+  await expect(page.getByLabel('当前日期')).toHaveText('2025-12-31');
+  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  const query = new URL(requests.at(-1)!.slice(4), 'http://fixture').searchParams;
+  expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2025-12-31 00:00:00', end: '2025-12-31 23:59:59' });
+  await page.screenshot({ path: testInfo.outputPath('date-navigation.png') });
+});
+
 test('dev_formal_link_opens_the_configured_backend_page', async ({ page }) => {
   await page.goto(`${baseUrl}preview/post/index.html`);
   const destination = `${process.env.API_PROXY_TARGET}/post/index.html`;
