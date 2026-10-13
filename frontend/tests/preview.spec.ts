@@ -191,6 +191,21 @@ test('inflight_day_read_keeps_selection_and_same_day_click_reads_again', async (
   await expect(page.getByRole('article')).toBeVisible();
 });
 
+test('long_feed_scrolls_independently_of_blogger_and_date_navigation', async ({ page }) => {
+  posts.items[0].content = '长正文阅读\n'.repeat(80);
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('article')).toBeVisible();
+  const dateButton = page.getByRole('button', { name: '2026-08-05', exact: true });
+  const dateTop = (await dateButton.boundingBox())!.y;
+  const feed = page.getByRole('region', { name: '博文区域', exact: true });
+  await page.getByRole('heading', { name: '全部微博', exact: true }).hover();
+  await page.mouse.wheel(0, 1200);
+  await expect.poll(() => feed.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  expect((await dateButton.boundingBox())!.y).toBe(dateTop);
+  expect(await page.getByRole('region', { name: '博主区域', exact: true }).evaluate(element => element.scrollTop)).toBe(0);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+});
+
 test('switching_blogger_cancels_old_calendar_and_ignores_its_late_error', async ({ page }) => {
   await page.addInitScript(() => {
     const fetchBefore = window.fetch;
