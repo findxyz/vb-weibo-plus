@@ -35,13 +35,30 @@ class ReactPreviewPageTest {
     static void startBrowserAndServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/post/bloggers", exchange -> {
-            sendJson(exchange, "[{\"uid\":1,\"screenName\":\"打包资源博主\"}]");
+            sendJson(exchange, "[{\"uid\":1,\"screenName\":\"打包资源博主\"},{\"uid\":2,\"screenName\":\"第二位博主\"}]");
         });
-        server.createContext("/post/calendar", exchange -> sendJson(exchange, """
-                {"months":[{"month":"2026-08","count":4,"days":[{"date":"2026-08-05","count":4}]}]}
-                """));
+        server.createContext("/post/calendar", exchange -> {
+            if ("uid=2".equals(exchange.getRequestURI().getRawQuery())) {
+                sendJson(exchange, """
+                        {"months":[{"month":"2026-07","count":1,"days":[{"date":"2026-07-10","count":1}]},
+                        {"month":"2026-06","count":1,"days":[{"date":"2026-06-30","count":1}]}]}
+                        """);
+            } else {
+                sendJson(exchange, """
+                        {"months":[{"month":"2026-08","count":4,"days":[{"date":"2026-08-05","count":4}]}]}
+                        """);
+            }
+        });
         server.createContext("/post/list", exchange -> {
             listQuery.set(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8));
+            if (listQuery.get().contains("uids=2")) {
+                sendJson(exchange, """
+                        {"items":[{"mblogId":"fixture-2","createdAt":1783643400000,
+                        "blogger":{"uid":2,"screenName":"第二位博主"},"content":"第二位博主的本地正文"}],
+                        "page":1,"size":9999,"total":1}
+                        """);
+                return;
+            }
             sendJson(exchange, """
                     {"items":[{"mblogId":"fixture-1","createdAt":1785889800000,
                     "blogger":{"uid":1,"screenName":"打包资源博主"},
@@ -55,6 +72,31 @@ class ReactPreviewPageTest {
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
         playwright = Playwright.create();
         browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+    }
+
+    @Test
+    void classpath_preview_switches_blogger_month_and_day_then_returns_to_all() {
+        try (Page page = browser.newPage()) {
+            List<String> errors = new ArrayList<>();
+            page.onPageError(errors::add);
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator("article")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.getByLabel("当前范围")).hasText("第二位博主");
+            assertThat(page.getByLabel("当前日期")).hasText("2026-07-10");
+            assertThat(page.locator("article")).containsText("第二位博主的本地正文");
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
+            assertThat(page.getByLabel("当前日期")).hasText("2026-06-30");
+            assertThat(page.locator("article")).isVisible();
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-06-30 00:00:00&end=2026-06-30 23:59:59&uids=2");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true)).click();
+            assertThat(page.getByLabel("当前日期")).hasText("2026-08-05");
+            assertThat(page.locator("article")).containsText("打包后的正文");
+            Assertions.assertThat(listQuery.get()).doesNotContain("uids=");
+            Assertions.assertThat(errors).isEmpty();
+        }
     }
 
     @AfterAll
