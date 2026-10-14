@@ -2,6 +2,7 @@ import { createServer as createHttpServer, type Server } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
+import type { PostList } from '../src/post/queries';
 
 let backend: Server;
 let vite: ViteDevServer;
@@ -15,7 +16,7 @@ let status = 200;
 let calendarStatus = 200;
 let listStatus = 200;
 let calendar = { months: [{ month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] }] };
-let posts = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
+let posts: PostList = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
 let calendarsByUid: Record<string, typeof calendar>;
 let postsByUid: Record<string, typeof posts>;
 let holdUid: string | undefined;
@@ -102,6 +103,46 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
   await expect(page.locator('.post-content')).toHaveCSS('white-space', 'pre-wrap');
   const query = new URL(requests.find(value => value.startsWith('GET /post/list'))!.slice(4), 'http://fixture').searchParams;
   expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2026-08-05 00:00:00', end: '2026-08-05 23:59:59' });
+});
+
+test('retweet_text_keeps_outer_comment_and_reads_original_author_and_safe_links', async ({ page }, testInfo) => {
+  posts.items[0].content = '外层评论';
+  posts.items[0].retweeted = { screenName: '原作者', content: '<b>原文第一行</b>\n第二行<br>第三行 https://example.com. //@原文用户: 文本' };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
+  await expect(page.locator('.post-content')).toHaveText('外层评论');
+  const original = page.getByRole('complementary', { name: '转发正文', exact: true });
+  await expect(original).toContainText('@原作者');
+  await expect(original).toContainText('原文第一行');
+  await expect(original.getByRole('link', { name: 'https://example.com' })).toHaveAttribute('href', 'https://example.com');
+  await expect(original.getByRole('link', { name: '@原文用户' })).toHaveAttribute('href', 'https://weibo.com/n/原文用户');
+  await expect(original.locator('.post-retweet-content')).toHaveCSS('white-space', 'pre-wrap');
+  await expect(original.locator('.post-retweet-content')).toHaveCSS('font-size', '17px');
+  await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');
+  expect(requests.map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
+  await page.screenshot({ path: testInfo.outputPath('retweet-reading.png') });
+});
+
+test('pure_retweet_omits_empty_outer_body_and_handles_missing_original_information', async ({ page }) => {
+  posts.items[0].content = '';
+  posts.items[0].retweeted = { screenName: null, content: '纯转发原文' };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-retweet')).toContainText('纯转发原文');
+  await expect(page.locator('.post-retweet-author')).toHaveText('@未知用户');
+  await expect(page.locator('.post-content')).toHaveCount(0);
+  await expect(page.locator('.post-header')).toContainText('第一位');
+  await expect(page.locator('.post-header time')).toHaveText('2026-08-05 08:30');
+  posts.items[0].retweeted = { screenName: '', content: null };
+  await page.reload();
+  await expect(page.locator('.post-retweet-author')).toHaveText('@未知用户');
+  await expect(page.locator('.post-retweet-content')).toHaveText('');
+  await expect(page.getByRole('article')).not.toContainText('原帖已删除');
+  posts.items[0].content = '普通正文';
+  posts.items[0].retweeted = null;
+  await page.reload();
+  await expect(page.locator('.post-content')).toHaveText('普通正文');
+  await expect(page.locator('.post-retweet')).toHaveCount(0);
 });
 
 test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async ({ page }, testInfo) => {
