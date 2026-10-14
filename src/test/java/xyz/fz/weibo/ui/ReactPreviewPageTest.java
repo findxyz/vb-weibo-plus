@@ -84,17 +84,17 @@ class ReactPreviewPageTest {
             page.navigate(baseUrl + "/preview/post/index.html");
             assertThat(page.locator("article")).containsText("打包后的正文");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
-            assertThat(page.getByLabel("当前范围")).hasText("第二位博主");
-            assertThat(page.getByLabel("当前日期")).hasText("2026-07-10");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.locator("article")).containsText("第二位博主的本地正文");
             Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
-            assertThat(page.getByLabel("当前日期")).hasText("2026-06-30");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.locator("article")).isVisible();
             Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-06-30 00:00:00&end=2026-06-30 23:59:59&uids=2");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true)).click();
-            assertThat(page.getByLabel("当前日期")).hasText("2026-08-05");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.locator("article")).containsText("打包后的正文");
             Assertions.assertThat(listQuery.get()).doesNotContain("uids=");
             Assertions.assertThat(errors).isEmpty();
@@ -129,7 +129,7 @@ class ReactPreviewPageTest {
             Assertions.assertThat(page.evaluate("window.retweetAttack")).isNull();
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
-            assertThat(page.getByLabel("当前日期")).hasText("2026-06-30");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.locator(".post-retweet-content")).containsText("打包转发原文");
             assertThat(page.locator(".post-content")).hasCount(0);
             assertThat(page.locator(".post-header")).containsText("第二位博主");
@@ -159,11 +159,19 @@ class ReactPreviewPageTest {
             assertThat(page.getByRole(AriaRole.LIST, new Page.GetByRoleOptions().setName("博主")))
                     .containsText("打包资源博主");
             assertThat(page.locator("article")).containsText("打包后的正文");
-            assertThat(page.getByLabel("当前范围")).hasText("全部博主");
-            assertThat(page.getByLabel("当前日期")).hasText("2026-08-05");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.getByLabel("博文总数")).hasText("共 4 条");
             assertThat(page.getByLabel("博文总数")).hasCSS("font-size", "12px");
             assertThat(page.getByLabel("博文总数")).hasCSS("font-variant-numeric", "tabular-nums");
+            assertThat(page.locator(".feed-header").getByLabel("博文总数")).isVisible();
+            assertThat(page.locator(".title-logo img")).isVisible();
+            Assertions.assertThat(page.locator(".title-logo img").evaluate("img => img.naturalWidth > 0")).isEqualTo(true);
+            assertThat(page.locator(".post-avatar")).hasText("打");
+            assertThat(page.locator(".post-card")).hasCSS("max-width", "720px");
+            assertThat(page.locator(".post-card")).hasCSS("box-shadow", "none");
+            assertThat(page.locator(".posts")).hasCSS("overflow-y", "auto");
+            assertThat(page.locator(".selected")).hasCount(0);
             assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("正式 post 页面")))
                     .hasAttribute("href", "/post/index.html");
             assertThat(page.locator("article time")).hasText("2026-08-05 08:30");

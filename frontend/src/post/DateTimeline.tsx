@@ -20,15 +20,15 @@ export default function DateTimeline({ months, date, onSelectDate }: {
       return <div key={year} className="year-group">
         <button className="navigation-row year-header" aria-label={`${year} 年，${count} 条`}
           aria-expanded={open} aria-controls={`months-${year}`} onClick={() => setOpenYears(toggle(openYears, year))}>
-          <span>{open ? '▾' : '▸'} {year} 年</span><span className="navigation-count">{count} 条</span>
+          <span>{year} 年</span><span className="navigation-count">{count} 条</span>
         </button>
-        <div id={`months-${year}`} hidden={!open}>
+        <div className="year-months" id={`months-${year}`} hidden={!open}>
           {yearMonths.map(month => {
             const monthOpen = openMonths.includes(month.month);
             return <div key={month.month} className="month-group">
               <button className="navigation-row month-header" aria-label={`${month.month}，${month.count} 条`}
                 aria-expanded={monthOpen} aria-controls={`days-${month.month}`} onClick={() => setOpenMonths(toggle(openMonths, month.month))}>
-                <span>{monthOpen ? '▾' : '▸'} {month.month.slice(5)} 月</span><span className="navigation-count">{month.count} 条</span>
+                <span>{month.month.slice(5)} 月</span><span className="navigation-count">{month.count} 条</span>
               </button>
               <div id={`days-${month.month}`} hidden={!monthOpen}>
                 {month.days.map(day => <button key={day.date} className="navigation-row date-item"
