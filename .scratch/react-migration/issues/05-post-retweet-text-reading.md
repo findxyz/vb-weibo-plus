@@ -4,7 +4,7 @@
 
 **Blocked by:** 04，博主与日期浏览导航，已完成。
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 日期：2026-10-14。
 
@@ -22,9 +22,9 @@
 
 ## Acceptance criteria
 
-- [ ] 内容完整：普通转发显示外层评论、原作者与原文；纯转发无空外层正文；缺失作者、空原文和无转发字段符合旧语义；卡片数量、总数和当前日期保持不变。
-- [ ] 安全一致：内外正文保留换行和安全链接，原作者按文本显示；转发中的脚本、危险链接、事件属性不可执行；清洗失败时原文安全降级，不影响卡片与导航。
-- [ ] 两种运行路径通过：纸感样式和独立滚动保持；开发浏览器与构建资源覆盖转发路径；旧 post／chat、普通正文及博主／日期导航保持通过，独立 JAR 能阅读真实接口返回的转发内容。
+- [x] 内容完整：普通转发显示外层评论、原作者与原文；纯转发无空外层正文；缺失作者、空原文和无转发字段符合旧语义；卡片数量、总数和当前日期保持不变。
+- [x] 安全一致：内外正文保留换行和安全链接，原作者按文本显示；转发中的脚本、危险链接、事件属性不可执行；清洗失败时原文安全降级，不影响卡片与导航。
+- [x] 两种运行路径通过：纸感样式和独立滚动保持；开发浏览器与构建资源覆盖转发路径；旧 post／chat、普通正文及博主／日期导航保持通过，独立 JAR 能阅读真实接口返回的转发内容。
 
 ## 实施与验证
 
@@ -41,3 +41,17 @@ frontend 中运行 npm ci、npm test、npm run typecheck 和 npm run build；已
 实现后保存提交与验收证据，更新 [演进地图](../PLAN.md)，由用户决定后续票。本票完成后仍处于阶段 2，post preview 继续保留。
 
 共同约束：[PRD.md](../PRD.md)。旧行为：[posts.js](../../../src/main/resources/static/post/posts.js)。接口类型：[RetweetView.java](../../../src/main/java/xyz/fz/weibo/domain/RetweetView.java)。设计：[DESIGN.md](../../../docs/design/DESIGN.md)。
+
+## 实施与验收证据
+
+日期：2026-10-14。实施提交：2a9abfd，验证提交：e850a42。
+
+- 普通转发先因缺少原文区域而失败，接入既有正文组件后通过；纯转发先因空外层正文容器未省略而失败，修正后通过。未新增依赖、查询接口或清洗器。
+- 前端最终 29 项真实 Chrome 检查通过，新增普通／纯转发、缺失作者与空原文、恶意原文及作者文本、安全降级；原 25 项默认阅读、导航、取消与热更新检查保持通过。选择性故障注入曾被 DOMPurify 内部吞掉，已改为在浏览器 DOMParser 不可用时验证内外正文的文本降级，不依赖清洗器内部调用次数。
+- npm ci、npm run typecheck、npm run build 通过。Maven 定向 package 通过：旧 post 37 项、chat 82 项、React 构建资源 3 项，共 122 项，零失败、错误或跳过。
+- 查看真实浏览器截图，转发便签保留 paper-tint、虚线边框、8px 圆角及 17px／1.55 原文。作者使用文本节点，原文沿用同一链接与清洗逻辑；卡片数量与后端 total 不变。
+- 独立 JAR 在临时 SQLite 中直接插入含 retweeted_json 的普通／纯转发 fixture，使用不可用 Credential、空采集群号和 localhost。真实 API、浏览器验证外层评论、原作者、原文、安全链接、恶意内容移除、纯转发省略空正文及博主／日期导航。4 个新旧 HTML 入口、14 条资源 MIME 检查通过，未出现浏览器错误或业务写请求；测试 Java 进程树已停止。
+- 对固定差异 983b467 到 e850a42 进行 code-review，Standards 0 项，Spec 0 项。没有为本票重复上一批全部后台检查。
+- 仓库外脚本为研究笔记目录的 react-retweet-jar-smoke.py 与 react-retweet-jar-smoke.mjs，构建日志为 react-retweet-package.log，冒烟证据保留在 C:/Users/fixyz/AppData/Local/Temp/react-retweet-jar-bizcfskd。生成文件不进入 Git。
+
+本票完成后仍处于阶段 2，尚未切换正式入口。转发图片／视频、查看器和其他完整卡片能力继续由后续票迁移。

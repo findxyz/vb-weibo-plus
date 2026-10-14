@@ -3,7 +3,8 @@ import { useState } from 'react';
 
 export type Blogger = { uid: number; screenName: string };
 export type Calendar = { months: { month: string; count: number; days: { date: string; count: number }[] }[] };
-export type Post = { mblogId: string; content: string; createdAt: number; blogger: Blogger | null };
+export type Retweet = { screenName: string | null; content: string | null };
+export type Post = { mblogId: string; content: string; createdAt: number; blogger: Blogger | null; retweeted?: Retweet | null };
 export type PostList = { items: Post[]; page: number; size: number; total: number };
 
 class QueryError extends Error {

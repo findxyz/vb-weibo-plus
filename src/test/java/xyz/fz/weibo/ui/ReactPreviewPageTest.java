@@ -52,11 +52,13 @@ class ReactPreviewPageTest {
         server.createContext("/post/list", exchange -> {
             listQuery.set(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8));
             if (listQuery.get().contains("uids=2")) {
+                String outerContent = listQuery.get().contains("start=2026-06-30") ? "" : "第二位博主的本地正文";
                 sendJson(exchange, """
                         {"items":[{"mblogId":"fixture-2","createdAt":1783643400000,
-                        "blogger":{"uid":2,"screenName":"第二位博主"},"content":"第二位博主的本地正文"}],
+                        "blogger":{"uid":2,"screenName":"第二位博主"},"content":"%s",
+                        "retweeted":{"screenName":"原作者","content":"<b>打包转发原文</b><br>第二行 https://example.com/retweet. <script>window.retweetAttack=1</script><svg onload='window.retweetAttack=2'></svg>"}}],
                         "page":1,"size":9999,"total":1}
-                        """);
+                        """.formatted(outerContent));
                 return;
             }
             sendJson(exchange, """
@@ -104,6 +106,33 @@ class ReactPreviewPageTest {
         if (browser != null) browser.close();
         if (playwright != null) playwright.close();
         if (server != null) server.stop(0);
+    }
+
+    @Test
+    void classpath_preview_reads_retweet_text_safely_and_omits_pure_retweet_outer_body() {
+        try (Page page = browser.newPage()) {
+            List<String> errors = new ArrayList<>();
+            page.onPageError(errors::add);
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator("article")).isVisible();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.locator(".post-retweet-author")).hasText("@原作者");
+            assertThat(page.locator(".post-retweet-content")).containsText("打包转发原文");
+            assertThat(page.locator(".post-retweet-content")).hasCSS("font-size", "17px");
+            assertThat(page.locator(".post-retweet-content script, .post-retweet-content svg, .post-retweet-content [onload]")).hasCount(0);
+            assertThat(page.locator(".post-retweet-content a")).hasAttribute("href", "https://example.com/retweet");
+            Assertions.assertThat(page.evaluate("window.retweetAttack")).isNull();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
+            assertThat(page.getByLabel("当前日期")).hasText("2026-06-30");
+            assertThat(page.locator(".post-retweet-content")).containsText("打包转发原文");
+            assertThat(page.locator(".post-content")).hasCount(0);
+            assertThat(page.locator(".post-header")).containsText("第二位博主");
+            assertThat(page.locator("article")).hasCount(1);
+            assertThat(page.getByLabel("博文总数")).hasText("共 1 条");
+            Assertions.assertThat(errors).isEmpty();
+        }
     }
 
     @Test
