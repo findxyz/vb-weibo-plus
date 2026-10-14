@@ -1,8 +1,51 @@
-# React 迁移阶段计划
+# React 迁移演进路线图与阶段计划
 
-日期：2026-10-13。
+最近更新：2026-10-14。
 分支：`codex/react-migration`。
 当前进度：任务 01 至 04 已完成，博主与日期浏览导航通过验收。post 与 chat 整页迁移尚未完成，后续票待细化和用户指定。
+
+## 总体演进路线图
+
+本文件是 React 改造的总地图，统一维护阶段状态、入口切换、源码归属和完成条件。每次发布或完成任务更新这里；具体任务与验收证据放在 issues 中，共同约束放在 PRD 中。文件的演进历史保存在 codex/react-migration 分支的 Git 提交中。
+
+```mermaid
+flowchart TD
+    A["起点：原生 JavaScript<br/>post 与 chat 均由 Spring Boot 提供"]
+    B["阶段 1：工程通路，已完成<br/>React / TypeScript / Vite<br/>开发代理与 Maven 同 JAR 发布"]
+    C["阶段 2：post 增量迁移，当前位置<br/>已完成默认阅读与博主／日期导航<br/>继续迁移完整阅读与交互"]
+    D["阶段 3：post 整页验收与切换<br/>React 接管 /post/index.html<br/>结束 post preview，旧 chat 继续使用"]
+    E["阶段 4：chat 增量迁移<br/>消息窗口与滚动，再迁移其他会话功能<br/>旧正式 chat 与 React preview 对照"]
+    F["阶段 5：chat 整页验收与收尾<br/>React 接管 /chat/index.html<br/>结束 chat preview，清理过渡依赖"]
+    A --> B --> C --> D --> E --> F
+    classDef complete fill:#e8f5e9,stroke:#388e3c
+    classDef current fill:#fff3cd,stroke:#b8860b,stroke-width:3px
+    class B complete
+    class C current
+```
+
+| 阶段 | 状态 | 页面入口与源码如何演进 | 进入下一阶段的条件 |
+| --- | --- | --- | --- |
+| 1，工程通路 | 已完成，任务 01、02 | 新增 frontend 工程和两个 React preview；旧 post／chat 保持正式入口；Vite 产物经 target 纳入 Spring Boot JAR | 开发代理、生成资源、打包与独立 JAR 加载通过 |
+| 2，post 增量迁移 | 进行中，任务 03、04 已完成 | React post 逐步接管阅读与交互；新旧页面使用同一后端与本地数据；部分纯工具暂时复用 static/shared | post 既有功能迁移完整，行为、纸感皮肤与生产资源验收通过 |
+| 3，post 切换 | 尚未开始 | React 入口改为 /post/index.html，结束 post preview；清理被替代的 post 专属代码；旧 chat 所需共享文件继续保留 | 正式 post 验收通过，旧 JAR 与对应提交可回退 |
+| 4，chat 增量迁移 | 尚未开始 | 在 React chat preview 迁移消息窗口、滚动和会话交互；正式 chat 继续使用旧实现 | chat 既有功能迁移完整，长列表、滚动、发送等行为与蓝色皮肤验收通过 |
+| 5，chat 切换与收尾 | 尚未开始 | React 入口改为 /chat/index.html，结束 chat preview；整理共享工具与素材归属，清理替代掉的旧实现 | 两个正式 React 入口和同 JAR 发布通过，旧源码依赖与临时入口清理完成 |
+
+### 当前位置与下一步
+
+现在位于阶段 2。已交付的是工程通路、post 默认阅读、博主单选、年／月／日导航、请求取消与恢复。
+post 还需迁移博主名称过滤、头像与认证信息、转发正文、完整图片／视频卡片、媒体查看器、搜索定位、博主管理、采集与扫码等既有能力。chat 目前只有 React 入口骨架，业务迁移在阶段 4。
+下一张候选票是转发正文阅读，目前尚未发布任务 05。其余工作按需要逐票细化，不能用单张票通过代替整页验收。
+
+### 共享工具与源码归属的演进
+
+当前 content.ts、PostFeed.tsx 仍复用旧 static/shared 中的 linkify.js、date.js。这是阶段 2 的过渡依赖，目的是保留既有链接与时间语义。
+阶段 3 清理 post 时，旧 chat 仍有共享工具的消费方，需要保留其可用性；共存期间维持单一逻辑来源，并验证新旧页面。
+在 chat 完成迁移、两页切换及最终清理过程中，将仍需使用的纯工具和素材整理到 frontend 内，清除 React 对旧页面源码目录的依赖。
+最终 frontend 维护两个页面入口、组件、样式与共用工具；手写源码保留在 frontend，构建产物只进入 target，Spring Boot 继续提供同源 API 和最终静态资源。
+整理源码归属时另设明确任务与验收，不在普通功能票中顺带移动或删除共享文件。
+
+post preview 在阶段 3 结束，chat preview 在阶段 5 结束，两页各自验收、各自切换。结束条件由完整功能验收决定，当前没有承诺固定日期。
 
 ## 执行方式
 
