@@ -106,17 +106,25 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
 });
 
 test('retweet_text_keeps_outer_comment_and_reads_original_author_and_safe_links', async ({ page }, testInfo) => {
-  posts.items[0].content = '外层评论';
+  posts.items[0].content = '外层评论 https://outer.example.com.';
   posts.items[0].retweeted = { screenName: '原作者', content: '<b>原文第一行</b>\n第二行<br>第三行 https://example.com. //@原文用户: 文本' };
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('article')).toHaveCount(1);
   await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
-  await expect(page.locator('.post-content')).toHaveText('外层评论');
+  await expect(page.locator('.post-content')).toHaveText('外层评论 https://outer.example.com.');
   const original = page.getByRole('complementary', { name: '转发正文', exact: true });
   await expect(original).toContainText('@原作者');
   await expect(original).toContainText('原文第一行');
   await expect(original.getByRole('link', { name: 'https://example.com' })).toHaveAttribute('href', 'https://example.com');
   await expect(original.getByRole('link', { name: '@原文用户' })).toHaveAttribute('href', 'https://weibo.com/n/原文用户');
+  for (const link of [page.locator('.post-content').getByRole('link'), original.getByRole('link', { name: 'https://example.com' })]) {
+    await page.mouse.move(0, 0);
+    await expect(link).toHaveCSS('text-decoration-line', 'none');
+    await link.hover();
+    await expect(link).toHaveCSS('text-decoration-line', 'underline');
+    await expect(link).toHaveCSS('text-decoration-style', 'solid');
+  }
+  await page.mouse.move(0, 0);
   await expect(original.locator('.post-retweet-content')).toHaveCSS('white-space', 'pre-wrap');
   await expect(original.locator('.post-retweet-content')).toHaveCSS('font-size', '17px');
   await expect(page.getByLabel('当前日期')).toHaveText('2026-08-05');

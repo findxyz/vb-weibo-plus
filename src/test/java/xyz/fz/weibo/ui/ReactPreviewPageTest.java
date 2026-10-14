@@ -122,6 +122,10 @@ class ReactPreviewPageTest {
             assertThat(page.locator(".post-retweet-content")).hasCSS("font-size", "17px");
             assertThat(page.locator(".post-retweet-content script, .post-retweet-content svg, .post-retweet-content [onload]")).hasCount(0);
             assertThat(page.locator(".post-retweet-content a")).hasAttribute("href", "https://example.com/retweet");
+            assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-line", "none");
+            page.locator(".post-retweet-content a").hover();
+            assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-line", "underline");
+            assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-style", "solid");
             Assertions.assertThat(page.evaluate("window.retweetAttack")).isNull();
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
