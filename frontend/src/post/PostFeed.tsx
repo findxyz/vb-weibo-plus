@@ -32,6 +32,7 @@ export default function PostFeed({ result }: { result: PostList }) {
           {post.retweeted && <aside className="post-retweet" aria-label="转发正文">
             <strong className="post-retweet-author">@{post.retweeted.screenName || '未知用户'}</strong>
             <PostContent content={post.retweeted.content ?? ''} className="post-retweet-content" />
+            {post.retweeted.pics && <PostImages pics={post.retweeted.pics} retweeted />}
           </aside>}
         </div>
       </article>;

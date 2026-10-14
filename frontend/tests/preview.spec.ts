@@ -2,7 +2,7 @@ import { createServer as createHttpServer, type Server } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
-import type { Blogger, PostList } from '../src/post/queries';
+import type { Blogger, PostImage, PostList } from '../src/post/queries';
 
 let backend: Server;
 let vite: ViteDevServer;
@@ -22,6 +22,12 @@ let postsByUid: Record<string, typeof posts>;
 let holdUid: string | undefined;
 let pageErrors: string[];
 let writeRequests: string[];
+
+function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
+  return { pid, thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720,
+    thumbnailUrl: `/post/image?mblogId=local-1&pid=${pid}&variant=thumbnail`,
+    originalUrl: `/post/image?mblogId=local-1&pid=${pid}&variant=original`, ...overrides };
+}
 
 test.beforeAll(async () => {
   backend = createHttpServer((request, response) => {
@@ -157,6 +163,49 @@ test('post_images_use_thumbnail_grid_and_original_fallback_without_opening_a_vie
     'GET /post/image?mblogId=local-1&pid=p1&variant=thumbnail',
     'GET /post/image?mblogId=local-1&pid=p2&variant=original',
   ]);
+});
+
+test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('single', { thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180 })];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const image = page.getByRole('img', { name: '微博图片', exact: true });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(page.locator('.post-pics.one-image')).toHaveCSS('grid-template-columns', '320px');
+  await expect(image).toHaveCSS('object-fit', 'contain');
+  await expect(image).toHaveCSS('max-height', '320px');
+  await expect(image).toHaveAttribute('width', '300');
+  await expect(image).toHaveAttribute('height', '180');
+  const rect = (await image.boundingBox())!;
+  expect(rect.width / rect.height).toBeCloseTo(300 / 180, 2);
+});
+
+test('retweet_images_follow_original_text_and_keep_the_small_grid_for_pure_retweets', async ({ page }, testInfo) => {
+  posts.items[0].content = '';
+  posts.items[0].retweeted = { screenName: '原作者', content: '转发原文', pics: [imageFixture('r1'), imageFixture('r2')] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const images = page.getByRole('img', { name: '转发微博图片', exact: true });
+  await expect(images).toHaveCount(2);
+  await expect.poll(() => images.first().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('width', '100px');
+  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('height', '100px');
+  await expect(page.locator('.post-retweet-pics')).toHaveCSS('gap', '4px');
+  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('background-image', /repeating-linear-gradient/);
+  await expect(images.first()).not.toHaveAttribute('width');
+  await expect(page.locator('.post-card.pure-retweet')).toBeVisible();
+  await expect(page.locator('.post-avatar')).toHaveCount(0);
+  const text = (await page.locator('.post-retweet-content').boundingBox())!;
+  expect((await images.first().boundingBox())!.y).toBeGreaterThan(text.y + text.height);
+  await page.screenshot({ path: testInfo.outputPath('pure-retweet-images.png') });
+  posts.items[0].content = '外层评论';
+  posts.items[0].pics = [imageFixture('outer')];
+  posts.items[0].retweeted.pics = [imageFixture('r1')];
+  await page.reload();
+  await expect(page.getByRole('img', { name: '微博图片', exact: true })).toHaveCount(1);
+  await expect(images).toHaveCount(1);
+  await expect(page.locator('.post-retweet-pic')).toHaveCSS('width', '100px');
+  await expect(page.locator('.post-avatar')).toBeVisible();
+  await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
 });
 
 test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', async ({ page }) => {
