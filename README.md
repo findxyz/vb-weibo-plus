@@ -111,7 +111,7 @@ npm run dev
 
 开发查询使用相对路径 `GET /post/bloggers`、`GET /post/calendar` 和 `GET /post/list`，Vite 将这三个精确 API 路径代理到 `http://127.0.0.1:18080`，HTML 和模块资源由 Vite 提供。后端使用其他端口时，可以设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
 
-post 预览支持博主与日期导航，尚不支持博主名称过滤、搜索、完整媒体与转发展示、扫码和博主管理。每次点击博主会重新读取该范围日期并回到最新有效日；日列表加载期间拒绝日期切换，博主仍可切换；加载完成后再点同日会重新读取。列表沿用 `page=1`、`size=9999`，起止时间为所选日期的 `00:00:00` 与 `23:59:59`，由后端按 `Asia/Shanghai` 解释；页面总数显示后端 `total`。单博主的日期查询使用 uid，列表使用 uids。普通查询超时 15 秒，当日列表超时 30 秒，失败时保留后端消息；列表重试只重新读取当前博主的当日列表，不重载博主与日期。预览不触发采集，不启动定时 View Refresh。
+post 预览支持博主与日期导航、普通与纯转发的原作者和正文阅读，尚不支持博主名称过滤、搜索、完整媒体展示、扫码和博主管理。每次点击博主会重新读取该范围日期并回到最新有效日；日列表加载期间拒绝日期切换，博主仍可切换；加载完成后再点同日会重新读取。列表沿用 `page=1`、`size=9999`，起止时间为所选日期的 `00:00:00` 与 `23:59:59`，由后端按 `Asia/Shanghai` 解释；页面总数显示后端 `total`。单博主的日期查询使用 uid，列表使用 uids。普通查询超时 15 秒，当日列表超时 30 秒，失败时保留后端消息；列表重试只重新读取当前博主的当日列表，不重载博主与日期。预览不触发采集，不启动定时 View Refresh。
 
 查询依赖与请求清理遵循 TanStack Query 的[串行查询](https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries)与[查询取消](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation)。正文经 [DOMPurify](https://github.com/cure53/DOMPurify) 清洗后呈现，链接化与上海时间复用现有共享原语；清洗失败时通过 React 文本节点安全降级。浏览器测试覆盖恶意富文本、后端错误、局部重试、空状态、旧响应隔离与卸载取消。导航查询按照[查询键](https://tanstack.com/query/latest/docs/framework/react/guides/query-keys)隔离博主、日期与每次主动范围选择；日期分组按 React 的[状态重置规则](https://react.dev/learn/preserving-and-resetting-state#resetting-state-with-a-key)，在新范围上重新展开默认日期。
 
