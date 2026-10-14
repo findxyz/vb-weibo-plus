@@ -22,6 +22,8 @@ let postsByUid: Record<string, typeof posts>;
 let holdUid: string | undefined;
 let pageErrors: string[];
 let writeRequests: string[];
+let holdOriginalPid: string | undefined;
+let releaseOriginal: (() => void) | undefined;
 
 function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
   return { pid, thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720,
@@ -43,9 +45,16 @@ test.beforeAll(async () => {
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
     if (path === '/post/image') {
-      const broken = url.searchParams.get('pid') === 'broken';
-      response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
-      response.end(broken ? 'Missing image' : '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#f9d27c"/></svg>');
+      const pid = url.searchParams.get('pid');
+      const original = url.searchParams.get('variant') === 'original';
+      const broken = pid === 'broken' || (pid === 'broken-original' && original);
+      const send = () => {
+        if (releaseOriginal === send) releaseOriginal = undefined;
+        response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
+        response.end(broken ? 'Missing image' : '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#f9d27c"/></svg>');
+      };
+      if (original && pid === holdOriginalPid) releaseOriginal = send;
+      else send();
       return;
     }
     const uid = url.searchParams.get('uid') ?? url.searchParams.get('uids') ?? 'all';
@@ -95,6 +104,8 @@ test.beforeEach(({ page }) => {
   posts = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
   pageErrors = [];
   writeRequests = [];
+  holdOriginalPid = undefined;
+  releaseOriginal = undefined;
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('request', (request) => {
     if (!['GET', 'HEAD'].includes(request.method())) writeRequests.push(`${request.method()} ${request.url()}`);
@@ -202,7 +213,9 @@ test('image_viewer_cycles_with_buttons_and_arrows_and_keeps_retweet_groups_separ
   await expect(counter).toHaveText('2 / 3');
   await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('p2').originalUrl!);
   expect(requests.filter(value => value.includes('variant=original'))).toEqual(['GET ' + imageFixture('p2').originalUrl]);
-  await expect(page.getByRole('button', { name: '全部博主', exact: true })).toHaveCount(0);
+  expect(await viewer.evaluate(element => element.matches(':modal'))).toBe(true);
+  await page.locator('.all-bloggers').evaluate(element => (element as HTMLElement).focus());
+  await expect.poll(() => viewer.evaluate(element => element.contains(document.activeElement))).toBe(true);
   await page.keyboard.press('Tab');
   await expect.poll(() => viewer.evaluate(element => element.contains(document.activeElement))).toBe(true);
   await page.keyboard.press('Shift+Tab');
@@ -228,6 +241,146 @@ test('image_viewer_cycles_with_buttons_and_arrows_and_keeps_retweet_groups_separ
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
 });
+
+test('image_viewer_isolates_late_failure_and_can_navigate_or_close_after_an_error', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('broken-original'), imageFixture('fast')];
+  holdOriginalPid = 'broken-original';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  try {
+    await expect(viewer.getByRole('status')).toHaveText('加载中…');
+    await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
+    await page.keyboard.press('ArrowRight');
+    await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
+    releaseOriginal?.();
+    await expect(viewer.getByRole('status')).toHaveText('');
+    await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('fast').originalUrl!);
+    await page.keyboard.press('ArrowLeft');
+    await expect(viewer.getByRole('status')).toHaveText('加载中…');
+    await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
+    releaseOriginal?.();
+    await expect(viewer.getByRole('status')).toHaveText('图片加载失败');
+    await expect(viewer.getByRole('img', { name: '微博原图' })).toHaveCount(0);
+    await page.keyboard.press('ArrowRight');
+    await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    holdOriginalPid = undefined;
+    await page.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
+    await expect(viewer.getByRole('status')).toHaveText('图片加载失败');
+    await page.keyboard.press('Escape');
+    await expect(viewer).toHaveCount(0);
+  } finally {
+    holdOriginalPid = undefined;
+    releaseOriginal?.();
+  }
+});
+
+test('image_viewer_closes_pending_loads_and_unmounts_without_leaving_a_modal', async ({ page }) => {
+  const component = new URL('../src/post/PostPreview.tsx', import.meta.url);
+  const originalComponent = await readFile(component, 'utf8');
+  posts.items[0].pics = [imageFixture('slow'), imageFixture('fast')];
+  holdOriginalPid = 'slow';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  const opener = page.getByRole('button', { name: '查看微博图片 1', exact: true });
+  try {
+    await opener.click();
+    await expect(viewer.getByRole('status')).toHaveText('加载中…');
+    await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(viewer).toHaveCount(0);
+    await expect(opener).toBeFocused();
+    releaseOriginal?.();
+    holdOriginalPid = undefined;
+    await page.getByRole('button', { name: '查看微博图片 2', exact: true }).click();
+    await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
+    await writeFile(component, "export default function PostPreview() { return <h1>图片阅读已退出</h1>; }");
+    await expect(page.getByRole('heading', { name: '图片阅读已退出' })).toBeVisible();
+    expect(await page.locator('dialog:modal').count()).toBe(0);
+    await page.keyboard.press('ArrowRight');
+    await page.waitForLoadState('networkidle');
+  } finally {
+    holdOriginalPid = undefined;
+    releaseOriginal?.();
+    await writeFile(component, originalComponent);
+  }
+  await expect(page.getByRole('img', { name: '微博图片', exact: true })).toHaveCount(2);
+  await expect(viewer).toHaveCount(0);
+  const before = requests.filter(value => value.includes('variant=original')).length;
+  await page.keyboard.press('ArrowRight');
+  expect(requests.filter(value => value.includes('variant=original'))).toHaveLength(before);
+  await opener.focus();
+  await page.keyboard.press('Space');
+  await expect(viewer.locator('.viewer-counter')).toHaveText('1 / 2');
+  await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('slow').originalUrl!);
+  await page.keyboard.press('Escape');
+});
+
+test('image_viewer_late_success_cannot_replace_the_current_picture', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('slow'), imageFixture('fast')];
+  holdOriginalPid = 'slow';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  try {
+    await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
+    await page.keyboard.press('ArrowRight');
+    await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
+    releaseOriginal?.();
+    await expect(viewer.getByRole('status')).toHaveText('');
+    await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('fast').originalUrl!);
+    holdOriginalPid = undefined;
+    await page.keyboard.press('ArrowLeft');
+    await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
+    await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('slow').originalUrl!);
+    await page.keyboard.press('Escape');
+  } finally {
+    holdOriginalPid = undefined;
+    releaseOriginal?.();
+  }
+});
+
+test('image_viewer_keeps_duplicate_and_hidden_entries_in_gallery_order', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('broken'), imageFixture('same'), imageFixture('same')];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-pic[hidden]')).toHaveCount(1);
+  await page.getByRole('button', { name: '查看微博图片 3', exact: true }).click();
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  await expect(viewer.locator('.viewer-counter')).toHaveText('3 / 3');
+  await page.keyboard.press('ArrowRight');
+  await expect(viewer.getByRole('status')).toHaveText('图片加载失败');
+  await expect(viewer.locator('.viewer-counter')).toHaveText('1 / 3');
+  await page.keyboard.press('ArrowRight');
+  await expect(viewer.locator('.viewer-counter')).toHaveText('2 / 3');
+  await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
+  await page.keyboard.press('Escape');
+});
+
+for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 }]) {
+  test(`image_viewer_matches_legacy_at_${viewport.width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await serveLegacy(page);
+    posts.items[0].pics = [imageFixture('v1'), imageFixture('v2')];
+    const measure = () => page.locator('.image-viewer, .image-viewer img, .viewer-prev, .viewer-next, .viewer-counter').evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, border: style.borderStyle === 'none' ? 'none' : style.border, background: style.background, font: style.font, objectFit: style.objectFit, shadow: style.boxShadow };
+    }));
+    await page.goto(`${baseUrl}legacy/post/index.html`);
+    await expect(page.locator('.post-pic')).toHaveCount(2);
+    await page.locator('.post-pic').last().click();
+    await expect(page.locator('.image-viewer img')).toBeVisible();
+    const legacy = await measure();
+    await page.screenshot({ path: testInfo.outputPath('viewer-legacy.png') });
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.getByRole('button', { name: '查看微博图片 2', exact: true }).click();
+    await expect(page.locator('.image-viewer img')).toBeVisible();
+    expect(await measure()).toEqual(legacy);
+    await page.screenshot({ path: testInfo.outputPath('viewer-react.png') });
+    await page.keyboard.press('Escape');
+  });
+}
 
 test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', async ({ page }) => {
   posts.items[0].pics = [imageFixture('single', { thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180 })];
@@ -322,6 +475,14 @@ test('long_image_feed_loads_thumbnails_as_it_scrolls_without_moving_navigation',
   expect((await date.boundingBox())!.y).toBe(dateTop);
   expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+  await last.click();
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
+  const readingPosition = await page.locator('.posts').evaluate(element => element.scrollTop);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: '查看微博图片 1', exact: true }).last()).toBeFocused();
+  expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBe(readingPosition);
+  expect((await date.boundingBox())!.y).toBe(dateTop);
 });
 
 for (const mode of ['single', 'multiple', 'retweet'] as const) {

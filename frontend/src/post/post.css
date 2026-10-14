@@ -99,6 +99,8 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 120px)); gap: 6px; margin-top: 4px; }
 .post-pic { position: relative; display: block; width: 120px; height: 120px; padding: 0; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper-tint); }
 .post-pic img, .post-retweet-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.post-pic img { transition: filter .15s ease; }
+.post-pic:hover img { filter: brightness(.9) contrast(.95); }
 .post-pic[hidden], .post-retweet-pic[hidden] { display: none; }
 .post-pics.one-image { grid-template-columns: minmax(0, 320px); }
 .post-pics.one-image .post-pic { width: fit-content; height: auto; max-width: 320px; max-height: 320px; }

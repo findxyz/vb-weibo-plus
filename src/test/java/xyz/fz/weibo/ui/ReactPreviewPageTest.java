@@ -121,6 +121,41 @@ class ReactPreviewPageTest {
     }
 
     @Test
+    void classpath_preview_views_originals_cycles_and_restores_focus_without_navigation() {
+        try (Page page = browser.newPage()) {
+            List<String> imageRequests = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/image?")) imageRequests.add(request.url());
+            });
+            page.onPageError(errors::add);
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-pic")).hasCount(2);
+            Assertions.assertThat(imageRequests).noneMatch(url -> url.contains("variant=original"));
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("查看微博图片 1").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.DIALOG, new Page.GetByRoleOptions().setName("查看原图"))).isVisible();
+            assertThat(page.locator(".viewer-counter")).hasText("1 / 2");
+            assertThat(page.locator(".image-viewer img")).hasAttribute("src", "/post/image?mblogId=fixture-1&pid=p1&variant=original");
+            page.waitForFunction("document.querySelector('.image-viewer img').naturalWidth === 300");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("下一张")).click();
+            assertThat(page.locator(".viewer-counter")).hasText("2 / 2");
+            assertThat(page.locator(".image-viewer img")).hasAttribute("src", "/post/image?mblogId=fixture-1&pid=p2&variant=thumbnail");
+            page.keyboard().press("ArrowRight");
+            assertThat(page.locator(".viewer-counter")).hasText("1 / 2");
+            page.keyboard().press("Escape");
+            assertThat(page.locator(".image-viewer")).hasCount(0);
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("查看微博图片 1").setExact(true))).isFocused();
+            Assertions.assertThat(page.url()).isEqualTo(baseUrl + "/preview/post/index.html");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("查看转发微博图片 1").setExact(true)).click();
+            assertThat(page.locator(".image-viewer img")).hasAttribute("src", "/post/image?mblogId=fixture-2&pid=r1&variant=original");
+            assertThat(page.locator(".viewer-counter")).hasCount(0);
+            page.keyboard().press("Escape");
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
     void classpath_preview_reads_thumbnail_images_and_hides_failed_cells() {
         try (Page page = browser.newPage()) {
             List<String> imageRequests = new ArrayList<>();

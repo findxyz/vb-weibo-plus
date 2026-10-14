@@ -1,10 +1,10 @@
+import { useState } from 'react';
 import { sanitizedContent } from './content';
 import { formatDate } from '../../../src/main/resources/static/shared/date.js';
 import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import PostImages from './PostImages';
 import ImageViewer from './ImageViewer';
-import { useState } from 'react';
 
 function PostContent({ content, className = 'post-content' }: { content: string; className?: string }) {
   try {

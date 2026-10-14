@@ -26,11 +26,12 @@ export default function ImageViewer({ images, initialIndex, onClose }: { images:
       }
     }}
     onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+    {/* Each index owns its load state; late events stay with the discarded image. */}
     <ViewerImage key={index} src={images[index]} />
     {images.length > 1 && <>
       <button type="button" className="viewer-prev" aria-label="上一张" onClick={() => move(-1)}>‹</button>
       <button type="button" className="viewer-next" aria-label="下一张" onClick={() => move(1)}>›</button>
-      <span className="viewer-counter">{index + 1} / {images.length}</span>
+      <span className="viewer-counter">{`${index + 1} / ${images.length}`}</span>
     </>}
   </dialog>;
 }
