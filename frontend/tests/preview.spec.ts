@@ -1,8 +1,8 @@
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
-import type { Blogger, PostList } from '../src/post/queries';
+import type { Blogger, PostImage, PostList } from '../src/post/queries';
 
 let backend: Server;
 let vite: ViteDevServer;
@@ -23,11 +23,31 @@ let holdUid: string | undefined;
 let pageErrors: string[];
 let writeRequests: string[];
 
+function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
+  return { pid, thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720,
+    thumbnailUrl: `/post/image?mblogId=local-1&pid=${pid}&variant=thumbnail`,
+    originalUrl: `/post/image?mblogId=local-1&pid=${pid}&variant=original`, ...overrides };
+}
+
+async function serveLegacy(page: Page) {
+  await page.route('**/legacy/**', async route => {
+    const path = new URL(route.request().url()).pathname.slice('/legacy/'.length);
+    const body = await readFile(new URL(`../../src/main/resources/static/${path}`, import.meta.url));
+    await route.fulfill({ body, contentType: path.endsWith('.css') ? 'text/css' : path.endsWith('.js') ? 'text/javascript' : path.endsWith('.svg') ? 'image/svg+xml' : 'text/html' });
+  });
+}
+
 test.beforeAll(async () => {
   backend = createHttpServer((request, response) => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/post/image') {
+      const broken = url.searchParams.get('pid') === 'broken';
+      response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
+      response.end(broken ? 'Missing image' : '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#f9d27c"/></svg>');
+      return;
+    }
     const uid = url.searchParams.get('uid') ?? url.searchParams.get('uids') ?? 'all';
     if (path === '/post/index.html') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
@@ -89,11 +109,7 @@ test.afterEach(() => {
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
   test(`post_visual_alignment_matches_legacy_reading_at_${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    await page.route('**/legacy/**', async route => {
-      const path = new URL(route.request().url()).pathname.slice('/legacy/'.length);
-      const body = await readFile(new URL(`../../src/main/resources/static/${path}`, import.meta.url));
-      await route.fulfill({ body, contentType: path.endsWith('.css') ? 'text/css' : path.endsWith('.js') ? 'text/javascript' : path.endsWith('.svg') ? 'image/svg+xml' : 'text/html' });
-    });
+    await serveLegacy(page);
     const selectors = ['.titlebar', '.bloggers-heading', '.dates-heading', '.feed-header', '.year-header', '.month-header', '.date-item', '.blogger-row', '.post-card', '.post-avatar', '.post-header', '.post-content'];
     const measure = () => page.evaluate(selectors => selectors.map(selector => {
       const element = document.querySelector(selector)!;
@@ -124,6 +140,154 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await expect(page.locator('.selected')).toHaveCount(0);
     await expect(page.getByRole('link', { name: '正式 post 页面' })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
+  });
+}
+
+test('post_images_use_thumbnail_grid_and_original_fallback_without_opening_a_viewer', async ({ page }) => {
+  posts.items[0].pics = [
+    { pid: 'p1', thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720, thumbnailUrl: '/post/image?mblogId=local-1&pid=p1&variant=thumbnail', originalUrl: '/post/image?mblogId=local-1&pid=p1&variant=original' },
+    { pid: 'p2', thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180, thumbnailUrl: '', originalUrl: '/post/image?mblogId=local-1&pid=p2&variant=original' },
+  ];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const images = page.getByRole('img', { name: '微博图片', exact: true });
+  await expect(images).toHaveCount(2);
+  await expect(images.first()).toHaveAttribute('src', '/post/image?mblogId=local-1&pid=p1&variant=thumbnail');
+  await expect(images.last()).toHaveAttribute('src', '/post/image?mblogId=local-1&pid=p2&variant=original');
+  await expect.poll(() => images.first().evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(page.locator('.post-pic').first()).toHaveCSS('width', '120px');
+  await expect(page.locator('.post-pic').first()).toHaveCSS('height', '120px');
+  await expect(page.locator('.post-pics')).toHaveCSS('gap', '6px');
+  await expect(images.first()).toHaveAttribute('loading', 'lazy');
+  await expect(images.first()).toHaveAttribute('decoding', 'async');
+  await expect(images.first()).toHaveAttribute('width', '300');
+  await expect(page.locator('.post-pic a, a.post-pic')).toHaveCount(0);
+  await images.first().click();
+  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(requests.filter(value => value.startsWith('GET /post/image'))).toEqual([
+    'GET /post/image?mblogId=local-1&pid=p1&variant=thumbnail',
+    'GET /post/image?mblogId=local-1&pid=p2&variant=original',
+  ]);
+});
+
+test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('single', { thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180 })];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const image = page.getByRole('img', { name: '微博图片', exact: true });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(page.locator('.post-pics.one-image')).toHaveCSS('grid-template-columns', '320px');
+  await expect(image).toHaveCSS('object-fit', 'contain');
+  await expect(image).toHaveCSS('max-height', '320px');
+  await expect(image).toHaveAttribute('width', '300');
+  await expect(image).toHaveAttribute('height', '180');
+  const rect = (await image.boundingBox())!;
+  expect(rect.width / rect.height).toBeCloseTo(300 / 180, 2);
+});
+
+test('retweet_images_follow_original_text_and_keep_the_small_grid_for_pure_retweets', async ({ page }, testInfo) => {
+  posts.items[0].content = '';
+  posts.items[0].retweeted = { screenName: '原作者', content: '转发原文', pics: [imageFixture('r1'), imageFixture('r2')] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const images = page.getByRole('img', { name: '转发微博图片', exact: true });
+  await expect(images).toHaveCount(2);
+  await expect.poll(() => images.first().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('width', '100px');
+  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('height', '100px');
+  await expect(page.locator('.post-retweet-pics')).toHaveCSS('gap', '4px');
+  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('background-image', /repeating-linear-gradient/);
+  await expect(images.first()).not.toHaveAttribute('width');
+  await expect(page.locator('.post-card.pure-retweet')).toBeVisible();
+  await expect(page.locator('.post-avatar')).toHaveCount(0);
+  const text = (await page.locator('.post-retweet-content').boundingBox())!;
+  expect((await images.first().boundingBox())!.y).toBeGreaterThan(text.y + text.height);
+  await page.screenshot({ path: testInfo.outputPath('pure-retweet-images.png') });
+  posts.items[0].content = '外层评论';
+  posts.items[0].pics = [imageFixture('outer')];
+  posts.items[0].retweeted.pics = [imageFixture('r1')];
+  await page.reload();
+  await expect(page.getByRole('img', { name: '微博图片', exact: true })).toHaveCount(1);
+  await expect(images).toHaveCount(1);
+  await expect(page.locator('.post-retweet-pic')).toHaveCSS('width', '100px');
+  await expect(page.locator('.post-avatar')).toBeVisible();
+  await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
+});
+
+test('failed_and_unsafe_images_do_not_break_other_images_or_pure_retweet_classification', async ({ page }) => {
+  const invalid = [imageFixture('missing', { thumbnailUrl: null, originalUrl: null }),
+    imageFixture('unsafe', { thumbnailUrl: 'javascript:window.imageAttack=1', originalUrl: 'data:image/svg+xml,<svg onload="window.imageAttack=2"/>' }),
+    imageFixture('other-endpoint', { thumbnailUrl: '/post/bloggers', originalUrl: null })];
+  posts.items[0].content = '';
+  posts.items[0].pics = [imageFixture('broken'), imageFixture('good'), imageFixture('good'), ...invalid,
+    imageFixture('fallback', { thumbnailUrl: 'javascript:window.imageAttack=3', originalUrl: `${process.env.API_PROXY_TARGET}/post/image?mblogId=local-1&pid=fallback&variant=original` })];
+  posts.items[0].retweeted = { screenName: '原作者', content: '原文仍可读', pics: [imageFixture('broken'), imageFixture('good'), ...invalid] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-pic[hidden]')).toHaveCount(1);
+  await expect(page.locator('.post-retweet-pic[hidden]')).toHaveCount(1);
+  await expect(page.locator('.post-pic[hidden]')).toHaveCSS('display', 'none');
+  await expect(page.getByRole('img', { name: '微博图片', exact: true })).toHaveCount(3);
+  await expect(page.getByRole('img', { name: '转发微博图片', exact: true })).toHaveCount(1);
+  await expect(page.locator('.post-retweet-content')).toHaveText('原文仍可读');
+  await expect(page.locator('.post-avatar')).toBeVisible();
+  await expect(page.locator('.pure-retweet')).toHaveCount(0);
+  await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
+  expect(await page.evaluate(() => (window as Window & { imageAttack?: number }).imageAttack)).toBeUndefined();
+  expect(requests.filter(value => value.startsWith('GET /post/image') && value.includes('pid=broken'))).toHaveLength(1);
+  await page.getByRole('button', { name: '全部博主', exact: true }).click();
+  await expect(page.locator('.post-retweet-content')).toHaveText('原文仍可读');
+  await expect(page.locator('.post-pic[hidden]')).toHaveCount(1);
+  posts.items[0].pics = invalid;
+  posts.items[0].retweeted.pics = null;
+  await page.reload();
+  await expect(page.locator('.post-avatar')).toBeVisible();
+  await expect(page.locator('.post-pics, .post-retweet-pics')).toHaveCount(0);
+  posts.items[0].pics = null;
+  await page.reload();
+  await expect(page.locator('.pure-retweet')).toBeVisible();
+  await expect(page.locator('.post-retweet-content')).toHaveText('原文仍可读');
+});
+
+test('long_image_feed_loads_thumbnails_as_it_scrolls_without_moving_navigation', async ({ page }) => {
+  posts.items = Array.from({ length: 40 }, (_, index) => ({ ...posts.items[0], mblogId: `lazy-${index}`, pics: [imageFixture(`lazy-${index}`)] }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const first = page.getByRole('img', { name: '微博图片', exact: true }).first();
+  const last = page.getByRole('img', { name: '微博图片', exact: true }).last();
+  await expect.poll(() => first.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  expect(requests.some(value => value.includes('pid=lazy-39'))).toBe(false);
+  const date = page.getByRole('button', { name: '2026-08-05', exact: true });
+  const dateTop = (await date.boundingBox())!.y;
+  await last.scrollIntoViewIfNeeded();
+  await expect.poll(() => last.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  expect(requests.some(value => value.includes('pid=lazy-39'))).toBe(true);
+  expect(requests.some(value => value.includes('variant=original'))).toBe(false);
+  expect((await date.boundingBox())!.y).toBe(dateTop);
+  expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+});
+
+for (const mode of ['single', 'multiple', 'retweet'] as const) {
+  test(`image_layout_matches_legacy_${mode}`, async ({ page }, testInfo) => {
+    await serveLegacy(page);
+    const pics = [imageFixture('same-1'), imageFixture('same-2'), imageFixture('same-3'), imageFixture('same-4')];
+    if (mode === 'retweet') {
+      posts.items[0].content = '';
+      posts.items[0].retweeted = { screenName: '原作者', content: '图片之前的原文', pics };
+    } else posts.items[0].pics = mode === 'single' ? pics.slice(0, 1) : pics;
+    const selector = mode === 'retweet' ? '.post-retweet-pics, .post-retweet-pic, .post-retweet-pic img' : '.post-pics, .post-pic, .post-pic img';
+    const measure = () => page.locator(selector).evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, background: style.background, border: style.borderStyle === 'none' ? 'none' : style.border, gap: style.gap, objectFit: style.objectFit };
+    }));
+    await page.goto(`${baseUrl}legacy/post/index.html`);
+    await expect(page.locator(selector).locator('img').first()).toHaveCount(1);
+    await expect.poll(() => page.locator('article img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+    const legacy = await measure();
+    await page.screenshot({ path: testInfo.outputPath('legacy.png') });
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect.poll(() => page.locator('article img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+    expect(await measure()).toEqual(legacy);
+    await page.screenshot({ path: testInfo.outputPath('react-images.png') });
   });
 }
 
@@ -160,7 +324,7 @@ test('pure_retweet_layout_waits_for_absence_of_outer_media', async ({ page }) =>
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.locator('.post-card.pure-retweet')).toBeVisible();
   await expect(page.locator('.post-avatar')).toHaveCount(0);
-  posts.items[0].pics = [{}];
+  posts.items[0].pics = [{ pid: 'unavailable' }];
   await page.reload();
   await expect(page.locator('.post-avatar')).toBeVisible();
   await expect(page.locator('.pure-retweet')).toHaveCount(0);
@@ -712,12 +876,15 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain(mime);
   }
-  for (const path of ['post/index.html', 'post/bloggers.js', 'chat/index.html']) {
+  for (const path of ['post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover']) {
     expect((await request.get(`${baseUrl}${path}`)).status()).toBe(404);
   }
   const response = await request.get(`${baseUrl}post/bloggers?probe=1`);
   expect(await response.json()).toEqual(bloggers);
-  expect(requests).toEqual(['GET /post/bloggers?probe=1']);
+  const image = await request.get(`${baseUrl}post/image?mblogId=local-1&pid=probe&variant=thumbnail`);
+  expect(image.status()).toBe(200);
+  expect(image.headers()['content-type']).toBe('image/svg+xml');
+  expect(requests).toEqual(['GET /post/bloggers?probe=1', 'GET /post/image?mblogId=local-1&pid=probe&variant=thumbnail']);
 });
 
 test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }) => {

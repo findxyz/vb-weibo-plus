@@ -4,6 +4,7 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -56,7 +57,8 @@ class ReactPreviewPageTest {
                 sendJson(exchange, """
                         {"items":[{"mblogId":"fixture-2","createdAt":1783643400000,
                         "blogger":{"uid":2,"screenName":"第二位博主"},"content":"%s",
-                        "retweeted":{"screenName":"原作者","content":"<b>打包转发原文</b><br>第二行 https://example.com/retweet. <script>window.retweetAttack=1</script><svg onload='window.retweetAttack=2'></svg>"}}],
+                        "retweeted":{"screenName":"原作者","content":"<b>打包转发原文</b><br>第二行 https://example.com/retweet. <script>window.retweetAttack=1</script><svg onload='window.retweetAttack=2'></svg>",
+                        "pics":[{"pid":"r1","thumbnailUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=thumbnail","originalUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=original"}]}}],
                         "page":1,"size":9999,"total":1}
                         """.formatted(outerContent));
                 return;
@@ -64,9 +66,19 @@ class ReactPreviewPageTest {
             sendJson(exchange, """
                     {"items":[{"mblogId":"fixture-1","createdAt":1785889800000,
                     "blogger":{"uid":1,"screenName":"打包资源博主"},
-                    "content":"<b>打包后的正文</b><br>第二行 https://example.com. <a href='/n/用户'>用户</a><script>window.attack=1</script><svg onload='window.attack=2'></svg>"}],
+                    "content":"<b>打包后的正文</b><br>第二行 https://example.com. <a href='/n/用户'>用户</a><script>window.attack=1</script><svg onload='window.attack=2'></svg>",
+                    "pics":[{"pid":"p1","thumbnailWidth":300,"thumbnailHeight":180,"thumbnailUrl":"/post/image?mblogId=fixture-1&pid=p1&variant=thumbnail","originalUrl":"/post/image?mblogId=fixture-1&pid=p1&variant=original"},
+                    {"pid":"p2","thumbnailUrl":"/post/image?mblogId=fixture-1&pid=p2&variant=thumbnail"}]}],
                     "page":1,"size":9999,"total":4}
                     """);
+        });
+        server.createContext("/post/image", exchange -> {
+            boolean broken = exchange.getRequestURI().getRawQuery().contains("pid=broken");
+            byte[] body = (broken ? "Missing image" : "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><rect width='300' height='180' fill='#f9d27c'/></svg>").getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", broken ? "text/plain" : "image/svg+xml");
+            exchange.sendResponseHeaders(broken ? 404 : 200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
         });
         server.createContext("/preview/", ReactPreviewPageTest::sendStaticResource);
         server.createContext("/assets/", ReactPreviewPageTest::sendStaticResource);
@@ -106,6 +118,34 @@ class ReactPreviewPageTest {
         if (browser != null) browser.close();
         if (playwright != null) playwright.close();
         if (server != null) server.stop(0);
+    }
+
+    @Test
+    void classpath_preview_reads_thumbnail_images_and_hides_failed_cells() {
+        try (Page page = browser.newPage()) {
+            List<String> imageRequests = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/image?")) imageRequests.add(request.url());
+            });
+            page.onPageError(errors::add);
+            page.route("**/post/image?*pid=p2*", route -> route.fulfill(new Route.FulfillOptions()
+                    .setStatus(404).setContentType("text/plain").setBody("Missing image")));
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-pic[hidden]")).hasCount(1);
+            assertThat(page.locator(".post-pic[hidden]")).hasCSS("display", "none");
+            assertThat(page.getByRole(AriaRole.IMG, new Page.GetByRoleOptions().setName("微博图片").setExact(true))).hasCount(1);
+            assertThat(page.locator(".post-pic").first()).hasCSS("width", "120px");
+            assertThat(page.locator(".post-pic img").first()).hasAttribute("loading", "lazy");
+            assertThat(page.locator(".post-pic img").first()).hasAttribute("decoding", "async");
+            page.waitForFunction("document.querySelector('.post-pic img').naturalWidth === 300");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.IMG, new Page.GetByRoleOptions().setName("转发微博图片").setExact(true))).hasCount(1);
+            assertThat(page.locator(".post-retweet-pic")).hasCSS("width", "100px");
+            page.waitForFunction("document.querySelector('.post-retweet-pic img').naturalWidth === 300");
+            Assertions.assertThat(imageRequests).hasSize(3).allMatch(url -> url.contains("variant=thumbnail"));
+            Assertions.assertThat(errors).isEmpty();
+        }
     }
 
     @Test
