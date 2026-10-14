@@ -3,6 +3,8 @@ import { formatDate } from '../../../src/main/resources/static/shared/date.js';
 import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import PostImages from './PostImages';
+import ImageViewer from './ImageViewer';
+import { useState } from 'react';
 
 function PostContent({ content, className = 'post-content' }: { content: string; className?: string }) {
   try {
@@ -16,6 +18,8 @@ function PostContent({ content, className = 'post-content' }: { content: string;
 }
 
 export default function PostFeed({ result }: { result: PostList }) {
+  const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
+  function openImages(images: string[], index: number) { setViewer({ images, index }); }
   return <>
     {result.items.length === 0 && <p role="status">该日无微博。</p>}
     {result.items.map(post => {
@@ -28,14 +32,15 @@ export default function PostFeed({ result }: { result: PostList }) {
             <time className="post-time" dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
           </header>
           {post.content && <PostContent content={post.content} />}
-          {post.pics && <PostImages pics={post.pics} />}
+          {post.pics && <PostImages pics={post.pics} onOpen={openImages} />}
           {post.retweeted && <aside className="post-retweet" aria-label="转发正文">
             <strong className="post-retweet-author">@{post.retweeted.screenName || '未知用户'}</strong>
             <PostContent content={post.retweeted.content ?? ''} className="post-retweet-content" />
-            {post.retweeted.pics && <PostImages pics={post.retweeted.pics} retweeted />}
+            {post.retweeted.pics && <PostImages pics={post.retweeted.pics} retweeted onOpen={openImages} />}
           </aside>}
         </div>
       </article>;
     })}
+    {viewer && <ImageViewer images={viewer.images} initialIndex={viewer.index} onClose={() => setViewer(null)} />}
   </>;
 }

@@ -143,7 +143,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   });
 }
 
-test('post_images_use_thumbnail_grid_and_original_fallback_without_opening_a_viewer', async ({ page }) => {
+test('post_images_use_thumbnail_grid_and_original_fallback_before_viewing', async ({ page }) => {
   posts.items[0].pics = [
     { pid: 'p1', thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720, thumbnailUrl: '/post/image?mblogId=local-1&pid=p1&variant=thumbnail', originalUrl: '/post/image?mblogId=local-1&pid=p1&variant=original' },
     { pid: 'p2', thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180, thumbnailUrl: '', originalUrl: '/post/image?mblogId=local-1&pid=p2&variant=original' },
@@ -161,13 +161,34 @@ test('post_images_use_thumbnail_grid_and_original_fallback_without_opening_a_vie
   await expect(images.first()).toHaveAttribute('decoding', 'async');
   await expect(images.first()).toHaveAttribute('width', '300');
   await expect(page.locator('.post-pic a, a.post-pic')).toHaveCount(0);
-  await images.first().click();
-  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(requests.filter(value => value.startsWith('GET /post/image'))).toEqual([
     'GET /post/image?mblogId=local-1&pid=p1&variant=thumbnail',
     'GET /post/image?mblogId=local-1&pid=p2&variant=original',
   ]);
+});
+
+test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focus', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('single')];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('img', { name: '微博图片', exact: true })).toBeVisible();
+  expect(requests.some(value => value.includes('variant=original'))).toBe(false);
+  const picture = page.getByRole('button', { name: '查看微博图片 1', exact: true });
+  await picture.focus();
+  await page.keyboard.press('Enter');
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  await expect(viewer).toBeVisible();
+  await expect(viewer.getByRole('img', { name: '微博原图' })).toHaveAttribute('src', imageFixture('single').originalUrl!);
+  await expect.poll(() => viewer.locator('img').evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(viewer.getByRole('button')).toHaveCount(0);
+  await expect(viewer.locator('.viewer-counter')).toHaveCount(0);
+  await viewer.locator('img').click();
+  await expect(viewer).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(viewer).toHaveCount(0);
+  await expect(picture).toBeFocused();
+  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', async ({ page }) => {
