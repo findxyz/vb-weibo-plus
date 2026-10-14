@@ -191,6 +191,44 @@ test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focu
   await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('image_viewer_cycles_with_buttons_and_arrows_and_keeps_retweet_groups_separate', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('p1'), imageFixture('p2'), imageFixture('p3', { originalUrl: 'javascript:window.viewerAttack=1' })];
+  posts.items[0].retweeted = { screenName: '原作者', content: '原文', pics: [imageFixture('r1'), imageFixture('r2')] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const opener = page.getByRole('button', { name: '查看微博图片 2', exact: true });
+  await opener.click();
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  const counter = viewer.locator('.viewer-counter');
+  await expect(counter).toHaveText('2 / 3');
+  await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('p2').originalUrl!);
+  expect(requests.filter(value => value.includes('variant=original'))).toEqual(['GET ' + imageFixture('p2').originalUrl]);
+  await expect(page.getByRole('button', { name: '全部博主', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => viewer.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect.poll(() => viewer.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await viewer.getByRole('button', { name: '下一张' }).click();
+  await expect(counter).toHaveText('3 / 3');
+  await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('p3').thumbnailUrl!);
+  await viewer.getByRole('button', { name: '下一张' }).click();
+  await expect(counter).toHaveText('1 / 3');
+  await viewer.getByRole('button', { name: '上一张' }).click();
+  await expect(counter).toHaveText('3 / 3');
+  await page.keyboard.press('ArrowLeft');
+  await expect(counter).toHaveText('2 / 3');
+  await page.keyboard.press('ArrowRight');
+  await expect(counter).toHaveText('3 / 3');
+  expect(await page.evaluate(() => (window as Window & { viewerAttack?: number }).viewerAttack)).toBeUndefined();
+  await viewer.click({ position: { x: 8, y: 8 } });
+  await expect(viewer).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  await page.getByRole('button', { name: '查看转发微博图片 2', exact: true }).click();
+  await expect(counter).toHaveText('2 / 2');
+  await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('r2').originalUrl!);
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+});
+
 test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', async ({ page }) => {
   posts.items[0].pics = [imageFixture('single', { thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180 })];
   await page.goto(`${baseUrl}preview/post/index.html`);

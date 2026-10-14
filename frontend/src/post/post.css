@@ -126,3 +126,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outlin
 .image-viewer img { width: auto; max-width: 100%; height: auto; max-height: 100%; display: block; object-fit: contain; cursor: pointer; border: 3px solid var(--paper); box-shadow: 0 0 0 2px var(--ink); }
 .image-viewer img[hidden] { display: none; }
 #image-viewer-state { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%); color: var(--paper); font: 16px/1.3 var(--hand); pointer-events: none; }
+.viewer-prev, .viewer-next { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border: 2px solid var(--paper); border-radius: 50%; background: rgb(0 0 0 / 50%); color: var(--paper); font: 24px/1 var(--hand-b); cursor: pointer; }
+.viewer-prev { left: 16px; }
+.viewer-next { right: 16px; }
+.viewer-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: var(--paper); font: 14px/1 var(--mono); pointer-events: none; }
