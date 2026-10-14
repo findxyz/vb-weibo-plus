@@ -145,6 +145,36 @@ test('pure_retweet_omits_empty_outer_body_and_handles_missing_original_informati
   await expect(page.locator('.post-retweet')).toHaveCount(0);
 });
 
+test('retweet_body_blocks_executable_markup_and_author_name_stays_literal_text', async ({ page }) => {
+  const author = '<img src=x onerror="window.retweetAttack=8">';
+  posts.items[0].retweeted = { screenName: author, content: '<script>window.retweetAttack=1</script><svg onload="window.retweetAttack=2"></svg><a href="javascript:window.retweetAttack=3">危险链接</a><iframe srcdoc="<script>parent.retweetAttack=4</script>"></iframe><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="window.retweetAttack=5"><b>安全原文</b>' };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-retweet-author')).toHaveText(`@${author}`);
+  await expect(page.locator('.post-retweet-author img')).toHaveCount(0);
+  const original = page.locator('.post-retweet-content');
+  await expect(original).toContainText('安全原文');
+  await expect(original.locator('script, svg, iframe, [onload], [onerror], a[href^="javascript:"]')).toHaveCount(0);
+  await original.locator('img').evaluate(element => element.dispatchEvent(new Event('error')));
+  expect(await page.evaluate(() => (window as Window & { retweetAttack?: number }).retweetAttack)).toBeUndefined();
+});
+
+test('retweet_sanitizer_failure_uses_plain_text_and_keeps_navigation', async ({ page }) => {
+  const raw = 'inner-marker &lt;img src=x onerror="window.retweetAttack=1"&gt;<b>降级原文</b>';
+  posts.items[0].retweeted = { screenName: '原作者', content: raw };
+  await page.addInitScript(() => {
+    DOMParser.prototype.parseFromString = function() { throw new Error('Text parser unavailable'); };
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-retweet-content')).toHaveText(raw);
+  await expect(page.locator('.post-retweet-content img, .post-retweet-content b')).toHaveCount(0);
+  await expect(page.locator('.post-content')).toHaveText(posts.items[0].content);
+  await expect(page.locator('.post-content br')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as Window & { retweetAttack?: number }).retweetAttack)).toBeUndefined();
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.getByLabel('当前范围')).toHaveText('第二位');
+  await expect(page.locator('.post-retweet-content')).toHaveText(raw);
+});
+
 test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async ({ page }, testInfo) => {
   calendar.months = [
     { month: '2025-12', count: 1, days: [{ date: '2025-12-31', count: 1 }] },
