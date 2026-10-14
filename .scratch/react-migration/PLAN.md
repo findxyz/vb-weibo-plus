@@ -145,3 +145,5 @@ post preview 在阶段 3 结束，chat preview 在阶段 5 结束，两页各自
 2026-10-14，用户要求继续任务 05，完成转发作者与正文阅读。29 项前端浏览器检查、122 项 Maven UI 检查、类型与双入口构建、独立 JAR 冒烟通过，Standards 与 Spec 审查各 0 项。验收证据见票 05，正式入口保持旧版。
 
 任务 05 集成提交为 3711da6。验证后的 JAR 和 7z 保存在 target/react-migration-release/ticket-05，保存文件与构建产物 SHA-256 一致，7z 完整性检查通过。实施 worktree 的归档由 Codex 处理，queued 仅表示请求已排队。
+
+2026-10-14，用户指出旧 post 的链接已改为默认无下划线、悬停直线，React 仍沿用过时设计规则。独立修复 eb3161d（集成 957c0a0）同步 React CSS 与 DESIGN.md。真实浏览器先复现默认下划线错误，修正后普通／转发正文的默认与悬停样式通过；3 项构建资源检查及定向 package 通过。修正后的 JAR 与 7z 保存于 target/react-migration-release/ticket-05-link-fix，文件哈希一致且发布包完整性通过；迁移仍处于阶段 2。
