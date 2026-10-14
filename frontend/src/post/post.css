@@ -95,6 +95,10 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-card { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: start; gap: 12px; max-width: 720px; padding: 16px; margin: 14px 0; border: 2px solid var(--pencil); border-radius: 10px; background: var(--paper); }
 .post-card.pure-retweet { grid-template-columns: minmax(0, 1fr); }
 .post-body { min-width: 0; display: grid; gap: 8px; }
+.post-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 120px)); gap: 6px; margin-top: 4px; }
+.post-pic { position: relative; display: block; width: 120px; height: 120px; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper-tint); }
+.post-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.post-pic[hidden] { display: none; }
 .post-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .post-author { font: 700 16px/1.2 var(--hand-b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .post-time { color: var(--pencil); font: 12px/1 var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }

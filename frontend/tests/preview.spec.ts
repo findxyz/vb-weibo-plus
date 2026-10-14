@@ -28,6 +28,11 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/post/image') {
+      response.writeHead(url.searchParams.get('pid') === 'broken' ? 404 : 200, { 'Content-Type': 'image/svg+xml' });
+      response.end('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#f9d27c"/></svg>');
+      return;
+    }
     const uid = url.searchParams.get('uid') ?? url.searchParams.get('uids') ?? 'all';
     if (path === '/post/index.html') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
@@ -127,6 +132,33 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   });
 }
 
+test('post_images_use_thumbnail_grid_and_original_fallback_without_opening_a_viewer', async ({ page }) => {
+  posts.items[0].pics = [
+    { pid: 'p1', thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720, thumbnailUrl: '/post/image?mblogId=local-1&pid=p1&variant=thumbnail', originalUrl: '/post/image?mblogId=local-1&pid=p1&variant=original' },
+    { pid: 'p2', thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180, thumbnailUrl: '', originalUrl: '/post/image?mblogId=local-1&pid=p2&variant=original' },
+  ];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const images = page.getByRole('img', { name: '微博图片', exact: true });
+  await expect(images).toHaveCount(2);
+  await expect(images.first()).toHaveAttribute('src', '/post/image?mblogId=local-1&pid=p1&variant=thumbnail');
+  await expect(images.last()).toHaveAttribute('src', '/post/image?mblogId=local-1&pid=p2&variant=original');
+  await expect.poll(() => images.first().evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(page.locator('.post-pic').first()).toHaveCSS('width', '120px');
+  await expect(page.locator('.post-pic').first()).toHaveCSS('height', '120px');
+  await expect(page.locator('.post-pics')).toHaveCSS('gap', '6px');
+  await expect(images.first()).toHaveAttribute('loading', 'lazy');
+  await expect(images.first()).toHaveAttribute('decoding', 'async');
+  await expect(images.first()).toHaveAttribute('width', '300');
+  await expect(page.locator('.post-pic a, a.post-pic')).toHaveCount(0);
+  await images.first().click();
+  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(requests.filter(value => value.startsWith('GET /post/image'))).toEqual([
+    'GET /post/image?mblogId=local-1&pid=p1&variant=thumbnail',
+    'GET /post/image?mblogId=local-1&pid=p2&variant=original',
+  ]);
+});
+
 test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', async ({ page }) => {
   await page.route('https://avatar.test/**', route => route.request().url().endsWith('/valid.svg')
     ? route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="red"/></svg>' })
@@ -160,7 +192,7 @@ test('pure_retweet_layout_waits_for_absence_of_outer_media', async ({ page }) =>
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.locator('.post-card.pure-retweet')).toBeVisible();
   await expect(page.locator('.post-avatar')).toHaveCount(0);
-  posts.items[0].pics = [{}];
+  posts.items[0].pics = [{ pid: 'unavailable' }];
   await page.reload();
   await expect(page.locator('.post-avatar')).toBeVisible();
   await expect(page.locator('.pure-retweet')).toHaveCount(0);

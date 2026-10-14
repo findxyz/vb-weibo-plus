@@ -2,6 +2,7 @@ import { sanitizedContent } from './content';
 import { formatDate } from '../../../src/main/resources/static/shared/date.js';
 import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
+import PostImages from './PostImages';
 
 function PostContent({ content, className = 'post-content' }: { content: string; className?: string }) {
   try {
@@ -27,6 +28,7 @@ export default function PostFeed({ result }: { result: PostList }) {
             <time className="post-time" dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
           </header>
           {post.content && <PostContent content={post.content} />}
+          {post.pics && <PostImages pics={post.pics} />}
           {post.retweeted && <aside className="post-retweet" aria-label="转发正文">
             <strong className="post-retweet-author">@{post.retweeted.screenName || '未知用户'}</strong>
             <PostContent content={post.retweeted.content ?? ''} className="post-retweet-content" />
