@@ -31,7 +31,7 @@
 
 延续已确认的真实浏览器与 HTTP fixture 测试边界，以普通图片为首个失败测试和最小实现，再接转发、失败、非法地址与滚动。新增小型图片展示组件，共用内外图片单元；不引入查看器状态或额外请求客户端。
 
-新旧页面使用相同本地图片响应，比较三种布局。Maven 在独立 worktree 构建，仅定向运行 ReactPreviewPageTest；旧页面源码不修改。独立 JAR 使用隔离数据库、本地已缓存图片、缺失 Credential、空采集群号及 loopback，验证 API、图片 MIME、两种入口和浏览器读取。避免为了图片测试请求外部微博源。
+新旧页面使用相同本地图片响应，比较三种布局。Maven 在独立 worktree 构建，仅定向运行 ReactPreviewPageTest；旧页面源码不修改。PostService 实际通过 DirectMediaApi 下载媒体，本票不增加缓存。独立 JAR 使用隔离数据库、本机 HTTP 图片替身、缺失 Credential、空采集群号及 loopback，验证 API、图片 MIME、两种入口和浏览器读取。避免为了图片测试请求外部微博源。
 
 ## 范围外
 
