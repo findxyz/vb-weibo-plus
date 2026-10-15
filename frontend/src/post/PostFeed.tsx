@@ -5,7 +5,8 @@ import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import PostImages from './PostImages';
 import ImageViewer from './ImageViewer';
-import PostVideo, { playableVideo } from './PostVideo';
+import PostVideo from './PostVideo';
+import { playableVideo } from './video';
 
 function PostContent({ content, className = 'post-content' }: { content: string; className?: string }) {
   try {

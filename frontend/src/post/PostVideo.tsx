@@ -1,15 +1,5 @@
-import type { Video } from './queries';
 import { useState } from 'react';
-
-type VideoSource = { coverUrl: string; pageUrl: string };
-
-export function playableVideo(video?: Video | null): VideoSource | null {
-  const pageUrl = video?.pageUrl;
-  const coverUrl = video?.coverUrl;
-  if (!pageUrl || !coverUrl || !/^https?:\/\//i.test(pageUrl) || !URL.canParse(pageUrl)) return null;
-  if (!/^\/post\/video-cover(?:\?|$)/.test(coverUrl) && !(/^https?:\/\//i.test(coverUrl) && URL.canParse(coverUrl))) return null;
-  return { pageUrl, coverUrl };
-}
+import type { VideoSource } from './video';
 
 export default function PostVideo({ video, retweeted = false }: { video: VideoSource; retweeted?: boolean }) {
   const [failedSrc, setFailedSrc] = useState<string>();
