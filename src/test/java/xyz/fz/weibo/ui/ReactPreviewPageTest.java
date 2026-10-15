@@ -58,7 +58,8 @@ class ReactPreviewPageTest {
                         {"items":[{"mblogId":"fixture-2","createdAt":1783643400000,
                         "blogger":{"uid":2,"screenName":"第二位博主"},"content":"%s",
                         "retweeted":{"screenName":"原作者","content":"<b>打包转发原文</b><br>第二行 https://example.com/retweet. <script>window.retweetAttack=1</script><svg onload='window.retweetAttack=2'></svg>",
-                        "pics":[{"pid":"r1","thumbnailUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=thumbnail","originalUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=original"}]}}],
+                        "pics":[{"pid":"r1","thumbnailUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=thumbnail","originalUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=original"}],
+                        "video":{"coverUrl":"/post/video-cover?mblogId=fixture-2&retweeted=true","pageUrl":"https://video.example.test/retweet"}}}],
                         "page":1,"size":9999,"total":1}
                         """.formatted(outerContent));
                 return;
@@ -66,6 +67,7 @@ class ReactPreviewPageTest {
             sendJson(exchange, """
                     {"items":[{"mblogId":"fixture-1","createdAt":1785889800000,
                     "blogger":{"uid":1,"screenName":"打包资源博主"},
+                    "video":{"coverUrl":"/post/video-cover?mblogId=fixture-1","pageUrl":"https://video.example.test/packaged"},
                     "content":"<b>打包后的正文</b><br>第二行 https://example.com. <a href='/n/用户'>用户</a><script>window.attack=1</script><svg onload='window.attack=2'></svg>",
                     "pics":[{"pid":"p1","thumbnailWidth":300,"thumbnailHeight":180,"thumbnailUrl":"/post/image?mblogId=fixture-1&pid=p1&variant=thumbnail","originalUrl":"/post/image?mblogId=fixture-1&pid=p1&variant=original"},
                     {"pid":"p2","thumbnailUrl":"/post/image?mblogId=fixture-1&pid=p2&variant=thumbnail"}]}],
@@ -77,6 +79,13 @@ class ReactPreviewPageTest {
             byte[] body = (broken ? "Missing image" : "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><rect width='300' height='180' fill='#f9d27c'/></svg>").getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", broken ? "text/plain" : "image/svg+xml");
             exchange.sendResponseHeaders(broken ? 404 : 200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/post/video-cover", exchange -> {
+            byte[] body = "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><rect width='300' height='180' fill='#f9d27c'/></svg>".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "image/svg+xml");
+            exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
             exchange.close();
         });
@@ -118,6 +127,38 @@ class ReactPreviewPageTest {
         if (browser != null) browser.close();
         if (playwright != null) playwright.close();
         if (server != null) server.stop(0);
+    }
+
+    @Test
+    void classpath_preview_reads_video_covers_and_opens_an_isolated_video_page() {
+        try (Page page = browser.newPage()) {
+            List<String> coverRequests = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/video-cover?")) coverRequests.add(request.url());
+            });
+            page.onPageError(errors::add);
+            page.context().route("https://video.example.test/**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setContentType("text/html").setBody("<h1>Video fixture</h1>")));
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("播放微博视频").setExact(true))).hasAttribute("rel", "noopener");
+            page.waitForFunction("document.querySelector('.post-video img').naturalWidth === 300");
+            assertThat(page.locator(".post-video img")).hasCSS("width", "320px");
+            assertThat(page.locator(".post-video img")).hasAttribute("loading", "lazy");
+            try (Page popup = page.waitForPopup(() -> page.getByRole(AriaRole.LINK,
+                    new Page.GetByRoleOptions().setName("播放微博视频").setExact(true)).click())) {
+                popup.waitForLoadState();
+                assertThat(popup).hasURL("https://video.example.test/packaged");
+                Assertions.assertThat(popup.evaluate("window.opener")).isNull();
+            }
+            Assertions.assertThat(page.url()).isEqualTo(baseUrl + "/preview/post/index.html");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("播放转发视频").setExact(true))).hasAttribute("href", "https://video.example.test/retweet");
+            page.waitForFunction("document.querySelector('.post-retweet .post-video img').naturalWidth === 300");
+            assertThat(page.locator(".post-retweet .post-video img")).hasAttribute("src", "/post/video-cover?mblogId=fixture-2&retweeted=true");
+            Assertions.assertThat(coverRequests).hasSize(2);
+            Assertions.assertThat(errors).isEmpty();
+        }
     }
 
     @Test
