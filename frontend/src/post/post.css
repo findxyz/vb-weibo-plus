@@ -118,6 +118,8 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-retweet-content { font-size: 17px; color: var(--pencil); }
 .post-video { position: relative; display: inline-block; justify-self: start; margin-top: 4px; }
 .post-video img { display: block; width: 320px; max-height: 240px; object-fit: cover; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--ink); cursor: pointer; }
+.post-video img[hidden] { display: none; }
+.post-video.cover-failed { width: 320px; height: 240px; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--ink); }
 .post-video-play { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
 .post-video-play span { display: grid; place-items: center; width: 48px; height: 48px; border: 2px solid var(--paper); border-radius: 50%; background: rgb(0 0 0 / 55%); box-shadow: var(--shadow-near); }
 .post-video-play span::before { content: ""; margin-left: 4px; border-left: 14px solid var(--paper); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }

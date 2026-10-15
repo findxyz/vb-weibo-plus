@@ -214,6 +214,50 @@ test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ 
   expect(requests.filter(value => value.startsWith('GET /post/video-cover'))).toEqual(['GET /post/video-cover?mblogId=local-1']);
 });
 
+test('video_retweets_deduplicate_only_the_same_playable_page_and_keep_pure_layout', async ({ page }) => {
+  posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/same' };
+  posts.items[0].retweeted = { screenName: '原作者', content: '转发视频', video: { coverUrl: '/post/video-cover?mblogId=local-1&retweeted=true', pageUrl: 'https://video.example.test/same' } };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('link', { name: '播放转发视频', exact: true })).toBeVisible();
+  await expect(page.locator('.post-body > .post-video')).toHaveCount(0);
+  await expect(page.locator('.post-retweet .post-video img')).toHaveAttribute('src', '/post/video-cover?mblogId=local-1&retweeted=true');
+  expect(requests.filter(value => value.startsWith('GET /post/video-cover'))).toEqual(['GET /post/video-cover?mblogId=local-1&retweeted=true']);
+  posts.items[0].retweeted.video!.pageUrl = 'https://video.example.test/different';
+  await page.reload();
+  await expect(page.locator('.post-video')).toHaveCount(2);
+  posts.items[0].video = null;
+  posts.items[0].content = '';
+  await page.reload();
+  await expect(page.locator('.pure-retweet')).toBeVisible();
+  await expect(page.locator('.post-avatar')).toHaveCount(0);
+  await expect(page.locator('.post-retweet .post-video')).toBeVisible();
+  await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
+});
+
+test('failed_video_cover_keeps_a_visible_clickable_and_keyboard_accessible_placeholder', async ({ page, context }) => {
+  posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=broken-video', pageUrl: 'https://video.example.test/fallback' };
+  await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const link = page.getByRole('link', { name: '播放微博视频', exact: true });
+  await expect(link.locator('img[hidden]')).toHaveCount(1);
+  await expect(link).toBeVisible();
+  const rectangle = (await link.boundingBox())!;
+  expect(rectangle.width).toBe(320);
+  expect(rectangle.height).toBe(240);
+  for (const method of ['click', 'Enter']) {
+    const opened = page.waitForEvent('popup');
+    if (method === 'click') await link.click();
+    else { await link.focus(); await page.keyboard.press('Enter'); }
+    const popup = await opened;
+    await popup.waitForLoadState();
+    await expect(popup).toHaveURL(posts.items[0].video.pageUrl!);
+    expect(await popup.evaluate(() => window.opener)).toBeNull();
+    await popup.close();
+  }
+  await expect(page.locator('.post-avatar')).toBeVisible();
+  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+});
+
 test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focus', async ({ page }) => {
   posts.items[0].pics = [imageFixture('single')];
   await page.goto(`${baseUrl}preview/post/index.html`);
