@@ -172,3 +172,5 @@ post preview 在阶段 3 结束，chat preview 在阶段 5 结束，两页各自
 2026-10-16，用户反馈头像显示首字，独立修复 37645e0。真实 CDN 直连返回 403，而既有图片代理返回 200；React 侧栏与卡片头像改用 /chat/image，补齐 Vite 精确代理。64 项前端回归、类型与双入口构建、8 项 Maven 资源检查、Vite 与隔离 JAR 的真实头像加载通过，Standards／Spec 各 0 项。发布包另存于 target/react-migration-release/ticket-10-avatar-fix，详细证据见票 10。仍处于阶段 2，下一候选仍为博主名称过滤。
 
 头像修正集成提交为 e45eb80。合入后现有 5173 预览的真实头像复现检查通过，实施 worktree 提交归档，queued 仅表示请求排队。
+
+2026-10-16，用户反馈正文“查看图片”打开后 403，独立修复 e5296e2。带图片标识的微博 CDN 正文链接改用既有同源代理，保留新窗口与安全清洗，普通／转发共用；旧页、图片查看器与后端不变。66 项前端回归、类型与双入口构建、9 项 Maven 资源检查，以及 Vite／隔离 JAR 中截图对应原图的新窗显示通过，Standards／Spec 各 0 项。发布包另存于 target/react-migration-release/ticket-10-inline-picture-fix，详细证据见票 10。仍处于阶段 2。
