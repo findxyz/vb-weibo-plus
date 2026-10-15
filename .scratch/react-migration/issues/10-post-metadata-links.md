@@ -88,3 +88,5 @@
 - 截图对应牙刷图片在修正后的 Vite 真实打开并已人工查看；独立 JAR 使用隔离 SQLite、缺失 Credential 与空采集群号，仅将该图片链接作为测试输入，真实原图在新窗口显示、opener 隔离及 4 个新旧入口通过。浏览器没有直连 CDN 或业务写请求，用户数据库未改动，测试进程树由 finally 关闭。证据保留于 C:/Users/fixyz/AppData/Local/Temp/react-inline-picture-jar-vdq934dt。
 - 仓库外保存 react-inline-picture-frontend.log、react-inline-picture-package.log、react-inline-picture-real-smoke.log、react-inline-picture-real.png、react-inline-picture-jar-smoke.py／.mjs／.log 及 react-inline-picture-release-hashes.json。
 - Standards／Spec 分别审查 3f026a5 到 e5296e2，各 0 项问题。发布包保存在主工作目录 target/react-migration-release/ticket-10-inline-picture-fix，JAR／7z 与验收产物 SHA-256 一致，7z 完整性检查通过。
+
+正文图片修正集成于 2791ad8。合入后在当前 5173 预览重跑截图对应微博，链接通过同源代理在新窗口显示真实图片；集成日志为仓库外 react-inline-picture-integrated-smoke.log。实施 worktree 提交归档，queued 仅表示请求排队。
