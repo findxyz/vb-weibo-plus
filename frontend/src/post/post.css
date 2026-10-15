@@ -19,6 +19,7 @@
   --sans: Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
   --avatar-hatch: repeating-linear-gradient(45deg, var(--accent) 0 3px, var(--hatch) 3px 6px);
   --shadow-card: 6px 8px 0 -3px rgb(43 38 32 / 18%);
+  --shadow-near: 2px 2px 0 -1px rgb(43 38 32 / 18%);
 }
 
 * { box-sizing: border-box; }
@@ -115,6 +116,11 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-retweet { margin-top: 4px; padding: 10px 12px; border: 1.5px dashed var(--pencil); border-radius: 8px; background: var(--paper-tint); display: grid; gap: 6px; }
 .post-retweet-author { font: 600 15px/1.2 var(--hand-b); }
 .post-retweet-content { font-size: 17px; color: var(--pencil); }
+.post-video { position: relative; display: inline-block; justify-self: start; margin-top: 4px; }
+.post-video img { display: block; width: 320px; max-height: 240px; object-fit: cover; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--ink); cursor: pointer; }
+.post-video-play { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.post-video-play span { display: grid; place-items: center; width: 48px; height: 48px; border: 2px solid var(--paper); border-radius: 50%; background: rgb(0 0 0 / 55%); box-shadow: var(--shadow-near); }
+.post-video-play span::before { content: ""; margin-left: 4px; border-left: 14px solid var(--paper); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
 a { color: var(--accent); text-decoration: none; text-underline-offset: 3px; }
 a:hover { text-decoration: underline solid; }
 .post-content a, .post-retweet-content a { word-break: break-all; }

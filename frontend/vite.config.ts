@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     server: {
       strictPort: true,
       proxy: {
-        '^/post/(?:bloggers|calendar|list|image)(?:\\?.*)?$': {
+        '^/post/(?:bloggers|calendar|list|image|video-cover)(?:\\?.*)?$': {
           target: backendUrl,
         },
       },

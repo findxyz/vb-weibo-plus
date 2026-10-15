@@ -44,6 +44,12 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/post/video-cover') {
+      const broken = url.searchParams.get('mblogId') === 'broken-video';
+      response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
+      response.end(broken ? 'Missing cover' : '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#f9d27c"/></svg>');
+      return;
+    }
     if (path === '/post/image') {
       const pid = url.searchParams.get('pid');
       const original = url.searchParams.get('variant') === 'original';
@@ -177,6 +183,35 @@ test('post_images_use_thumbnail_grid_and_original_fallback_before_viewing', asyn
     'GET /post/image?mblogId=local-1&pid=p1&variant=thumbnail',
     'GET /post/image?mblogId=local-1&pid=p2&variant=original',
   ]);
+});
+
+test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ page, context }) => {
+  posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/watch/outer' };
+  await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const link = page.getByRole('link', { name: '播放微博视频', exact: true });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener');
+  await expect(link.locator('img')).toHaveAttribute('loading', 'lazy');
+  await expect(link.locator('img')).toHaveAttribute('decoding', 'async');
+  await expect.poll(() => link.locator('img').evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+  await expect(link.locator('img')).toHaveCSS('width', '320px');
+  const cover = (await link.locator('img').boundingBox())!;
+  const play = (await link.locator('.post-video-play').boundingBox())!;
+  expect(play.x + play.width / 2).toBeCloseTo(cover.x + cover.width / 2, 1);
+  expect(play.y + play.height / 2).toBeCloseTo(cover.y + cover.height / 2, 1);
+  const opened = page.waitForEvent('popup');
+  await link.click();
+  const popup = await opened;
+  await popup.waitForLoadState();
+  await expect(popup).toHaveURL(posts.items[0].video.pageUrl!);
+  expect(await popup.evaluate(() => window.opener)).toBeNull();
+  await popup.close();
+  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
+  await expect(page.locator('video, iframe, .image-viewer')).toHaveCount(0);
+  expect(requests.filter(value => value.startsWith('GET /post/video-cover'))).toEqual(['GET /post/video-cover?mblogId=local-1']);
 });
 
 test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focus', async ({ page }) => {

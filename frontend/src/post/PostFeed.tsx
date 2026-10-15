@@ -5,6 +5,7 @@ import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import PostImages from './PostImages';
 import ImageViewer from './ImageViewer';
+import PostVideo, { playableVideo } from './PostVideo';
 
 function PostContent({ content, className = 'post-content' }: { content: string; className?: string }) {
   try {
@@ -23,6 +24,7 @@ export default function PostFeed({ result }: { result: PostList }) {
   return <>
     {result.items.length === 0 && <p role="status">该日无微博。</p>}
     {result.items.map(post => {
+      const video = playableVideo(post.video);
       const pureRetweet = !post.content && !post.pics?.length && !(post.video?.pageUrl && post.video.coverUrl) && post.retweeted;
       return <article className={`post-card${pureRetweet ? ' pure-retweet' : ''}`} key={post.mblogId}>
         {!pureRetweet && <BloggerAvatar blogger={post.blogger} className="post-avatar" />}
@@ -33,6 +35,7 @@ export default function PostFeed({ result }: { result: PostList }) {
           </header>
           {post.content && <PostContent content={post.content} />}
           {post.pics && <PostImages pics={post.pics} onOpen={openImages} />}
+          {video && <PostVideo video={video} />}
           {post.retweeted && <aside className="post-retweet" aria-label="转发正文">
             <strong className="post-retweet-author">@{post.retweeted.screenName || '未知用户'}</strong>
             <PostContent content={post.retweeted.content ?? ''} className="post-retweet-content" />
