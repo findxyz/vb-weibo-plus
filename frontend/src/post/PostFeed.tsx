@@ -27,9 +27,10 @@ export default function PostFeed({ result }: { result: PostList }) {
     {result.items.map(post => {
       const video = playableVideo(post.video);
       const retweetVideo = playableVideo(post.retweeted?.video);
+      const postUrl = post.postUrl && /^https?:\/\//i.test(post.postUrl) && URL.canParse(post.postUrl) ? post.postUrl : null;
       const pureRetweet = !post.content && !post.pics?.length && !(post.video?.pageUrl && post.video.coverUrl) && post.retweeted;
       return <article className={`post-card${pureRetweet ? ' pure-retweet' : ''}`} key={post.mblogId}>
-        {!pureRetweet && <BloggerAvatar blogger={post.blogger} className="post-avatar" />}
+        {!pureRetweet && <BloggerAvatar blogger={post.blogger} className="post-avatar" linkToHomepage />}
         <div className="post-body">
           <header className="post-header">
             <strong className="post-author">{post.blogger?.screenName || '未知博主'}{post.blogger?.verified && <VerifiedBadge />}</strong>
@@ -46,6 +47,7 @@ export default function PostFeed({ result }: { result: PostList }) {
             {post.retweeted.pics && <PostImages pics={post.retweeted.pics} retweeted onOpen={openImages} />}
             {retweetVideo && <PostVideo video={retweetVideo} retweeted />}
           </aside>}
+          {postUrl && <div className="post-actions"><a className="post-link" href={postUrl} target="_blank" rel="noopener">查看原文</a></div>}
         </div>
       </article>;
     })}
