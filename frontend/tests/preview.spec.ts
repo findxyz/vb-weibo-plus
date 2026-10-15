@@ -44,6 +44,12 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/chat/image') {
+      const broken = new URL(url.searchParams.get('url')!).pathname.endsWith('/broken.svg');
+      response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
+      response.end(broken ? 'Missing avatar' : '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="red"/></svg>');
+      return;
+    }
     if (path === '/post/video-cover') {
       const broken = url.searchParams.get('mblogId') === 'broken-video';
       response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
@@ -820,15 +826,18 @@ for (const mode of ['single', 'multiple', 'retweet'] as const) {
 }
 
 test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', async ({ page }) => {
-  await page.route('https://avatar.test/**', route => route.request().url().endsWith('/valid.svg')
-    ? route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="red"/></svg>' })
-    : route.fulfill({ status: 404 }));
-  bloggers[0] = { uid: 1, screenName: '第一位', avatar: 'https://avatar.test/valid.svg', verified: true };
+  const directReads: string[] = [];
+  await page.route('https://avatar.test/**', route => {
+    directReads.push(route.request().url());
+    return route.fulfill({ status: 403, contentType: 'text/html', body: 'Forbidden' });
+  });
+  bloggers[0] = { uid: 1, screenName: '第一位', avatar: 'https://avatar.test/valid.svg?size=48&variant=small', verified: true };
   posts.items[0].blogger = bloggers[0];
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.locator('.post-avatar img')).toBeVisible();
   await expect.poll(() => page.locator('.post-avatar img').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBe(48);
-  await expect(page.locator('.blogger-list .blogger-avatar img')).toHaveAttribute('src', bloggers[0].avatar!);
+  await expect(page.locator('.blogger-list .blogger-avatar img')).toHaveAttribute('src', `/chat/image?${new URLSearchParams({ url: bloggers[0].avatar! })}`);
+  expect(directReads).toEqual([]);
   await expect(page.locator('.post-author').getByRole('img', { name: '已认证' })).toBeVisible();
   await expect(page.locator('.blogger-name').getByRole('img', { name: '已认证' })).toBeVisible();
   await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveText('第');
@@ -1404,7 +1413,7 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain(mime);
   }
-  for (const path of ['post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js']) {
+  for (const path of ['post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js']) {
     expect((await request.get(`${baseUrl}${path}`)).status()).toBe(404);
   }
   const response = await request.get(`${baseUrl}post/bloggers?probe=1`);
@@ -1415,7 +1424,11 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
   const cover = await request.get(`${baseUrl}post/video-cover?mblogId=local-1&retweeted=true`);
   expect(cover.status()).toBe(200);
   expect(cover.headers()['content-type']).toBe('image/svg+xml');
-  expect(requests).toEqual(['GET /post/bloggers?probe=1', 'GET /post/image?mblogId=local-1&pid=probe&variant=thumbnail', 'GET /post/video-cover?mblogId=local-1&retweeted=true']);
+  const avatarQuery = new URLSearchParams({ url: 'https://avatar.test/valid.svg?size=48&variant=small' });
+  const avatar = await request.get(`${baseUrl}chat/image?${avatarQuery}`);
+  expect(avatar.status()).toBe(200);
+  expect(avatar.headers()['content-type']).toBe('image/svg+xml');
+  expect(requests).toEqual(['GET /post/bloggers?probe=1', 'GET /post/image?mblogId=local-1&pid=probe&variant=thumbnail', 'GET /post/video-cover?mblogId=local-1&retweeted=true', `GET /chat/image?${avatarQuery}`]);
 });
 
 test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }) => {
