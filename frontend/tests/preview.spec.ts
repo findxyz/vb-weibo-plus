@@ -185,6 +185,27 @@ test('post_images_use_thumbnail_grid_and_original_fallback_before_viewing', asyn
   ]);
 });
 
+test('post_metadata_keeps_backend_text_order_typography_and_empty_field_behavior', async ({ page }) => {
+  posts.items[0].region = '发布于 上海';
+  posts.items[0].source = '<b>网页端</b>';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-region')).toHaveText('发布于 上海');
+  await expect(page.locator('.post-source')).toHaveText('<b>网页端</b>');
+  await expect(page.locator('.post-source b')).toHaveCount(0);
+  await expect(page.locator('.post-region')).toHaveCSS('font-size', '12px');
+  await expect(page.locator('.post-region')).toHaveCSS('font-variant-numeric', 'tabular-nums');
+  await expect(page.locator('.post-source')).toHaveCSS('font-size', '12px');
+  expect(await page.locator('.post-region').evaluate(element => getComputedStyle(element, '::before').content)).toBe('" · "');
+  expect(await page.locator('.post-source').evaluate(element => getComputedStyle(element, '::before').content)).toBe('" · 来自 "');
+  expect(await page.locator('.post-header > *').evaluateAll(elements => elements.map(element => element.className))).toEqual(['post-author', 'post-time', 'post-region', 'post-source']);
+  posts.items[0].region = null;
+  posts.items[0].source = '';
+  await page.reload();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.locator('.post-region, .post-source')).toHaveCount(0);
+  await expect(page.locator('.post-header')).toContainText('第一位');
+});
+
 test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ page, context }) => {
   posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/watch/outer' };
   await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));

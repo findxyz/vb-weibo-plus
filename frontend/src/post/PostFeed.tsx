@@ -34,6 +34,8 @@ export default function PostFeed({ result }: { result: PostList }) {
           <header className="post-header">
             <strong className="post-author">{post.blogger?.screenName || '未知博主'}{post.blogger?.verified && <VerifiedBadge />}</strong>
             <time className="post-time" dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
+            {post.region && <span className="post-region">{post.region}</span>}
+            {post.source && <span className="post-source">{post.source}</span>}
           </header>
           {post.content && <PostContent content={post.content} />}
           {post.pics && <PostImages pics={post.pics} onOpen={openImages} />}

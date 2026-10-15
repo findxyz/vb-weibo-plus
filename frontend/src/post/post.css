@@ -111,6 +111,10 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .post-author { font: 700 16px/1.2 var(--hand-b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .post-time { color: var(--pencil); font: 12px/1 var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.post-region { color: var(--pencil); font: 12px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.post-region::before { content: " · "; }
+.post-source { color: var(--pencil); font: 12px/1 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-source::before { content: " · 来自 "; }
 .post-content, .post-retweet-content { font: 19px/1.55 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .post-content img, .post-retweet-content img { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
 .post-retweet { margin-top: 4px; padding: 10px 12px; border: 1.5px dashed var(--pencil); border-radius: 8px; background: var(--paper-tint); display: grid; gap: 6px; }
