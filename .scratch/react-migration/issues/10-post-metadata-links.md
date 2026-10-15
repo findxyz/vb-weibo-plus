@@ -73,3 +73,5 @@
 - 原复现脚本在修正后的 Vite 中得到 PASS，真实图片经同源代理返回 200 image/jpeg，侧栏和卡片均已人工查看。独立 JAR 使用隔离 SQLite、缺失 Credential 和空采集群号，取当前接口的头像地址作为测试输入，真实 CDN 头像代理加载与 4 个新旧入口通过；浏览器无直连 CDN 或写请求。测试进程树在 finally 关闭，用户数据库未改动，证据保留于 C:/Users/fixyz/AppData/Local/Temp/react-avatar-jar-96e_e5b6。
 - 仓库外保存 react-avatar-frontend.log、react-avatar-package.log、react-avatar-real-smoke.log、react-avatar-real.png、react-avatar-jar-smoke.py／.mjs／.log 及 react-avatar-release-hashes.json。日志只记录状态、类型和尺寸，不输出头像签名查询串。
 - Standards 与 Spec 分别审查 c6ee12d 到 37645e0，各 0 项问题。修正产物保存于主工作目录 target/react-migration-release/ticket-10-avatar-fix，JAR／7z 哈希与验收产物一致，7z 完整性检查通过。
+
+头像修正集成于 e45eb80。合入后在主工作目录的 5173 预览重跑原真实头像复现脚本，结果为 PASS，代理返回 200 image/jpeg，无图片请求失败；日志为仓库外 react-avatar-integrated-smoke.log。

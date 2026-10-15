@@ -170,3 +170,5 @@ post preview 在阶段 3 结束，chat preview 在阶段 5 结束，两页各自
 任务 10 集成提交为 c8e4787。合入后主工作目录 Vite 预览以本机 HTTP 替身验证元信息、普通／纯转发及键盘新窗隔离通过，未调用现有后端业务接口或外部媒体。实施 worktree 通过 Codex 归档，queued 仅表示请求排队。
 
 2026-10-16，用户反馈头像显示首字，独立修复 37645e0。真实 CDN 直连返回 403，而既有图片代理返回 200；React 侧栏与卡片头像改用 /chat/image，补齐 Vite 精确代理。64 项前端回归、类型与双入口构建、8 项 Maven 资源检查、Vite 与隔离 JAR 的真实头像加载通过，Standards／Spec 各 0 项。发布包另存于 target/react-migration-release/ticket-10-avatar-fix，详细证据见票 10。仍处于阶段 2，下一候选仍为博主名称过滤。
+
+头像修正集成提交为 e45eb80。合入后现有 5173 预览的真实头像复现检查通过，实施 worktree 提交归档，queued 仅表示请求排队。
