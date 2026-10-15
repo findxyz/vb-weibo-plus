@@ -139,6 +139,31 @@ class ReactPreviewPageTest {
     }
 
     @Test
+    void classpath_preview_opens_inline_picture_through_existing_proxy() {
+        try (Page page = browser.newPage()) {
+            page.context().route("https://wx3.sinaimg.cn/**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setStatus(403).setContentType("text/html").setBody("<h1>403 Forbidden</h1>")));
+            page.route("**/post/list?**", route -> route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                    .setBody("""
+                            {"items":[{"mblogId":"inline-picture-fixture","createdAt":1785889800000,
+                            "content":"<a href='https://wx3.sinaimg.cn/large/picture.jpg?size=large&amp;key=a%2Bb' data-pid='picture'>查看图片</a>",
+                            "blogger":{"uid":1,"screenName":"图片博主"}}],"page":1,"size":9999,"total":1}
+                            """)));
+            page.navigate(baseUrl + "/preview/post/index.html");
+            String proxyPath = "/chat/image?url=https%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Fpicture.jpg%3Fsize%3Dlarge%26key%3Da%252Bb";
+            assertThat(page.locator(".post-content a")).hasAttribute("href", proxyPath);
+            try (Page popup = page.waitForPopup(() -> page.locator(".post-content a").click())) {
+                popup.waitForLoadState();
+                assertThat(popup).hasURL(baseUrl + proxyPath);
+                assertThat(popup.locator("svg")).isVisible();
+                Assertions.assertThat(popup.evaluate("window.opener")).isNull();
+            }
+            assertThat(page).hasURL(baseUrl + "/preview/post/index.html");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
+        }
+    }
+
+    @Test
     void classpath_preview_loads_avatars_through_existing_image_proxy() {
         try (Page page = browser.newPage()) {
             List<String> directRequests = new ArrayList<>();

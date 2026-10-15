@@ -45,9 +45,11 @@ test.beforeAll(async () => {
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
     if (path === '/chat/image') {
-      const broken = new URL(url.searchParams.get('url')!).pathname.endsWith('/broken.svg');
+      const imagePath = new URL(url.searchParams.get('url')!).pathname;
+      const broken = imagePath.endsWith('/broken.svg');
       response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
-      response.end(broken ? 'Missing avatar' : '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="red"/></svg>');
+      const size = imagePath.startsWith('/large/') ? 300 : 48;
+      response.end(broken ? 'Missing image' : `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><rect width="${size}" height="${size}" fill="red"/></svg>`);
       return;
     }
     if (path === '/post/video-cover') {
@@ -824,6 +826,57 @@ for (const mode of ['single', 'multiple', 'retweet'] as const) {
     await page.screenshot({ path: testInfo.outputPath('react-images.png') });
   });
 }
+
+test('inline_picture_links_open_through_proxy_when_cdn_rejects_browser_navigation', async ({ page, context }) => {
+  const outer = 'https://wx3.sinaimg.cn/large/outer.jpg?size=large&key=a%2Bb';
+  const retweeted = 'https://wx4.sinaimg.cn/large/retweeted.jpg';
+  posts.items[0].content = `<a href="${outer.replaceAll('&', '&amp;')}" data-pid="outer">查看图片</a>`;
+  posts.items[0].retweeted = { screenName: '原作者', content: '<a href="//wx4.sinaimg.cn/large/retweeted.jpg" data-pid="retweeted">查看图片</a>' };
+  const directReads: string[] = [];
+  await context.route('https://*.sinaimg.cn/**', route => {
+    directReads.push(route.request().url());
+    return route.fulfill({ status: 403, contentType: 'text/html', body: '<h1>403 Forbidden</h1>' });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  for (const [selector, url] of [['.post-content', outer], ['.post-retweet-content', retweeted]]) {
+    const link = page.locator(selector).getByRole('link', { name: '查看图片' });
+    const proxyPath = `/chat/image?${new URLSearchParams({ url })}`;
+    await expect(link).toHaveAttribute('href', proxyPath);
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener');
+    await link.focus();
+    const opening = page.waitForEvent('popup');
+    await page.keyboard.press('Enter');
+    const popup = await opening;
+    await popup.waitForLoadState();
+    await expect(popup).toHaveURL(`${baseUrl.slice(0, -1)}${proxyPath}`);
+    await expect.poll(() => popup.locator('svg').evaluateAll(images => images.length)).toBe(1);
+    expect(await popup.evaluate(() => window.opener)).toBeNull();
+    await popup.close();
+    await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+    await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
+  }
+  expect(directReads).toEqual([]);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(requests.filter(value => value.startsWith('GET /chat/image'))).toEqual([outer, retweeted].map(url => `GET /chat/image?${new URLSearchParams({ url })}`));
+});
+
+test('inline_picture_proxy_leaves_ordinary_links_and_unsafe_addresses_to_existing_sanitization', async ({ page }) => {
+  posts.items[0].content = '<a href="https://example.test/page" data-pid="ordinary">网页</a>'
+    + '<a href="https://wx3.sinaimg.cn.evil.test/large/fake.jpg" data-pid="fake">相似域名</a>'
+    + '<a href="https://wx3.sinaimg.cn/large/plain.jpg">普通图片链接</a>'
+    + '<a href="/n/用户" data-pid="mention">用户</a>'
+    + '<a href="javascript:window.pictureAttack=1" data-pid="unsafe">恶意地址</a>';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const content = page.locator('.post-content');
+  await expect(content.getByRole('link', { name: '网页', exact: true })).toHaveAttribute('href', 'https://example.test/page');
+  await expect(content.getByRole('link', { name: '相似域名' })).toHaveAttribute('href', 'https://wx3.sinaimg.cn.evil.test/large/fake.jpg');
+  await expect(content.getByRole('link', { name: '普通图片链接' })).toHaveAttribute('href', 'https://wx3.sinaimg.cn/large/plain.jpg');
+  await expect(content.getByRole('link', { name: '用户', exact: true })).toHaveAttribute('href', 'https://weibo.com/n/用户');
+  await expect(content.locator('[data-pid="unsafe"]')).not.toHaveAttribute('href');
+  expect(requests.filter(value => value.startsWith('GET /chat/image'))).toEqual([]);
+  expect(await page.evaluate(() => (window as Window & { pictureAttack?: number }).pictureAttack)).toBeUndefined();
+});
 
 test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', async ({ page }) => {
   const directReads: string[] = [];
