@@ -97,14 +97,16 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-card.pure-retweet { grid-template-columns: minmax(0, 1fr); }
 .post-body { min-width: 0; display: grid; gap: 8px; }
 .post-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 120px)); gap: 6px; margin-top: 4px; }
-.post-pic { position: relative; display: block; width: 120px; height: 120px; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper-tint); }
+.post-pic { position: relative; display: block; width: 120px; height: 120px; padding: 0; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper-tint); }
 .post-pic img, .post-retweet-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.post-pic img { transition: filter .15s ease; }
+.post-pic:hover img { filter: brightness(.9) contrast(.95); }
 .post-pic[hidden], .post-retweet-pic[hidden] { display: none; }
 .post-pics.one-image { grid-template-columns: minmax(0, 320px); }
 .post-pics.one-image .post-pic { width: fit-content; height: auto; max-width: 320px; max-height: 320px; }
 .post-pics.one-image .post-pic img { width: auto; height: auto; max-width: 100%; max-height: 320px; object-fit: contain; }
 .post-retweet-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 100px)); gap: 4px; margin-top: 4px; }
-.post-retweet-pic { position: relative; display: block; width: 100px; height: 100px; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: repeating-linear-gradient(45deg, var(--grid) 0 4px, transparent 4px 8px), var(--paper-tint); }
+.post-retweet-pic { position: relative; display: block; width: 100px; height: 100px; padding: 0; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: repeating-linear-gradient(45deg, var(--grid) 0 4px, transparent 4px 8px), var(--paper-tint); }
 .post-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .post-author { font: 700 16px/1.2 var(--hand-b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .post-time { color: var(--pencil); font: 12px/1 var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -120,3 +122,13 @@ button { font: inherit; color: inherit; cursor: pointer; user-select: none; }
 .posts > button { min-height: 30px; padding: 0 14px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper); font: 14px/1 var(--hand); }
 a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 [role="alert"] { color: var(--danger); }
+.image-viewer { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; padding: 32px; border: 0; background: rgb(43 38 32 / 82%); }
+.image-viewer[open] { display: flex; align-items: center; justify-content: center; }
+.image-viewer::backdrop { background: transparent; }
+.image-viewer img { width: auto; max-width: 100%; height: auto; max-height: 100%; display: block; object-fit: contain; cursor: pointer; border: 3px solid var(--paper); box-shadow: 0 0 0 2px var(--ink); }
+.image-viewer img[hidden] { display: none; }
+#image-viewer-state { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%); color: var(--paper); font: 16px/1.3 var(--hand); pointer-events: none; }
+.viewer-prev, .viewer-next { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border: 2px solid var(--paper); border-radius: 50%; background: rgb(0 0 0 / 50%); color: var(--paper); font: 24px/1 var(--hand-b); cursor: pointer; }
+.viewer-prev { left: 16px; }
+.viewer-next { right: 16px; }
+.viewer-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: var(--paper); font: 14px/1 var(--mono); pointer-events: none; }
