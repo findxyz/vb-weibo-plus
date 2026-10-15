@@ -61,3 +61,15 @@
 仍处于阶段 2，下一候选为博主名称过滤，任务 11 尚未发布。正式入口与运行中的后端保持现状；worktree 归档若返回 queued，仅表示请求排队。
 
 集成提交 c8e4787。合入后在主工作目录的 Vite 服务再次验证普通／纯转发元信息、主页／原文键盘跳转及新窗隔离；所有业务读取均由浏览器本机替身拦截，未读取用户媒体。集成日志与截图为仓库外 react-metadata-integrated-smoke.log、react-metadata-integrated.png。
+
+## 头像加载修正
+
+2026-10-16，用户反馈真实头像仍显示名称首字，独立修复提交 37645e0。
+
+- 原测试只用可成功直连的图片替身，未覆盖真实 CDN 拒绝浏览器直连。使用接口返回的真实头像复现：地址仍在有效期内，CDN 返回 403 HTML，Chrome 报 ERR_BLOCKED_BY_ORB，组件因此显示首字。默认策略、no-referrer 以及去掉查询参数均无法解决；同一地址经既有 /chat/image 代理得到 200 image/jpeg。
+- 修正仅将 BloggerAvatar 的图片地址改为既有同源代理，URLSearchParams 完整编码原地址及查询参数；Vite 精确代理 /chat/image，避免拦截相似路径。没有新增后端接口或修改旧页面，主页链接、认证、lazy／async、安全校验及失败占位保留。
+- 先将直连头像替身改为 403，浏览器测试因图片缺失失败；接入同源代理后通过。64 项前端回归、类型检查和双入口构建通过，包含侧栏／卡片头像、代理失败占位、查询参数编码及开发代理路径隔离。
+- Maven 定向 ReactPreviewPageTest package 通过，8 项构建资源检查无失败、错误或跳过；新增检查在直连被拒时，侧栏／卡片仍使用同源代理显示头像，主页链接与按钮结构保持。
+- 原复现脚本在修正后的 Vite 中得到 PASS，真实图片经同源代理返回 200 image/jpeg，侧栏和卡片均已人工查看。独立 JAR 使用隔离 SQLite、缺失 Credential 和空采集群号，取当前接口的头像地址作为测试输入，真实 CDN 头像代理加载与 4 个新旧入口通过；浏览器无直连 CDN 或写请求。测试进程树在 finally 关闭，用户数据库未改动，证据保留于 C:/Users/fixyz/AppData/Local/Temp/react-avatar-jar-96e_e5b6。
+- 仓库外保存 react-avatar-frontend.log、react-avatar-package.log、react-avatar-real-smoke.log、react-avatar-real.png、react-avatar-jar-smoke.py／.mjs／.log 及 react-avatar-release-hashes.json。日志只记录状态、类型和尺寸，不输出头像签名查询串。
+- Standards 与 Spec 分别审查 c6ee12d 到 37645e0，各 0 项问题。修正产物保存于主工作目录 target/react-migration-release/ticket-10-avatar-fix，JAR／7z 哈希与验收产物一致，7z 完整性检查通过。

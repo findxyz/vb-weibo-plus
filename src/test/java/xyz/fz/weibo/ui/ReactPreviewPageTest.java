@@ -91,6 +91,13 @@ class ReactPreviewPageTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/chat/image", exchange -> {
+            byte[] body = "<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='48' height='48' fill='#d8482b'/></svg>".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "image/svg+xml");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
         server.createContext("/preview/", ReactPreviewPageTest::sendStaticResource);
         server.createContext("/assets/", ReactPreviewPageTest::sendStaticResource);
         server.start();
@@ -129,6 +136,35 @@ class ReactPreviewPageTest {
         if (browser != null) browser.close();
         if (playwright != null) playwright.close();
         if (server != null) server.stop(0);
+    }
+
+    @Test
+    void classpath_preview_loads_avatars_through_existing_image_proxy() {
+        try (Page page = browser.newPage()) {
+            List<String> directRequests = new ArrayList<>();
+            List<String> proxyRequests = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().startsWith("https://avatar.example.test/")) directRequests.add(request.url());
+                if (request.url().startsWith(baseUrl + "/chat/image?")) proxyRequests.add(request.url());
+            });
+            page.route("https://avatar.example.test/**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setStatus(403).setContentType("text/html").setBody("Forbidden")));
+            page.route("**/post/bloggers", route -> route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                    .setBody("[{\"uid\":1,\"screenName\":\"头像博主\",\"avatar\":\"https://avatar.example.test/valid.svg?size=48&variant=small\"}]")));
+            page.route("**/post/list?**", route -> route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                    .setBody("""
+                            {"items":[{"mblogId":"avatar-fixture","createdAt":1785889800000,"content":"头像正文",
+                            "blogger":{"uid":1,"screenName":"头像博主","avatar":"https://avatar.example.test/valid.svg?size=48&variant=small"}}],
+                            "page":1,"size":9999,"total":1}
+                            """)));
+            page.navigate(baseUrl + "/preview/post/index.html");
+            page.waitForFunction("document.querySelector('.post-avatar img')?.naturalWidth === 48 && document.querySelector('.blogger-list .blogger-avatar img')?.naturalWidth === 48");
+            assertThat(page.locator(".post-avatar img")).hasAttribute("src", "/chat/image?url=https%3A%2F%2Favatar.example.test%2Fvalid.svg%3Fsize%3D48%26variant%3Dsmall");
+            assertThat(page.locator(".post-avatar")).hasAttribute("href", "https://weibo.com/u/1");
+            assertThat(page.locator(".blogger-row a")).hasCount(0);
+            Assertions.assertThat(directRequests).isEmpty();
+            Assertions.assertThat(proxyRequests).isNotEmpty().allMatch(url -> url.contains("%26variant%3Dsmall"));
+        }
     }
 
     @Test
