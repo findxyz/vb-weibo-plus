@@ -185,6 +185,127 @@ test('post_images_use_thumbnail_grid_and_original_fallback_before_viewing', asyn
   ]);
 });
 
+test('post_metadata_keeps_backend_text_order_typography_and_empty_field_behavior', async ({ page }) => {
+  posts.items[0].region = '发布于 上海';
+  posts.items[0].source = '<b>网页端</b>';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-region')).toHaveText('发布于 上海');
+  await expect(page.locator('.post-source')).toHaveText('<b>网页端</b>');
+  await expect(page.locator('.post-source b')).toHaveCount(0);
+  await expect(page.locator('.post-region')).toHaveCSS('font-size', '12px');
+  await expect(page.locator('.post-region')).toHaveCSS('font-variant-numeric', 'tabular-nums');
+  await expect(page.locator('.post-source')).toHaveCSS('font-size', '12px');
+  expect(await page.locator('.post-region').evaluate(element => getComputedStyle(element, '::before').content)).toBe('" · "');
+  expect(await page.locator('.post-source').evaluate(element => getComputedStyle(element, '::before').content)).toBe('" · 来自 "');
+  expect(await page.locator('.post-header > *').evaluateAll(elements => elements.map(element => element.className))).toEqual(['post-author', 'post-time', 'post-region', 'post-source']);
+  posts.items[0].region = null;
+  posts.items[0].source = '';
+  await page.reload();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.locator('.post-region, .post-source')).toHaveCount(0);
+  await expect(page.locator('.post-header')).toContainText('第一位');
+});
+
+test('post_links_open_homepage_and_original_with_keyboard_and_preserve_reading_state', async ({ page, context }) => {
+  posts.items[0].postUrl = 'https://weibo.com/1/local-1';
+  posts.items[0].content = Array(35).fill('本地长正文').join('\n');
+  posts.items[0].blogger!.verified = true;
+  await context.route('https://weibo.com/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Weibo fixture</h1>' }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const homepage = page.getByRole('link', { name: '前往 第一位 的微博首页', exact: true });
+  const original = page.getByRole('link', { name: '查看原文', exact: true });
+  await expect(homepage).toHaveAttribute('href', 'https://weibo.com/u/1');
+  await expect(homepage).toHaveText('第');
+  await expect(page.locator('.post-author').getByLabel('已认证')).toBeVisible();
+  await expect(page.locator('.blogger-row a, .post-author a')).toHaveCount(0);
+  await expect(original).toHaveAttribute('href', posts.items[0].postUrl);
+  for (const [index, link] of [homepage, original].entries()) {
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener');
+    await expect(link).toHaveCSS('text-decoration-line', 'none');
+    await link.hover();
+    await expect(link).toHaveCSS('text-decoration-line', index ? 'underline' : 'none');
+    await expect(link).toHaveCSS('text-decoration-style', 'solid');
+    await link.focus();
+    await expect(link).toBeFocused();
+    await expect(link).toHaveCSS('outline-style', 'solid');
+    await expect(link).toHaveCSS('outline-width', '3px');
+    const scrollTop = await page.locator('.posts').evaluate(element => element.scrollTop);
+    if (index) expect(scrollTop).toBeGreaterThan(0);
+    const opened = page.waitForEvent('popup');
+    if (index) await page.keyboard.press('Enter');
+    else await link.click();
+    const popup = await opened;
+    await popup.waitForLoadState();
+    await expect(popup).toHaveURL(index ? posts.items[0].postUrl! : 'https://weibo.com/u/1');
+    expect(await popup.evaluate(() => window.opener)).toBeNull();
+    await popup.close();
+    await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+    expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBe(scrollTop);
+    await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
+    await expect(page.getByRole('button', { name: '全部博主', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
+  expect(requests.filter(value => value.startsWith('GET /post/list'))).toHaveLength(1);
+});
+
+test('post_links_omit_unsafe_urls_and_invalid_uids_without_changing_avatar_fallback', async ({ page }) => {
+  const invalidUrls = [undefined, null, '', 'javascript:alert(1)', 'data:text/html,unsafe', 'file:///tmp/test', '/relative', '//weibo.com/1/test', 'https://[broken'];
+  const invalidUids = [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN];
+  posts.items = invalidUrls.map((postUrl, index) => ({ ...posts.items[0], mblogId: `invalid-${index}`, postUrl,
+    blogger: index === 0 ? null : { uid: invalidUids[index % invalidUids.length], screenName: '占位博主', avatar: '/missing-avatar' } }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('article')).toHaveCount(invalidUrls.length);
+  await expect(page.locator('.post-actions, a.post-avatar')).toHaveCount(0);
+  await expect(page.locator('.post-avatar').first()).toHaveText('?');
+  await expect(page.locator('.post-avatar').last()).toHaveText('占');
+  await expect(page.locator('.post-avatar[aria-hidden="true"]')).toHaveCount(invalidUrls.length);
+  await expect(page.locator('.post-avatar img')).toHaveCount(0);
+  posts.items = [{ ...posts.items[1], mblogId: 'http-original', postUrl: 'http://weibo.com/1/plain', blogger: { uid: 1, screenName: '', avatar: '/missing-avatar' } }];
+  await page.reload();
+  await expect(page.getByRole('link', { name: '查看原文', exact: true })).toHaveAttribute('href', 'http://weibo.com/1/plain');
+  await expect(page.getByRole('link', { name: '前往 博主 的微博首页', exact: true })).toHaveText('?');
+});
+
+for (const width of [1280, 1600]) {
+  test(`post_complete_metadata_cards_match_legacy_geometry_at_${width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    posts.items[0] = { ...posts.items[0], source: '网页端', region: '发布于 上海', postUrl: 'https://weibo.com/1/local-1' };
+    posts.items.push({ ...posts.items[0], mblogId: 'pure', content: '', postUrl: 'https://weibo.com/1/pure', retweeted: { screenName: '原作者', content: '转发正文' } });
+    await serveLegacy(page);
+    const measure = () => page.locator('article').evaluateAll(cards => cards.map(card => {
+      return ['.post-header', '.post-author', '.post-time', '.post-region', '.post-source', '.post-actions', '.post-link', ''].map(selector => {
+        const element = selector ? card.querySelector(selector)! : card;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fontSize: style.fontSize, fontFamily: style.fontFamily, fontWeight: style.fontWeight, lineHeight: style.lineHeight, color: style.color, overflow: style.overflow, textOverflow: style.textOverflow };
+      });
+    }));
+    await page.goto(`${baseUrl}legacy/post/index.html`);
+    await expect(page.locator('article')).toHaveCount(2);
+    const legacy = await measure();
+    await page.screenshot({ path: testInfo.outputPath('legacy-metadata.png') });
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect(page.locator('article')).toHaveCount(2);
+    expect(await measure()).toEqual(legacy);
+    const pure = page.locator('article').last();
+    await expect(pure).toHaveClass('post-card pure-retweet');
+    await expect(pure.locator('.post-avatar, .post-content')).toHaveCount(0);
+    await expect(pure.locator('.post-link')).toHaveAttribute('href', 'https://weibo.com/1/pure');
+    await expect(pure.locator('.post-region')).toHaveText('发布于 上海');
+    await expect(pure.locator('.post-source')).toHaveText('网页端');
+    await page.screenshot({ path: testInfo.outputPath('react-metadata.png') });
+    posts.items[0].source = '长来源'.repeat(100);
+    posts.items[1].source = null;
+    posts.items[1].region = '';
+    await page.reload();
+    const source = page.locator('.post-source');
+    await expect(source).toHaveText(posts.items[0].source);
+    await expect(source).toHaveCSS('text-overflow', 'ellipsis');
+    expect(await source.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+    await expect(pure.locator('.post-source, .post-region')).toHaveCount(0);
+  });
+}
+
 test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ page, context }) => {
   posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/watch/outer' };
   await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));

@@ -6,7 +6,7 @@ export type PostImage = { pid: string; thumbnailUrl?: string | null; originalUrl
 export type Video = { pageUrl?: string | null; coverUrl?: string | null };
 export type Calendar = { months: { month: string; count: number; days: { date: string; count: number }[] }[] };
 export type Retweet = { screenName: string | null; content: string | null; pics?: PostImage[] | null; video?: Video | null };
-export type Post = { mblogId: string; content: string; createdAt: number; blogger: Blogger | null; retweeted?: Retweet | null; pics?: PostImage[] | null; video?: Video | null };
+export type Post = { mblogId: string; content: string; createdAt: number; blogger: Blogger | null; retweeted?: Retweet | null; pics?: PostImage[] | null; video?: Video | null; source?: string | null; region?: string | null; postUrl?: string | null };
 export type PostList = { items: Post[]; page: number; size: number; total: number };
 
 class QueryError extends Error {
