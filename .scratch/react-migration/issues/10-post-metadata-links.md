@@ -75,3 +75,16 @@
 - Standards 与 Spec 分别审查 c6ee12d 到 37645e0，各 0 项问题。修正产物保存于主工作目录 target/react-migration-release/ticket-10-avatar-fix，JAR／7z 哈希与验收产物一致，7z 完整性检查通过。
 
 头像修正集成于 e45eb80。合入后在主工作目录的 5173 预览重跑原真实头像复现脚本，结果为 PASS，代理返回 200 image/jpeg，无图片请求失败；日志为仓库外 react-avatar-integrated-smoke.log。
+
+## 正文图片链接修正
+
+2026-10-16，用户反馈截图中正文“查看图片”打开后 403，旧版可用。独立修复 e5296e2。
+
+- 使用截图对应微博与同一份接口数据对照，正文链接带 data-pid，直接指向微博图片 CDN；该条外层 pics 为空，所以不是图片网格／查看器入口。隔离浏览器中新旧页面地址一致，两者直连都返回 403；用户现有旧版浏览器可用的差异未确定，不将其归因于 React 改错 URL。现有 /chat/image 代理能返回同一张图片，200 image/jpeg。
+- 仅将带 data-pid、地址可解析且为 HTTP／HTTPS 的 *.sinaimg.cn 正文图片链接改用既有代理。协议相对地址先补 HTTPS，原地址和查询参数通过 URLSearchParams 完整编码；普通正文与转发正文共用清洗逻辑，最终 DOMPurify 清洗保留。普通网页、相似域名、无图片标识的链接及危险地址继续按原规则处理。
+- 保留新窗口打开与 noopener，阅读页面和日期不变，不接管图片查看器；没有修改后端、代理配置、依赖、样式或旧正式页。
+- 浏览器回归先因链接仍指向直连 CDN 失败，修正后普通／转发图片链接均可在 CDN 直连被拒时通过同源代理打开，验证参数编码、新窗隔离及链接范围。完整 66 项前端回归、类型检查和双入口构建通过。
+- Maven 定向 ReactPreviewPageTest package 通过，9 项构建资源检查无失败、错误或跳过。新增打包检查覆盖正文图片代理、新窗口及当前日期保持。
+- 截图对应牙刷图片在修正后的 Vite 真实打开并已人工查看；独立 JAR 使用隔离 SQLite、缺失 Credential 与空采集群号，仅将该图片链接作为测试输入，真实原图在新窗口显示、opener 隔离及 4 个新旧入口通过。浏览器没有直连 CDN 或业务写请求，用户数据库未改动，测试进程树由 finally 关闭。证据保留于 C:/Users/fixyz/AppData/Local/Temp/react-inline-picture-jar-vdq934dt。
+- 仓库外保存 react-inline-picture-frontend.log、react-inline-picture-package.log、react-inline-picture-real-smoke.log、react-inline-picture-real.png、react-inline-picture-jar-smoke.py／.mjs／.log 及 react-inline-picture-release-hashes.json。
+- Standards／Spec 分别审查 3f026a5 到 e5296e2，各 0 项问题。发布包保存在主工作目录 target/react-migration-release/ticket-10-inline-picture-fix，JAR／7z 与验收产物 SHA-256 一致，7z 完整性检查通过。

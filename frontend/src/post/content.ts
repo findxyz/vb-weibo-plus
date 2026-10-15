@@ -9,6 +9,13 @@ export function sanitizedContent(content: string) {
     const href = anchor.getAttribute('href') || '';
     if (href.startsWith('//')) anchor.setAttribute('href', `https:${href}`);
     else if (href.startsWith('/')) anchor.setAttribute('href', `https://weibo.com${href}`);
+    const imageHref = anchor.getAttribute('href') || '';
+    if (anchor.hasAttribute('data-pid') && /^https?:\/\//i.test(imageHref) && URL.canParse(imageHref)) {
+      const imageUrl = new URL(imageHref);
+      if (imageUrl.hostname.endsWith('.sinaimg.cn')) {
+        anchor.setAttribute('href', `/chat/image?${new URLSearchParams({ url: imageHref })}`);
+      }
+    }
     anchor.setAttribute('target', '_blank');
     anchor.setAttribute('rel', 'noopener');
   }
