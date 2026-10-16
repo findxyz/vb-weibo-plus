@@ -228,6 +228,133 @@ test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_car
   await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeHidden();
 });
 
+test('search_location_keeps_scope_and_filter_reloads_same_day_with_enter_and_space', async ({ page }) => {
+  const target = { ...posts.items[0], mblogId: 'same-day', content: '完整同日正文', blogger: bloggers[1] };
+  postsByUid['2'] = { ...posts, total: 1, items: [target] };
+  searchPosts = { ...posts, total: 1, items: [{ ...target, contentRaw: '同日摘要' }] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.post-content')).toHaveText('完整同日正文');
+  await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
+  for (const key of ['Enter', 'Space']) {
+    await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+    await page.getByLabel('关键词', { exact: true }).fill('同日');
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    const result = page.locator('.search-result');
+    await expect(result).toContainText('同日摘要');
+    const count = requests.filter(value => value.startsWith('GET /post/list?') && !value.includes('keyword=')).length;
+    await result.focus();
+    await result.press(key);
+    await expect(page.locator('.post-card.flash-highlight')).toContainText('完整同日正文');
+    expect(requests.filter(value => value.startsWith('GET /post/list?') && !value.includes('keyword='))).toHaveLength(count + 1);
+    const query = requests.filter(value => value.startsWith('GET /post/list?')).at(-1)!;
+    expect(query).toContain('uids=2');
+    expect(query).not.toContain('keyword=');
+    await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
+    await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  }
+  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await expect(page.locator('.post-content')).toHaveText('完整同日正文');
+  await expect(page.locator('.flash-highlight')).toHaveCount(0);
+});
+
+test('search_location_preempts_pending_day_and_ignores_its_late_response', async ({ page }) => {
+  const target = { ...posts.items[0], mblogId: 'july', createdAt: Date.parse('2026-07-10T00:00:00Z'), content: '新的七月正文' };
+  searchPosts = { ...posts, total: 1, items: [target] };
+  postsByDate['2026-07-10'] = searchPosts;
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  holdResponse = true;
+  holdPath = '/post/list';
+  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  const releaseOld = releaseResponse!;
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('七月');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.locator('.search-result')).toContainText('新的七月正文');
+  holdResponse = false;
+  await page.locator('.search-result').click();
+  await expect(page.locator('.post-card.flash-highlight')).toContainText('新的七月正文');
+  releaseOld();
+  await expect(page.locator('.post-content')).toHaveText('新的七月正文');
+  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveCount(0);
+});
+
+test('search_location_failed_day_retries_before_highlighting', async ({ page }) => {
+  const target = { ...posts.items[0], mblogId: 'retry-day', content: '重试后的完整正文' };
+  searchPosts = { ...posts, total: 1, items: [target] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('重试');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.locator('.search-result')).toContainText('重试后的完整正文');
+  listStatus = 500;
+  await page.locator('.search-result').click();
+  await expect(page.getByRole('alert')).toContainText('博文加载失败');
+  await expect(page.locator('.flash-highlight')).toHaveCount(0);
+  listStatus = 200;
+  posts = { ...posts, items: [target] };
+  await page.getByRole('button', { name: '重试博文', exact: true }).click();
+  await expect(page.locator('.post-card.flash-highlight')).toContainText('重试后的完整正文');
+});
+
+test('search_location_new_scope_discards_pending_target_and_cleanup_has_no_late_highlight', async ({ page }) => {
+  searchPosts = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'old-target', content: '旧目标' }] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('旧');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.locator('.search-result')).toContainText('旧目标');
+  holdResponse = true;
+  holdPath = '/post/list';
+  await page.locator('.search-result').click();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  const releaseOld = releaseResponse!;
+  holdResponse = false;
+  postsByUid['2'] = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'old-target', content: '新范围正文', blogger: bloggers[1] }] };
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.post-content')).toHaveText('新范围正文');
+  releaseOld();
+  await expect(page.locator('.flash-highlight')).toHaveCount(0);
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+});
+
+test('search_location_missing_target_does_not_highlight_another_card_or_scroll', async ({ page }) => {
+  searchPosts = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'missing', content: '缺失摘要' }] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('缺失');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.locator('.search-result')).toContainText('缺失摘要');
+  await page.locator('.search-result').click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.locator('.flash-highlight')).toHaveCount(0);
+  expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBe(0);
+});
+
+test('search_location_reduced_motion_uses_static_paper_highlight_then_clears', async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  searchPosts = { ...posts, total: 1, items: posts.items };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('第一');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.locator('.search-result')).toContainText('第一行');
+  await page.locator('.search-result').click();
+  const card = page.locator('.post-card');
+  await expect(card).toHaveClass(/flash-highlight/);
+  await expect(card).toHaveCSS('animation-name', 'none');
+  await expect(card).toHaveCSS('background-color', 'color(srgb 0.982118 0.925177 0.80251)');
+  await page.screenshot({ path: testInfo.outputPath('reduced-location.png') });
+  await expect(card).not.toHaveClass(/flash-highlight/);
+});
+
 test('advanced_search_opens_with_shanghai_defaults_resets_and_restores_focus_without_querying', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
   await page.goto(`${baseUrl}preview/post/index.html`);
