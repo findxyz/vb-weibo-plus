@@ -21,7 +21,7 @@ function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
 export default function PostPreview() {
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger } = useDefaultReading();
+  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost } = useDefaultReading();
   const selectedBlogger = bloggers.data?.find(blogger => blogger.uid === selection.uid);
   const formalPage = import.meta.env.DEV ? new URL('/post/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/post/index.html';
 
@@ -53,7 +53,7 @@ export default function PostPreview() {
             {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
             {calendar.isError && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
             {calendar.isSuccess && !date && <p className="panel-feedback" role="status">暂无有博文的日期。</p>}
-            {date && <DateTimeline key={selection.visit} months={months} date={date} onSelectDate={selectDate} />}
+            {date && <DateTimeline key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
           </div>
         </section>
         <section className="feed" aria-label="博文区域">
@@ -65,11 +65,11 @@ export default function PostPreview() {
           <div className="posts">
             {posts.isFetching && <p role="status">正在加载博文……</p>}
             {posts.isError && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
-            {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} />}
+            {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} targetPostId={jump?.mblogId} />}
           </div>
         </section>
       </main>
-      {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} />}
+      {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} onSelectPost={jumpToPost} />}
     </div>
   );
 }

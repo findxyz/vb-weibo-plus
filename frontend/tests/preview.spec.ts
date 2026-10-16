@@ -19,6 +19,7 @@ let calendar = { months: [{ month: '2026-08', count: 3, days: [{ date: '2026-08-
 let posts: PostList = { items: [{ mblogId: 'local-1', content: '第一行\n第二行<br>第三行', createdAt: Date.parse('2026-08-05T00:30:00Z'), blogger: { uid: 1, screenName: '第一位' } }], page: 1, size: 9999, total: 3 };
 let calendarsByUid: Record<string, typeof calendar>;
 let postsByUid: Record<string, typeof posts>;
+let postsByDate: Record<string, typeof posts>;
 let holdUid: string | undefined;
 let pageErrors: string[];
 let writeRequests: string[];
@@ -92,7 +93,7 @@ test.beforeAll(async () => {
       return;
     }
     const responseStatus = path === '/post/calendar' ? calendarStatus : path === '/post/list' ? listStatus : status;
-    const payload = JSON.stringify(responseStatus === 200 ? (path === '/post/calendar' ? calendarsByUid[uid] ?? calendar : path === '/post/list' ? postsByUid[uid] ?? posts : bloggers) : responseStatus === 503 ? bloggers : { msg: '本地读取暂时不可用' });
+    const payload = JSON.stringify(responseStatus === 200 ? (path === '/post/calendar' ? calendarsByUid[uid] ?? calendar : path === '/post/list' ? postsByDate[url.searchParams.get('start')?.slice(0, 10) ?? ''] ?? postsByUid[uid] ?? posts : bloggers) : responseStatus === 503 ? bloggers : { msg: '本地读取暂时不可用' });
     const send = () => {
       if (releaseResponse === send) releaseResponse = undefined;
       response.writeHead(responseStatus, { 'Content-Type': 'application/json' });
@@ -124,6 +125,7 @@ test.beforeEach(({ page }) => {
   releaseResponse = undefined;
   calendarsByUid = {};
   postsByUid = {};
+  postsByDate = {};
   holdUid = undefined;
   status = 200;
   calendarStatus = 200;
@@ -183,6 +185,48 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
+
+test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_card', async ({ page }) => {
+  calendar.months.push(
+    { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
+    { month: '2025-12', count: 30, days: [{ date: '2025-12-31', count: 30 }] },
+  );
+  const target = { ...posts.items[0], mblogId: 'result:a[0]"', createdAt: Date.parse('2025-12-30T17:00:00Z'), contentRaw: '跨年定位摘要', content: '目标完整正文' };
+  searchPosts = { ...posts, total: 1, items: [target] };
+  postsByDate['2025-12-31'] = { ...posts, total: 30, items: Array.from({ length: 30 }, (_, index) => index === 15 ? target : { ...target, mblogId: `other-${index}`, content: `其他完整正文 ${index}` }) };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '2026-07，1 条', exact: true }).click();
+  await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '高级搜索' });
+  await dialog.getByLabel('关键词', { exact: true }).fill('定位');
+  await dialog.getByRole('button', { name: '搜索', exact: true }).click();
+  const result = dialog.locator('.search-result');
+  await expect(result).toContainText('跨年定位摘要');
+  expect(await result.evaluate(element => element.tagName)).toBe('BUTTON');
+  await result.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '高级搜索', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: '2025 年，30 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: '2025-12，30 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: '2026-07，1 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
+  const card = page.locator('.post-card').filter({ hasText: '目标完整正文' });
+  await expect(card).toHaveClass(/flash-highlight/);
+  await expect(page.locator('.post-card.flash-highlight')).toHaveCount(1);
+  await expect.poll(async () => card.evaluate(element => {
+    const card = element.getBoundingClientRect();
+    const pane = element.closest('.posts')!.getBoundingClientRect();
+    return Math.abs((card.top + card.bottom - pane.top - pane.bottom) / 2);
+  })).toBeLessThan(3);
+  const last = new URL(requests.filter(value => value.startsWith('GET /post/list?')).at(-1)!.slice(4), 'http://fixture');
+  expect(Object.fromEntries(last.searchParams)).toEqual({ page: '1', size: '9999', start: '2025-12-31 00:00:00', end: '2025-12-31 23:59:59' });
+  await expect(card).not.toHaveClass(/flash-highlight/);
+  await page.getByRole('button', { name: '2025-12，30 条', exact: true }).click();
+  await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeHidden();
+});
 
 test('advanced_search_opens_with_shanghai_defaults_resets_and_restores_focus_without_querying', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
@@ -419,7 +463,7 @@ test('advanced_search_geometry_matches_legacy_form_and_result_with_paper_tokens'
   }
   await expect(page.locator('.search-overlay')).toHaveCSS('background-color', 'rgba(43, 38, 32, 0.32)');
   await expect(page.locator('.search-overlay-window')).toHaveCSS('box-shadow', 'rgba(43, 38, 32, 0.18) 6px 8px 0px -3px');
-  await expect(page.locator('.search-result')).toHaveCSS('cursor', 'auto');
+  await expect(page.locator('.search-result')).toHaveCSS('cursor', 'pointer');
   await expect(page.locator('.search-result-meta')).toHaveCSS('font-variant-numeric', 'tabular-nums');
   await page.screenshot({ path: testInfo.outputPath('react-search.png') });
 });

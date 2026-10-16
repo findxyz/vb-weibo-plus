@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
+import { epochToShanghaiDate, toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
 
 export type Blogger = { uid: number; screenName: string; avatar?: string | null; verified?: boolean };
 export type PostImage = { pid: string; thumbnailUrl?: string | null; originalUrl?: string | null; thumbnailWidth?: number; thumbnailHeight?: number; originalWidth?: number; originalHeight?: number };
@@ -63,7 +63,7 @@ export function usePostSearch(uid: number | null, request: SearchRequest | null)
 // https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation
 export function useDefaultReading() {
   const [selection, setSelection] = useState<{ uid: number | null; visit: number }>({ uid: null, visit: 0 });
-  const [selectedDate, setSelectedDate] = useState<{ visit: number; value: string }>();
+  const [selectedDate, setSelectedDate] = useState<{ visit: number; value: string; jump?: { mblogId: string; version: number } }>();
   const bloggers = useQuery({ queryKey: ['post', 'bloggers'], queryFn: ({ signal }) => getJson<Blogger[]>('/post/bloggers', signal) });
   // A visit isolates each explicit scope selection, including selecting the same blogger again.
   // https://tanstack.com/query/latest/docs/framework/react/guides/query-keys
@@ -74,8 +74,9 @@ export function useDefaultReading() {
   });
   const months = validMonths(calendar.data);
   const date = selectedDate?.visit === selection.visit ? selectedDate.value : months[0]?.days[0]?.date;
+  const jump = selectedDate?.visit === selection.visit ? selectedDate.jump : undefined;
   const posts = useQuery({
-    queryKey: ['post', 'list', selection.uid, selection.visit, date], gcTime: 0, enabled: Boolean(date),
+    queryKey: ['post', 'list', selection.uid, selection.visit, date, jump?.version], gcTime: 0, enabled: Boolean(date),
     queryFn: ({ signal }) => {
       const params = new URLSearchParams({ page: '1', size: '9999', start: `${date} 00:00:00`, end: `${date} 23:59:59` });
       if (selection.uid !== null) params.set('uids', String(selection.uid));
@@ -84,11 +85,15 @@ export function useDefaultReading() {
   });
   function selectDate(nextDate: string) {
     if (posts.isFetching) return;
-    if (nextDate === date) void posts.refetch();
+    if (nextDate === date && !jump) void posts.refetch();
     else setSelectedDate({ visit: selection.visit, value: nextDate });
+  }
+  function jumpToPost(post: Post) {
+    setSelectedDate(previous => ({ visit: selection.visit, value: epochToShanghaiDate(post.createdAt),
+      jump: { mblogId: post.mblogId, version: (previous?.jump?.version ?? 0) + 1 } }));
   }
   function selectBlogger(uid: number | null) {
     setSelection(previous => ({ uid, visit: previous.visit + 1 }));
   }
-  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger };
+  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost };
 }
