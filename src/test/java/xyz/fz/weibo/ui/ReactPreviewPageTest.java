@@ -52,6 +52,14 @@ class ReactPreviewPageTest {
         });
         server.createContext("/post/list", exchange -> {
             listQuery.set(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8));
+            if (listQuery.get().contains("keyword=")) {
+                sendJson(exchange, """
+                        {"items":[{"mblogId":"search-fixture","createdAt":1783643400000,
+                        "content":"<b>打包搜索</b>","contentRaw":"安全 <b>打包搜索</b>",
+                        "blogger":{"uid":2,"screenName":"第二位博主"}}],"page":1,"size":1000,"total":1}
+                        """);
+                return;
+            }
             if (listQuery.get().contains("uids=2")) {
                 String outerContent = listQuery.get().contains("start=2026-06-30") ? "" : "第二位博主的本地正文";
                 sendJson(exchange, """
@@ -136,6 +144,32 @@ class ReactPreviewPageTest {
         if (browser != null) browser.close();
         if (playwright != null) playwright.close();
         if (server != null) server.stop(0);
+    }
+
+    @Test
+    void classpath_preview_searches_current_scope_and_keeps_results_as_safe_text() {
+        try (Page page = browser.newPage()) {
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("高级搜索").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.DIALOG, new Page.GetByRoleOptions().setName("高级搜索"))).isVisible();
+            assertThat(page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true))).isFocused();
+            page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true)).fill(" 打包搜索 ");
+            page.getByLabel("起止日期", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-01");
+            page.getByLabel("至", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-31");
+            page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true)).press("Enter");
+            assertThat(page.locator(".search-status")).hasText("找到 1 条结果");
+            assertThat(page.locator(".search-result-snippet")).hasText("安全 <b>打包搜索</b>");
+            assertThat(page.locator(".search-result mark")).hasText("打包搜索");
+            assertThat(page.locator(".search-result b, .search-result img, .search-result a, .search-result script")).hasCount(0);
+            Assertions.assertThat(listQuery.get()).isEqualTo("keyword=打包搜索&page=1&size=1000&uids=2&start=2026-07-01 00:00:00&end=2026-07-31 23:59:59");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("关闭高级搜索")).click();
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("高级搜索").setExact(true))).isFocused();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+        }
     }
 
     @Test
