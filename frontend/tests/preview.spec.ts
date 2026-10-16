@@ -420,6 +420,7 @@ test('advanced_search_geometry_matches_legacy_form_and_result_with_paper_tokens'
   await expect(page.locator('.search-overlay')).toHaveCSS('background-color', 'rgba(43, 38, 32, 0.32)');
   await expect(page.locator('.search-overlay-window')).toHaveCSS('box-shadow', 'rgba(43, 38, 32, 0.18) 6px 8px 0px -3px');
   await expect(page.locator('.search-result')).toHaveCSS('cursor', 'auto');
+  await expect(page.locator('.search-result-meta')).toHaveCSS('font-variant-numeric', 'tabular-nums');
   await page.screenshot({ path: testInfo.outputPath('react-search.png') });
 });
 
