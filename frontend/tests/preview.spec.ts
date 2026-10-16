@@ -135,7 +135,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   test(`post_visual_alignment_matches_legacy_reading_at_${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     await serveLegacy(page);
-    const selectors = ['.titlebar', '.bloggers-heading', '.dates-heading', '.feed-header', '.year-header', '.month-header', '.date-item', '.blogger-row', '.post-card', '.post-avatar', '.post-header', '.post-content'];
+    const selectors = ['.titlebar', '.bloggers-heading', '.search-box', '.search-box input', '.bloggers-list', '.dates-heading', '.feed-header', '.year-header', '.month-header', '.date-item', '.blogger-row', '.post-card', '.post-avatar', '.post-header', '.post-content'];
     const measure = () => page.evaluate(selectors => selectors.map(selector => {
       const element = document.querySelector(selector)!;
       const style = getComputedStyle(element);
@@ -154,11 +154,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
       const { y: oldY, height: oldHeight, ...oldStyle } = legacy[index];
       const { y: newY, height: newHeight, ...newStyle } = react[index];
       expect(newStyle, selectors[index]).toEqual(oldStyle);
-      // Deferred search changes blogger position; post actions change card height.
-      if (selectors[index] !== '.blogger-row') {
-        expect(newY, selectors[index]).toBeCloseTo(oldY, 1);
-        if (selectors[index] !== '.post-card') expect(newHeight, selectors[index]).toBeCloseTo(oldHeight, 1);
-      }
+      expect(newY, selectors[index]).toBeCloseTo(oldY, 1);
+      // Legacy keeps an empty action row when the original URL is absent.
+      if (selectors[index] !== '.post-card') expect(newHeight, selectors[index]).toBeCloseTo(oldHeight, 1);
     }
     expect(await page.locator('.blogger-row[aria-pressed="true"]').evaluate(element => getComputedStyle(element, '::before').transform)).toBe(legacyHighlight);
     await expect(page.locator('.feed-header').getByLabel('博文总数')).toHaveText('共 3 条');
@@ -167,6 +165,99 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
+
+test('blogger_name_filter_matches_locally_and_keeps_all_row_total_and_order', async ({ page }) => {
+  bloggers = [{ uid: 1, screenName: '第一位 Alice [1]' }, { uid: 2, screenName: '第二位 BOB' }, { uid: 3, screenName: '第三位 ALICE' }];
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const initialRequests = [...requests];
+  const search = page.getByRole('searchbox', { name: '搜索博主' });
+  for (const [keyword, names] of [
+    [' aLiCe ', ['第一位 Alice [1]', '第三位 ALICE']],
+    ['第二', ['第二位 BOB']],
+    ['[', ['第一位 Alice [1]']],
+    ['不存在', []],
+    ['   ', bloggers.map(blogger => blogger.screenName)],
+    ['', bloggers.map(blogger => blogger.screenName)],
+  ] as [string, string[]][]) {
+    await search.fill(keyword);
+    await expect(page.getByRole('list', { name: '博主' }).getByRole('button').locator('.blogger-name')).toHaveText(names);
+    await expect(page.getByRole('button', { name: '全部博主', exact: true })).toBeVisible();
+    await expect(page.locator('.bloggers-heading')).toContainText('3 位博主');
+  }
+  await search.press('Enter');
+  expect(requests).toEqual(initialRequests);
+});
+
+test('blogger_name_filter_hides_selected_row_without_changing_reading_or_selection', async ({ page }) => {
+  calendarsByUid['2'] = { months: [{ month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] }] };
+  postsByUid['2'] = { ...posts, items: [{ ...posts.items[0], mblogId: 'second', content: '第二位本地正文', blogger: bloggers[1] }] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.post-content')).toHaveText('第二位本地正文');
+  const selectedRequests = [...requests];
+  const search = page.getByRole('searchbox', { name: '搜索博主' });
+  await search.fill('第一');
+  await expect(page.getByRole('button', { name: '第二位', exact: true })).toHaveCount(0);
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-07-10');
+  await expect(page.locator('.post-content')).toHaveText('第二位本地正文');
+  expect(requests).toEqual(selectedRequests);
+  await search.fill('');
+  await expect(page.getByRole('button', { name: '第二位', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await search.fill('第一');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
+  await expect(search).toHaveValue('第一');
+  await search.fill('不存在');
+  await page.getByRole('button', { name: '全部博主', exact: true }).click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.locator('.feed-header h2')).toHaveText('全部微博');
+  await expect(search).toHaveValue('不存在');
+  expect(new URL(requests.filter(value => value.startsWith('GET /post/list')).at(-1)!.slice(4), 'http://fixture').searchParams.has('uids')).toBe(false);
+});
+
+test('blogger_name_filter_applies_to_late_data_without_restarting_queries', async ({ page }) => {
+  holdResponse = true;
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const search = page.getByRole('searchbox', { name: '搜索博主' });
+  await search.fill('第二');
+  await expect(page.getByRole('status')).toHaveText('正在加载博主……');
+  expect(requests).toEqual(['GET /post/bloggers']);
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  holdResponse = false;
+  releaseResponse!();
+  await expect(page.getByRole('list', { name: '博主' }).getByRole('button').locator('.blogger-name')).toHaveText(['第二位']);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(search).toHaveValue('第二');
+  expect(requests.filter(value => value === 'GET /post/bloggers')).toHaveLength(1);
+});
+
+test('blogger_name_filter_keyboard_skips_hidden_rows_and_keeps_failed_avatar_state', async ({ page }) => {
+  bloggers[0].avatar = 'https://avatar.test/broken.svg';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const first = page.getByRole('button', { name: '第一位', exact: true });
+  await expect(first.locator('.blogger-avatar')).toHaveText('第');
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const mediaRequests = requests.filter(value => value.startsWith('GET /chat/image'));
+  expect(mediaRequests).toHaveLength(1);
+  const search = page.getByRole('searchbox', { name: '搜索博主' });
+  await search.fill('第二');
+  await expect(search).toHaveCSS('outline-width', '3px');
+  await expect(search).toHaveCSS('outline-offset', '2px');
+  await search.press('Tab');
+  await expect(page.getByRole('button', { name: '全部博主', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: '第二位', exact: true })).toBeFocused();
+  await search.fill('');
+  await expect(first.locator('.blogger-avatar')).toHaveText('第');
+  expect(requests.filter(value => value.startsWith('GET /chat/image'))).toEqual(mediaRequests);
+  await search.press('ControlOrMeta+A');
+  await search.press('Backspace');
+  await expect(page.getByRole('list', { name: '博主' }).getByRole('button')).toHaveCount(2);
+});
 
 test('post_images_use_thumbnail_grid_and_original_fallback_before_viewing', async ({ page }) => {
   posts.items[0].pics = [
@@ -936,6 +1027,7 @@ test('minimum_desktop_keeps_headers_fixed_and_three_lists_independently_scrollab
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.locator('.post-content')).toBeVisible();
   const headerTop = (await page.locator('.feed-header').boundingBox())!.y;
+  const searchTop = (await page.locator('.search-box').boundingBox())!.y;
   for (const selector of ['.bloggers-list', '.dates-list', '.posts']) {
     const list = page.locator(selector);
     await list.hover();
@@ -943,6 +1035,8 @@ test('minimum_desktop_keeps_headers_fixed_and_three_lists_independently_scrollab
     await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   }
   expect((await page.locator('.feed-header').boundingBox())!.y).toBe(headerTop);
+  expect((await page.locator('.search-box').boundingBox())!.y).toBe(searchTop);
+  await expect(page.getByRole('searchbox', { name: '搜索博主' })).toBeVisible();
   expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
   await expect(page.getByRole('link', { name: '正式 post 页面' })).toBeVisible();
   const year = page.getByRole('button', { name: '2026 年，3 条', exact: true });
