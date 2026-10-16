@@ -207,3 +207,4 @@ post preview 在阶段 3 结束，chat preview 在阶段 5 结束，两页各自
 
 2026-10-17，完成任务 13，实施 99e71e6、4b624ac。86 项前端回归、类型／构建、12 项 Maven 资源检查、隔离 JAR 搜索定位及 MIME 验证通过，Standards／Spec 各 0 项。发布包 ticket-13。用户授权本批按序连续完成 13 至 16，逐票验证与提交；当前下一票为 14 登录与扫码，post 预计剩余 5 张主票。
 
+任务 13 集成 d0267a4。主工作目录开发预览未运行，已隐藏启动 Vite；本地 HTTP 替身集成定位检查通过。证据 react-search-location-integrated-smoke.log；未请求用户业务数据或外部媒体。
