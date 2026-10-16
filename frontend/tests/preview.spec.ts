@@ -251,6 +251,178 @@ test('advanced_search_validates_and_sends_trimmed_keyword_scope_dates_and_option
   await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
 });
 
+test('advanced_search_snippets_keep_order_plain_text_first_highlight_and_submitted_keyword', async ({ page, context }) => {
+  const raw = '前'.repeat(35) + 'Needle' + '后'.repeat(35) + ' Needle';
+  searchPosts = { ...posts, total: 4, items: [
+    { ...posts.items[0], mblogId: 'first', contentRaw: raw },
+    { ...posts.items[0], mblogId: 'fallback', contentRaw: null, content: '<b>Needle</b> &lt;img src=x onerror=window.searchAttack=1&gt;', blogger: null },
+    { ...posts.items[0], mblogId: 'literal', contentRaw: '<script>Needle</script><a href="https://bad.example.test/">文字</a>' },
+    { ...posts.items[0], mblogId: 'no-match', contentRaw: '没有匹配'.repeat(30) },
+  ] };
+  const external: string[] = [];
+  await context.route('https://bad.example.test/**', route => { external.push(route.request().url()); return route.abort(); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
+  const keyword = dialog.getByLabel('关键词', { exact: true });
+  holdSearch = true;
+  await keyword.fill('needle');
+  await dialog.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(dialog.getByRole('status')).toHaveText('搜索中…');
+  await keyword.fill('等待中改了输入');
+  await expect.poll(() => Boolean(releaseSearch)).toBe(true);
+  holdSearch = false;
+  releaseSearch!();
+  await expect(dialog.getByRole('status')).toHaveText('找到 4 条结果');
+  const snippets = dialog.locator('.search-result-snippet');
+  await expect(snippets).toHaveText(['…' + '前'.repeat(30) + 'Needle' + '后'.repeat(30) + '…', 'Needle <img src=x onerror=window.sea…', '<script>Needle</script><a href="https://bad.…', '没有匹配'.repeat(20)]);
+  await expect(snippets.first().locator('mark')).toHaveText('Needle');
+  await expect(dialog.locator('.search-result-meta').nth(1)).toHaveText('2026-08-05 08:30 · 未知博主');
+  await expect(dialog.locator('.search-result b, .search-result img, .search-result a, .search-result script')).toHaveCount(0);
+  await expect(dialog.locator('.search-result button')).toHaveCount(0);
+  expect(external).toEqual([]);
+  expect(await page.evaluate(() => (window as Window & { searchAttack?: number }).searchAttack)).toBeUndefined();
+});
+
+test('advanced_search_empty_limit_and_error_allow_explicit_same_condition_retry', async ({ page }) => {
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
+  const keyword = dialog.getByLabel('关键词', { exact: true });
+  const submit = dialog.getByRole('button', { name: '搜索', exact: true });
+  searchStatus = 500;
+  await keyword.fill('条件');
+  await submit.click();
+  await expect(dialog.getByRole('alert')).toHaveText('搜索失败：本地搜索暂时不可用');
+  await expect(submit).toBeEnabled();
+  expect(requests.filter(value => value.includes('keyword='))).toHaveLength(1);
+  searchStatus = 200;
+  searchPosts = { ...searchPosts, items: [], total: 0 };
+  await submit.click();
+  await expect(dialog.locator('.search-empty')).toHaveText('未找到匹配微博');
+  await expect(dialog.locator('.search-result')).toHaveCount(0);
+  for (const total of [1000, 1001]) {
+    searchPosts = { ...posts, total };
+    await submit.click();
+    await expect(dialog.getByRole('status')).toHaveText(total === 1000 ? '找到 1000 条结果' : '已达上限（1001 条），请缩小范围');
+  }
+  const queries = requests.filter(value => value.includes('keyword='));
+  expect(queries).toHaveLength(4);
+  expect(queries.every(value => value === queries[0])).toBe(true);
+  expect(new URL(queries[0].slice(4), 'http://fixture').searchParams.has('uids')).toBe(false);
+});
+
+test('advanced_search_close_cancels_old_request_and_reopen_isolates_next_search', async ({ page }) => {
+  const canceled: string[] = [];
+  page.on('requestfailed', request => { if (request.url().includes('keyword=')) canceled.push(request.url()); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const readingRequests = requests.filter(value => !value.includes('keyword='));
+  const open = page.getByRole('button', { name: '高级搜索', exact: true });
+  await open.click();
+  const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
+  holdSearch = true;
+  await dialog.getByLabel('关键词', { exact: true }).fill('旧请求');
+  await dialog.getByLabel('关键词', { exact: true }).press('Enter');
+  const submit = dialog.getByRole('button', { name: '搜索', exact: true });
+  await expect(submit).toBeDisabled();
+  await dialog.getByLabel('关键词', { exact: true }).press('Enter');
+  await expect.poll(() => Boolean(releaseSearch)).toBe(true);
+  const oldResponse = releaseSearch!;
+  await dialog.getByRole('button', { name: '关闭高级搜索' }).click();
+  await expect.poll(() => canceled.length).toBe(1);
+  await expect(open).toBeFocused();
+  holdSearch = false;
+  searchPosts.items[0].contentRaw = '新请求结果';
+  await open.click();
+  await expect(dialog.locator('.search-result')).toHaveCount(0);
+  await dialog.getByLabel('关键词', { exact: true }).fill('新请求');
+  await submit.click();
+  await expect(dialog.locator('.search-result-snippet')).toHaveText('新请求结果');
+  oldResponse();
+  await expect(dialog.locator('.search-result-snippet')).toHaveText('新请求结果');
+  expect(requests.filter(value => value.includes('keyword='))).toHaveLength(2);
+  expect(requests.filter(value => !value.includes('keyword='))).toEqual(readingRequests);
+});
+
+for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 }]) {
+  test(`advanced_search_long_results_stay_inside_viewport_${viewport.width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    searchPosts.items = Array.from({ length: 30 }, (_, index) => ({ ...searchPosts.items[0], mblogId: `search-${index}`, contentRaw: `关键词结果 ${index}` }));
+    searchPosts.total = 30;
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
+    await dialog.getByLabel('关键词', { exact: true }).fill('关键词');
+    await dialog.getByRole('button', { name: '搜索', exact: true }).click();
+    await expect(dialog.locator('.search-result')).toHaveCount(30);
+    const window = (await dialog.locator('.search-overlay-window').boundingBox())!;
+    expect(window.height).toBeLessThanOrEqual(viewport.height * .8);
+    expect(window.x).toBeGreaterThanOrEqual(0);
+    expect(window.y).toBeGreaterThanOrEqual(0);
+    expect(window.x + window.width).toBeLessThanOrEqual(viewport.width);
+    const body = dialog.locator('.search-overlay-body');
+    expect(await body.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+    await body.hover();
+    await page.mouse.wheel(0, 1500);
+    await expect.poll(() => body.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await page.screenshot({ path: testInfo.outputPath('search-results.png') });
+  });
+}
+
+test('advanced_search_timeout_releases_submit_without_restarting_reading', async ({ page }) => {
+  await page.clock.install();
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const readingRequests = [...requests];
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
+  holdSearch = true;
+  await dialog.getByLabel('关键词', { exact: true }).fill('超时');
+  await dialog.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(dialog.getByRole('status')).toHaveText('搜索中…');
+  await page.clock.runFor(31000);
+  await expect(dialog.getByRole('alert')).toContainText('请求超时，请稍后重试');
+  await expect(dialog.getByRole('button', { name: '搜索', exact: true })).toBeEnabled();
+  expect(requests.filter(value => !value.includes('keyword='))).toEqual(readingRequests);
+});
+
+test('advanced_search_geometry_matches_legacy_form_and_result_with_paper_tokens', async ({ page }, testInfo) => {
+  await serveLegacy(page);
+  const selectors = ['.search-open', '.search-overlay-window', '.search-overlay-titlebar', '.search-overlay-body', '.search-overlay-tip', '.search-date-row', '.search-status', '.search-actions', '.search-result', '.search-result-meta', '.search-result-snippet', '.search-result-snippet mark'];
+  const measure = () => page.evaluate(selectors => selectors.map(selector => {
+    const element = document.querySelector(selector)!;
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, color: style.color, border: style.border, padding: style.padding, radius: style.borderRadius, fontSize: style.fontSize, fontFamily: style.fontFamily };
+  }), selectors);
+  await page.goto(`${baseUrl}legacy/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('关键词');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.locator('.search-result mark')).toHaveText('关键词');
+  const legacy = await measure();
+  await page.screenshot({ path: testInfo.outputPath('legacy-search.png') });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('关键词');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.locator('.search-result mark')).toHaveText('关键词');
+  const actual = await measure();
+  for (let index = 0; index < selectors.length; index++) {
+    const { x, y, width, height, ...style } = actual[index];
+    const { x: oldX, y: oldY, width: oldWidth, height: oldHeight, ...oldStyle } = legacy[index];
+    expect(style, selectors[index]).toEqual(oldStyle);
+    for (const [value, previous] of [[x, oldX], [y, oldY], [width, oldWidth], [height, oldHeight]]) expect(value, selectors[index]).toBeCloseTo(previous, 1);
+  }
+  await expect(page.locator('.search-overlay')).toHaveCSS('background-color', 'rgba(43, 38, 32, 0.32)');
+  await expect(page.locator('.search-overlay-window')).toHaveCSS('box-shadow', 'rgba(43, 38, 32, 0.18) 6px 8px 0px -3px');
+  await expect(page.locator('.search-result')).toHaveCSS('cursor', 'auto');
+  await page.screenshot({ path: testInfo.outputPath('react-search.png') });
+});
+
 test('blogger_name_filter_matches_locally_and_keeps_all_row_total_and_order', async ({ page }) => {
   bloggers = [{ uid: 1, screenName: '第一位 Alice [1]' }, { uid: 2, screenName: '第二位 BOB' }, { uid: 3, screenName: '第三位 ALICE' }];
   await page.goto(`${baseUrl}preview/post/index.html`);

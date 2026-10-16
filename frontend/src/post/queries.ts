@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
 
 export type Blogger = { uid: number; screenName: string; avatar?: string | null; verified?: boolean };
 export type PostImage = { pid: string; thumbnailUrl?: string | null; originalUrl?: string | null; thumbnailWidth?: number; thumbnailHeight?: number; originalWidth?: number; originalHeight?: number };
@@ -49,8 +50,10 @@ export function usePostSearch(uid: number | null, request: SearchRequest | null)
       const submitted = request!;
       const params = new URLSearchParams({ keyword: submitted.keyword, page: '1', size: '1000' });
       if (uid !== null) params.set('uids', String(uid));
-      if (submitted.start) params.set('start', `${submitted.start} 00:00:00`);
-      if (submitted.end) params.set('end', `${submitted.end} 23:59:59`);
+      const start = toQueryDateTime(submitted.start);
+      const end = toQueryEndTime(submitted.end);
+      if (start) params.set('start', start);
+      if (end) params.set('end', end);
       return getJson<PostList>(`/post/list?${params}`, signal, 30000);
     },
   });
