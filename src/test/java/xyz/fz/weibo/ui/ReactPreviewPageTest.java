@@ -139,6 +139,37 @@ class ReactPreviewPageTest {
     }
 
     @Test
+    void classpath_preview_filters_blogger_names_without_changing_reading_scope() {
+        try (Page page = browser.newPage()) {
+            List<String> queries = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/bloggers") || request.url().contains("/post/calendar")
+                        || request.url().contains("/post/list?")) queries.add(request.url());
+            });
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            List<String> selectedQueries = List.copyOf(queries);
+            page.getByRole(AriaRole.SEARCHBOX, new Page.GetByRoleOptions().setName("搜索博主")).fill(" 打包 ");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true))).hasCount(0);
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("打包资源博主").setExact(true))).isVisible();
+            assertThat(page.locator(".bloggers-heading")).containsText("2 位博主");
+            assertThat(page.locator(".feed-header h2")).hasText("第二位博主的微博");
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+            page.getByRole(AriaRole.SEARCHBOX, new Page.GetByRoleOptions().setName("搜索博主")).fill("不存在");
+            assertThat(page.locator(".blogger-list button:visible")).hasCount(0);
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true))).isVisible();
+            page.getByRole(AriaRole.SEARCHBOX, new Page.GetByRoleOptions().setName("搜索博主")).fill("");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true))).hasAttribute("aria-pressed", "true");
+            Assertions.assertThat(queries).isEqualTo(selectedQueries);
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+        }
+    }
+
+    @Test
     void classpath_preview_opens_inline_picture_through_existing_proxy() {
         try (Page page = browser.newPage()) {
             page.context().route("https://wx3.sinaimg.cn/**", route -> route.fulfill(new Route.FulfillOptions()
