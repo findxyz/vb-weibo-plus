@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDefaultReading, type Blogger } from './queries';
 import PostFeed from './PostFeed';
 import DateTimeline from './DateTimeline';
+import PostSearch from './PostSearch';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import weiboLogo from '../../../src/main/resources/static/post/assets/weibo-logo.svg';
 
@@ -19,6 +20,7 @@ function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
 
 export default function PostPreview() {
   const [bloggerSearch, setBloggerSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger } = useDefaultReading();
   const selectedBlogger = bloggers.data?.find(blogger => blogger.uid === selection.uid);
   const formalPage = import.meta.env.DEV ? new URL('/post/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/post/index.html';
@@ -58,6 +60,7 @@ export default function PostPreview() {
           <header className="feed-header">
             <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
             {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
+            <button type="button" className="search-open" onClick={() => setSearchOpen(true)}>高级搜索</button>
           </header>
           <div className="posts">
             {posts.isFetching && <p role="status">正在加载博文……</p>}
@@ -66,6 +69,7 @@ export default function PostPreview() {
           </div>
         </section>
       </main>
+      {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} />}
     </div>
   );
 }

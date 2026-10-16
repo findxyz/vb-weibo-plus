@@ -150,3 +150,30 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid 
 .viewer-prev { left: 16px; }
 .viewer-next { right: 16px; }
 .viewer-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: var(--paper); font: 14px/1 var(--mono); pointer-events: none; }
+.search-open { flex: none; min-height: 28px; padding: 0 12px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper); font: 14px/1 var(--hand); transform: rotate(-0.5deg); }
+.search-open:hover { background: var(--highlight); }
+.search-overlay { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; padding: 32px; border: 0; background: rgb(43 38 32 / 32%); }
+.search-overlay[open] { display: flex; align-items: center; justify-content: center; }
+.search-overlay::backdrop { background: transparent; }
+.search-overlay-window { display: grid; grid-template-rows: 40px minmax(0, 1fr); max-height: 80vh; width: 520px; min-height: 0; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper); box-shadow: var(--shadow-card); }
+.search-overlay-titlebar { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 12px; color: var(--paper); background: repeating-linear-gradient(135deg, rgb(0 0 0 / 5%) 0 2px, transparent 2px 6px), var(--ink); border-bottom: 2px solid var(--ink); }
+.search-overlay-titlebar h2 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 17px/1 var(--serif); }
+.search-overlay-title-icon { flex: none; width: 14px; height: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Ccircle cx='6' cy='6' r='4' fill='none' stroke='%23fbf6ec' stroke-width='1.8'/%3E%3Cpath d='M9.2 9.2 12 12' stroke='%23fbf6ec' stroke-width='2'/%3E%3C/svg%3E") center / contain no-repeat; }
+.search-overlay-titlebar button { width: 30px; height: 28px; flex: none; margin-left: auto; padding: 0; display: grid; place-items: center; border: 1.5px solid var(--paper); border-radius: 5px; color: var(--paper); background: var(--accent); }
+.search-overlay-titlebar button::before { content: ""; display: block; width: 12px; height: 12px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23fbf6ec' stroke-width='2'/%3E%3C/svg%3E") center / contain no-repeat; }
+.search-overlay-titlebar button:hover, .search-actions button:hover { filter: brightness(1.08); }
+.search-overlay-body { display: grid; gap: 10px; padding: 18px; min-height: 0; overflow-y: auto; }
+.search-overlay-tip { margin: 0; color: var(--pencil); font: 13px/1.6 var(--hand); }
+.search-field { display: grid; gap: 4px; color: var(--pencil); font: 14px/1.2 var(--hand); }
+.search-date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.search-overlay input { width: 100%; height: 36px; padding: 0 12px; border: 1.5px solid var(--pencil); border-radius: 4px; background: var(--paper); font: 16px/1 var(--hand); box-shadow: var(--shadow-near); }
+.search-status { min-height: 18px; margin: 0; color: var(--pencil); font: 13px/1.3 var(--hand); }
+.search-actions { display: flex; justify-content: flex-end; }
+.search-actions button { min-height: 34px; padding: 0 18px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--accent); color: var(--paper); font: 700 15px/1 var(--hand-b); transform: rotate(-0.6deg); }
+.search-actions button:disabled { opacity: .6; cursor: not-allowed; }
+.search-results { display: grid; gap: 8px; }
+.search-empty { margin: 0; padding: 16px; text-align: center; color: var(--pencil); font: 14px/1.4 var(--hand); }
+.search-result { display: grid; gap: 4px; padding: 10px 12px; border: 1.5px solid var(--rule); border-radius: 4px; background: var(--paper-tint); text-align: left; }
+.search-result-meta { color: var(--pencil); font: 12px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.search-result-snippet { color: var(--ink); font: 14px/1.5 var(--hand); word-break: break-all; }
+.search-result-snippet mark { background: var(--highlight); color: var(--ink); padding: 0 2px; border-radius: 2px; }
