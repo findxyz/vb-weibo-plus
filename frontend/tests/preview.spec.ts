@@ -24,6 +24,10 @@ let pageErrors: string[];
 let writeRequests: string[];
 let holdOriginalPid: string | undefined;
 let releaseOriginal: (() => void) | undefined;
+let searchPosts: PostList;
+let searchStatus = 200;
+let holdSearch = false;
+let releaseSearch: (() => void) | undefined;
 
 function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
   return { pid, thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720,
@@ -44,6 +48,16 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/post/list' && url.searchParams.has('keyword')) {
+      const payload = JSON.stringify(searchStatus === 200 ? searchPosts : { msg: '本地搜索暂时不可用' });
+      const send = () => {
+        response.writeHead(searchStatus, { 'Content-Type': 'application/json' });
+        response.end(payload);
+      };
+      if (holdSearch) releaseSearch = send;
+      else send();
+      return;
+    }
     if (path === '/chat/image') {
       const imagePath = new URL(url.searchParams.get('url')!).pathname;
       const broken = imagePath.endsWith('/broken.svg');
@@ -120,6 +134,10 @@ test.beforeEach(({ page }) => {
   writeRequests = [];
   holdOriginalPid = undefined;
   releaseOriginal = undefined;
+  searchPosts = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'search-1', contentRaw: '检索命中关键词' }] };
+  searchStatus = 200;
+  holdSearch = false;
+  releaseSearch = undefined;
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('request', (request) => {
     if (!['GET', 'HEAD'].includes(request.method())) writeRequests.push(`${request.method()} ${request.url()}`);
@@ -165,6 +183,73 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
+
+test('advanced_search_opens_with_shanghai_defaults_resets_and_restores_focus_without_querying', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const initialRequests = [...requests];
+  const open = page.getByRole('button', { name: '高级搜索', exact: true });
+  await expect(open).toBeVisible();
+  await open.click();
+  const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('关键词', { exact: true })).toBeFocused();
+  await expect(dialog.getByLabel('起止日期', { exact: true })).toHaveValue('2010-01-01');
+  await expect(dialog.getByLabel('至', { exact: true })).toHaveValue('2026-08-06');
+  await expect(dialog).toContainText('在「全部博主」范围内搜索。');
+  await dialog.getByLabel('关键词', { exact: true }).fill('尚未提交');
+  await page.keyboard.press('Escape');
+  await expect(dialog.getByLabel('关键词', { exact: true })).toHaveValue('');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(open).toBeFocused();
+  await open.click();
+  await expect(dialog.getByLabel('关键词', { exact: true })).toHaveValue('');
+  await expect(dialog.locator('.search-result')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '关闭高级搜索' }).click();
+  await expect(open).toBeFocused();
+  expect(requests).toEqual(initialRequests);
+});
+
+test('advanced_search_validates_and_sends_trimmed_keyword_scope_dates_and_optional_bounds', async ({ page }) => {
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const readingRequests = requests.filter(value => !value.includes('keyword='));
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
+  await expect(dialog).toContainText('在「@第二位」范围内搜索。');
+  const keyword = dialog.getByLabel('关键词', { exact: true });
+  const submit = dialog.getByRole('button', { name: '搜索', exact: true });
+  await keyword.fill('   ');
+  await submit.click();
+  await expect(dialog.getByRole('alert')).toHaveText('请输入关键词。');
+  await keyword.fill('  关键词  ');
+  await dialog.getByLabel('起止日期', { exact: true }).fill('2026-08-31');
+  await dialog.getByLabel('至', { exact: true }).fill('2026-08-01');
+  await submit.click();
+  await expect(dialog.getByRole('alert')).toHaveText('开始日期不能晚于结束日期。');
+  expect(requests.filter(value => value.includes('keyword='))).toEqual([]);
+  await dialog.getByLabel('起止日期', { exact: true }).fill('2026-08-01');
+  await dialog.getByLabel('至', { exact: true }).fill('2026-08-31');
+  await keyword.press('Enter');
+  await expect(dialog.getByRole('status')).toHaveText('找到 1 条结果');
+  const query = new URL(requests.find(value => value.includes('keyword='))!.slice(4), 'http://fixture').searchParams;
+  expect(Object.fromEntries(query)).toEqual({ keyword: '关键词', page: '1', size: '1000', uids: '2', start: '2026-08-01 00:00:00', end: '2026-08-31 23:59:59' });
+  await dialog.getByLabel('起止日期', { exact: true }).fill('');
+  await dialog.getByLabel('至', { exact: true }).fill('');
+  await submit.click();
+  await expect.poll(() => requests.filter(value => value.includes('keyword=')).length).toBe(2);
+  await expect(dialog.getByRole('status')).toHaveText('找到 1 条结果');
+  const unbounded = new URL(requests.filter(value => value.includes('keyword=')).at(-1)!.slice(4), 'http://fixture').searchParams;
+  expect(Object.fromEntries(unbounded)).toEqual({ keyword: '关键词', page: '1', size: '1000', uids: '2' });
+  expect(requests.filter(value => !value.includes('keyword='))).toEqual(readingRequests);
+  await dialog.getByRole('button', { name: '关闭高级搜索' }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+});
 
 test('blogger_name_filter_matches_locally_and_keeps_all_row_total_and_order', async ({ page }) => {
   bloggers = [{ uid: 1, screenName: '第一位 Alice [1]' }, { uid: 2, screenName: '第二位 BOB' }, { uid: 3, screenName: '第三位 ALICE' }];

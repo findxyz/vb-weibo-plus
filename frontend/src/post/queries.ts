@@ -6,7 +6,7 @@ export type PostImage = { pid: string; thumbnailUrl?: string | null; originalUrl
 export type Video = { pageUrl?: string | null; coverUrl?: string | null };
 export type Calendar = { months: { month: string; count: number; days: { date: string; count: number }[] }[] };
 export type Retweet = { screenName: string | null; content: string | null; pics?: PostImage[] | null; video?: Video | null };
-export type Post = { mblogId: string; content: string; createdAt: number; blogger: Blogger | null; retweeted?: Retweet | null; pics?: PostImage[] | null; video?: Video | null; source?: string | null; region?: string | null; postUrl?: string | null };
+export type Post = { mblogId: string; content: string; contentRaw?: string | null; createdAt: number; blogger: Blogger | null; retweeted?: Retweet | null; pics?: PostImage[] | null; video?: Video | null; source?: string | null; region?: string | null; postUrl?: string | null };
 export type PostList = { items: Post[]; page: number; size: number; total: number };
 
 class QueryError extends Error {
@@ -38,6 +38,22 @@ function validMonths(calendar: Calendar | undefined) {
     && /^\d{4}-\d{2}-\d{2}$/.test(day.date) && !Number.isNaN(Date.parse(day.date))
     && new Date(day.date).toISOString().slice(0, 10) === day.date).sort((a, b) => b.date.localeCompare(a.date)) }))
     .filter(month => month.days.length > 0).sort((a, b) => b.month.localeCompare(a.month));
+}
+
+export type SearchRequest = { keyword: string; start: string; end: string; attempt: number };
+
+export function usePostSearch(uid: number | null, request: SearchRequest | null) {
+  return useQuery({
+    queryKey: ['post', 'search', uid, request], gcTime: 0, enabled: request !== null,
+    queryFn: ({ signal }) => {
+      const submitted = request!;
+      const params = new URLSearchParams({ keyword: submitted.keyword, page: '1', size: '1000' });
+      if (uid !== null) params.set('uids', String(uid));
+      if (submitted.start) params.set('start', `${submitted.start} 00:00:00`);
+      if (submitted.end) params.set('end', `${submitted.end} 23:59:59`);
+      return getJson<PostList>(`/post/list?${params}`, signal, 30000);
+    },
+  });
 }
 
 // https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries
