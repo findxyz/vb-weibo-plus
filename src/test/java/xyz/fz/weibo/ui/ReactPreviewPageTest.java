@@ -52,6 +52,13 @@ class ReactPreviewPageTest {
         });
         server.createContext("/post/list", exchange -> {
             listQuery.set(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8));
+            if (listQuery.get().contains("keyword=定位")) {
+                sendJson(exchange, """
+                        {"items":[{"mblogId":"fixture-2","createdAt":1783643400000,
+                        "content":"定位摘要","blogger":{"uid":2,"screenName":"第二位博主"}}],"page":1,"size":1000,"total":1}
+                        """);
+                return;
+            }
             if (listQuery.get().contains("keyword=")) {
                 sendJson(exchange, """
                         {"items":[{"mblogId":"search-fixture","createdAt":1783643400000,
@@ -136,6 +143,27 @@ class ReactPreviewPageTest {
             assertThat(page.locator("article")).containsText("打包后的正文");
             Assertions.assertThat(listQuery.get()).doesNotContain("uids=");
             Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_preview_locates_search_result_and_reloads_full_day() {
+        try (Page page = browser.newPage()) {
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
+            assertThat(page.locator(".post-card")).hasClass("post-card pure-retweet");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("高级搜索").setExact(true)).click();
+            page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true)).fill("定位");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("搜索").setExact(true)).click();
+            page.locator(".search-result").press("Enter");
+            assertThat(page.getByRole(AriaRole.DIALOG)).hasCount(0);
+            assertThat(page.locator(".post-card.flash-highlight")).containsText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
         }
     }
 

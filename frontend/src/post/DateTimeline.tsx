@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Calendar } from './queries';
 
-export default function DateTimeline({ months, date, onSelectDate }: {
-  months: Calendar['months']; date: string; onSelectDate: (date: string) => void;
+export default function DateTimeline({ months, date, reveal, onSelectDate }: {
+  months: Calendar['months']; date: string; reveal?: { mblogId: string; version: number }; onSelectDate: (date: string) => void;
 }) {
   const [openYears, setOpenYears] = useState<string[]>([date.slice(0, 4)]);
   const [openMonths, setOpenMonths] = useState<string[]>([date.slice(0, 7)]);
   const years = [...new Set(months.map(month => month.month.slice(0, 4)))];
+  useEffect(() => {
+    if (!reveal) return;
+    const year = date.slice(0, 4), month = date.slice(0, 7);
+    setOpenYears(previous => previous.includes(year) ? previous : [...previous, year]);
+    setOpenMonths(previous => previous.includes(month) ? previous : [...previous, month]);
+  }, [reveal, date]);
 
   function toggle(values: string[], value: string) {
     return values.includes(value) ? values.filter(item => item !== value) : [...values, value];

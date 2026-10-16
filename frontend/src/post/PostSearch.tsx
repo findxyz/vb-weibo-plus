@@ -11,7 +11,7 @@ function SearchSnippet({ post, keyword }: { post: Post; keyword: string }) {
   return <>{start > 0 && '…'}{text.slice(start, index)}<mark>{text.slice(index, index + keyword.length)}</mark>{text.slice(index + keyword.length, end)}{end < text.length && '…'}</>;
 }
 
-export default function PostSearch({ uid, scopeLabel, onClose }: { uid: number | null; scopeLabel: string; onClose: () => void }) {
+export default function PostSearch({ uid, scopeLabel, onClose, onSelectPost }: { uid: number | null; scopeLabel: string; onClose: () => void; onSelectPost: (post: Post) => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const keywordRef = useRef<HTMLInputElement>(null);
   const [keyword, setKeyword] = useState('');
@@ -57,10 +57,10 @@ export default function PostSearch({ uid, scopeLabel, onClose }: { uid: number |
         <div className="search-actions"><button type="submit" disabled={search.isFetching}>搜索</button></div>
         <div className="search-results" aria-live="polite">
           {search.isSuccess && search.data.items.length === 0 && <p className="search-empty">未找到匹配微博</p>}
-          {search.isSuccess && search.data.items.map(post => <article className="search-result" key={post.mblogId}>
+          {search.isSuccess && search.data.items.map(post => <button type="button" className="search-result" key={post.mblogId} onClick={() => { dialogRef.current!.close(); onSelectPost(post); }}>
             <div className="search-result-meta">{formatDate(post.createdAt)} · {post.blogger?.screenName || '未知博主'}</div>
             <div className="search-result-snippet"><SearchSnippet post={post} keyword={request!.keyword} /></div>
-          </article>)}
+          </button>)}
         </div>
       </form>
     </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sanitizedContent } from './content';
 import { formatDate } from '../../../src/main/resources/static/shared/date.js';
 import type { PostList } from './queries';
@@ -19,8 +19,19 @@ function PostContent({ content, className = 'post-content' }: { content: string;
   }
 }
 
-export default function PostFeed({ result }: { result: PostList }) {
+export default function PostFeed({ result, targetPostId }: { result: PostList; targetPostId?: string }) {
   const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
+  const [highlighted, setHighlighted] = useState(targetPostId);
+  const targetRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!targetRef.current) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const frame = requestAnimationFrame(() => {
+      targetRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
+      timer = setTimeout(() => setHighlighted(undefined), 1600);
+    });
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
+  }, [targetPostId]);
   function openImages(images: string[], index: number) { setViewer({ images, index }); }
   return <>
     {result.items.length === 0 && <p role="status">该日无微博。</p>}
@@ -29,7 +40,7 @@ export default function PostFeed({ result }: { result: PostList }) {
       const retweetVideo = playableVideo(post.retweeted?.video);
       const postUrl = post.postUrl && /^https?:\/\//i.test(post.postUrl) && URL.canParse(post.postUrl) ? post.postUrl : null;
       const pureRetweet = !post.content && !post.pics?.length && !(post.video?.pageUrl && post.video.coverUrl) && post.retweeted;
-      return <article className={`post-card${pureRetweet ? ' pure-retweet' : ''}`} key={post.mblogId}>
+      return <article ref={post.mblogId === targetPostId ? targetRef : null} className={`post-card${pureRetweet ? ' pure-retweet' : ''}${post.mblogId === highlighted ? ' flash-highlight' : ''}`} key={post.mblogId}>
         {!pureRetweet && <BloggerAvatar blogger={post.blogger} className="post-avatar" linkToHomepage />}
         <div className="post-body">
           <header className="post-header">
