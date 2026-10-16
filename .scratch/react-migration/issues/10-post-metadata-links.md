@@ -90,3 +90,18 @@
 - Standards／Spec 分别审查 3f026a5 到 e5296e2，各 0 项问题。发布包保存在主工作目录 target/react-migration-release/ticket-10-inline-picture-fix，JAR／7z 与验收产物 SHA-256 一致，7z 完整性检查通过。
 
 正文图片修正集成于 2791ad8。合入后在当前 5173 预览重跑截图对应微博，链接通过同源代理在新窗口显示真实图片；集成日志为仓库外 react-inline-picture-integrated-smoke.log。实施 worktree 提交归档，queued 仅表示请求排队。
+
+### 直连差异的根因补充
+
+2026-10-16，用户再次指出旧版同一图片 URL 可以直连。读取实际浏览器标签后发现旧版入口是 http://localhost:18080/post/index.html，React 预览是 http://127.0.0.1:5173/preview/post/index.html。先前隔离测试把旧版也放在 127.0.0.1 下，未对齐用户实际来源，因而未解释新旧差异。
+
+对同一图片使用固定浏览器 User-Agent 与 no-cache，仅改变 Referer 的主机和端口，结果如下。localhost 在两个端口均返回 200 image/jpeg，127.0.0.1 在两个端口均返回 403 text/html；本次失败由 CDN 对来源主机的不同处理触发，与 React 渲染或图片 URL 改写无关。现有代理修正可兼容两种入口，不追加业务代码修改。
+
+| Referer | 响应 |
+| --- | --- |
+| http://localhost:18080/ | 200，image/jpeg |
+| http://127.0.0.1:18080/ | 403，text/html |
+| http://localhost:5173/ | 200，image/jpeg |
+| http://127.0.0.1:5173/ | 403，text/html |
+
+对照脚本与输出保存于仓库外 inline-picture-referer-probe.mjs／.log。未读取浏览器 Credential，未修改浏览器设置、用户数据或运行中的服务。
