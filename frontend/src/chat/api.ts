@@ -86,10 +86,27 @@ export function fetchEarlierMessages(gid: number, size: number, cursor: MessageC
   return getJson<MessagePage>(`/chat/messages/cursor?${query}`, signal);
 }
 
+export function fetchNewerMessages(gid: number, size: number, cursor: MessageCursor, signal: AbortSignal) {
+  const query = new URLSearchParams({
+    gid: String(gid),
+    size: String(size),
+    afterCreatedAt: String(cursor.createdAt),
+    afterMid: String(cursor.mid),
+  });
+  return getJson<MessagePage>(`/chat/messages/cursor?${query}`, signal);
+}
+
 export function nextBeforeCursor(page: MessagePage): MessageCursor | null {
   if (!page.hasMore) return null;
   return page.nextBeforeCreatedAt != null && page.nextBeforeMid != null
     ? { createdAt: page.nextBeforeCreatedAt, mid: page.nextBeforeMid }
+    : null;
+}
+
+export function nextAfterCursor(page: MessagePage): MessageCursor | null {
+  if (!page.hasMore) return null;
+  return page.nextAfterCreatedAt != null && page.nextAfterMid != null
+    ? { createdAt: page.nextAfterCreatedAt, mid: page.nextAfterMid }
     : null;
 }
 

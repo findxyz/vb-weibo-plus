@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  compareMessages, fetchEarlierMessages, fetchLatestMessages, MESSAGE_PAGE_SIZE, nextBeforeCursor,
-  type ChatMessage, type MessageCursor,
+  compareMessages, fetchEarlierMessages, fetchLatestMessages, fetchNewerMessages, MESSAGE_PAGE_SIZE,
+  nextAfterCursor, nextBeforeCursor, type ChatMessage, type MessageCursor,
 } from './api';
 import MessageItem from './MessageItem';
 import ImageViewer from './ImageViewer';
@@ -14,6 +14,8 @@ const WINDOW_CAP = KEEP_ABOVE + KEEP_BELOW;
 const ESTIMATED_HEIGHT = 96;
 const GAP_HEIGHT = 16;
 const LOAD_EARLIER_THRESHOLD = 120;
+const POLL_BASE_MS = 1000;
+const POLL_MAX_MS = 30000;
 
 type Anchor = { mid: number; top: number };
 
@@ -39,6 +41,8 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorText, setErrorText] = useState('');
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [newMessagesVisible, setNewMessagesVisible] = useState(false);
+  const [bottomRequest, setBottomRequest] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const topSpacerRef = useRef<HTMLDivElement>(null);
@@ -56,10 +60,15 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
   const frameRef = useRef(0);
   const pendingScrollRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const pendingCatchUpRef = useRef(false);
+  const refreshingRef = useRef(false);
+  const initializingRef = useRef(true);
+  const pollFailuresRef = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
     abortRef.current = controller;
+    initializingRef.current = true;
     setStatus('loading');
     setErrorText('');
     fetchLatestMessages(gid, MESSAGE_PAGE_SIZE, controller.signal).then(page => {
@@ -82,6 +91,8 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
       if (controller.signal.aborted) return;
       setStatus('error');
       setErrorText(error instanceof Error ? error.message : '消息加载失败');
+    }).finally(() => {
+      if (!controller.signal.aborted) initializingRef.current = false;
     });
     return () => controller.abort();
   }, [gid]);
@@ -163,13 +174,85 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
     return () => observer.disconnect();
   });
 
-  const workRef = useRef<() => void>(() => {});
+  // 一次性落底：提示与滚底按钮共用，落底后重新进入收尾。
   useLayoutEffect(() => {
+    if (!bottomRequest) return;
+    const container = containerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+    settleRef.current = ordered.length ? { boundary: ordered[ordered.length - 1] } : null;
+  }, [bottomRequest]);
+
+  const workRef = useRef<() => void>(() => {});
+  const refreshRef = useRef<() => Promise<boolean>>(async () => true);
+  useLayoutEffect(() => {
+    refreshRef.current = refreshOnce;
     workRef.current = () => {
+      const container = containerRef.current;
+      if (container && newMessagesVisible && !document.hidden
+        && container.scrollHeight - container.scrollTop - container.clientHeight < 80) {
+        setNewMessagesVisible(false);
+      }
       void loadEarlierIfNeeded();
       shiftWindow();
     };
   });
+
+  // 轮询当前群；失败按 1 秒起指数退避封顶 30 秒，成功后归零。
+  useEffect(() => {
+    let stopped = false;
+    let running = false;
+    let wakePending = false;
+    let timer = 0;
+    const loop = async () => {
+      if (stopped) return;
+      if (running) {
+        wakePending = true;
+        return;
+      }
+      running = true;
+      const ok = await refreshRef.current();
+      running = false;
+      if (stopped) return;
+      pollFailuresRef.current = ok ? 0 : Math.min(pollFailuresRef.current + 1, 5);
+      if (wakePending) {
+        wakePending = false;
+        void loop();
+        return;
+      }
+      timer = window.setTimeout(loop, Math.min(POLL_BASE_MS * 2 ** pollFailuresRef.current, POLL_MAX_MS));
+    };
+    const wake = () => {
+      if (stopped) return;
+      window.clearTimeout(timer);
+      void loop();
+    };
+    timer = window.setTimeout(loop, POLL_BASE_MS);
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        settleRef.current = null;
+        pendingCatchUpRef.current = true;
+      } else {
+        wake();
+      }
+    };
+    const onBlur = () => {
+      settleRef.current = null;
+      pendingCatchUpRef.current = true;
+    };
+    const onFocus = () => wake();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -258,6 +341,70 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
   function renderedElements(container: HTMLElement) {
     return [...container.children].filter(
       (element): element is HTMLElement => element instanceof HTMLElement && Boolean(element.dataset.mid));
+  }
+
+  // 新消息只追加、不移动视口；到达即结束落底收尾，旧图片随后加载也不能把视口拉回底部。
+  function appendFresh(items: ChatMessage[]) {
+    if (!items.length) return;
+    settleRef.current = null;
+    for (const message of items) messagesRef.current.set(message.mid, message);
+    setOrdered([...messagesRef.current.values()].sort(compareMessages));
+    setNewMessagesVisible(true);
+  }
+
+  async function catchUp(signal: AbortSignal) {
+    let newest: ChatMessage | null = null;
+    for (const message of messagesRef.current.values()) {
+      if (!newest || compareMessages(message, newest) > 0) newest = message;
+    }
+    if (!newest) return true;
+    let cursor: MessageCursor = { createdAt: newest.createdAt, mid: newest.mid };
+    for (;;) {
+      if (document.hidden || signal.aborted) return false;
+      const page = await fetchNewerMessages(gid, MESSAGE_PAGE_SIZE, cursor, signal);
+      if (signal.aborted) return false;
+      const items = page.items.filter(message => !messagesRef.current.has(message.mid));
+      if (items.length) appendFresh(items);
+      const next = nextAfterCursor(page);
+      if (!next) break;
+      if (next.mid === cursor.mid && next.createdAt === cursor.createdAt) break;
+      cursor = next;
+    }
+    return true;
+  }
+
+  async function refreshOnce() {
+    const controller = abortRef.current;
+    if (!controller || refreshingRef.current || initializingRef.current || document.hidden) return true;
+    refreshingRef.current = true;
+    try {
+      if (pendingCatchUpRef.current) {
+        const completed = await catchUp(controller.signal);
+        if (completed) pendingCatchUpRef.current = false;
+        return completed;
+      }
+      const page = await fetchLatestMessages(gid, MESSAGE_PAGE_SIZE, controller.signal);
+      if (controller.signal.aborted) return true;
+      const fresh = page.items.filter(message => !messagesRef.current.has(message.mid));
+      if (fresh.length) appendFresh(fresh);
+      return true;
+    } catch (error) {
+      if (!controller.signal.aborted) console.warn('刷新消息失败：', error);
+      return false;
+    } finally {
+      refreshingRef.current = false;
+    }
+  }
+
+  // 提示与右下角按钮同一动作：先刷新一次，再一次性落底并收起提示。
+  async function jumpToLatest() {
+    await refreshOnce();
+    const all = [...messagesRef.current.values()].sort(compareMessages);
+    if (!all.length) return;
+    const start = Math.max(0, all.length - WINDOW_CAP);
+    setWindowMids({ start: all[start].mid, end: all[all.length - 1].mid });
+    setNewMessagesVisible(false);
+    setBottomRequest(value => value + 1);
   }
 
   function countAbove(elements: HTMLElement[], top: number) {
@@ -376,6 +523,16 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
         ))}
         <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
       </div>
+      <button type="button" className="scroll-bottom-button" aria-label="滚到最新消息"
+        onClick={() => { void jumpToLatest(); }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 4v12" />
+          <path d="m6.5 10.5 5.5 5.5 5.5-5.5" />
+          <path d="M5 20h14" />
+        </svg>
+      </button>
+      <button type="button" className="new-messages-button" hidden={!newMessagesVisible}
+        onClick={() => { void jumpToLatest(); }}>有新消息</button>
       <ImageViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
     </>
   );

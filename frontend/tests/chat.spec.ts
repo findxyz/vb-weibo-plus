@@ -21,6 +21,7 @@ let holdPredicate: ((url: URL) => boolean) | null;
 let held: { url: URL; send: () => void }[];
 let mediaHoldMids: Set<number>;
 let heldMedia: Map<number, () => void>;
+let pollDelayMs: number;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -55,6 +56,21 @@ function buildPage(url: URL, gid: number) {
   const size = Number(url.searchParams.get('size'));
   const list = [...(messagesByGid.get(gid) ?? [])].sort(compareMessages);
   const beforeMid = url.searchParams.get('beforeMid');
+  const afterMid = url.searchParams.get('afterMid');
+  if (afterMid != null) {
+    const afterIndex = list.findIndex(message => message.mid > Number(afterMid));
+    const start = afterIndex < 0 ? list.length : afterIndex;
+    const slice = list.slice(start, start + size);
+    const last = slice[slice.length - 1];
+    const hasMore = start + size < list.length;
+    return {
+      group: groups.find(group => group.gid === gid) ?? null,
+      items: slice, size, hasMore,
+      nextBeforeCreatedAt: null, nextBeforeMid: null,
+      nextAfterCreatedAt: hasMore && last ? last.createdAt : null,
+      nextAfterMid: hasMore && last ? last.mid : null,
+    };
+  }
   let slice: ChatMessage[];
   let hasMore: boolean;
   if (beforeMid != null) {
@@ -123,6 +139,8 @@ test.beforeAll(async () => {
         sendJson(response, 200, buildPage(url, gid));
       };
       if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      const isLatest = !url.searchParams.has('beforeMid') && !url.searchParams.has('afterMid');
+      if (isLatest && pollDelayMs > 0) { setTimeout(send, pollDelayMs); return; }
       send();
       return;
     }
@@ -171,6 +189,7 @@ test.beforeEach(({ page }) => {
   held = [];
   mediaHoldMids = new Set();
   heldMedia = new Map();
+  pollDelayMs = 0;
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (!['GET', 'HEAD'].includes(request.method())) writeRequests.push(`${request.method()} ${request.url()}`);
@@ -192,10 +211,11 @@ test('chat_selects_the_saved_group_and_lands_on_the_newest_messages', async ({ p
   await expect(page.locator('.message')).toHaveCount(50);
   await expect(page.locator('.message').last()).toContainText('群二 60');
   await expect.poll(() => atBottom(page)).toBe(true);
-  expect(requests).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=2&size=50']);
+  expect(requests.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=2&size=50']);
 
-  await page.waitForTimeout(1200);
-  expect(requests).toHaveLength(2);
+  await page.waitForTimeout(1500);
+  expect(requests.slice(2).every(value => value === 'GET /chat/messages/cursor?gid=2&size=50')).toBe(true);
+  expect(requests.length).toBeGreaterThanOrEqual(3);
 
   await page.reload();
   await expect(page.locator('.message').last()).toContainText('群二 60');
@@ -294,7 +314,7 @@ test('chat_explains_an_empty_group_without_loading_earlier_pages', async ({ page
 
   await expect(page.locator('.message')).toHaveCount(0);
   await expect(page.getByRole('status')).toHaveText('这个群还没有本地消息。');
-  expect(requests).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=1&size=50']);
+  expect(requests.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=1&size=50']);
 });
 
 test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ page }) => {
@@ -462,6 +482,68 @@ test('chat_keeps_markup_in_message_text_literal', async ({ page }) => {
   await expect(bubble).toContainText('<script>window.attack=1</script>');
   await expect(bubble.locator('script, img')).toHaveCount(0);
   expect(await page.evaluate(() => (window as Window & { attack?: number }).attack)).toBeUndefined();
+});
+
+test('chat_polls_new_messages_without_moving_the_viewport', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect(page.locator('.message').last()).toContainText('消息 60');
+  const before = await page.locator('.messages').evaluate(element => element.scrollTop);
+
+  items.push(makeMessages(1, 61, '消息')[60]);
+  const pill = page.locator('.new-messages-button');
+  await expect(pill).toBeVisible({ timeout: 4000 });
+  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
+  await expect(page.locator('[data-mid="61"]')).toHaveCount(0);
+
+  await pill.click();
+  await expect(page.locator('[data-mid="61"]')).toBeVisible();
+  await expect(pill).toBeHidden();
+  await expect.poll(() => atBottom(page)).toBe(true);
+});
+
+test('chat_scroll_bottom_button_lands_on_the_newest_message', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect(page.locator('.message').last()).toContainText('消息 60');
+
+  items.push(makeMessages(1, 61, '消息')[60]);
+  await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 4000 });
+  await page.locator('.scroll-bottom-button').click();
+  await expect(page.locator('[data-mid="61"]')).toBeVisible();
+  await expect(page.locator('.new-messages-button')).toBeHidden();
+});
+
+test('chat_catches_up_after_returning_without_moving_the_viewport', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect(page.locator('.message').last()).toContainText('消息 60');
+  const before = await page.locator('.messages').evaluate(element => element.scrollTop);
+  pollDelayMs = 2000;
+
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  items.push(...makeMessages(1, 63, '消息').slice(60));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+  await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 6000 });
+  expect(requests.some(value => value.includes('afterMid='))).toBe(true);
+  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
+});
+
+test('chat_retries_a_failed_poll_and_recovers', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect(page.locator('.message').last()).toContainText('消息 60');
+
+  messagesStatus.set(1, 500);
+  await page.waitForTimeout(1300);
+  messagesStatus.delete(1);
+  items.push(makeMessages(1, 61, '消息')[60]);
+  await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 9000 });
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {

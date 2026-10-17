@@ -1,6 +1,8 @@
 /* 蔚蓝拟物皮肤：令牌取自 docs/design/DESIGN.md，勿与 post 页纸感皮肤混用。 */
 :root {
   color-scheme: light;
+  --accent: #086ce0;
+  --accent-strong: #034fbf;
   --surface: #ffffff;
   --border: #98bde0;
   --border-strong: #6f9fc9;
@@ -542,4 +544,46 @@ h1 {
   color: var(--muted);
   font-size: 14px;
   text-align: center;
+}
+
+.new-messages-button {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  padding: 7px 15px;
+  border: 1px solid var(--accent-strong);
+  border-radius: 16px;
+  color: #ffffff;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgb(17 67 115 / 28%);
+}
+
+.scroll-bottom-button {
+  position: absolute;
+  right: 26px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: rgb(255 255 255 / 85%);
+  box-shadow: 0 2px 8px rgb(17 67 115 / 18%);
+}
+
+.scroll-bottom-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.scroll-bottom-button path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
