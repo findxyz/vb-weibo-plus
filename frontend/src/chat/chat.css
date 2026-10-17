@@ -1649,7 +1649,7 @@ h1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 38px minmax(0, 1fr);
-  width: 260px;
+  width: 300px;
   padding: 0;
   border: 2px solid var(--frame);
   border-radius: var(--radius-md);
@@ -1670,6 +1670,17 @@ h1 {
   box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
+.dream-popover-titlebar h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 1px var(--titlebar-text-shadow);
+}
+
 .dream-popover-icon {
   flex: none;
   filter: drop-shadow(0 1px 1px var(--titlebar-text-shadow));
@@ -1687,6 +1698,11 @@ h1 {
   border: 1px solid var(--tool-border);
   border-radius: var(--radius-sm);
   background: linear-gradient(var(--surface), var(--tool-to));
+}
+
+.dream-popover-body span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .dream-dialog {

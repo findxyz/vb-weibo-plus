@@ -39,6 +39,12 @@
 
 日期：2026-10-18。
 
+### 用户反馈修正（2026-10-18）
+
+- 盗梦空间入口弹层缺标题与询问文案：补回「盗梦空间」标题与「是否进入盗梦空间？」说明，弹层宽度对齐旧页 300px。
+- 消息头像丢失微博主页跳转：改回 `<a href="https://weibo.com/u/<uid>">`（新窗口、`noopener noreferrer`、`aria-label="查看…的微博主页"`），保留 `data-sender-id` 供悬停彩蛋；群头像与其它头像仍为纯展示。
+- 用例补充弹层标题／文案与头像链接断言；原正文链接断言限定在 `.bubble` 内，避免与头像链接冲突。修正后前端 185 项与 Java 96 项通过。
+
 ### 实现
 
 - `ChatPage.tsx`：标题栏加 `.window-control.immersive` 开关（`aria-pressed`、文案切换、`weibo-chat:immersive` 持久化），`.conversation.immersive` 隐藏群头与编辑器。

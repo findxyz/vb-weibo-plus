@@ -89,6 +89,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         name={message.senderName}
         avatar={message.senderAvatar}
         senderId={message.senderId}
+        profileUrl={`https://weibo.com/u/${message.senderId}`}
       />
       <div className="message-content">
         <div className="message-meta">

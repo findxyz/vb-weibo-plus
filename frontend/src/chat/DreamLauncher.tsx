@@ -107,9 +107,11 @@ export default function DreamLauncher() {
           style={{ left: position.left, top: position.top }}>
           <header className="dream-popover-titlebar">
             <span className="dream-popover-icon" aria-hidden="true">🌀</span>
+            <h2>盗梦空间</h2>
             <button type="button" aria-label="关闭盗梦空间入口" onClick={hidePopover} />
           </header>
           <div className="dream-popover-body">
+            <span>是否进入盗梦空间？</span>
             <button type="button" onClick={openGame}>🌀 进入盗梦空间</button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
@@ -618,10 +618,10 @@ test('chat_links_urls_and_renders_known_emoji', async ({ page }) => {
   await openChat(page);
 
   const first = page.locator('[data-mid="1"]');
-  await expect(first.locator('a')).toHaveAttribute('href', 'https://example.com/a?b=1');
-  await expect(first.locator('a')).toHaveAttribute('target', '_blank');
-  await expect(first.locator('a')).toHaveAttribute('rel', 'noopener noreferrer');
-  await expect(first.locator('a')).toHaveText('https://example.com/a?b=1');
+  await expect(first.locator('.bubble a')).toHaveAttribute('href', 'https://example.com/a?b=1');
+  await expect(first.locator('.bubble a')).toHaveAttribute('target', '_blank');
+  await expect(first.locator('.bubble a')).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(first.locator('.bubble a')).toHaveText('https://example.com/a?b=1');
   await expect(first.locator('.bubble')).toContainText('。后文');
   await expect(first.locator('.bubble')).toContainText('[不存在]');
 
@@ -634,7 +634,7 @@ test('chat_links_urls_and_renders_known_emoji', async ({ page }) => {
   await expect(emojis.last()).toHaveAttribute('src', 'https://img.t.sinajs.cn/t4/appstyle/expression/emimage/abc.png');
 
   const second = page.locator('[data-mid="2"]');
-  await expect(second.locator('a')).toHaveAttribute('href', 'https://example.com/x');
+  await expect(second.locator('.bubble a')).toHaveAttribute('href', 'https://example.com/x');
   await expect(second.locator('.bubble')).toContainText('结尾 https://example.com/x.');
 });
 
@@ -1605,6 +1605,8 @@ test('chat_opens_the_dream_game_from_a_member_avatar', async ({ page }) => {
 
   const popover = page.locator('.dream-popover');
   await expect(popover).toBeVisible({ timeout: 6000 });
+  await expect(popover.getByRole('heading', { name: '盗梦空间' })).toBeVisible();
+  await expect(popover).toContainText('是否进入盗梦空间？');
   await popover.getByRole('button', { name: '🌀 进入盗梦空间' }).click();
 
   const dialog = page.locator('dialog.dream-dialog');
@@ -1613,6 +1615,16 @@ test('chat_opens_the_dream_game_from_a_member_avatar', async ({ page }) => {
   await dialog.getByRole('button', { name: '关闭盗梦空间' }).click();
   await expect(dialog).not.toHaveJSProperty('open', true);
   await expect.poll(() => dialog.locator('iframe').getAttribute('src')).toBe('about:blank');
+});
+
+test('chat_opens_a_member_weibo_profile_from_the_avatar', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const avatar = page.locator('.message-avatar').first();
+  await expect(avatar).toHaveAttribute('href', 'https://weibo.com/u/101');
+  await expect(avatar).toHaveAttribute('target', '_blank');
+  await expect(avatar).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(avatar).toHaveAttribute('aria-label', '查看成员1的微博主页');
 });
 
 test('chat_skips_avatars_without_a_dream_page', async ({ page }) => {
