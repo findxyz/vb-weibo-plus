@@ -45,6 +45,7 @@ let analysisDeltas: string[];
 let analysisDone: AnalysisView;
 let analysisStreamError: string | null;
 let analysisStreamBodies: string[];
+let analysisStreamDelay: number;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -209,7 +210,7 @@ test.beforeAll(async () => {
             response.end();
           }, 400);
         };
-        setTimeout(writeNext, 60);
+        setTimeout(writeNext, analysisStreamDelay);
       });
       return;
     }
@@ -360,6 +361,7 @@ test.beforeEach(({ page }) => {
   analysisDone = { ...analysisDetail, result: analysisDeltas.join('') };
   analysisStreamError = null;
   analysisStreamBodies = [];
+  analysisStreamDelay = 60;
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD'].includes(request.method())) return;
@@ -1460,12 +1462,17 @@ test('chat_shows_analysis_detail_with_markdown', async ({ page }) => {
 });
 
 test('chat_streams_analysis_and_shows_done', async ({ page }) => {
+  analysisStreamDelay = 600;
   await openChat(page);
   await page.getByRole('button', { name: '🤖 群聊分析' }).click();
   const dialog = page.locator('dialog.analysis-dialog');
   await dialog.getByLabel('提示词').fill('汇总今日话题');
   await dialog.getByRole('button', { name: '🤖 分析' }).click();
 
+  const pending = dialog.locator('.analysis-pending');
+  await expect(pending).toHaveText('正在分析，请稍候…');
+  const spinner = await pending.evaluate(element => getComputedStyle(element, '::before').animationName);
+  expect(spinner).toBe('analysis-spin');
   await expect(dialog.getByRole('button', { name: /分析中/ })).toBeDisabled();
   await expect(dialog.locator('.analysis-detail-content')).toContainText('要点一', { timeout: 3000 });
   await expect.poll(() => analysisStreamBodies.length).toBe(1);

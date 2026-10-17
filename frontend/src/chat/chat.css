@@ -1555,7 +1555,25 @@ h1 {
 }
 
 .analysis-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--muted);
+  font-size: 14px;
+}
+
+.analysis-pending::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border: 2px solid #c5d8ea;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: analysis-spin 0.8s linear infinite;
+}
+
+@keyframes analysis-spin {
+  to { transform: rotate(360deg); }
 }
 
 .analysis-error {
