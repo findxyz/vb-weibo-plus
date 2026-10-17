@@ -70,9 +70,14 @@ body {
   font: 15px/1.55 Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
 }
 
+button,
+input,
+textarea {
+  font: inherit;
+}
+
 button {
   color: inherit;
-  font: inherit;
   user-select: none;
 }
 

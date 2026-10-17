@@ -807,6 +807,8 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
     const panel = document.querySelector('.groups-panel')!.getBoundingClientRect();
     const bubble = getComputedStyle(document.querySelector('.bubble')!);
     const messages = document.querySelector('.messages')!;
+    const composer = getComputedStyle(document.querySelector('.composer textarea')!);
+    const search = getComputedStyle(document.querySelector('.search-box input')!);
     return {
       titlebarHeight: titlebar.height,
       panelWidth: panel.width,
@@ -815,6 +817,9 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
       bodyBackground: getComputedStyle(document.body).backgroundColor,
       overflowY: getComputedStyle(messages).overflowY,
       scrollWidth: document.documentElement.scrollWidth,
+      composerFontFamily: composer.fontFamily,
+      composerFontSize: composer.fontSize,
+      searchFontFamily: search.fontFamily,
     };
   });
 
@@ -825,4 +830,8 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
   expect(metrics.bodyBackground).toBe('rgb(185, 216, 242)');
   expect(metrics.overflowY).toBe('auto');
   expect(metrics.scrollWidth).toBeLessThanOrEqual(900);
+  // 输入框与搜索框沿用页面字体，不使用浏览器默认的等宽字体。
+  expect(metrics.composerFontFamily).toContain('Tahoma');
+  expect(metrics.composerFontSize).toBe('15px');
+  expect(metrics.searchFontFamily).toContain('Tahoma');
 });
