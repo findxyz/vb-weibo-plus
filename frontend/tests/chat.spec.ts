@@ -321,6 +321,89 @@ test('chat_degrades_video_messages_to_text_and_only_previews_images', async ({ p
   await expect(page.locator('[data-mid="2"] .bubble')).toHaveText('分享视频');
 });
 
+test('chat_links_urls_and_renders_known_emoji', async ({ page }) => {
+  const items = makeMessages(1, 2, '消息');
+  items[0].text = '前文 https://example.com/a?b=1。后文 [doge] [不存在] [/abc.png]';
+  items[1].text = '结尾 https://example.com/x.';
+  messagesByGid.set(1, items);
+  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
+  }));
+  await page.route('https://img.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#086ce0"/></svg>',
+  }));
+  await openChat(page);
+
+  const first = page.locator('[data-mid="1"]');
+  await expect(first.locator('a')).toHaveAttribute('href', 'https://example.com/a?b=1');
+  await expect(first.locator('a')).toHaveAttribute('target', '_blank');
+  await expect(first.locator('a')).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(first.locator('a')).toHaveText('https://example.com/a?b=1');
+  await expect(first.locator('.bubble')).toContainText('。后文');
+  await expect(first.locator('.bubble')).toContainText('[不存在]');
+
+  const emojis = first.locator('img.emoji');
+  await expect(emojis).toHaveCount(2);
+  await expect(emojis.first()).toHaveAttribute('alt', '[doge]');
+  await expect(emojis.first()).toHaveAttribute('loading', 'lazy');
+  await expect(emojis.first()).toHaveAttribute('src', /^https:\/\/face\.t\.sinajs\.cn\/.+/);
+  await expect(emojis.last()).toHaveAttribute('alt', '[/abc.png]');
+  await expect(emojis.last()).toHaveAttribute('src', 'https://img.t.sinajs.cn/t4/appstyle/expression/emimage/abc.png');
+
+  const second = page.locator('[data-mid="2"]');
+  await expect(second.locator('a')).toHaveAttribute('href', 'https://example.com/x');
+  await expect(second.locator('.bubble')).toContainText('结尾 https://example.com/x.');
+});
+
+test('chat_renders_file_downloads_and_weibo_share_cards', async ({ page }) => {
+  const items = makeMessages(1, 3, '消息');
+  items[0].fileUrl = '/chat/media?gid=1&mid=1&variant=file';
+  items[0].text = '说明.txt';
+  items[1].mediaType = 14;
+  items[1].text = '分享微博';
+  items[1].urlObjects = [{
+    status: { user: { screen_name: '原作者' }, text: `<b>摘要</b>${'字'.repeat(120)}` },
+    url_ori: 'https://weibo.com/1/share',
+  }];
+  items[2].mediaType = 14;
+  items[2].text = '分享微博';
+  items[2].urlObjects = [{ status: { user: { screen_name: '另一个人' }, text: '正文' }, url_ori: 'javascript:alert(1)' }];
+  messagesByGid.set(1, items);
+  await openChat(page);
+
+  const file = page.locator('[data-mid="1"] .file-download');
+  await expect(file).toHaveAttribute('href', '/chat/media?gid=1&mid=1&variant=file');
+  await expect(file).toHaveAttribute('download', '说明.txt');
+  await expect(file).toHaveText('说明.txt');
+  await expect(page.locator('[data-mid="1"] .bubble')).toHaveText('说明.txt');
+
+  const card = page.locator('[data-mid="2"] .weibo-card');
+  await expect(card.locator('.weibo-card-author')).toHaveText('原作者');
+  await expect(card.locator('.weibo-card-summary')).toHaveText(/^摘要字+…$/);
+  const summary = await card.locator('.weibo-card-summary').textContent();
+  expect(summary ?? '').toHaveLength(101);
+  await expect(card.locator('.weibo-card-link')).toHaveAttribute('href', 'https://weibo.com/1/share');
+  await expect(card.locator('.weibo-card-link')).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(card.locator('.weibo-card-link')).toHaveText('查看微博');
+
+  await expect(page.locator('[data-mid="3"] .weibo-card-author')).toHaveText('另一个人');
+  await expect(page.locator('[data-mid="3"] .weibo-card-link')).toHaveCount(0);
+});
+
+test('chat_keeps_markup_in_message_text_literal', async ({ page }) => {
+  const items = makeMessages(1, 1, '消息');
+  items[0].text = '<script>window.attack=1</script><img src=x onerror="window.attack=2">';
+  messagesByGid.set(1, items);
+  await openChat(page);
+
+  const bubble = page.locator('[data-mid="1"] .bubble');
+  await expect(bubble).toContainText('<script>window.attack=1</script>');
+  await expect(bubble.locator('script, img')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as Window & { attack?: number }).attack)).toBeUndefined();
+});
+
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '旧群'));
   messagesByGid.set(2, makeMessages(2, 3, '新群'));

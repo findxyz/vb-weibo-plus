@@ -6,6 +6,7 @@
   --border-strong: #6f9fc9;
   --text: #101820;
   --muted: #607486;
+  --link: #1677ff;
   --danger: #b42318;
   --focus: #ffb020;
   --radius-sm: 3px;
@@ -385,12 +386,53 @@ h1 {
   white-space: pre-wrap;
 }
 
+.bubble .emoji {
+  width: 1.3em;
+  height: 1.3em;
+  vertical-align: -0.25em;
+}
+
+.file-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--link);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.file-download:hover {
+  text-decoration: underline;
+}
+
+.weibo-card .weibo-card-author {
+  margin-bottom: 4px;
+  color: #333333;
+  font-weight: 600;
+}
+
+.weibo-card .weibo-card-summary {
+  margin-bottom: 6px;
+  color: #555555;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.weibo-card .weibo-card-link {
+  color: var(--link);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.weibo-card .weibo-card-link:hover {
+  text-decoration: underline;
+}
+
 .system-message {
   display: flex;
   justify-content: center;
-}
-
-.system-message .bubble {
+}.system-message .bubble {
   max-width: min(720px, 80%);
   padding: 5px 14px;
   border: 0;
