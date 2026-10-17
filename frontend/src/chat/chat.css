@@ -1600,12 +1600,24 @@ h1 {
 }
 
 .celebration-chip-avatar {
+  display: grid;
+  place-items: center;
   overflow: hidden;
   width: 18px;
   height: 18px;
   border: none;
   border-radius: 50%;
+  background: linear-gradient(145deg, #8fc7f0, #3d86c9);
+  color: #ffffff;
   font-size: 10px;
+  font-weight: 700;
+}
+
+.celebration-chip-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .celebration-chip-name {
@@ -1916,6 +1928,15 @@ h1 {
   color: #ffffff;
   background: linear-gradient(#ff9a73, #e63c20 72%);
   box-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
+}
+
+.celebration-popover-titlebar button::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23fff' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 1px #074b9a);
 }
 
 .celebration-popover-body {

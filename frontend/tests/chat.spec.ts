@@ -1,4 +1,4 @@
-﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
@@ -1540,6 +1540,9 @@ test('chat_configures_celebration_from_a_sender_name', async ({ page }) => {
   const popover = page.locator('.celebration-popover');
   await expect(popover.getByRole('heading', { name: '回归庆祝' })).toBeVisible();
   await expect(popover.locator('input[type="number"]')).toHaveValue('30');
+  const closeIcon = await popover.getByRole('button', { name: '关闭回归庆祝设置' })
+    .evaluate(button => getComputedStyle(button, '::before').content);
+  expect(closeIcon).not.toBe('none');
   await popover.getByRole('button', { name: '🎉 加入庆祝名单' }).click();
   await expect(popover).toHaveCount(0);
 

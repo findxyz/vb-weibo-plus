@@ -172,11 +172,15 @@ export function createCelebration(
     try {
       const width = stage.clientWidth;
       const height = stage.clientHeight;
-      if (!isCurrent() || width < 380 || height < 340) return;
+      if (!isCurrent() || width < 380 || height < 340) {
+        if (width < 380 || height < 340) console.warn('回归庆祝跳过：舞台尺寸不足', width, height);
+        return;
+      }
       let sheets: Record<'walk' | 'point' | 'leo', HTMLImageElement>;
       try {
         sheets = await loadSheets();
-      } catch {
+      } catch (error) {
+        console.warn('回归庆祝图集加载失败：', error);
         return;
       }
       if (!isCurrent()) return;
