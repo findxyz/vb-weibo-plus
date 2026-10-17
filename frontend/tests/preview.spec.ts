@@ -357,6 +357,44 @@ test('post_login_unmount_stops_polling_and_late_status_cannot_hide_pending_qr', 
   writeRequests = [];
 });
 
+test('post_login_late_valid_status_does_not_clear_a_new_reading_401', async ({ page }) => {
+  listStatus = 401;
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/weibo/login/status', async route => { await gate; await route.fulfill({ json: { valid: true } }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  const response = page.waitForResponse('**/weibo/login/status');
+  finish();
+  await response;
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+});
+
+test('post_login_completed_qr_does_not_poll_while_failed_reading_is_recovering', async ({ page }) => {
+  await page.clock.install();
+  loginPayload = { valid: false };
+  listStatus = 401;
+  const images: string[] = [];
+  await page.route('**/weibo/login/qr/image?*', route => { images.push(route.request().url()); return route.fulfill({ status: 204 }); });
+  await page.route('**/weibo/login/qr', route => {
+    listStatus = 200;
+    holdPath = '/post/list';
+    holdResponse = true;
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  await page.clock.runFor(3100);
+  expect(images).toHaveLength(0);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
+  holdResponse = false;
+  releaseResponse!();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
 test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_card', async ({ page }) => {
   calendar.months.push(
     { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
