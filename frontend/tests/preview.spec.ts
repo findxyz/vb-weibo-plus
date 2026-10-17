@@ -195,6 +195,228 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   });
 }
 
+test('add_blogger_validates_then_posts_uid_refreshes_and_selects_new_blogger', async ({ page }) => {
+  const added = { uid: 1234567890, screenName: '新博主' };
+  const calls: string[] = [];
+  await page.route('**/post/bloggers?uid=*', async route => {
+    calls.push(route.request().url());
+    bloggers = [...bloggers, added];
+    await route.fulfill({ json: added });
+  });
+  postsByUid[String(added.uid)] = { ...posts, total: 1, items: [{ ...posts.items[0], content: '新博主正文', blogger: added }] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '添加博主', exact: true });
+  const input = dialog.getByRole('textbox', { name: 'UID 或主页链接' });
+  await expect(input).toBeFocused();
+  await input.fill('abc');
+  await input.press('Enter');
+  await expect(dialog.getByRole('alert')).toContainText('无法识别');
+  expect(calls).toHaveLength(0);
+  await input.fill(' https://weibo.com/u/1234567890 ');
+  await input.press('Enter');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.feed-header h2')).toHaveText('新博主的微博');
+  await expect(page.locator('.post-content')).toHaveText('新博主正文');
+  await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
+  expect(new URL(calls[0]).search).toBe('?uid=1234567890');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('add_blogger_accepts_numeric_and_short_homepage_forms_and_resets_on_reopen', async ({ page }) => {
+  const submitted: string[] = [];
+  await page.route('**/post/bloggers?uid=*', route => {
+    submitted.push(new URL(route.request().url()).searchParams.get('uid')!);
+    return route.fulfill({ status: 500, json: { msg: '本地添加暂时失败' } });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const entry = page.getByRole('button', { name: '添加博主', exact: true });
+  await entry.click();
+  const dialog = page.getByRole('dialog', { name: '添加博主', exact: true });
+  const input = dialog.getByRole('textbox', { name: 'UID 或主页链接' });
+  for (const [value, expected] of [[' 1234 ', '1234'], ['https://weibo.com/12345678?foo=bar', '12345678']]) {
+    await input.fill(value);
+    await dialog.getByRole('button', { name: '添加', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('本地添加暂时失败');
+    expect(submitted.at(-1)).toBe(expected);
+    await expect(input).toHaveValue(value);
+  }
+  expect(submitted).toHaveLength(2);
+  await input.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(entry).toBeFocused();
+  await entry.click();
+  await expect(input).toHaveValue('');
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  expect(writeRequests).toHaveLength(2);
+  writeRequests = [];
+});
+
+test('add_blogger_pending_cancel_keeps_one_write_and_preserves_later_selection', async ({ page }) => {
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/post/bloggers?uid=*', async route => { await gate; bloggers.push({ uid: 1234, screenName: '添加完成' }); await route.fulfill({ json: {} }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const entry = page.getByRole('button', { name: '添加博主', exact: true });
+  await entry.click();
+  const dialog = page.getByRole('dialog', { name: '添加博主', exact: true });
+  await dialog.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
+  await dialog.getByRole('textbox', { name: 'UID 或主页链接' }).press('Enter');
+  await expect(dialog.getByRole('button', { name: '添加', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('status')).toHaveText('正在添加并拉取微博…');
+  await dialog.getByRole('textbox', { name: 'UID 或主页链接' }).press('Enter');
+  await dialog.getByRole('button', { name: '关闭添加博主', exact: true }).click();
+  await expect(entry).toBeFocused();
+  await entry.press('Enter');
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  finish();
+  await expect(page.getByRole('button', { name: '添加完成', exact: true })).toBeVisible();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('add_blogger_list_refresh_failure_does_not_repeat_successful_post', async ({ page }) => {
+  await page.route('**/post/bloggers?uid=*', route => { status = 500; return route.fulfill({ json: {} }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('alert')).toContainText('博主加载失败');
+  await expect(page.locator('.feed-header h2')).toHaveText('全部微博');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('add_blogger_401_uses_login_recovery_without_reposting', async ({ page }) => {
+  await page.route('**/post/bloggers?uid=*', route => route.fulfill({ status: 401, json: { msg: '失效' } }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('add_blogger_timeout_releases_submit_without_automatic_retry', async ({ page }) => {
+  await page.clock.install();
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/post/bloggers?uid=*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await expect(page.getByRole('button', { name: '添加', exact: true })).toBeDisabled();
+  await page.clock.runFor(16000);
+  await expect(page.getByRole('alert')).toContainText('请求超时');
+  await expect(page.getByRole('button', { name: '添加', exact: true })).toBeEnabled();
+  expect(writeRequests).toHaveLength(1);
+  finish();
+  writeRequests = [];
+});
+
+test('add_blogger_geometry_matches_legacy_and_paper_modal_fits_minimum_viewport', async ({ page }, testInfo) => {
+  await serveLegacy(page);
+  const measure = () => page.locator('dialog:modal').evaluate(dialog => {
+    const rect = dialog.getBoundingClientRect();
+    const input = dialog.querySelector('input')!.getBoundingClientRect();
+    const style = getComputedStyle(dialog);
+    return { width: rect.width, height: rect.height, border: style.border, radius: style.borderRadius, input: { width: input.width, height: input.height, x: input.x - rect.x, y: input.y - rect.y } };
+  });
+  await page.goto(`${baseUrl}legacy/post/index.html`);
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  const legacy = await measure();
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  expect(await measure()).toEqual(legacy);
+  await expect(page.locator('.management-dialog')).toHaveCSS('box-shadow', 'rgba(43, 38, 32, 0.18) 6px 8px 0px -3px');
+  await page.setViewportSize({ width: 900, height: 560 });
+  await expect(page.getByRole('button', { name: '添加', exact: true })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('add-blogger.png') });
+});
+
+test('add_blogger_later_scope_selection_wins_while_list_refresh_is_pending', async ({ page }) => {
+  await page.route('**/post/bloggers?uid=*', route => {
+    bloggers.push({ uid: 1234, screenName: '刷新后博主' });
+    holdPath = '/post/bloggers'; holdResponse = true;
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  holdResponse = false; releaseResponse!();
+  await expect(page.getByRole('button', { name: '刷新后博主', exact: true })).toBeVisible();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
+for (const navigation of ['date', 'search']) {
+  test(`add_blogger_preserves_later_${navigation}_navigation_during_list_refresh`, async ({ page }) => {
+    calendar.months[0].days.push({ date: '2026-08-04', count: 1 });
+    searchPosts = { ...posts, total: 1, items: [{ ...posts.items[0], createdAt: Date.parse('2026-08-04T00:00:00Z') }] };
+    await page.route('**/post/bloggers?uid=*', route => {
+      bloggers.push({ uid: 1234, screenName: '添加后博主' });
+      holdPath = '/post/bloggers'; holdResponse = true;
+      return route.fulfill({ json: {} });
+    });
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect(page.locator('.post-content')).toContainText('第一行');
+    await page.getByRole('button', { name: '添加博主', exact: true }).click();
+    await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
+    await page.getByRole('button', { name: '添加', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+    if (navigation === 'date') await page.getByRole('button', { name: '2026-08-04', exact: true }).click();
+    else {
+      await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+      await page.getByLabel('关键词', { exact: true }).fill('第一');
+      await page.getByRole('button', { name: '搜索', exact: true }).click();
+      await page.locator('.search-result').click();
+    }
+    await expect(page.getByRole('button', { name: '2026-08-04', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    holdResponse = false; releaseResponse!();
+    await expect(page.getByRole('button', { name: '添加后博主', exact: true })).toBeVisible();
+    await expect(page.locator('.feed-header h2')).toHaveText('全部微博');
+    await expect(page.getByRole('button', { name: '2026-08-04', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    expect(writeRequests).toHaveLength(1); writeRequests = [];
+  });
+}
+
+test('add_blogger_preserves_submitted_leading_zeros_and_selects_canonical_uid', async ({ page }) => {
+  let submitted = '';
+  await page.route('**/post/bloggers?uid=*', route => {
+    submitted = new URL(route.request().url()).searchParams.get('uid')!;
+    bloggers.push({ uid: 1234, screenName: '规范 UID 博主' });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('00001234');
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('规范 UID 博主的微博');
+  expect(submitted).toBe('00001234');
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
 test('post_login_detects_invalid_status_without_hiding_local_reading_and_starts_only_on_click', async ({ page }) => {
   loginPayload = { valid: false };
   await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: { msg: '本地扫码失败' } }));

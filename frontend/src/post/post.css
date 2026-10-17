@@ -166,7 +166,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid 
 .search-overlay-tip { margin: 0; color: var(--pencil); font: 13px/1.6 var(--hand); }
 .search-field { display: grid; gap: 4px; color: var(--pencil); font: 14px/1.2 var(--hand); }
 .search-date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.search-overlay input { width: 100%; height: 36px; padding: 0 12px; border: 1.5px solid var(--pencil); border-radius: 4px; background: var(--paper); font: 16px/1 var(--hand); box-shadow: var(--shadow-near); }
+.search-overlay input, .management-dialog input { width: 100%; height: 36px; padding: 0 12px; border: 1.5px solid var(--pencil); border-radius: 4px; background: var(--paper); font: 16px/1 var(--hand); box-shadow: var(--shadow-near); }
 .search-status { min-height: 18px; margin: 0; color: var(--pencil); font: 13px/1.3 var(--hand); }
 .search-actions { display: flex; justify-content: flex-end; }
 .search-actions button { min-height: 34px; padding: 0 18px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--accent); color: var(--paper); font: 700 15px/1 var(--hand-b); transform: rotate(-0.6deg); }
@@ -184,6 +184,14 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid 
 .login-expired .panel-state { color: var(--danger); font: 13px/1.3 var(--hand); }
 .login-expired button { min-height: 30px; padding: 0 14px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper); font: 14px/1 var(--hand); transform: rotate(-0.5deg); }
 .login-expired button:hover { background: color-mix(in srgb, var(--highlight) 28%, var(--paper)); }
+.blogger-add { flex: none; width: 30px; height: 28px; display: grid; place-items: center; padding: 0; border: 1.5px solid var(--ink); border-radius: 6px; color: var(--paper); background: var(--accent); transform: rotate(1.4deg); }
+.blogger-add::before { content: "+"; font: 24px/1 var(--sans); }
+.blogger-add:hover { filter: brightness(1.08); }
+.management-dialog { width: 420px; max-height: 80vh; padding: 0; border: 2px solid var(--ink); border-radius: 8px; color: var(--ink); background: var(--paper); box-shadow: var(--shadow-card); }
+.management-dialog::backdrop { background: rgb(43 38 32 / 32%); }
+.management-window { display: grid; grid-template-rows: 40px minmax(0, 1fr); max-height: calc(80vh - 4px); }
+.add-blogger-title-icon { flex: none; width: 14px; height: 14px; font: 700 17px/14px var(--sans); }
+.management-status { min-height: 18px; margin: 0; color: var(--danger); font: 13px/1.3 var(--hand); }
 .post-card.flash-highlight { animation: flash-card 1.6s ease-out; }
 @keyframes flash-card {
   0%, 100% { background: var(--paper); }
