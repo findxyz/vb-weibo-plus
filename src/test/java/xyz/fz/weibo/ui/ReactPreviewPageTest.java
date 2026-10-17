@@ -114,6 +114,7 @@ class ReactPreviewPageTest {
             exchange.close();
         });
         server.createContext("/preview/", ReactPreviewPageTest::sendStaticResource);
+        server.createContext("/weibo/login/status", exchange -> sendJson(exchange, "{\"valid\":true}"));
         server.createContext("/assets/", ReactPreviewPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -164,6 +165,23 @@ class ReactPreviewPageTest {
             assertThat(page.locator(".post-card.flash-highlight")).containsText("第二位博主的本地正文");
             assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
             Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
+        }
+    }
+
+    @Test
+    void classpath_preview_recovers_login_with_local_qr_fixture() {
+        try (Page page = browser.newPage()) {
+            page.route("**/weibo/login/status", route -> route.fulfill(new Route.FulfillOptions()
+                    .setContentType("application/json").setBody("{\"valid\":false}")));
+            page.route("**/weibo/login/qr", route -> {
+                page.unroute("**/weibo/login/status");
+                route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("{}"));
+            });
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("扫码登录").setExact(true)).click();
+            assertThat(page.locator(".login-expired")).hasCount(0);
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
         }
     }
 
