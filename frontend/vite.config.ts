@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       rolldownOptions: {
         input: {
-          post: fileURLToPath(new URL('./preview/post/index.html', import.meta.url)),
+          post: fileURLToPath(new URL('./post/index.html', import.meta.url)),
           chat: fileURLToPath(new URL('./preview/chat/index.html', import.meta.url)),
         },
       },

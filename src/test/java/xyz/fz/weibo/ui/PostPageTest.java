@@ -2,18 +2,15 @@ package xyz.fz.weibo.ui;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
-import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
-import com.microsoft.playwright.options.WaitUntilState;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -21,8 +18,8 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
@@ -33,990 +30,600 @@ class PostPageTest {
     private static Playwright playwright;
     private static Browser browser;
     private static String baseUrl;
-    // 不等待 load 事件：页面曾引用外部字体资源，在测试环境无外网时会挂起 load，
-    // 导致依赖 navigate 阶段自发请求的 waitForResponse 超时。DOMCONTENTLOADED 后 defer 脚本已执行。
-    private static final Page.NavigateOptions NAVIGATE_OPTIONS =
-            new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED);
-    private static final AtomicInteger bloggersRequests = new AtomicInteger();
-    private static final AtomicInteger calendarRequests = new AtomicInteger();
-    private static final AtomicInteger listRequests = new AtomicInteger();
-    private static final AtomicReference<String> lastListQuery = new AtomicReference<>();
-    private static final AtomicBoolean failBloggers = new AtomicBoolean();
-    private static final AtomicBoolean failCalendar = new AtomicBoolean();
-    private static final AtomicBoolean failList = new AtomicBoolean();
-    private static final AtomicBoolean loginInvalid = new AtomicBoolean();
-    private static final AtomicInteger loginStatusRequests = new AtomicInteger();
-    private static final AtomicInteger qrLoginRequests = new AtomicInteger();
-    private static final AtomicBoolean failQrLogin = new AtomicBoolean();
-    // 模拟服务端历史同步失败：返回真实服务端在 WeiboExceptionHandler 中生成的 502 错误体，
-    // 其 msg 正是 LongTextApi/MyBlogApi 抛出的「响应反序列化失败：...」。
-    private static final AtomicBoolean failSyncRange = new AtomicBoolean();
-    private static final AtomicInteger rangeRequests = new AtomicInteger();
+    private static final AtomicReference<String> listQuery = new AtomicReference<>();
 
     @BeforeAll
     static void startBrowserAndServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/post/bloggers", exchange -> {
-            // HttpServer 按前缀匹配上下文，/post/bloggers.js（博主模块脚本）也会落进这里；
-            // 非精确 API 路径一律转交静态资源处理，避免模块脚本被当成 JSON 返回
             if (!exchange.getRequestURI().getPath().equals("/post/bloggers")) {
-                PostPageTest.sendStaticResource(exchange);
+                sendStaticResource(exchange);
                 return;
             }
-            bloggersRequests.incrementAndGet();
-            if (failBloggers.get()) {
-                exchange.sendResponseHeaders(503, -1);
-                exchange.close();
-                return;
-            }
-            sendJson(exchange, """
-                    [
-                      {"uid":1,"screenName":"第一位","avatar":"","profileUrl":"/u/1","verified":false},
-                      {"uid":2,"screenName":"第二位","avatar":"https://example.test/a.png","profileUrl":"/u/2","verified":true}
-                    ]
-                    """);
+            sendJson(exchange, "[{\"uid\":1,\"screenName\":\"打包资源博主\"},{\"uid\":2,\"screenName\":\"第二位博主\"}]");
         });
         server.createContext("/post/calendar", exchange -> {
-            calendarRequests.incrementAndGet();
-            if (failCalendar.get()) {
-                exchange.sendResponseHeaders(503, -1);
-                exchange.close();
-                return;
-            }
-            String query = exchange.getRequestURI().getRawQuery();
-            if (query != null && query.contains("uid=2")) {
+            if ("uid=2".equals(exchange.getRequestURI().getRawQuery())) {
                 sendJson(exchange, """
-                        {"months":[
-                          {"month":"2026-07","count":1,"days":[{"date":"2026-07-10","count":1}]}
-                        ]}
+                        {"months":[{"month":"2026-07","count":1,"days":[{"date":"2026-07-10","count":1}]},
+                        {"month":"2026-06","count":1,"days":[{"date":"2026-06-30","count":1}]}]}
+                        """);
+            } else {
+                sendJson(exchange, """
+                        {"months":[{"month":"2026-08","count":4,"days":[{"date":"2026-08-05","count":4}]}]}
+                        """);
+            }
+        });
+        server.createContext("/post/list", exchange -> {
+            listQuery.set(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8));
+            if (listQuery.get().contains("keyword=定位")) {
+                sendJson(exchange, """
+                        {"items":[{"mblogId":"fixture-2","createdAt":1783643400000,
+                        "content":"定位摘要","blogger":{"uid":2,"screenName":"第二位博主"}}],"page":1,"size":1000,"total":1}
                         """);
                 return;
             }
+            if (listQuery.get().contains("keyword=")) {
+                sendJson(exchange, """
+                        {"items":[{"mblogId":"search-fixture","createdAt":1783643400000,
+                        "content":"<b>打包搜索</b>","contentRaw":"安全 <b>打包搜索</b>",
+                        "blogger":{"uid":2,"screenName":"第二位博主"}}],"page":1,"size":1000,"total":1}
+                        """);
+                return;
+            }
+            if (listQuery.get().contains("uids=2")) {
+                String outerContent = listQuery.get().contains("start=2026-06-30") ? "" : "第二位博主的本地正文";
+                sendJson(exchange, """
+                        {"items":[{"mblogId":"fixture-2","createdAt":1783643400000,
+                        "blogger":{"uid":2,"screenName":"第二位博主"},"content":"%s",
+                        "source":"转发客户端","region":"发布于 北京","postUrl":"https://weibo.com/2/fixture-2",
+                        "retweeted":{"screenName":"原作者","content":"<b>打包转发原文</b><br>第二行 https://example.com/retweet. <script>window.retweetAttack=1</script><svg onload='window.retweetAttack=2'></svg>",
+                        "pics":[{"pid":"r1","thumbnailUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=thumbnail","originalUrl":"/post/image?mblogId=fixture-2&pid=r1&variant=original"}],
+                        "video":{"coverUrl":"/post/video-cover?mblogId=fixture-2&retweeted=true","pageUrl":"https://video.example.test/retweet"}}}],
+                        "page":1,"size":9999,"total":1}
+                        """.formatted(outerContent));
+                return;
+            }
             sendJson(exchange, """
-                    {"months":[
-                      {"month":"2026-08","count":5,"days":[
-                        {"date":"2026-08-05","count":1},
-                        {"date":"2026-08-04","count":1},
-                        {"date":"2026-08-03","count":1},
-                        {"date":"2026-08-02","count":1},
-                        {"date":"2026-08-01","count":1}
-                      ]},
-                      {"month":"2026-07","count":1,"days":[
-                        {"date":"2026-07-10","count":1}
-                      ]}
-                    ]}
+                    {"items":[{"mblogId":"fixture-1","createdAt":1785889800000,
+                    "blogger":{"uid":1,"screenName":"打包资源博主"},
+                    "source":"<b>网页端</b>","region":"发布于 上海","postUrl":"https://weibo.com/1/fixture-1",
+                    "video":{"coverUrl":"/post/video-cover?mblogId=fixture-1","pageUrl":"https://video.example.test/packaged"},
+                    "content":"<b>打包后的正文</b><br>第二行 https://example.com. <a href='/n/用户'>用户</a><script>window.attack=1</script><svg onload='window.attack=2'></svg>",
+                    "pics":[{"pid":"p1","thumbnailWidth":300,"thumbnailHeight":180,"thumbnailUrl":"/post/image?mblogId=fixture-1&pid=p1&variant=thumbnail","originalUrl":"/post/image?mblogId=fixture-1&pid=p1&variant=original"},
+                    {"pid":"p2","thumbnailUrl":"/post/image?mblogId=fixture-1&pid=p2&variant=thumbnail"}]}],
+                    "page":1,"size":9999,"total":4}
                     """);
         });
-        server.createContext("/post/list", exchange -> {
-            listRequests.incrementAndGet();
-            lastListQuery.set(exchange.getRequestURI().getRawQuery());
-            if (failList.get()) {
-                exchange.sendResponseHeaders(503, -1);
-                exchange.close();
-                return;
-            }
-            String query = exchange.getRequestURI().getRawQuery();
-            String items;
-            int total;
-            if (query != null && query.contains("keyword=")) {
-                String decoded = URLDecoder.decode(query, StandardCharsets.UTF_8);
-                int kwIdx = decoded.indexOf("keyword=");
-                String keyword = decoded.substring(kwIdx + "keyword=".length());
-                int ampIdx = keyword.indexOf('&');
-                if (ampIdx >= 0) keyword = keyword.substring(0, ampIdx);
-                keyword = keyword.trim();
-                if (keyword.equals("不存在的内容关键字")) {
-                    items = "";
-                    total = 0;
-                } else if (keyword.equals("八月三日")) {
-                    items = postJson("post-aug-03", "第一位", "八月三日的内容，命中搜索词", 1785686400000L);
-                    total = 1;
-                } else if (keyword.equals("多条结果")) {
-                    items = postJson("post-search-2", "第一位", "多条结果的第一条", 1785686400000L);
-                    items = items + "," + postJson("post-search-3", "第二位", "多条结果的第二条", 1785600000000L);
-                    total = 2;
-                } else if (keyword.equals("大量结果")) {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < 30; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(postJson("post-many-" + i, "第一位",
-                                "大量结果第" + i + "条，内容较长以便撑高浮层验证滚动与高度限制", 1785686400000L - (long) i * 1000));
-                    }
-                    items = sb.toString();
-                    total = 30;
-                } else if (keyword.equals("超限")) {
-                    items = postJson("post-search-4", "第一位", "超限内容", 1785686400000L);
-                    total = 1001;
-                } else {
-                    items = "";
-                    total = 0;
-                }
-            } else if (query != null && query.contains("start=2026-08-05")) {
-                items = multilinePostJson("post-aug-05", "第一位", 1783612800000L);
-                total = 1;
-            } else if (query != null && query.contains("start=2026-08-04")) {
-                items = emojiPostJson("post-aug-04", "第一位", 1783612800000L);
-                total = 1;
-            } else if (query != null && query.contains("start=2026-08-03")) {
-                items = retweetPicPostJson("post-aug-03", "第二位", "八月三日的微博", 1783526400000L);
-                total = 1;
-            } else if (query != null && query.contains("start=2026-08-02")) {
-                items = pureRetweetPostJson("post-aug-02", "第一位", 1783440000000L);
-                total = 1;
-            } else if (query != null && query.contains("start=2026-08-01")) {
-                items = videoPostJson("aug-01", "第二位", "八月一日的视频微博", 1783353600000L);
-                total = 1;
-            } else if (query != null && query.contains("start=2026-07-10")) {
-                items = multiPicPostJson("post-jul-10", "第一位", "七月十日的内容", 1783612800000L);
-                total = 1;
-            } else {
-                items = multilinePostJson("post-default", "第一位", 1783612800000L);
-                total = 1;
-            }
-            sendJson(exchange, """
-                    {"items":[%s],"page":1,"size":9999,"total":%d}
-                    """.formatted(items, total));
+        server.createContext("/post/image", exchange -> {
+            boolean broken = exchange.getRequestURI().getRawQuery().contains("pid=broken");
+            byte[] body = (broken ? "Missing image" : "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><rect width='300' height='180' fill='#f9d27c'/></svg>").getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", broken ? "text/plain" : "image/svg+xml");
+            exchange.sendResponseHeaders(broken ? 404 : 200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
         });
-        server.createContext("/post/range", exchange -> {
-            rangeRequests.incrementAndGet();
-            if (failSyncRange.get()) {
-                // 复刻真实服务端行为：历史同步中微博返回 HTML 登录页而非 JSON，
-                // LongTextApi 抛出「响应反序列化失败：Unexpected character ('<'...)」，
-                // 经 WeiboExceptionHandler.handleWeibo 映射为 502 + {"msg":...}。
-                String msg = "响应反序列化失败：Unexpected character ('<' (code 60)):"
-                        + " expected a valid value (JSON String, Number, Array, Object"
-                        + " or token 'null', 'true' or 'false')";
-                String body = "{\"code\":502,\"msg\":\"" + msg + "\"}";
-                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
-                exchange.sendResponseHeaders(502, bytes.length);
-                exchange.getResponseBody().write(bytes);
-                exchange.close();
-                return;
-            }
-            sendJson(exchange, "{\"fetched\":0,\"inserted\":0,\"ignored\":0}");
-        });
-        server.createContext("/weibo/login/status", exchange -> {
-            loginStatusRequests.incrementAndGet();
-            boolean valid = !loginInvalid.get();
-            sendJson(exchange, "{\"valid\":" + valid + "}");
-        });
-        server.createContext("/weibo/login/qr", exchange -> {
-            qrLoginRequests.incrementAndGet();
-            if (failQrLogin.get()) {
-                exchange.sendResponseHeaders(502, -1);
-                exchange.close();
-                return;
-            }
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            loginInvalid.set(false);
-            sendJson(exchange, "{\"sub\":\"SUB\",\"subp\":\"SUBP\",\"ssoLoginState\":\"1\",\"alf\":\"1\"}");
-        });
-        server.createContext("/test-img", exchange -> {
-            byte[] body = new byte[]{
-                    (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-                    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-                    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-                    0x08, 0x02, 0x00, 0x00, 0x00, (byte) 0x90, 0x77, 0x53,
-                    (byte) 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,
-                    0x54, 0x08, (byte) 0xD7, 0x63, (byte) 0xF8, (byte) 0xCF, (byte) 0xC0, 0x00,
-                    0x00, 0x00, 0x03, 0x00, 0x01, (byte) 0x8D, (byte) 0xA2, 0x43,
-                    0x0C, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
-                    0x44, (byte) 0xAE, 0x42, 0x60, (byte) 0x82
-            };
-            exchange.getResponseHeaders().set("Content-Type", "image/png");
+        server.createContext("/post/video-cover", exchange -> {
+            byte[] body = "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><rect width='300' height='180' fill='#f9d27c'/></svg>".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "image/svg+xml");
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/chat/image", exchange -> {
+            byte[] body = "<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='48' height='48' fill='#d8482b'/></svg>".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "image/svg+xml");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/preview/", PostPageTest::sendStaticResource);
         server.createContext("/post/", PostPageTest::sendStaticResource);
-        // 前端重构后 post 页模块从 /shared/ 加载公共模块，测试服务器必须一并伺服
+        server.createContext("/chat/", PostPageTest::sendStaticResource);
         server.createContext("/shared/", PostPageTest::sendStaticResource);
+        server.createContext("/weibo/login/status", exchange -> sendJson(exchange, "{\"valid\":true}"));
+        server.createContext("/assets/", PostPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-
         playwright = Playwright.create();
         browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
     }
 
+    @Test
+    void classpath_post_switches_blogger_month_and_day_then_returns_to_all() {
+        try (Page page = browser.newPage()) {
+            List<String> errors = new ArrayList<>();
+            page.onPageError(errors::add);
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator("article")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.locator("article")).containsText("第二位博主的本地正文");
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.locator("article")).isVisible();
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-06-30 00:00:00&end=2026-06-30 23:59:59&uids=2");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.locator("article")).containsText("打包后的正文");
+            Assertions.assertThat(listQuery.get()).doesNotContain("uids=");
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_post_locates_search_result_and_reloads_full_day() {
+        try (Page page = browser.newPage()) {
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
+            assertThat(page.locator(".post-card")).hasClass("post-card pure-retweet");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("高级搜索").setExact(true)).click();
+            page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true)).fill("定位");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("搜索").setExact(true)).click();
+            page.locator(".search-result").press("Enter");
+            assertThat(page.getByRole(AriaRole.DIALOG)).hasCount(0);
+            assertThat(page.locator(".post-card.flash-highlight")).containsText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
+        }
+    }
+
+    @Test
+    void classpath_post_recovers_login_with_local_qr_fixture() {
+        try (Page page = browser.newPage()) {
+            page.route("**/weibo/login/status", route -> route.fulfill(new Route.FulfillOptions()
+                    .setContentType("application/json").setBody("{\"valid\":false}")));
+            page.route("**/weibo/login/qr", route -> {
+                page.unroute("**/weibo/login/status");
+                route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("{}"));
+            });
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("扫码登录").setExact(true)).click();
+            assertThat(page.locator(".login-expired")).hasCount(0);
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+        }
+    }
+
+    @Test
+    void classpath_post_adds_blogger_through_local_post_fixture() {
+        try (Page page = browser.newPage()) {
+            AtomicReference<Boolean> added = new AtomicReference<>(false);
+            page.route("**/post/bloggers**", route -> {
+                if ("POST".equals(route.request().method())) {
+                    Assertions.assertThat(route.request().url()).endsWith("?uid=1234567890");
+                    added.set(true);
+                    route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("{}"));
+                } else if (added.get()) {
+                    route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                            .setBody("[{\"uid\":1,\"screenName\":\"打包资源博主\"},{\"uid\":1234567890,\"screenName\":\"新博主\"}]"));
+                } else {
+                    route.resume();
+                }
+            });
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("添加博主").setExact(true)).click();
+            page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("UID 或主页链接")).fill("https://weibo.com/u/1234567890");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("添加").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.DIALOG)).hasCount(0);
+            assertThat(page.locator(".feed-header h2")).hasText("新博主的微博");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            Assertions.assertThat(listQuery.get()).contains("uids=1234567890");
+        }
+    }
+
+    @Test
+    void classpath_post_syncs_range_with_local_fixture_and_keeps_reading_day() {
+        try (Page page = browser.newPage()) {
+            AtomicReference<Boolean> completed = new AtomicReference<>(false);
+            AtomicReference<String> rangeQuery = new AtomicReference<>();
+            page.route("**/post/range?*", route -> {
+                rangeQuery.set(URLDecoder.decode(route.request().url().split("\\?", 2)[1], StandardCharsets.UTF_8));
+                completed.set(true);
+                route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("{}"));
+            });
+            page.route("**/post/calendar?uid=2", route -> {
+                if (!completed.get()) route.resume();
+                else route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("""
+                        {"months":[{"month":"2026-08","count":1,"days":[{"date":"2026-08-01","count":1}]},
+                        {"month":"2026-07","count":1,"days":[{"date":"2026-07-10","count":1}]}]}
+                        """));
+            });
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("同步历史").setExact(true)).click();
+            page.getByLabel("开始日期", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-01");
+            page.getByLabel("结束日期", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-31");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("开始同步").setExact(true)).click();
+            assertThat(page.locator(".sync-notice")).hasText("同步完成");
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+            Assertions.assertThat(rangeQuery.get()).isEqualTo("uid=2&start=2026-07-01 00:00:00&end=2026-07-31 23:59:59");
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
+        }
+    }
+
+    @Test
+    void formal_post_refreshes_and_retired_preview_and_legacy_resources_return_404() {
+        try (Page page = browser.newPage()) {
+            Assertions.assertThat(page.navigate(baseUrl + "/post/index.html").status()).isEqualTo(200);
+            assertThat(page).hasTitle("本地微博");
+            assertThat(page.locator(".preview-note")).hasCount(0);
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.reload();
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            for (String path : List.of("/preview/post/index.html", "/post/post.js", "/post/post.css",
+                    "/post/bloggers.js", "/post/dates.js", "/post/posts.js", "/post/search.js",
+                    "/post/viewer.js", "/post/assets/weibo-logo.svg")) {
+                Assertions.assertThat(page.request().get(baseUrl + path).status()).as(path).isEqualTo(404);
+            }
+        }
+    }
+
+    @Test
+    void classpath_post_announces_reading_and_navigates_to_formal_chat() {
+        try (Page page = browser.newPage()) {
+            List<String> errors = new ArrayList<>();
+            page.onPageError(errors::add);
+            page.route("**/chat/groups", route -> route.fulfill(new Route.FulfillOptions()
+                    .setContentType("application/json").setBody("[]")));
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".reading-announcement")).hasText("已加载 1 条微博");
+            assertThat(page.locator(".reading-announcement")).hasAttribute("aria-live", "polite");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到微博群聊").setExact(true)).press("Enter");
+            assertThat(page).hasURL(baseUrl + "/chat/index.html");
+            assertThat(page.locator("h1")).hasText("微博群聊");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到本地微博").setExact(true)).press("Enter");
+            assertThat(page).hasURL(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_post_media_fits_minimum_desktop_without_horizontal_scroll() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(900, 560);
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            assertThat(page.locator(".post-pic")).hasCount(2);
+            Assertions.assertThat((Boolean) page.locator(".posts").evaluate("element => element.scrollWidth <= element.clientWidth")).isTrue();
+        }
+    }
+
     @AfterAll
     static void stopBrowserAndServer() {
-        if (browser != null) {
-            browser.close();
-        }
-        if (playwright != null) {
-            playwright.close();
-        }
-        if (server != null) {
-            server.stop(0);
-        }
-    }
-
-    @BeforeEach
-    void resetServerState() {
-        bloggersRequests.set(0);
-        calendarRequests.set(0);
-        listRequests.set(0);
-        lastListQuery.set(null);
-        failBloggers.set(false);
-        failCalendar.set(false);
-        failList.set(false);
-        loginInvalid.set(false);
-        loginStatusRequests.set(0);
-        qrLoginRequests.set(0);
-        failQrLogin.set(false);
-        failSyncRange.set(false);
-        rangeRequests.set(0);
+        if (browser != null) browser.close();
+        if (playwright != null) playwright.close();
+        if (server != null) server.stop(0);
     }
 
     @Test
-    void scrolling_long_posts_keeps_the_feed_height_stable() {
+    void classpath_post_searches_current_scope_and_keeps_results_as_safe_text() {
         try (Page page = browser.newPage()) {
-            StringBuilder items = new StringBuilder();
-            for (int i = 0; i < 24; i++) {
-                if (i > 0) items.append(",");
-                items.append(postJson("scroll-" + i, "第一位",
-                        "用于滚动回归测试的长微博正文。".repeat(100), 1783612800000L));
-            }
-            page.route("**/post/list?*", route -> route.fulfill(
-                    new Route.FulfillOptions()
-                            .setContentType("application/json")
-                            .setBody("{\"items\":[" + items + "],\"page\":1,\"size\":24,\"total\":24}")));
-            page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-            assertThat(page.locator("#posts .post-card")).hasCount(24);
-
-            Number heightDrift = (Number) page.evaluate("""
-                    async () => {
-                      const posts = document.querySelector('#posts');
-                      await new Promise(resolve => requestAnimationFrame(resolve));
-                      const initialHeight = posts.scrollHeight;
-                      for (let frame = 0; frame < 200; frame++) {
-                        posts.scrollTop += posts.clientHeight;
-                        await new Promise(resolve => requestAnimationFrame(resolve));
-                        if (posts.scrollTop + posts.clientHeight >= posts.scrollHeight - 1) break;
-                      }
-                      return Math.abs(posts.scrollHeight - initialHeight);
-                    }
-                    """);
-            Assertions.assertThat(heightDrift.intValue()).isLessThanOrEqualTo(1);
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("高级搜索").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.DIALOG, new Page.GetByRoleOptions().setName("高级搜索"))).isVisible();
+            assertThat(page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true))).isFocused();
+            page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true)).fill(" 打包搜索 ");
+            page.getByLabel("起止日期", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-01");
+            page.getByLabel("至", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-31");
+            page.getByLabel("关键词", new Page.GetByLabelOptions().setExact(true)).press("Enter");
+            assertThat(page.locator(".search-status")).hasText("找到 1 条结果");
+            assertThat(page.locator(".search-result-snippet")).hasText("安全 <b>打包搜索</b>");
+            assertThat(page.locator(".search-result mark")).hasText("打包搜索");
+            assertThat(page.locator(".search-result b, .search-result img, .search-result a, .search-result script")).hasCount(0);
+            Assertions.assertThat(listQuery.get()).isEqualTo("keyword=打包搜索&page=1&size=1000&uids=2&start=2026-07-01 00:00:00&end=2026-07-31 23:59:59");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("关闭高级搜索")).click();
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("高级搜索").setExact(true))).isFocused();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
         }
     }
 
     @Test
-    void defaults_to_all_bloggers_and_loads_the_latest_day() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        assertThat(page.locator(".blogger-row.all-bloggers")).hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator("#current-filter")).hasText("全部微博");
-        assertThat(page.locator(".blogger-row")).hasCount(3);
-        assertThat(page.locator(".month-group")).hasCount(2);
-        assertThat(page.locator(".month-group.open")).hasCount(1);
-        assertThat(page.locator(".date-item.active")).hasCount(1);
-        assertThat(page.locator(".date-item.active")).hasAttribute("data-date", "2026-08-05");
-
-        page.close();
+    void classpath_post_filters_blogger_names_without_changing_reading_scope() {
+        try (Page page = browser.newPage()) {
+            List<String> queries = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/bloggers") || request.url().contains("/post/calendar")
+                        || request.url().contains("/post/list?")) queries.add(request.url());
+            });
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            List<String> selectedQueries = List.copyOf(queries);
+            page.getByRole(AriaRole.SEARCHBOX, new Page.GetByRoleOptions().setName("搜索博主")).fill(" 打包 ");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true))).hasCount(0);
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("打包资源博主").setExact(true))).isVisible();
+            assertThat(page.locator(".bloggers-heading")).containsText("2 位博主");
+            assertThat(page.locator(".feed-header h2")).hasText("第二位博主的微博");
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+            page.getByRole(AriaRole.SEARCHBOX, new Page.GetByRoleOptions().setName("搜索博主")).fill("不存在");
+            assertThat(page.locator(".blogger-list button:visible")).hasCount(0);
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true))).isVisible();
+            page.getByRole(AriaRole.SEARCHBOX, new Page.GetByRoleOptions().setName("搜索博主")).fill("");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true))).hasAttribute("aria-pressed", "true");
+            Assertions.assertThat(queries).isEqualTo(selectedQueries);
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+        }
     }
 
     @Test
-    void loads_posts_for_the_selected_day_without_pagination() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
-                () -> {});
-
-        assertThat(page.locator(".post-card")).hasCount(1);
-        assertThat(page.locator(".post-content")).containsText("第一行");
-        assertThat(page.locator("#feed-count")).hasText("共 1 条");
-        assertThat(page.locator("#pagination")).hasCount(0);
-        assertThat(page.locator(".feed-filters")).hasCount(0);
-
-        page.close();
-    }
-
-    @Test
-    void switching_a_day_reloads_the_feed_with_the_new_date_range() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
-                () -> {});
-
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
-                () -> page.locator(".date-item[data-date='2026-08-04']").click());
-
-        assertThat(page.locator(".date-item[data-date='2026-08-04']")).hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator(".date-item[data-date='2026-08-05']")).not().hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator(".post-content")).containsText("加油");
-
-        page.close();
-    }
-
-    @Test
-    void switching_a_blogger_refreshes_the_date_tree() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/calendar") && item.url().contains("uid=2"),
-                () -> page.getByText("第二位", new Page.GetByTextOptions().setExact(true)).click());
-
-        assertThat(page.locator("#current-filter")).hasText("第二位 的微博");
-        assertThat(page.locator(".blogger-row[data-uid='2']")).hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator(".blogger-row.all-bloggers")).not().hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator(".month-group")).hasCount(1);
-
-        page.close();
-    }
-
-    @Test
-    void all_bloggers_row_is_always_visible_and_not_filtered_by_search() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#blogger-search").fill("不存在");
-        assertThat(page.locator(".blogger-row.all-bloggers")).isVisible();
-        assertThat(page.locator(".blogger-row:not(.all-bloggers):visible")).hasCount(0);
-
-        page.locator("#blogger-search").fill("");
-        assertThat(page.locator(".blogger-row:not(.all-bloggers):visible")).hasCount(2);
-
-        page.close();
-    }
-
-    @Test
-    void clicking_all_bloggers_returns_to_aggregated_view() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.getByText("第二位", new Page.GetByTextOptions().setExact(true)).click();
-        page.waitForResponse(
-                item -> item.url().contains("/post/calendar") && !item.url().contains("uid=2"),
-                () -> page.locator(".blogger-row.all-bloggers").click());
-
-        assertThat(page.locator("#current-filter")).hasText("全部微博");
-        assertThat(page.locator(".blogger-row.all-bloggers")).hasClass(java.util.regex.Pattern.compile("active"));
-        assertThat(page.locator(".month-group")).hasCount(2);
-
-        page.close();
-    }
-
-    @Test
-    void month_toggle_expands_and_collapses_the_day_list() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        assertThat(page.locator(".month-group[data-month='2026-07']")).not().hasClass(java.util.regex.Pattern.compile("open"));
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
-        assertThat(page.locator(".month-group[data-month='2026-07']")).hasClass(java.util.regex.Pattern.compile("open"));
-
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
-        assertThat(page.locator(".month-group[data-month='2026-07']")).not().hasClass(java.util.regex.Pattern.compile("open"));
-
-        page.close();
-    }
-
-    @Test
-    void dates_are_grouped_by_year_then_month_then_day() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        // 两个月都属于 2026 年，聚合为一个年分组
-        assertThat(page.locator(".year-group")).hasCount(1);
-        assertThat(page.locator(".year-group[data-year='2026'] .month-group")).hasCount(2);
-        // 最新年份与最新月份自动展开
-        assertThat(page.locator(".year-group.open")).hasCount(1);
-        assertThat(page.locator(".month-group.open")).hasCount(1);
-
-        // 年份可独立折叠、展开
-        page.locator(".year-group[data-year='2026'] .year-header").click();
-        assertThat(page.locator(".year-group[data-year='2026']")).not().hasClass(java.util.regex.Pattern.compile("open"));
-        page.locator(".year-group[data-year='2026'] .year-header").click();
-        assertThat(page.locator(".year-group[data-year='2026']")).hasClass(java.util.regex.Pattern.compile("open"));
-
-        page.close();
-    }
-
-    @Test
-    void keeps_the_bloggers_visible_and_allows_retrying_when_posts_fail() {
-        failList.set(true);
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list"),
-                () -> {});
-
-        assertThat(page.locator("#posts-state")).containsText("加载失败");
-        assertThat(page.locator("#retry-posts")).isVisible();
-        assertThat(page.locator(".blogger-row")).hasCount(3);
-
-        failList.set(false);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list"),
-                () -> page.locator("#retry-posts").click());
-        assertThat(page.locator(".post-card")).hasCount(1);
-
-        page.close();
-    }
-
-    @Test
-    void shows_login_expired_prompt_and_starts_qr_login_on_click() {
-        loginInvalid.set(true);
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        assertThat(page.locator("#login-expired")).isVisible();
-        assertThat(page.locator("#login-qr")).isEnabled();
-
-        page.locator("#login-qr").click();
-        assertThat(page.locator("#login-qr")).isDisabled();
-        assertThat(page.locator("#login-expired")).isHidden();
-        org.assertj.core.api.Assertions.assertThat(qrLoginRequests.get()).isGreaterThanOrEqualTo(1);
-
-        page.close();
-    }
-
-    @Test
-    void restores_qr_login_button_after_qr_login_failure() {
-        loginInvalid.set(true);
-        failQrLogin.set(true);
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        assertThat(page.locator("#login-expired")).isVisible();
-        page.locator("#login-qr").click();
-        assertThat(page.locator("#login-qr")).isEnabled();
-        assertThat(page.locator("#login-expired .panel-state")).containsText("扫码登录失败");
-        assertThat(page.locator("#bloggers-state")).isEmpty();
-        assertThat(page.locator("#qr-loading")).isVisible();
-
-        page.close();
-    }
-
-    @Test
-    void emoji_avatar_is_not_oversized() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        Object fontSize = page.locator(".blogger-avatar").first().evaluate(
-                "el => getComputedStyle(el).fontSize");
-        org.assertj.core.api.Assertions.assertThat(fontSize).isEqualTo("18px");
-
-        Object lineHeight = page.locator(".blogger-avatar").first().evaluate(
-                "el => getComputedStyle(el).lineHeight");
-        org.assertj.core.api.Assertions.assertThat(lineHeight).isEqualTo("18px");
-
-        page.close();
-    }
-
-    @Test
-    void multi_image_post_opens_viewer_with_prev_next_navigation() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
-                () -> page.locator(".date-item[data-date='2026-07-10']").click());
-
-        page.locator(".post-pic").first().click();
-        assertThat(page.locator("#image-viewer")).isVisible();
-        assertThat(page.locator(".viewer-prev")).isVisible();
-        assertThat(page.locator(".viewer-next")).isVisible();
-        assertThat(page.locator("#viewer-counter")).hasText("1 / 3");
-
-        page.locator(".viewer-next").click();
-        assertThat(page.locator("#viewer-counter")).hasText("2 / 3");
-
-        page.locator(".viewer-next").click();
-        assertThat(page.locator("#viewer-counter")).hasText("3 / 3");
-
-        page.locator(".viewer-prev").click();
-        assertThat(page.locator("#viewer-counter")).hasText("2 / 3");
-
-        page.close();
-    }
-
-    @Test
-    void retweet_image_click_opens_viewer_without_navigating_away() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
-                () -> page.locator(".date-item[data-date='2026-08-03']").click());
-
-        String urlBefore = page.url();
-        page.locator(".post-retweet-pic").first().click();
-        assertThat(page.locator("#image-viewer")).isVisible();
-        org.assertj.core.api.Assertions.assertThat(page.url()).isEqualTo(urlBefore);
-
-        page.close();
-    }
-
-    @Test
-    void pic_grid_has_no_gray_background_fill() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
-                () -> page.locator(".date-item[data-date='2026-07-10']").click());
-
-        Object bg = page.locator(".post-pic").first().evaluate(
-                "el => getComputedStyle(el).backgroundColor");
-        // 新设计有意给图片格填充纸色背景（--paper-tint），断言为纸色而非透明或旧版灰底
-        org.assertj.core.api.Assertions.assertThat(bg).isEqualTo("rgb(245, 238, 223)");
-
-        page.close();
-    }
-
-    @Test
-    void post_picture_reserves_its_intrinsic_size_before_lazy_loading() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
-                () -> page.locator(".date-item[data-date='2026-07-10']").click());
-
-        // 列表展示缩略图，预占位尺寸取缩略图的固有宽高（300x169）
-        assertThat(page.locator(".post-pic img").first()).hasAttribute("width", "300");
-        assertThat(page.locator(".post-pic img").first()).hasAttribute("height", "169");
-
-        page.close();
-    }
-
-    @Test
-    void keyboard_arrow_keys_navigate_images_in_viewer() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
-                () -> page.locator(".date-item[data-date='2026-07-10']").click());
-
-        page.locator(".post-pic").first().click();
-        assertThat(page.locator("#viewer-counter")).hasText("1 / 3");
-
-        page.keyboard().press("ArrowRight");
-        assertThat(page.locator("#viewer-counter")).hasText("2 / 3");
-
-        page.keyboard().press("ArrowLeft");
-        assertThat(page.locator("#viewer-counter")).hasText("1 / 3");
-
-        page.close();
-    }
-
-    @Test
-    void preserves_line_breaks_in_post_content() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
-                () -> page.locator(".date-item[data-date='2026-08-05']").click());
-
-        assertThat(page.locator(".post-content")).containsText("第一行");
-        assertThat(page.locator(".post-content")).containsText("第二行");
-        assertThat(page.locator(".post-content")).containsText("第三行");
-
-        Object whiteSpace = page.locator(".post-content").evaluate(
-                "el => getComputedStyle(el).whiteSpace");
-        org.assertj.core.api.Assertions.assertThat(whiteSpace).isEqualTo("pre-wrap");
-
-        Object renderedText = page.locator(".post-content").evaluate(
-                "el => el.textContent");
-        org.assertj.core.api.Assertions.assertThat(renderedText.toString())
-                .contains("第一行\n第二行\n第三行");
-
-        page.close();
-    }
-
-    @Test
-    void inline_emoji_images_are_sized_like_chat_emoji() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-04"),
-                () -> page.locator(".date-item[data-date='2026-08-04']").click());
-
-        assertThat(page.locator(".post-content img")).hasCount(1);
-        Object fontSize = page.locator(".post-content").evaluate(
-                "el => parseFloat(getComputedStyle(el).fontSize)");
-        Object imgWidth = page.locator(".post-content img").evaluate(
-                "img => parseFloat(getComputedStyle(img).width)");
-        Object imgHeight = page.locator(".post-content img").evaluate(
-                "img => parseFloat(getComputedStyle(img).height)");
-
-        double fs = ((Number) fontSize).doubleValue();
-        double expected = fs * 1.3;
-        // 浏览器亚像素布局会使 1.3em 解析为 20.7969px 而非 20.8px，用容差比较
-        org.assertj.core.api.Assertions.assertThat(((Number) imgWidth).doubleValue())
-                .isCloseTo(expected, org.assertj.core.data.Offset.offset(0.5));
-        org.assertj.core.api.Assertions.assertThat(((Number) imgHeight).doubleValue())
-                .isCloseTo(expected, org.assertj.core.data.Offset.offset(0.5));
-
-        page.close();
-    }
-
-    @Test
-    void post_pic_uses_thumbnail_url_for_display() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.locator(".month-group[data-month='2026-07'] .month-header").click();
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-07-10"),
-                () -> page.locator(".date-item[data-date='2026-07-10']").click());
-
-        // 列表展示缩略图，点击查看时才加载原图
-        String src = page.locator(".post-pic img").first().getAttribute("src");
-        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?t1");
-
-        page.close();
-    }
-
-    @Test
-    void retweet_pic_uses_thumbnail_url_for_display() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
-                () -> page.locator(".date-item[data-date='2026-08-03']").click());
-
-        // 列表展示缩略图，点击查看时才加载原图
-        String src = page.locator(".post-retweet-pic img").first().getAttribute("src");
-        org.assertj.core.api.Assertions.assertThat(src).contains("/test-img?rt1");
-
-        page.close();
-    }
-
-    @Test
-    void video_play_button_is_centered_on_cover() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-01"),
-                () -> page.locator(".date-item[data-date='2026-08-01']").click());
-        page.waitForTimeout(500);
-
-        assertThat(page.locator("#post-aug-01")).hasCount(1);
-        assertThat(page.locator("#post-aug-01 .post-video")).hasCount(2);
-        Locator topVideo = page.locator("#post-aug-01 > .post-body > .post-video");
-        assertThat(topVideo).hasCount(1);
-        assertThat(topVideo.locator("img")).hasCount(1);
-        // 播放按钮存在
-        assertThat(topVideo.locator(".post-video-play")).hasCount(1);
-
-        // 播放按钮居中：其中心点应接近封面图中心点
-        String diff = (String) topVideo.evaluate(
-                "el => { const img = el.querySelector('img'); const play = el.querySelector('.post-video-play');" +
-                "if (!img || !play) return '999,999';" +
-                "const ir = img.getBoundingClientRect(); const pr = play.getBoundingClientRect();" +
-                "return Math.abs((ir.x + ir.width / 2) - (pr.x + pr.width / 2)) + ',' +" +
-                "Math.abs((ir.y + ir.height / 2) - (pr.y + pr.height / 2)); }");
-        String[] parts = diff.split(",");
-        org.assertj.core.api.Assertions.assertThat(Double.parseDouble(parts[0])).isLessThan(3.0);
-        org.assertj.core.api.Assertions.assertThat(Double.parseDouble(parts[1])).isLessThan(3.0);
-
-        page.close();
-    }
-
-    @Test
-    void retweet_block_renders_video_cover_with_play_button() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-01"),
-                () -> page.locator(".date-item[data-date='2026-08-01']").click());
-
-        // 转发块中有视频封面和播放按钮
-        assertThat(page.locator("#post-aug-01 .post-retweet .post-video img")).hasCount(1);
-        assertThat(page.locator("#post-aug-01 .post-retweet .post-video-play")).hasCount(1);
-
-        // 转发视频链接指向正确的 pageUrl
-        String href = page.locator("#post-aug-01 .post-retweet .post-video").getAttribute("href");
-        org.assertj.core.api.Assertions.assertThat(href).isEqualTo("https://video.weibo.com/show?fid=rttest");
-
-        page.close();
-    }
-
-    @Test
-    void post_content_width_is_constrained_and_not_overly_wide() {
-        Page page = browser.newPage();
-        page.setViewportSize(1600, 900);
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
-                () -> {});
-
-        Object postsWidth = page.locator(".posts").evaluate(
-                "el => el.clientWidth");
-        Object postCardWidth = page.locator(".post-card").first().evaluate(
-                "el => el.clientWidth");
-        double pw = ((Number) postsWidth).doubleValue();
-        double cw = ((Number) postCardWidth).doubleValue();
-
-        org.assertj.core.api.Assertions.assertThat(cw).isLessThanOrEqualTo(760.0);
-        org.assertj.core.api.Assertions.assertThat(cw).isLessThan(pw);
-
-        page.close();
-    }
-
-    @Test
-    void pure_retweet_post_hides_blogger_avatar() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-05"),
-                () -> {});
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-02"),
-                () -> page.locator(".date-item[data-date='2026-08-02']").click());
-
-        assertThat(page.locator(".post-card")).hasCount(1);
-        assertThat(page.locator(".post-card.pure-retweet")).hasCount(1);
-        assertThat(page.locator(".post-card .post-avatar")).hasCount(0);
-        assertThat(page.locator(".post-retweet")).hasCount(1);
-        assertThat(page.locator(".post-retweet-author")).hasText("@原作者");
-
-        page.close();
-    }
-
-    @Test
-    void window_toggle_navigates_to_chat_page() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator(".window-control.toggle").click();
-        org.assertj.core.api.Assertions.assertThat(page.url()).contains("/chat/");
-
-        page.close();
-    }
-
-    @Test
-    void search_button_opens_overlay_with_default_date_range() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        assertThat(page.locator("#search-open")).isVisible();
-        page.locator("#search-open").click();
-        assertThat(page.locator("#search-overlay")).isVisible();
-
-        // 默认起止：2010-01-01 至今
-        assertThat(page.locator("#search-start")).hasValue("2010-01-01");
-        String today = java.time.LocalDate.now().toString();
-        assertThat(page.locator("#search-end")).hasValue(today);
-
-        page.close();
-    }
-
-    @Test
-    void search_sends_keyword_uids_and_date_range_to_post_list() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        page.locator("#search-keyword").fill("八月三日");
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
-                () -> page.locator("#search-submit").click());
-
-        String query = lastListQuery.get();
-        org.assertj.core.api.Assertions.assertThat(query).contains("keyword=");
-        org.assertj.core.api.Assertions.assertThat(query).contains("start=2010-01-01");
-        org.assertj.core.api.Assertions.assertThat(query).contains("page=1");
-        org.assertj.core.api.Assertions.assertThat(query).contains("size=1000");
-        // 默认「全部博主」时 uids 不传
-        org.assertj.core.api.Assertions.assertThat(query).doesNotContain("uids");
-
-        page.close();
-    }
-
-    @Test
-    void search_results_show_highlighted_snippet() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        page.locator("#search-keyword").fill("八月三日");
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
-                () -> page.locator("#search-submit").click());
-
-        assertThat(page.locator(".search-result")).hasCount(1);
-        // 片段中命中词被 <mark> 包裹
-        assertThat(page.locator(".search-result mark")).hasCount(1);
-        assertThat(page.locator(".search-result mark")).hasText("八月三日");
-
-        page.close();
-    }
-
-    @Test
-    void clicking_result_closes_overlay_and_jumps_to_card() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        page.locator("#search-keyword").fill("八月三日");
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
-                () -> page.locator("#search-submit").click());
-
-        // 结果 createdAt=1785686400000L 对应 2026-08-03，点击后应加载该日并高亮卡片
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("start=2026-08-03"),
-                () -> page.locator(".search-result").first().click());
-
-        assertThat(page.locator("#search-overlay")).isHidden();
-        assertThat(page.locator(".date-item.active")).hasAttribute("data-date", "2026-08-03");
-        // 该日微博已加载（卡片 id 为 post- + mblogId）
-        assertThat(page.locator("#post-post-aug-03")).hasCount(1);
-        // 卡片被添加闪烁高亮 class（requestAnimationFrame 后触发，需等待）
-        page.waitForFunction(
-                "el => el && el.classList.contains('flash-highlight')",
-                page.locator("#post-post-aug-03").elementHandle());
-
-        page.close();
-    }
-
-    @Test
-    void empty_search_results_show_no_match_message() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        page.locator("#search-keyword").fill("不存在的内容关键字");
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
-                () -> page.locator("#search-submit").click());
-
-        assertThat(page.locator(".search-result")).hasCount(0);
-        assertThat(page.locator("#search-results")).containsText("未找到匹配微博");
-
-        page.close();
-    }
-
-    @Test
-    void over_limit_results_show_limit_message() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        page.locator("#search-keyword").fill("超限");
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
-                () -> page.locator("#search-submit").click());
-
-        assertThat(page.locator("#search-status")).containsText("已达上限");
-
-        page.close();
-    }
-
-    @Test
-    void many_results_do_not_overflow_viewport() {
-        Page page = browser.newPage();
-        page.setViewportSize(1280, 800);
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        page.locator("#search-keyword").fill("大量结果");
-        page.waitForResponse(
-                item -> item.url().contains("/post/list") && item.url().contains("keyword="),
-                () -> page.locator("#search-submit").click());
-
-        assertThat(page.locator(".search-result")).hasCount(30);
-
-        // 浮层 window 不应超出视口高度
-        double winHeight = ((Number) page.locator(".search-overlay-window").evaluate(
-                "el => el.getBoundingClientRect().height")).doubleValue();
-        org.assertj.core.api.Assertions.assertThat(winHeight).isLessThanOrEqualTo(800.0);
-
-        // body 区域应可滚动（scrollHeight > clientHeight），而非把浮层撑高
-        double scrollH = ((Number) page.locator(".search-overlay-body").evaluate(
-                "el => el.scrollHeight")).doubleValue();
-        double clientH = ((Number) page.locator(".search-overlay-body").evaluate(
-                "el => el.clientHeight")).doubleValue();
-        org.assertj.core.api.Assertions.assertThat(scrollH).isGreaterThan(clientH);
-
-        page.close();
-    }
-
-    @Test
-    void esc_closes_search_overlay() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        assertThat(page.locator("#search-overlay")).isVisible();
-        page.keyboard().press("Escape");
-        assertThat(page.locator("#search-overlay")).isHidden();
-
-        page.close();
-    }
-
-    @Test
-    void clicking_overlay_backdrop_does_not_close_overlay() {
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        page.locator("#search-open").click();
-        assertThat(page.locator("#search-overlay")).isVisible();
-        // 点击遮罩区域不关闭浮层，与添加博主、同步历史一致
-        page.mouse().click(5, 5);
-        assertThat(page.locator("#search-overlay")).isVisible();
-
-        page.close();
-    }
-
-    @Test
-    void sync_history_failure_shows_global_tip_in_top_right() {
-        failSyncRange.set(true);
-        Page page = browser.newPage();
-        page.navigate(baseUrl + "/post/index.html", NAVIGATE_OPTIONS);
-
-        // 选中具体博主后才会显示「同步历史」按钮
-        page.locator(".blogger-row[data-uid='1']").click();
-        assertThat(page.locator("#sync-history-open")).isVisible();
-        page.locator("#sync-history-open").click();
-        assertThat(page.locator("#sync-history")).isVisible();
-        page.waitForResponse(
-                item -> item.url().contains("/post/range"),
-                () -> page.locator("#sync-history-submit").click());
-
-        // 同步失败信息显示在主窗口右上角的 #global-tip（role=alert），
-        // 携带服务端反序列化失败原文；不再写进日期标题旁的 #dates-state 造成重影。
-        assertThat(page.locator("#global-tip")).isVisible();
-        assertThat(page.locator("#global-tip")).hasAttribute("role", "alert");
-        assertThat(page.locator("#global-tip")).containsText("同步历史微博失败");
-        assertThat(page.locator("#global-tip")).containsText("响应反序列化失败");
-        assertThat(page.locator("#global-tip")).containsText("'<'");
-        assertThat(page.locator("#dates-state")).not().containsText("同步失败");
-
-        page.close();
-    }
-
-    private static void sendStaticResource(HttpExchange exchange) throws IOException {
-        String resourcePath = "/static" + exchange.getRequestURI().getPath();
-        try (InputStream input = PostPageTest.class.getResourceAsStream(resourcePath)) {
-            if (input == null) {
-                exchange.sendResponseHeaders(404, -1);
-                exchange.close();
-                return;
+    void classpath_post_opens_inline_picture_through_existing_proxy() {
+        try (Page page = browser.newPage()) {
+            page.context().route("https://wx3.sinaimg.cn/**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setStatus(403).setContentType("text/html").setBody("<h1>403 Forbidden</h1>")));
+            page.route("**/post/list?**", route -> route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                    .setBody("""
+                            {"items":[{"mblogId":"inline-picture-fixture","createdAt":1785889800000,
+                            "content":"<a href='https://wx3.sinaimg.cn/large/picture.jpg?size=large&amp;key=a%2Bb' data-pid='picture'>查看图片</a>",
+                            "blogger":{"uid":1,"screenName":"图片博主"}}],"page":1,"size":9999,"total":1}
+                            """)));
+            page.navigate(baseUrl + "/post/index.html");
+            String proxyPath = "/chat/image?url=https%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Fpicture.jpg%3Fsize%3Dlarge%26key%3Da%252Bb";
+            assertThat(page.locator(".post-content a")).hasAttribute("href", proxyPath);
+            try (Page popup = page.waitForPopup(() -> page.locator(".post-content a").click())) {
+                popup.waitForLoadState();
+                assertThat(popup).hasURL(baseUrl + proxyPath);
+                assertThat(popup.locator("svg")).isVisible();
+                Assertions.assertThat(popup.evaluate("window.opener")).isNull();
             }
-            byte[] body = input.readAllBytes();
-            if (resourcePath.endsWith(".css")) {
-                exchange.getResponseHeaders().set("Content-Type", "text/css; charset=UTF-8");
-            } else if (resourcePath.endsWith(".js")) {
-                exchange.getResponseHeaders().set("Content-Type", "text/javascript; charset=UTF-8");
-            } else {
-                exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
+            assertThat(page).hasURL(baseUrl + "/post/index.html");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
+        }
+    }
+
+    @Test
+    void classpath_post_loads_avatars_through_existing_image_proxy() {
+        try (Page page = browser.newPage()) {
+            List<String> directRequests = new ArrayList<>();
+            List<String> proxyRequests = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().startsWith("https://avatar.example.test/")) directRequests.add(request.url());
+                if (request.url().startsWith(baseUrl + "/chat/image?")) proxyRequests.add(request.url());
+            });
+            page.route("https://avatar.example.test/**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setStatus(403).setContentType("text/html").setBody("Forbidden")));
+            page.route("**/post/bloggers", route -> route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                    .setBody("[{\"uid\":1,\"screenName\":\"头像博主\",\"avatar\":\"https://avatar.example.test/valid.svg?size=48&variant=small\"}]")));
+            page.route("**/post/list?**", route -> route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                    .setBody("""
+                            {"items":[{"mblogId":"avatar-fixture","createdAt":1785889800000,"content":"头像正文",
+                            "blogger":{"uid":1,"screenName":"头像博主","avatar":"https://avatar.example.test/valid.svg?size=48&variant=small"}}],
+                            "page":1,"size":9999,"total":1}
+                            """)));
+            page.navigate(baseUrl + "/post/index.html");
+            page.waitForFunction("document.querySelector('.post-avatar img')?.naturalWidth === 48 && document.querySelector('.blogger-list .blogger-avatar img')?.naturalWidth === 48");
+            assertThat(page.locator(".post-avatar img")).hasAttribute("src", "/chat/image?url=https%3A%2F%2Favatar.example.test%2Fvalid.svg%3Fsize%3D48%26variant%3Dsmall");
+            assertThat(page.locator(".post-avatar")).hasAttribute("href", "https://weibo.com/u/1");
+            assertThat(page.locator(".blogger-row a")).hasCount(0);
+            Assertions.assertThat(directRequests).isEmpty();
+            Assertions.assertThat(proxyRequests).isNotEmpty().allMatch(url -> url.contains("%26variant%3Dsmall"));
+        }
+    }
+
+    @Test
+    void classpath_post_reads_metadata_and_opens_original_and_homepage_safely() {
+        try (Page page = browser.newPage()) {
+            List<String> errors = new ArrayList<>();
+            page.onPageError(errors::add);
+            page.context().route("https://weibo.com/**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setContentType("text/html").setBody("<h1>Weibo fixture</h1>")));
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-region")).hasText("发布于 上海");
+            assertThat(page.locator(".post-source")).hasText("<b>网页端</b>");
+            assertThat(page.locator(".post-source b")).hasCount(0);
+            assertThat(page.locator(".post-source")).hasCSS("font-size", "12px");
+            assertThat(page.locator(".blogger-row a")).hasCount(0);
+            for (String selector : List.of(".post-avatar", ".post-link")) {
+                assertThat(page.locator(selector)).hasAttribute("rel", "noopener");
+                try (Page popup = page.waitForPopup(() -> page.locator(selector).click())) {
+                    popup.waitForLoadState();
+                    assertThat(popup).hasURL(selector.equals(".post-avatar") ? "https://weibo.com/u/1" : "https://weibo.com/1/fixture-1");
+                    Assertions.assertThat(popup.evaluate("window.opener")).isNull();
+                }
             }
-            exchange.sendResponseHeaders(200, body.length);
-            exchange.getResponseBody().write(body);
-            exchange.close();
+            assertThat(page).hasURL(baseUrl + "/post/index.html");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
+            assertThat(page.locator("article")).hasClass("post-card pure-retweet");
+            assertThat(page.locator(".post-avatar")).hasCount(0);
+            assertThat(page.locator(".post-source")).hasText("转发客户端");
+            assertThat(page.locator(".post-region")).hasText("发布于 北京");
+            assertThat(page.locator(".post-link")).hasAttribute("href", "https://weibo.com/2/fixture-2");
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_post_reads_video_covers_and_opens_an_isolated_video_page() {
+        try (Page page = browser.newPage()) {
+            List<String> coverRequests = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/video-cover?")) coverRequests.add(request.url());
+            });
+            page.onPageError(errors::add);
+            page.context().route("https://video.example.test/**", route -> route.fulfill(new Route.FulfillOptions()
+                    .setContentType("text/html").setBody("<h1>Video fixture</h1>")));
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("播放微博视频").setExact(true))).hasAttribute("rel", "noopener");
+            page.waitForFunction("document.querySelector('.post-video img').naturalWidth === 300");
+            assertThat(page.locator(".post-video img")).hasCSS("width", "320px");
+            assertThat(page.locator(".post-video img")).hasAttribute("loading", "lazy");
+            try (Page popup = page.waitForPopup(() -> page.getByRole(AriaRole.LINK,
+                    new Page.GetByRoleOptions().setName("播放微博视频").setExact(true)).click())) {
+                popup.waitForLoadState();
+                assertThat(popup).hasURL("https://video.example.test/packaged");
+                Assertions.assertThat(popup.evaluate("window.opener")).isNull();
+            }
+            Assertions.assertThat(page.url()).isEqualTo(baseUrl + "/post/index.html");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("播放转发视频").setExact(true))).hasAttribute("href", "https://video.example.test/retweet");
+            page.waitForFunction("document.querySelector('.post-retweet .post-video img').naturalWidth === 300");
+            assertThat(page.locator(".post-retweet .post-video img")).hasAttribute("src", "/post/video-cover?mblogId=fixture-2&retweeted=true");
+            Assertions.assertThat(coverRequests).hasSize(2);
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_post_views_originals_cycles_and_restores_focus_without_navigation() {
+        try (Page page = browser.newPage()) {
+            List<String> imageRequests = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/image?")) imageRequests.add(request.url());
+            });
+            page.onPageError(errors::add);
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-pic")).hasCount(2);
+            Assertions.assertThat(imageRequests).noneMatch(url -> url.contains("variant=original"));
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("查看微博图片 1").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.DIALOG, new Page.GetByRoleOptions().setName("查看原图"))).isVisible();
+            assertThat(page.locator(".viewer-counter")).hasText("1 / 2");
+            assertThat(page.locator(".image-viewer img")).hasAttribute("src", "/post/image?mblogId=fixture-1&pid=p1&variant=original");
+            page.waitForFunction("document.querySelector('.image-viewer img').naturalWidth === 300");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("下一张")).click();
+            assertThat(page.locator(".viewer-counter")).hasText("2 / 2");
+            assertThat(page.locator(".image-viewer img")).hasAttribute("src", "/post/image?mblogId=fixture-1&pid=p2&variant=thumbnail");
+            page.keyboard().press("ArrowRight");
+            assertThat(page.locator(".viewer-counter")).hasText("1 / 2");
+            page.keyboard().press("Escape");
+            assertThat(page.locator(".image-viewer")).hasCount(0);
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("查看微博图片 1").setExact(true))).isFocused();
+            Assertions.assertThat(page.url()).isEqualTo(baseUrl + "/post/index.html");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("查看转发微博图片 1").setExact(true)).click();
+            assertThat(page.locator(".image-viewer img")).hasAttribute("src", "/post/image?mblogId=fixture-2&pid=r1&variant=original");
+            assertThat(page.locator(".viewer-counter")).hasCount(0);
+            page.keyboard().press("Escape");
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_post_reads_thumbnail_images_and_hides_failed_cells() {
+        try (Page page = browser.newPage()) {
+            List<String> imageRequests = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            page.onRequest(request -> {
+                if (request.url().contains("/post/image?")) imageRequests.add(request.url());
+            });
+            page.onPageError(errors::add);
+            page.route("**/post/image?*pid=p2*", route -> route.fulfill(new Route.FulfillOptions()
+                    .setStatus(404).setContentType("text/plain").setBody("Missing image")));
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator(".post-pic[hidden]")).hasCount(1);
+            assertThat(page.locator(".post-pic[hidden]")).hasCSS("display", "none");
+            assertThat(page.getByRole(AriaRole.IMG, new Page.GetByRoleOptions().setName("微博图片").setExact(true))).hasCount(1);
+            assertThat(page.locator(".post-pic").first()).hasCSS("width", "120px");
+            assertThat(page.locator(".post-pic img").first()).hasAttribute("loading", "lazy");
+            assertThat(page.locator(".post-pic img").first()).hasAttribute("decoding", "async");
+            page.waitForFunction("document.querySelector('.post-pic img').naturalWidth === 300");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.IMG, new Page.GetByRoleOptions().setName("转发微博图片").setExact(true))).hasCount(1);
+            assertThat(page.locator(".post-retweet-pic")).hasCSS("width", "100px");
+            page.waitForFunction("document.querySelector('.post-retweet-pic img').naturalWidth === 300");
+            Assertions.assertThat(imageRequests).hasSize(3).allMatch(url -> url.contains("variant=thumbnail"));
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_post_reads_retweet_text_safely_and_omits_pure_retweet_outer_body() {
+        try (Page page = browser.newPage()) {
+            List<String> errors = new ArrayList<>();
+            page.onPageError(errors::add);
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.locator("article")).isVisible();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.locator(".post-retweet-author")).hasText("@原作者");
+            assertThat(page.locator(".post-retweet-content")).containsText("打包转发原文");
+            assertThat(page.locator(".post-retweet-content")).hasCSS("font-size", "17px");
+            assertThat(page.locator(".post-retweet-content script, .post-retweet-content svg, .post-retweet-content [onload]")).hasCount(0);
+            assertThat(page.locator(".post-retweet-content a")).hasAttribute("href", "https://example.com/retweet");
+            assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-line", "none");
+            page.locator(".post-retweet-content a").hover();
+            assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-line", "underline");
+            assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-style", "solid");
+            Assertions.assertThat(page.evaluate("window.retweetAttack")).isNull();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.locator(".post-retweet-content")).containsText("打包转发原文");
+            assertThat(page.locator(".post-content")).hasCount(0);
+            assertThat(page.locator(".post-header")).containsText("第二位博主");
+            assertThat(page.locator("article")).hasCount(1);
+            assertThat(page.getByLabel("博文总数")).hasText("共 1 条");
+            Assertions.assertThat(errors).isEmpty();
+        }
+    }
+
+    @Test
+    void classpath_post_reads_default_day_safely_and_loads_both_entries_without_browser_errors() {
+        List<String> errors = new ArrayList<>();
+        try (Page page = browser.newPage()) {
+            page.onResponse(response -> {
+                if (response.url().contains("/assets/")) {
+                    if (response.status() != 200) errors.add(response.url());
+                    String mime = response.headerValue("content-type");
+                    if (response.url().endsWith(".js") && !mime.startsWith("text/javascript")) errors.add(mime);
+                    if (response.url().endsWith(".css") && !mime.startsWith("text/css")) errors.add(mime);
+                }
+            });
+            page.onPageError(errors::add);
+            page.onConsoleMessage(message -> {
+                if (message.type().equals("error")) errors.add(message.text());
+            });
+            page.navigate(baseUrl + "/post/index.html");
+            assertThat(page.getByRole(AriaRole.LIST, new Page.GetByRoleOptions().setName("博主")))
+                    .containsText("打包资源博主");
+            assertThat(page.locator("article")).containsText("打包后的正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("全部博主").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
+            assertThat(page.getByLabel("博文总数")).hasText("共 4 条");
+            assertThat(page.getByLabel("博文总数")).hasCSS("font-size", "12px");
+            assertThat(page.getByLabel("博文总数")).hasCSS("font-variant-numeric", "tabular-nums");
+            assertThat(page.locator(".feed-header").getByLabel("博文总数")).isVisible();
+            assertThat(page.locator(".title-logo img")).isVisible();
+            Assertions.assertThat(page.locator(".title-logo img").evaluate("img => img.naturalWidth > 0")).isEqualTo(true);
+            assertThat(page.locator(".post-avatar")).hasText("打");
+            assertThat(page.locator(".post-card")).hasCSS("max-width", "720px");
+            assertThat(page.locator(".post-card")).hasCSS("box-shadow", "none");
+            assertThat(page.locator(".posts")).hasCSS("overflow-y", "auto");
+            assertThat(page.locator(".selected")).hasCount(0);
+            assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("本地微博").setExact(true))).isVisible();
+            assertThat(page.locator("article time")).hasText("2026-08-05 08:30");
+            assertThat(page.locator(".post-content script, .post-content svg, .post-content [onload]")).hasCount(0);
+            assertThat(page.locator(".post-content a").first()).hasAttribute("href", "https://example.com");
+            assertThat(page.locator(".post-content a").last()).hasAttribute("href", "https://weibo.com/n/用户");
+            Assertions.assertThat(page.evaluate("window.attack")).isNull();
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-08-05 00:00:00&end=2026-08-05 23:59:59");
+            page.navigate(baseUrl + "/preview/chat/index.html");
+            assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("微博群聊预览")))
+                    .isVisible();
+            Assertions.assertThat(errors).isEmpty();
         }
     }
 
@@ -1028,108 +635,24 @@ class PostPageTest {
         exchange.close();
     }
 
-    private static String multilinePostJson(String mblogId, String screenName, long createdAt) {
-        return """
-                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
-                 "content":"第一行\\n第二行\\n第三行","contentRaw":"第一行\\n第二行\\n第三行",
-                 "source":"微博网页版","region":"广东",
-                 "pics":[],"video":{"coverUrl":"","pageUrl":""},"retweeted":null,
-                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
-                 "createdAt":%d,"savedAt":%d,
-                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
-                """.formatted(mblogId, createdAt, createdAt, screenName);
-    }
-
-    private static String emojiPostJson(String mblogId, String screenName, long createdAt) {
-        return """
-                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
-                 "content":"加油 <img src=\\"https://face.t.sinajs.cn/t4/appstyle/expression/ext/normal/0d/2022_Keepgoing_mobile.png\\" alt=\\"[加油]\\"> 冲啊",
-                 "contentRaw":"加油 [加油] 冲啊",
-                 "source":"微博网页版","region":"广东",
-                 "pics":[],"video":{"coverUrl":"","pageUrl":""},"retweeted":null,
-                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
-                 "createdAt":%d,"savedAt":%d,
-                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
-                """.formatted(mblogId, createdAt, createdAt, screenName);
-    }
-
-    private static String postJson(String mblogId, String screenName, String content, long createdAt) {
-        return """
-                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
-                 "content":"%s","contentRaw":"%s","source":"","region":"",
-                 "pics":[],"video":{"coverUrl":"","pageUrl":""},"retweeted":null,
-                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
-                 "createdAt":%d,"savedAt":%d,
-                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
-                """.formatted(mblogId, content, content, createdAt, createdAt, screenName);
-    }
-
-    private static String multiPicPostJson(String mblogId, String screenName, String content, long createdAt) {
-        return """
-                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
-                 "content":"%s","contentRaw":"%s","source":"微博网页版","region":"广东",
-                 "pics":[
-                   {"pid":"p1","thumbnailWidth":300,"thumbnailHeight":169,"originalWidth":1200,"originalHeight":675,
-                    "thumbnailUrl":"/test-img?t1","originalUrl":"/test-img?o1"},
-                   {"pid":"p2","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
-                    "thumbnailUrl":"/test-img?t2","originalUrl":"/test-img?o2"},
-                   {"pid":"p3","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
-                    "thumbnailUrl":"/test-img?t3","originalUrl":"/test-img?o3"}
-                 ],
-                 "video":{"coverUrl":"","pageUrl":""},"retweeted":null,
-                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
-                 "createdAt":%d,"savedAt":%d,
-                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
-                """.formatted(mblogId, content, content, createdAt, createdAt, screenName);
-    }
-
-    private static String retweetPicPostJson(String mblogId, String screenName, String content, long createdAt) {
-        return """
-                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
-                 "content":"%s","contentRaw":"%s","source":"微博网页版","region":"广东",
-                 "pics":[],"video":{"coverUrl":"","pageUrl":""},
-                 "retweeted":{"postId":2,"mblogId":"retweet-1","content":"转发的原微博内容",
-                  "contentRaw":"转发的原微博内容","uid":2,"screenName":"原作者","createdAt":%d,
-                  "pics":[
-                    {"pid":"rp1","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
-                     "thumbnailUrl":"/test-img?rt1","originalUrl":"/test-img?ro1"},
-                    {"pid":"rp2","thumbnailWidth":0,"thumbnailHeight":0,"originalWidth":0,"originalHeight":0,
-                     "thumbnailUrl":"/test-img?rt2","originalUrl":"/test-img?ro2"}
-                  ],
-                  "video":{"coverUrl":"","pageUrl":""}},
-                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
-                 "createdAt":%d,"savedAt":%d,
-                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
-                """.formatted(mblogId, content, content, createdAt, createdAt, createdAt, screenName);
-    }
-
-    private static String videoPostJson(String mblogId, String screenName, String content, long createdAt) {
-        return """
-                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
-                 "content":"%s","contentRaw":"%s","source":"微博网页版","region":"广东",
-                 "pics":[],
-                 "video":{"coverUrl":"/test-img?vcover","pageUrl":"https://video.weibo.com/show?fid=test"},
-                 "retweeted":{"postId":2,"mblogId":"retweet-vid","content":"转发的视频微博",
-                  "contentRaw":"转发的视频微博","uid":2,"screenName":"视频原作者","createdAt":%d,
-                  "pics":[],
-                  "video":{"coverUrl":"/test-img?rtvcover","pageUrl":"https://video.weibo.com/show?fid=rttest"}},
-                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
-                 "createdAt":%d,"savedAt":%d,
-                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
-                """.formatted(mblogId, content, content, createdAt, createdAt, createdAt, screenName);
-    }
-
-    private static String pureRetweetPostJson(String mblogId, String screenName, long createdAt) {
-        return """
-                {"mblogId":"%s","postId":1,"uid":1,"postUrl":"https://weibo.com/1",
-                 "content":"","contentRaw":"","source":"微博网页版","region":"广东",
-                 "pics":[],"video":{"coverUrl":"","pageUrl":""},
-                 "retweeted":{"postId":2,"mblogId":"retweet-1","content":"转发的原微博内容",
-                  "contentRaw":"转发的原微博内容","uid":2,"screenName":"原作者","createdAt":%d,
-                  "pics":[],"video":{"coverUrl":"","pageUrl":""}},
-                 "repostsCount":0,"commentsCount":0,"attitudesCount":0,
-                 "createdAt":%d,"savedAt":%d,
-                 "blogger":{"uid":1,"screenName":"%s","avatar":"","profileUrl":"/u/1","verified":false}}
-                """.formatted(mblogId, createdAt, createdAt, createdAt, screenName);
+    private static void sendStaticResource(HttpExchange exchange) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        try (InputStream input = PostPageTest.class.getResourceAsStream("/static" + path)) {
+            if (input == null) {
+                exchange.sendResponseHeaders(404, -1);
+                exchange.close();
+                return;
+            }
+            byte[] body = input.readAllBytes();
+            String contentType = path.endsWith(".js") ? "text/javascript; charset=UTF-8"
+                    : path.endsWith(".css") ? "text/css; charset=UTF-8"
+                    : path.endsWith(".svg") ? "image/svg+xml"
+                    : path.endsWith(".html") ? "text/html; charset=UTF-8"
+                    : "application/octet-stream";
+            exchange.getResponseHeaders().set("Content-Type", contentType);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        }
     }
 }

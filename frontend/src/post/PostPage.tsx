@@ -8,7 +8,7 @@ import PostFeed from './PostFeed';
 import DateTimeline from './DateTimeline';
 import PostSearch from './PostSearch';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
-import weiboLogo from '../../../src/main/resources/static/post/assets/weibo-logo.svg';
+import weiboLogo from './assets/weibo-logo.svg';
 
 function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
   bloggers: Blogger[]; keyword: string; selectedUid: number | null; onSelect: (uid: number) => void;
@@ -22,7 +22,7 @@ function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
   </li>)}</ul>;
 }
 
-export default function PostPreview() {
+export default function PostPage() {
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion, refreshCalendar } = useDefaultReading();
@@ -44,15 +44,13 @@ export default function PostPreview() {
     if ([bloggers.error, calendar.error, posts.error].some(isUnauthorized)) login.expire();
   }, [bloggers.error, calendar.error, posts.error, login.expire]);
   const selectedBlogger = bloggers.data?.find(blogger => blogger.uid === selection.uid);
-  const formalPage = import.meta.env.DEV ? new URL('/post/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/post/index.html';
   const formalChat = import.meta.env.DEV ? new URL('/chat/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/chat/index.html';
 
   return (
     <div className="app">
       <header className="titlebar">
         <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
-        <h1>本地微博预览</h1>
-        <p className="preview-note">完整功能请使用<a href={formalPage}>正式 post 页面</a>。</p>
+        <h1>本地微博</h1>
         <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = formalChat; }} />
       </header>
       <main className="columns">

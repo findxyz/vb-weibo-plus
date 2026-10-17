@@ -97,7 +97,7 @@ mvn spring-boot:run
 
 应用默认监听 `http://localhost:18080`。HTTP 接口集合见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
 
-### React 开发预览
+### React 前端开发
 
 前端位于 `frontend`，需要 Node.js 22.12.0 或更新版本，以及 npm 10 或更新版本。本次验证使用 Node.js 24.15.0、npm 11.14.1。先启动上述 Spring Boot 服务，再在另一个终端运行：
 
@@ -107,11 +107,11 @@ npm ci
 npm run dev
 ```
 
-访问 [本地微博预览](http://127.0.0.1:5173/preview/post/index.html) 或 [群聊入口预览](http://127.0.0.1:5173/preview/chat/index.html)。修改组件或样式后自动热更新。post 预览默认读取全部博主最新有效日期的本地博文，可以单选博主、展开年／月分组并点击日期阅读；chat 预览只展示入口。正式页面仍由 Spring Boot 的 `/post/index.html` 与 `/chat/index.html` 提供。
+访问 [本地微博](http://127.0.0.1:5173/post/index.html) 或 [群聊入口预览](http://127.0.0.1:5173/preview/chat/index.html)。修改组件或样式后自动热更新。React post 已接管正式 `/post/index.html`，开发与发布使用相同入口；chat 预览只展示骨架，正式 `/chat/index.html` 仍为旧实现。post 的切页按钮在开发时跳到配置的后端 chat，在发布时使用同源路径。`/preview/post/index.html` 已移除。
 
-开发查询使用相对路径 `GET /post/bloggers`、`GET /post/calendar` 和 `GET /post/list`，Vite 将这三个精确 API 路径代理到 `http://127.0.0.1:18080`，HTML 和模块资源由 Vite 提供。后端使用其他端口时，可以设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
+开发请求使用相对路径，Vite 将 `/post/bloggers`、`/post/calendar`、`/post/list`、`/post/image`、`/post/video-cover`、`/post/range`、`/chat/image` 及登录状态／扫码的精确 API 路径代理到 `http://127.0.0.1:18080`，HTML 和模块资源由 Vite 提供。后端使用其他端口时，可以设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
 
-post 预览支持博主与日期导航、普通与纯转发的原作者和正文阅读，尚不支持博主名称过滤、搜索、完整媒体展示、扫码和博主管理。每次点击博主会重新读取该范围日期并回到最新有效日；日列表加载期间拒绝日期切换，博主仍可切换；加载完成后再点同日会重新读取。列表沿用 `page=1`、`size=9999`，起止时间为所选日期的 `00:00:00` 与 `23:59:59`，由后端按 `Asia/Shanghai` 解释；页面总数显示后端 `total`。单博主的日期查询使用 uid，列表使用 uids。普通查询超时 15 秒，当日列表超时 30 秒，失败时保留后端消息；列表重试只重新读取当前博主的当日列表，不重载博主与日期。预览不触发采集，不启动定时 View Refresh。
+post 支持博主过滤与日期导航、普通／纯转发正文、图片查看器、视频跳转、元信息、高级搜索及定位、扫码恢复、添加博主和按时段采集。每次点击博主会重新读取该范围日期并回到最新有效日；日列表加载期间拒绝日期切换，博主仍可切换；加载完成后再点同日会重新读取。列表沿用 `page=1`、`size=9999`，起止时间为所选日期的 `00:00:00` 与 `23:59:59`，由后端按 `Asia/Shanghai` 解释；页面总数显示后端 `total`。单博主的日期查询使用 uid，列表使用 uids。普通查询超时 15 秒，当日列表超时 30 秒，失败时保留后端消息；列表重试只重新读取当前博主的当日列表，不重载博主与日期。阅读不自动触发采集或定时 View Refresh，添加／历史采集仅在用户显式操作时提交。
 
 查询依赖与请求清理遵循 TanStack Query 的[串行查询](https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries)与[查询取消](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation)。正文经 [DOMPurify](https://github.com/cure53/DOMPurify) 清洗后呈现，链接化与上海时间复用现有共享原语；清洗失败时通过 React 文本节点安全降级。浏览器测试覆盖恶意富文本、后端错误、局部重试、空状态、旧响应隔离与卸载取消。导航查询按照[查询键](https://tanstack.com/query/latest/docs/framework/react/guides/query-keys)隔离博主、日期与每次主动范围选择；日期分组按 React 的[状态重置规则](https://react.dev/learn/preserving-and-resetting-state#resetting-state-with-a-key)，在新范围上重新展开默认日期。
 
@@ -126,7 +126,7 @@ npm test
 
 测试默认使用 Playwright 安装的 Chromium；已有 Chrome 时，可以省略浏览器下载，设置 `PREVIEW_BROWSER_CHANNEL=chrome` 后运行 `npm test`。PowerShell 中使用 `$env:PREVIEW_BROWSER_CHANNEL='chrome'`，本次开发预览验收使用此方式。
 
-工程依据：React 的 [createRoot](https://react.dev/reference/react-dom/client/createRoot)、Vite 的[多入口构建](https://vite.dev/guide/build.html#multi-page-app)与[精确正则代理](https://vite.dev/config/server-options.html#server-proxy)，以及 TanStack Query 的[默认查询策略](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)。查询将显式关闭自动重试、窗口聚焦和网络重连刷新，避免在预览中引入额外的 View Refresh。
+工程依据：React 的 [createRoot](https://react.dev/reference/react-dom/client/createRoot)、Vite 的[多入口构建](https://vite.dev/guide/build.html#multi-page-app)与[精确正则代理](https://vite.dev/config/server-options.html#server-proxy)，以及 TanStack Query 的[默认查询策略](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)。查询将显式关闭自动重试、窗口聚焦和网络重连刷新，避免引入额外的 View Refresh。
 
 ### 构建和发布
 
@@ -138,9 +138,11 @@ Maven 在 `generate-resources` 阶段安装固定的 Node.js 24.15.0 和 npm 11.
 
 `process-resources` 将前端产物不经内容过滤复制到 `target/classes/static`，同时保留原资源，使 Java 浏览器测试读取与发布相同的构建文件。前端类型检查或构建失败会中止 Maven。使用 `clean` 清除旧发布产物，避免将旧 JAR 当成新构建结果。页面测试需要 Playwright Chromium，首次运行会下载浏览器；已有相应版本的缓存时，可设置 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`。
 
-最终 `target/weibo-plus.jar` 同时包含两条 React 预览入口和原正式页面，`target/weibo-plus.7z` 包含该可执行 JAR 与 `run.bat`。发布后只需 JDK 21，无需 Vite 或 Node.js 进程；预览使用同源相对接口地址。启动 JAR 后访问 `http://localhost:18080/preview/post/index.html` 或 `http://localhost:18080/preview/chat/index.html`。原入口 `/post/index.html` 和 `/chat/index.html` 继续可用。
+最终 `target/weibo-plus.jar` 包含 React 正式 post、旧正式 chat 和 React chat 预览；`target/weibo-plus.7z` 包含该可执行 JAR 与 `run.bat`。发布后只需 JDK 21，无需 Vite 或 Node.js 进程；页面使用同源相对接口地址。启动 JAR 后访问 `http://localhost:18080/post/index.html` 或 `http://localhost:18080/chat/index.html`。chat 骨架仍在 `/preview/chat/index.html`，post preview 和旧 post 专属静态脚本已移除。
 
-只检查页面资源集成时，可运行 `mvn clean package -Dtest=PostPageTest,GroupChatPageTest,ReactPreviewPageTest`。隔离生产冒烟应在唯一临时工作目录启动 JAR，直接指定 `spring.datasource.url=jdbc:sqlite:临时数据库绝对路径?busy_timeout=5000&journal_mode=WAL`，同时设置 `weibo.database-path` 为同一路径、`weibo.cookie-file` 为不存在的临时文件、`weibo.chat.auto-sync-gids=` 和 `server.address=127.0.0.1`，使用空闲端口。空群号不能关闭所有后台调度；缺少 Credential 时，外部采集在请求构造阶段被拒绝。仅通过本地只读接口验证，不使用生产数据库或登录凭据。
+只检查页面资源集成时，可运行 `mvn clean package -Dtest=PostPageTest,GroupChatPageTest`。PostPageTest 验证实际构建后的 React 正式页面。隔离生产冒烟应在唯一临时工作目录启动 JAR，直接指定 `spring.datasource.url=jdbc:sqlite:临时数据库绝对路径?busy_timeout=5000&journal_mode=WAL`，同时设置 `weibo.database-path` 为同一路径、`weibo.cookie-file` 为不存在的临时文件、`weibo.chat.auto-sync-gids=` 和 `server.address=127.0.0.1`，使用空闲端口。空群号不能关闭所有后台调度；缺少 Credential 时，外部采集在请求构造阶段被拒绝。查询使用临时数据，业务写操作应由本地替身拦截，不使用生产数据库或登录凭据。
+
+post 切换的回退基线为提交 `2cc6ef8` 和已验证的 `target/react-migration-release/ticket-17/weibo-plus.jar`，其 SHA-256 为 `932A7FF0E63847C1FFB39321DE3469801950CFFC7E3C822795AF3328CB288C58`。部署前保存原 JAR、配置与数据库备份；需要回退时停止新版，用原工作目录、相同配置和原端口启动该旧 JAR。此迁移没有数据库或配置格式变更，不需要清空数据库。重新构建旧源码时，应在独立检出中使用上述提交，避免覆盖正在工作的目录。迁移进度与逐票证据见 [.scratch/react-migration/PLAN.md](.scratch/react-migration/PLAN.md)。
 
 构建配置依据：[Maven 生命周期](https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html)、[frontend-maven-plugin](https://github.com/eirslett/frontend-maven-plugin)和 [Spring Boot 可执行 JAR 打包](https://docs.spring.io/spring-boot/3.5/maven-plugin/packaging.html)。
 
