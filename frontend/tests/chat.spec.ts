@@ -306,7 +306,7 @@ test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ p
   expect(requests).toEqual(['GET /chat/groups']);
 });
 
-test('chat_degrades_video_messages_to_text_and_only_previews_images', async ({ page }) => {
+test('chat_plays_video_in_place_without_navigation', async ({ page }) => {
   const items = makeMessages(1, 2, '消息');
   items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
   items[1].previewUrl = '/chat/media?gid=1&mid=2&variant=preview';
@@ -316,9 +316,69 @@ test('chat_degrades_video_messages_to_text_and_only_previews_images', async ({ p
   messagesByGid.set(1, items);
   await openChat(page);
 
-  await expect(page.locator('[data-mid="1"] img')).toHaveCount(1);
-  await expect(page.locator('[data-mid="2"] img')).toHaveCount(0);
-  await expect(page.locator('[data-mid="2"] .bubble')).toHaveText('分享视频');
+  await expect(page.locator('[data-mid="1"] button.media-preview')).toHaveCount(1);
+  await expect(page.locator('[data-mid="1"] video')).toHaveCount(0);
+  await expect(page.locator('[data-mid="2"] button.video-preview')).toHaveCount(1);
+  await expect(page.locator('[data-mid="2"] button.video-preview span')).toHaveCount(1);
+  await expect(page.locator('[data-mid="2"] .bubble')).toHaveCount(0);
+
+  await page.locator('[data-mid="2"] button.video-preview').click();
+  const video = page.locator('[data-mid="2"] video.message-video');
+  await expect(video).toHaveAttribute('src', '/chat/media?gid=1&mid=2&variant=video');
+  await expect(video).toHaveAttribute('controls', '');
+  await expect(page.locator('[data-mid="2"] button.video-preview')).toHaveCount(0);
+  expect(page.url()).toContain('/preview/chat/index.html');
+});
+
+test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ page }) => {
+  const items = makeMessages(1, 1, '消息');
+  items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
+  items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
+  messagesByGid.set(1, items);
+  await openChat(page);
+
+  const trigger = page.locator('[data-mid="1"] button.media-preview');
+  const dialog = page.locator('dialog.image-viewer');
+  await trigger.click();
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect(dialog.locator('img')).toHaveAttribute('src', '/chat/media?gid=1&mid=1&variant=original');
+  await expect(dialog.locator('img')).toBeVisible();
+  await expect(dialog.locator('.image-viewer-state')).toHaveText('');
+  const scrollTop = await page.locator('.messages').evaluate(element => element.scrollTop);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toHaveJSProperty('open', true);
+  await expect(trigger).toBeFocused();
+  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(scrollTop);
+
+  await trigger.click();
+  await expect(dialog).toHaveJSProperty('open', true);
+  await page.mouse.click(5, 5);
+  await expect(dialog).not.toHaveJSProperty('open', true);
+  await expect(page.locator('article.message[data-mid="1"]')).toBeVisible();
+});
+
+test('chat_shows_viewer_load_failure_and_can_reopen', async ({ page }) => {
+  const items = makeMessages(1, 1, '消息');
+  items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
+  items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
+  messagesByGid.set(1, items);
+  await page.route(/\/chat\/media\?.*variant=original/, route => route.fulfill({
+    status: 404, contentType: 'text/plain', body: 'missing',
+  }));
+  await openChat(page);
+
+  const trigger = page.locator('[data-mid="1"] button.media-preview');
+  const dialog = page.locator('dialog.image-viewer');
+  await trigger.click();
+  await expect(dialog.locator('.image-viewer-state')).toHaveText('原图加载失败，请关闭后重试。');
+  await expect(dialog.locator('img')).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toHaveJSProperty('open', true);
+
+  await trigger.click();
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect(dialog.locator('.image-viewer-state')).toHaveText('原图加载失败，请关闭后重试。');
 });
 
 test('chat_links_urls_and_renders_known_emoji', async ({ page }) => {

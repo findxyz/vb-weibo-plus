@@ -4,6 +4,7 @@ import {
   type ChatMessage, type MessageCursor,
 } from './api';
 import MessageItem from './MessageItem';
+import ImageViewer from './ImageViewer';
 
 // 窗口尺寸取自旧 sessions.js：DOM 只保留视口上下各约 180 条，视口外按估算高度占位。
 const WINDOW_CHUNK = 60;
@@ -37,6 +38,7 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorText, setErrorText] = useState('');
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const topSpacerRef = useRef<HTMLDivElement>(null);
@@ -358,19 +360,23 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
   }
 
   return (
-    <div className="messages" ref={containerRef}>
-      <div className="list-spacer" ref={topSpacerRef} aria-hidden="true" />
-      {status === 'loading' && <p className="messages-state" role="status">正在加载消息……</p>}
-      {status === 'error' && (
-        <p className="messages-state" role="alert">{`消息加载失败，点击左侧群聊重试。（${errorText}）`}</p>
-      )}
-      {status === 'ready' && !ordered.length && (
-        <p className="messages-state" role="status">这个群还没有本地消息。</p>
-      )}
-      {status === 'ready' && ordered.slice(startIndex, endIndex + 1).map(message => (
-        <MessageItem key={message.mid} message={message} isAdmin={adminIds.has(message.senderId)} />
-      ))}
-      <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
-    </div>
+    <>
+      <div className="messages" ref={containerRef}>
+        <div className="list-spacer" ref={topSpacerRef} aria-hidden="true" />
+        {status === 'loading' && <p className="messages-state" role="status">正在加载消息……</p>}
+        {status === 'error' && (
+          <p className="messages-state" role="alert">{`消息加载失败，点击左侧群聊重试。（${errorText}）`}</p>
+        )}
+        {status === 'ready' && !ordered.length && (
+          <p className="messages-state" role="status">这个群还没有本地消息。</p>
+        )}
+        {status === 'ready' && ordered.slice(startIndex, endIndex + 1).map(message => (
+          <MessageItem key={message.mid} message={message} isAdmin={adminIds.has(message.senderId)}
+            onOpenImage={setViewerUrl} />
+        ))}
+        <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
+      </div>
+      <ImageViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+    </>
   );
 }
