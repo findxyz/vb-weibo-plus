@@ -1421,7 +1421,11 @@ test('chat_opens_analysis_with_defaults_and_history', async ({ page }) => {
 
 test('chat_shows_analysis_detail_with_markdown', async ({ page }) => {
   analysisItems = [{ id: 5, date: '2026-10-17', promptPreview: '总结', messageCount: 12, createdAt: '2026-10-17 09:00' }];
-  analysisDetail = { ...analysisDetail, id: 5, result: '## 结论\n\n- 要点一' };
+  analysisDetail = {
+    ...analysisDetail, id: 5,
+    prompt: '分析下 tk 说的是哪个微博【这就是为什么我很讨厌别人把我在群里的话单独摘出来发到别的地方。因为没看到上下文的人不会知道我为什么那样说。】'.repeat(3),
+    result: `## 结论\n\n- 要点一\n\n> ${'这是一段很长的引用文字，'.repeat(20)}`,
+  };
   await openChat(page);
   await page.getByRole('button', { name: '🤖 群聊分析' }).click();
   const dialog = page.locator('dialog.analysis-dialog');
@@ -1434,6 +1438,25 @@ test('chat_shows_analysis_detail_with_markdown', async ({ page }) => {
   await expect(dialog.getByRole('button', { name: '⬇️ 下载 Markdown' })).toBeEnabled();
   await expect(dialog.locator('.analysis-meta-copy')).toBeVisible();
   await expect.poll(() => requests.some(value => value.includes('/chat/analyses/5'))).toBe(true);
+
+  const layout = await dialog.evaluate(element => {
+    const meta = element.querySelector('.analysis-detail-meta')!;
+    const content = element.querySelector('.analysis-detail-content')!;
+    const detail = element.querySelector('.analysis-detail')!;
+    const label = element.querySelector('.analysis-meta-label')!;
+    return {
+      metaOverflow: meta.scrollWidth - meta.clientWidth,
+      contentOverflow: content.scrollWidth - content.clientWidth,
+      detailOverflow: detail.scrollWidth - detail.clientWidth,
+      dialogOverflow: element.scrollWidth - element.clientWidth,
+      labelLines: label.getClientRects().length,
+    };
+  });
+  expect(layout.metaOverflow).toBe(0);
+  expect(layout.contentOverflow).toBe(0);
+  expect(layout.detailOverflow).toBe(0);
+  expect(layout.dialogOverflow).toBe(0);
+  expect(layout.labelLines).toBe(1);
 });
 
 test('chat_streams_analysis_and_shows_done', async ({ page }) => {
