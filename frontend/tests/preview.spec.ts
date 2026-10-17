@@ -230,6 +230,183 @@ test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refre
   expect(writeRequests).toHaveLength(1); writeRequests = [];
 });
 
+test('sync_history_leap_defaults_order_same_day_cancel_and_reset', async ({ page }) => {
+  await page.clock.install({ time: new Date('2024-02-28T18:00:00Z') });
+  const calls: string[] = [];
+  await page.route('**/post/range?*', route => { calls.push(route.request().url()); return route.fulfill({ json: {} }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  const entry = page.getByRole('button', { name: '同步历史', exact: true });
+  await entry.click();
+  const dialog = page.getByRole('dialog', { name: '同步历史微博' });
+  await expect(dialog.getByLabel('开始日期')).toHaveValue('2022-02-28');
+  await expect(dialog.getByLabel('结束日期')).toHaveValue('2024-02-29');
+  await dialog.getByLabel('开始日期').fill('2024-03-01');
+  await dialog.getByRole('button', { name: '开始同步' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('开始日期不能晚于结束日期。');
+  await page.mouse.click(5, 5);
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('开始日期').press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(entry).toBeFocused();
+  expect(calls).toHaveLength(0);
+  await entry.click();
+  await expect(dialog.getByLabel('开始日期')).toHaveValue('2022-02-28');
+  await expect(dialog.getByRole('alert')).toBeEmpty();
+  await dialog.getByLabel('开始日期').fill('2024-02-29');
+  await dialog.getByLabel('结束日期').press('Enter');
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => calls.length).toBe(1);
+  expect(new URL(calls[0]).searchParams.get('start')).toBe('2024-02-29 00:00:00');
+  expect(new URL(calls[0]).searchParams.get('end')).toBe('2024-02-29 23:59:59');
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
+test('sync_history_pending_request_keeps_snapshot_and_does_not_refresh_a_new_scope', async ({ page }) => {
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  const calls: URL[] = [];
+  await page.route('**/post/range?*', async route => { calls.push(new URL(route.request().url())); await gate; await route.fulfill({ json: {} }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const entry = page.getByRole('button', { name: '同步历史', exact: true });
+  await entry.click();
+  const dialog = page.getByRole('dialog', { name: '同步历史微博' });
+  await dialog.getByLabel('开始日期').fill('2026-01-01');
+  await dialog.getByLabel('结束日期').fill('2026-01-02');
+  await dialog.getByRole('button', { name: '开始同步' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(entry).toHaveAttribute('aria-disabled', 'true');
+  await entry.press('Enter');
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const secondCalendar = requests.filter(value => value === 'GET /post/calendar?uid=2').length;
+  finish();
+  await expect(entry).toHaveAttribute('aria-disabled', 'false');
+  expect(requests.filter(value => value === 'GET /post/calendar?uid=2')).toHaveLength(secondCalendar);
+  await expect(page.locator('.sync-notice')).toHaveCount(0);
+  expect(Object.fromEntries(calls[0].searchParams)).toEqual({ uid: '1', start: '2026-01-01 00:00:00', end: '2026-01-02 23:59:59' });
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
+for (const responseStatus of [500, 401]) {
+  test(`sync_history_error_${responseStatus}_uses_expected_feedback_without_reposting`, async ({ page }) => {
+    await page.clock.install();
+    await page.route('**/post/range?*', route => route.fulfill({ status: responseStatus, json: { msg: '本地采集失败' } }));
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect(page.locator('.post-content')).toContainText('第一行');
+    await page.getByRole('button', { name: '第一位', exact: true }).click();
+    await page.getByRole('button', { name: '同步历史', exact: true }).click();
+    await page.getByRole('button', { name: '开始同步' }).click();
+    if (responseStatus === 401) {
+      await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+      await expect(page.locator('.global-tip')).toHaveCount(0);
+    } else {
+      await expect(page.locator('.global-tip')).toHaveText('同步历史微博失败：本地采集失败');
+      await page.clock.runFor(6100);
+      await expect(page.locator('.global-tip')).toHaveCount(0);
+    }
+    await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveAttribute('aria-disabled', 'false');
+    expect(writeRequests).toHaveLength(1); writeRequests = [];
+  });
+}
+
+test('sync_history_calendar_failure_does_not_repeat_successful_post', async ({ page }) => {
+  await page.route('**/post/range?*', route => { calendarStatus = 500; return route.fulfill({ json: {} }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  await page.getByRole('button', { name: '开始同步' }).click();
+  await expect(page.getByRole('alert')).toContainText('日期加载失败');
+  await expect(page.locator('.sync-notice')).toHaveCount(0);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
+test('sync_history_initially_empty_scope_uses_default_reading_when_data_arrives', async ({ page }) => {
+  calendarsByUid['1'] = { months: [] };
+  await page.route('**/post/range?*', route => { calendarsByUid['1'] = calendar; return route.fulfill({ json: {} }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('暂无有博文的日期');
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  await page.getByRole('button', { name: '开始同步' }).click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
+test('sync_history_timeout_releases_operation_and_does_not_auto_retry', async ({ page }) => {
+  await page.clock.install();
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  await page.getByRole('button', { name: '开始同步' }).click();
+  const entry = page.getByRole('button', { name: '同步历史', exact: true });
+  await expect(entry).toHaveAttribute('aria-disabled', 'true');
+  await page.clock.runFor(16000);
+  await expect(page.locator('.global-tip')).toContainText('请求超时');
+  await expect(entry).toHaveAttribute('aria-disabled', 'false');
+  finish();
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
+test('sync_history_geometry_matches_legacy_and_long_name_fits_minimum_window', async ({ page }, testInfo) => {
+  await serveLegacy(page);
+  const measure = () => page.locator('dialog:modal').evaluate(dialog => {
+    const rect = dialog.getBoundingClientRect();
+    return { width: rect.width, height: rect.height, inputs: [...dialog.querySelectorAll('input')].map(input => {
+      const bounds = input.getBoundingClientRect(); return { width: bounds.width, height: bounds.height, x: bounds.x - rect.x, y: bounds.y - rect.y };
+    }) };
+  });
+  await page.goto(`${baseUrl}legacy/post/index.html`);
+  await page.locator('.blogger-row[data-uid="1"]').click();
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  const old = await measure();
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  expect(await measure()).toEqual(old);
+  await page.screenshot({ path: testInfo.outputPath('sync-history.png') });
+  await page.getByRole('button', { name: '关闭同步历史微博' }).click();
+  bloggers[0] = { ...bloggers[0], screenName: '很长博主名称'.repeat(20) };
+  await page.setViewportSize({ width: 900, height: 560 });
+  await page.reload();
+  await page.getByRole('button', { name: bloggers[0].screenName, exact: true }).click();
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '同步历史微博' });
+  expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await dialog.getByRole('button', { name: '开始同步' }).scrollIntoViewIfNeeded();
+  await expect(dialog.getByRole('button', { name: '开始同步' })).toBeInViewport();
+});
+
+test('sync_history_unmount_aborts_local_request_without_applying_late_result', async ({ page }) => {
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  await page.getByRole('button', { name: '开始同步' }).click();
+  await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveAttribute('aria-disabled', 'true');
+  await page.goto('about:blank');
+  finish();
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
 test('add_blogger_validates_then_posts_uid_refreshes_and_selects_new_blogger', async ({ page }) => {
   const added = { uid: 1234567890, screenName: '新博主' };
   const calls: string[] = [];
