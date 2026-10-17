@@ -184,7 +184,7 @@ export default function Composer({ gid, onSent, onOpenHistory }: {
         </button>
         <input ref={videoInputRef} type="file" accept="video/mp4" hidden
           onChange={event => { accept('video', event.target.files?.[0] ?? null); event.target.value = ''; }} />
-        <button type="button" disabled={disabled} onClick={onOpenHistory}>📜 聊天记录</button>
+        <button type="button" className="history-open" disabled={disabled} onClick={onOpenHistory}>📜 聊天记录</button>
       </div>
       <EmojiPanel open={emojiOpen} triggerRef={triggerRef} onInsert={insert}
         onClose={() => setEmojiOpen(false)} />

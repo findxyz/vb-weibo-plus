@@ -1,4 +1,4 @@
-import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
@@ -187,9 +187,11 @@ test.beforeAll(async () => {
         return true;
       });
       const offset = (page - 1) * size;
-      sendJson(response, 200, {
+      const send = () => sendJson(response, 200, {
         group: null, items: filtered.slice(offset, offset + size), page, size, total: filtered.length,
       });
+      if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      send();
       return;
     }
     if (path === '/chat/messages/cursor') {
@@ -1048,6 +1050,17 @@ test('chat_searches_history_with_shanghai_bounds_and_highlights', async ({ page 
   await expect(dialog.locator('.history-result mark')).toHaveText('关键词');
   await expect(dialog.locator('.history-result-summary')).toContainText('这里有关键词');
   await expect(dialog.locator('.history-pagination')).toContainText('第 1 / 1 页，共 1 条');
+
+  const styles = await dialog.evaluate(element => ({
+    title: getComputedStyle(element.querySelector('#history-title')!).fontSize,
+    label: getComputedStyle(element.querySelector('.history-filters label')!).fontSize,
+    summary: getComputedStyle(element.querySelector('.history-result-summary')!).fontSize,
+    pagination: getComputedStyle(element.querySelector('.history-pagination button')!).fontSize,
+  }));
+  expect(styles.title).toBe('18px');
+  expect(styles.label).toBe('13px');
+  expect(styles.summary).toBe('15px');
+  expect(styles.pagination).toBe('15px');
 });
 
 test('chat_pages_history_results_and_labels_media', async ({ page }) => {
@@ -1086,6 +1099,26 @@ test('chat_pages_history_results_and_labels_media', async ({ page }) => {
   await expect(previous).toBeEnabled();
   const pageTwo = requests.filter(value => value.includes('/chat/messages?') && value.includes('page=2')).pop();
   expect(new URLSearchParams(pageTwo!.split('?')[1]).get('start')).toBe('2026-08-05 00:00:00');
+});
+
+test('chat_history_pagination_keeps_results_while_loading', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 25, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  await dialog.getByLabel('开始日期').fill('2026-08-05');
+  await dialog.getByLabel('结束日期').fill('2026-08-07');
+  await dialog.getByRole('button', { name: '🔍 查询' }).click();
+  await expect(dialog.locator('.history-result')).toHaveCount(20);
+
+  holdPredicate = url => url.pathname === '/chat/messages' && url.searchParams.get('page') === '2';
+  await dialog.getByRole('button', { name: '下一页 ➡️' }).click();
+  await expect.poll(() => held.length).toBe(1);
+  // 加载下一页期间保留第一页，列表不闪成空白。
+  await expect(dialog.locator('.history-result')).toHaveCount(20);
+  await expect(dialog.locator('.history-empty')).toHaveCount(0);
+  releaseHeld();
+  await expect(dialog.locator('.history-result')).toHaveCount(5);
 });
 
 test('chat_opens_history_context_and_pages_both_ways', async ({ page }) => {
@@ -1205,6 +1238,8 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
     const messages = document.querySelector('.messages')!;
     const composer = getComputedStyle(document.querySelector('.composer textarea')!);
     const search = getComputedStyle(document.querySelector('.search-box input')!);
+    const historyButton = document.querySelector('.composer-tools .history-open')!.getBoundingClientRect();
+    const tools = document.querySelector('.composer-tools')!.getBoundingClientRect();
     return {
       titlebarHeight: titlebar.height,
       panelWidth: panel.width,
@@ -1216,6 +1251,7 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
       composerFontFamily: composer.fontFamily,
       composerFontSize: composer.fontSize,
       searchFontFamily: search.fontFamily,
+      historyButtonOffsetRight: tools.right - historyButton.right,
     };
   });
 
@@ -1230,4 +1266,7 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
   expect(metrics.composerFontFamily).toContain('Tahoma');
   expect(metrics.composerFontSize).toBe('15px');
   expect(metrics.searchFontFamily).toContain('Tahoma');
+  // 聊天记录按钮靠右，与工具行右内边距一致，而不是紧贴视频按钮。
+  expect(metrics.historyButtonOffsetRight).toBeGreaterThanOrEqual(0);
+  expect(metrics.historyButtonOffsetRight).toBeLessThanOrEqual(12);
 });

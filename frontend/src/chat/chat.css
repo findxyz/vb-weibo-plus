@@ -57,6 +57,10 @@
   --result-hover: #edf7ff;
   --mark: #fff0a8;
   --bar-bg: #edf6fc;
+  --filter-panel-from: #e7f3fc;
+  --filter-panel-to: #d1e6f7;
+  --filter-text: #355b7c;
+  --row-line: #d5e4ef;
   --amber-deep: #e5a11b;
   --amber-bg: #fff8d9;
   --media-bg: #16232d;
@@ -224,7 +228,7 @@ h1 {
   gap: 8px;
   padding: 14px 12px;
   color: var(--danger);
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .groups-failure p {
@@ -352,6 +356,10 @@ h1 {
   border: 1px solid var(--tool-border);
   border-radius: var(--radius-sm);
   background: linear-gradient(var(--surface), var(--tool-to));
+}
+
+.composer-tools .history-open {
+  margin-left: auto;
 }
 
 .composer-tool-emoji {
@@ -525,7 +533,7 @@ h1 {
 .group-number {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -874,16 +882,17 @@ h1 {
 
 /* 聊天记录窗口：独立只读弹窗，沿用拟物标题栏与侧栏筛选。 */
 .history-dialog {
-  width: min(1100px, 94vw);
+  width: min(1120px, calc(100vw - 64px));
   max-width: none;
-  height: min(780px, 88vh);
+  height: min(760px, calc(100vh - 64px));
   max-height: none;
   margin: auto;
   padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border: 2px solid var(--frame);
+  border-radius: var(--radius-md);
+  color: var(--text);
   background: var(--surface);
-  overflow: hidden;
+  box-shadow: 0 12px 36px rgb(0 35 85 / 38%);
 }
 
 .history-dialog::backdrop {
@@ -909,8 +918,13 @@ h1 {
 }
 
 .history-titlebar h2 {
+  min-width: 0;
   margin: 0;
-  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  letter-spacing: 0.4px;
   text-shadow: 0 1px 1px var(--titlebar-text-shadow);
 }
 
@@ -930,32 +944,35 @@ h1 {
 .history-layout {
   min-height: 0;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 250px minmax(0, 1fr);
 }
 
 .history-filters {
   min-height: 0;
   overflow-y: auto;
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
   border-right: 1px solid var(--border-strong);
   color: var(--sidebar-text);
-  background: linear-gradient(90deg, var(--sidebar-from), var(--sidebar-to));
+  background: linear-gradient(90deg, var(--filter-panel-from), var(--filter-panel-to));
 }
 
 .history-filters h3 {
-  margin: 0 0 4px;
-  font-size: 15px;
+  margin: 0 0 6px;
+  color: var(--sidebar-text);
+  font-size: 16px;
 }
 
 .history-filters label {
-  font-size: 12px;
+  color: var(--filter-text);
+  font-size: 13px;
 }
 
 .history-filters input {
-  height: 32px;
+  width: 100%;
+  height: 34px;
   padding: 0 8px;
   border: 1px solid var(--search-border);
   border-radius: var(--radius-sm);
@@ -984,7 +1001,6 @@ h1 {
   place-items: center;
   padding: 20px;
   color: var(--muted);
-  font-size: 14px;
   text-align: center;
 }
 
@@ -1008,9 +1024,10 @@ h1 {
   gap: 12px;
   padding: 8px 14px;
   border: 0;
-  border-bottom: 1px solid var(--row-line-soft);
+  border-bottom: 1px solid var(--row-line);
+  border-radius: 0;
   text-align: left;
-  background: transparent;
+  background: var(--surface);
 }
 
 .history-result:hover {
@@ -1029,10 +1046,9 @@ h1 {
 }
 
 .history-result-summary {
-  font-size: 13px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-result-summary mark {
@@ -1046,7 +1062,6 @@ h1 {
   gap: 12px;
   border-top: 1px solid var(--border);
   background: var(--bar-bg);
-  font-size: 13px;
 }
 
 .history-pagination button:disabled {
@@ -1091,9 +1106,11 @@ h1 {
 }
 
 .history-feedback {
-  padding: 8px 14px;
-  color: var(--danger);
-  font-size: 13px;
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  color: var(--muted);
+  pointer-events: none;
 }
 
 .target-message {

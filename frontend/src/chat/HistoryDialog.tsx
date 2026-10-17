@@ -139,7 +139,6 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
     setFeedback('');
     setApplied(nextFilters);
     setPage(nextPage);
-    setResult(null);
     setContext(null);
     setViewerUrl(null);
     try {
@@ -150,6 +149,7 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
       if (!pageData.items.length) setFeedback('没有符合条件的聊天记录');
     } catch {
       if (version !== versionRef.current || controller.signal.aborted) return;
+      setResult(null);
       setStatus('error');
       setFeedback('聊天记录查询失败，请稍后重试。');
     }
