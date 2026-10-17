@@ -159,6 +159,80 @@ export async function startQrLogin(signal: AbortSignal) {
   if (!response.ok) throw new HttpError(await readError(response), response.status);
 }
 
+export type AnalysisSummary = {
+  id: number;
+  date: string;
+  promptPreview?: string;
+  messageCount: number;
+  createdAt: string;
+};
+
+export type AnalysisView = {
+  id: number;
+  gid: number;
+  date: string;
+  prompt: string;
+  result: string;
+  messageCount: number;
+  createdAt: string;
+};
+
+export type AnalysisPage = { items: AnalysisSummary[]; page: number; size: number; total: number };
+
+export function fetchAnalyses(gid: number, page: number, size: number, signal: AbortSignal) {
+  const params = new URLSearchParams({ gid: String(gid), page: String(page), size: String(size) });
+  return getJson<AnalysisPage>(`/chat/analyses?${params}`, signal);
+}
+
+export function fetchAnalysis(id: number, signal: AbortSignal) {
+  return getJson<AnalysisView>(`/chat/analyses/${id}`, signal);
+}
+
+function parseSseEvent(block: string) {
+  let event = 'message';
+  const dataLines: string[] = [];
+  for (const rawLine of block.split('\n')) {
+    const line = rawLine.replace(/\r$/, '');
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
+  }
+  return dataLines.length ? { event, data: dataLines.join('\n') } : null;
+}
+
+// 流式分析：逐段回调 delta，返回 done 事件里的完整视图。
+export async function streamAnalysis(
+  gid: number, date: string, prompt: string, signal: AbortSignal,
+  onDelta: (chunk: string) => void,
+) {
+  const response = await fetch('/chat/analyses/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ gid: String(gid), date, prompt }),
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    throw new HttpError(await readError(response), response.status);
+  }
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  let doneView: AnalysisView | null = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() ?? '';
+    for (const block of blocks) {
+      const parsed = parseSseEvent(block);
+      if (!parsed) continue;
+      if (parsed.event === 'delta') onDelta(parsed.data);
+      else if (parsed.event === 'done') doneView = JSON.parse(parsed.data) as AnalysisView;
+      else if (parsed.event === 'error') throw new HttpError(parsed.data, 500);
+    }
+  }
+  return doneView;
+}
+
 export type HistoryFilters = { start: string; end: string; sender: string; keyword: string };
 export type HistoryPage = { items: ChatMessage[]; page: number; size: number; total: number };
 

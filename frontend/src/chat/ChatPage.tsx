@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import Avatar from './Avatar';
+import AnalysisDialog from './AnalysisDialog';
 import Composer from './Composer';
 import GroupList from './GroupList';
 import HistoryDialog from './HistoryDialog';
@@ -36,6 +37,7 @@ export default function ChatPage() {
   const [reloadToken, setReloadToken] = useState(0);
   const [refreshToken, setRefreshToken] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const [qrPending, setQrPending] = useState(false);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState('');
@@ -110,6 +112,7 @@ export default function ChatPage() {
   // 重复点击当前群也重新载入并落底，与旧页「选群即重新打开」一致。
   function selectGroup(gid: number) {
     setHistoryOpen(false);
+    setAnalysisOpen(false);
     setSelectedGid(gid);
     setReloadToken(token => token + 1);
   }
@@ -242,11 +245,14 @@ export default function ChatPage() {
             )}
           </div>
           <Composer gid={selectedGroup?.gid ?? null} onSent={() => setRefreshToken(value => value + 1)}
-            onOpenHistory={() => setHistoryOpen(true)} />
+            onOpenHistory={() => setHistoryOpen(true)}
+            onOpenAnalysis={() => setAnalysisOpen(true)} />
         </section>
       </div>
       <HistoryDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={historyOpen}
         onClose={() => setHistoryOpen(false)} />
+      <AnalysisDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={analysisOpen}
+        onClose={() => setAnalysisOpen(false)} />
     </div>
   );
 }

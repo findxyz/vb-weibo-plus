@@ -13,7 +13,7 @@ replay_pid*
 *.log
 
 # 敏感（微博登录凭证，不进版本控制）
-.weibo_cookie.txt
+.weibo_cookie.txt*
 
 # 数据库（本地缓存，不进版本控制）
 *.db

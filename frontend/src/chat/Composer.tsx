@@ -14,10 +14,11 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 type Hint = { text: string; level: 'default' | 'sending' | 'error' };
 type Attachment = { kind: 'image' | 'video'; file: File; url: string };
 
-export default function Composer({ gid, onSent, onOpenHistory }: {
+export default function Composer({ gid, onSent, onOpenHistory, onOpenAnalysis }: {
   gid: number | null;
   onSent: () => void;
   onOpenHistory?: () => void;
+  onOpenAnalysis?: () => void;
 }) {
   const [text, setText] = useState('');
   const [hint, setHint] = useState<Hint>({ text: HINT_DEFAULT, level: 'default' });
@@ -185,6 +186,7 @@ export default function Composer({ gid, onSent, onOpenHistory }: {
         <input ref={videoInputRef} type="file" accept="video/mp4" hidden
           onChange={event => { accept('video', event.target.files?.[0] ?? null); event.target.value = ''; }} />
         <button type="button" className="history-open" disabled={disabled} onClick={onOpenHistory}>📜 聊天记录</button>
+        <button type="button" disabled={disabled} onClick={onOpenAnalysis}>🤖 群聊分析</button>
       </div>
       <EmojiPanel open={emojiOpen} triggerRef={triggerRef} onInsert={insert}
         onClose={() => setEmojiOpen(false)} />

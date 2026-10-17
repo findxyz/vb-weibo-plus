@@ -1,9 +1,9 @@
-﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
 import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../../src/main/resources/static/shared/date.js';
-import { compareMessages, type ChatGroup, type ChatMessage } from '../src/chat/api';
+import { compareMessages, type AnalysisView, type ChatGroup, type ChatMessage } from '../src/chat/api';
 
 const BASE_TIME = Date.parse('2026-08-05T00:00:00Z');
 const PNG_BYTES = Buffer.from(
@@ -39,6 +39,12 @@ let syncStatus: number;
 let loginValid: boolean;
 let qrStatus: number;
 let qrHold: boolean;
+let analysisItems: { id: number; date: string; promptPreview: string; messageCount: number; createdAt: string }[];
+let analysisDetail: AnalysisView;
+let analysisDeltas: string[];
+let analysisDone: AnalysisView;
+let analysisStreamError: string | null;
+let analysisStreamBodies: string[];
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -169,6 +175,48 @@ test.beforeAll(async () => {
       response.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
       response.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">'
         + '<rect width="180" height="180" fill="#ffffff"/></svg>');
+      return;
+    }
+    if (path === '/chat/analyses' && request.method === 'GET') {
+      const page = Number(url.searchParams.get('page')) || 1;
+      const size = Number(url.searchParams.get('size')) || 20;
+      const offset = (page - 1) * size;
+      sendJson(response, 200, {
+        items: analysisItems.slice(offset, offset + size), page, size, total: analysisItems.length,
+      });
+      return;
+    }
+    if (request.method === 'POST' && path === '/chat/analyses/stream') {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        analysisStreamBodies.push(body);
+        response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
+        if (analysisStreamError) {
+          response.write(`event: error\ndata: ${analysisStreamError}\n\n`);
+          response.end();
+          return;
+        }
+        let index = 0;
+        const writeNext = () => {
+          if (index < analysisDeltas.length) {
+            response.write(`event: delta\ndata: ${analysisDeltas[index++]}\n\n`);
+            setTimeout(writeNext, 60);
+            return;
+          }
+          setTimeout(() => {
+            response.write(`event: done\ndata: ${JSON.stringify(analysisDone)}\n\n`);
+            response.end();
+          }, 400);
+        };
+        setTimeout(writeNext, 60);
+      });
+      return;
+    }
+    if (request.method === 'GET' && path.startsWith('/chat/analyses/')) {
+      const id = Number(path.slice('/chat/analyses/'.length));
+      if (!Number.isSafeInteger(id) || id <= 0) { sendJson(response, 404, { msg: '分析不存在' }); return; }
+      sendJson(response, 200, { ...analysisDetail, id });
       return;
     }
     if (request.method === 'POST' && (path === '/chat/messages/sendImage' || path === '/chat/messages/sendVideo')) {
@@ -303,6 +351,15 @@ test.beforeEach(({ page }) => {
   loginValid = true;
   qrStatus = 200;
   qrHold = false;
+  analysisItems = [];
+  analysisDetail = {
+    id: 1, gid: 1, date: '2026-10-17', prompt: '总结今天群聊', result: '## 结论\n\n- 要点一\n- 要点二',
+    messageCount: 12, createdAt: '2026-10-17 09:00',
+  };
+  analysisDeltas = ['## 结论\n\n', '- 要点一\n', '- 要点二'];
+  analysisDone = { ...analysisDetail, result: analysisDeltas.join('') };
+  analysisStreamError = null;
+  analysisStreamBodies = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD'].includes(request.method())) return;
@@ -310,6 +367,7 @@ test.beforeEach(({ page }) => {
     if (request.method() === 'POST' && request.url().includes('/chat/messages/send')) return;
     if (request.method() === 'POST' && request.url().includes('/chat/since')) return;
     if (request.method() === 'POST' && request.url().includes('/weibo/login/qr')) return;
+    if (request.method() === 'POST' && request.url().includes('/chat/analyses')) return;
     writeRequests.push(`${request.method()} ${request.url()}`);
   });
 });
@@ -1337,6 +1395,100 @@ test('chat_does_not_show_login_panel_when_valid', async ({ page }) => {
   await expect(page.locator('.login-expired')).toHaveCount(0);
 });
 
+test('chat_opens_analysis_with_defaults_and_history', async ({ page }) => {
+  analysisItems = [
+    { id: 3, date: '2026-10-17', promptPreview: '总结今天群聊', messageCount: 12, createdAt: '2026-10-17 09:00' },
+    { id: 2, date: '2026-10-16', promptPreview: '昨天讨论了什么', messageCount: 7, createdAt: '2026-10-16 21:30' },
+  ];
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect(dialog.getByRole('heading', { name: '群聊分析 - 第一群' })).toBeVisible();
+  await expect(dialog.getByLabel('分析日期')).toHaveValue(shanghaiToday());
+  await expect(dialog.getByLabel('提示词')).toHaveValue('请总结今天群聊的主要讨论话题和参与者');
+
+  const request = requests.find(value => value.includes('/chat/analyses?') && value.includes('page=1'));
+  expect(request).toBeTruthy();
+  const params = new URLSearchParams(request!.split('?')[1]);
+  expect(params.get('gid')).toBe('1');
+  expect(params.get('size')).toBe('20');
+  await expect(dialog.locator('.analysis-item')).toHaveCount(2);
+  await expect(dialog.locator('.analysis-item').first()).toContainText('12 条');
+  await expect(dialog.locator('.analysis-pagination')).toContainText('第 1 / 1 页，共 2 条');
+});
+
+test('chat_shows_analysis_detail_with_markdown', async ({ page }) => {
+  analysisItems = [{ id: 5, date: '2026-10-17', promptPreview: '总结', messageCount: 12, createdAt: '2026-10-17 09:00' }];
+  analysisDetail = { ...analysisDetail, id: 5, result: '## 结论\n\n- 要点一' };
+  await openChat(page);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await dialog.locator('.analysis-item').click();
+
+  await expect(dialog.locator('.analysis-detail-meta')).toContainText('分析日期：');
+  await expect(dialog.locator('.analysis-detail-meta')).toContainText('12 条');
+  await expect(dialog.locator('.analysis-detail-meta')).toContainText('2026-10-17 09:00');
+  await expect(dialog.locator('.analysis-detail-content h2')).toHaveText('结论');
+  await expect(dialog.getByRole('button', { name: '⬇️ 下载 Markdown' })).toBeEnabled();
+  await expect(dialog.locator('.analysis-meta-copy')).toBeVisible();
+  await expect.poll(() => requests.some(value => value.includes('/chat/analyses/5'))).toBe(true);
+});
+
+test('chat_streams_analysis_and_shows_done', async ({ page }) => {
+  await openChat(page);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await dialog.getByLabel('提示词').fill('汇总今日话题');
+  await dialog.getByRole('button', { name: '🤖 分析' }).click();
+
+  await expect(dialog.getByRole('button', { name: /分析中/ })).toBeDisabled();
+  await expect(dialog.locator('.analysis-detail-content')).toContainText('要点一', { timeout: 3000 });
+  await expect.poll(() => analysisStreamBodies.length).toBe(1);
+  const body = new URLSearchParams(analysisStreamBodies[0]);
+  expect(body.get('gid')).toBe('1');
+  expect(body.get('date')).toBe(shanghaiToday());
+  expect(body.get('prompt')).toBe('汇总今日话题');
+
+  await expect(dialog.locator('.analysis-detail-meta')).toContainText('12 条', { timeout: 4000 });
+  await expect(dialog.locator('.analysis-detail-content h2')).toHaveText('结论');
+  await expect(dialog.getByRole('button', { name: '⬇️ 下载 Markdown' })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: '🤖 分析' })).toBeEnabled();
+});
+
+test('chat_reports_analysis_stream_error', async ({ page }) => {
+  analysisStreamError = '模型超时';
+  await openChat(page);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await dialog.getByRole('button', { name: '🤖 分析' }).click();
+
+  await expect(dialog.locator('.analysis-error')).toHaveText('分析失败：模型超时');
+  await expect(dialog.getByRole('button', { name: '🤖 分析' })).toBeEnabled();
+});
+
+test('chat_pages_analysis_history_and_reports_empty', async ({ page }) => {
+  analysisItems = Array.from({ length: 25 }, (_, index) => ({
+    id: index + 1, date: '2026-10-17', promptPreview: `提示 ${index + 1}`,
+    messageCount: index, createdAt: '2026-10-17 09:00',
+  }));
+  await openChat(page);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await expect(dialog.locator('.analysis-item')).toHaveCount(20);
+  await expect(dialog.locator('.analysis-pagination')).toContainText('第 1 / 2 页，共 25 条');
+  await dialog.getByRole('button', { name: '下一页 ➡️' }).click();
+  await expect(dialog.locator('.analysis-item')).toHaveCount(5);
+  await expect(dialog.locator('.analysis-pagination')).toContainText('第 2 / 2 页，共 25 条');
+
+  analysisItems = [];
+  await dialog.getByRole('button', { name: '关闭群聊分析' }).click();
+  await expect(dialog).not.toHaveJSProperty('open', true);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  await expect(dialog.locator('.analysis-feedback')).toHaveText('暂无历史分析记录。');
+});
+
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '旧群'));
   messagesByGid.set(2, makeMessages(2, 3, '新群'));
@@ -1412,6 +1564,8 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
     const composer = getComputedStyle(document.querySelector('.composer textarea')!);
     const search = getComputedStyle(document.querySelector('.search-box input')!);
     const historyButton = document.querySelector('.composer-tools .history-open')!.getBoundingClientRect();
+    const videoButton = document.querySelectorAll('.composer-tools button')[2].getBoundingClientRect();
+    const lastButton = document.querySelector('.composer-tools button:last-of-type')!.getBoundingClientRect();
     const tools = document.querySelector('.composer-tools')!.getBoundingClientRect();
     return {
       titlebarHeight: titlebar.height,
@@ -1424,7 +1578,8 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
       composerFontFamily: composer.fontFamily,
       composerFontSize: composer.fontSize,
       searchFontFamily: search.fontFamily,
-      historyButtonOffsetRight: tools.right - historyButton.right,
+      historyGap: historyButton.left - videoButton.right,
+      lastButtonOffsetRight: tools.right - lastButton.right,
     };
   });
 
@@ -1439,7 +1594,8 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
   expect(metrics.composerFontFamily).toContain('Tahoma');
   expect(metrics.composerFontSize).toBe('15px');
   expect(metrics.searchFontFamily).toContain('Tahoma');
-  // 聊天记录按钮靠右，与工具行右内边距一致，而不是紧贴视频按钮。
-  expect(metrics.historyButtonOffsetRight).toBeGreaterThanOrEqual(0);
-  expect(metrics.historyButtonOffsetRight).toBeLessThanOrEqual(12);
+  // 聊天记录与分析按钮靠右；聊天记录不再紧贴视频按钮，最右按钮与行右内边距一致。
+  expect(metrics.historyGap).toBeGreaterThan(40);
+  expect(metrics.lastButtonOffsetRight).toBeGreaterThanOrEqual(0);
+  expect(metrics.lastButtonOffsetRight).toBeLessThanOrEqual(12);
 });
