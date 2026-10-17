@@ -32,6 +32,8 @@ let sendStatus: number;
 let onSend: (() => void) | null;
 let mediaSendBodies: { url: string; body: string; contentType: string }[];
 let mediaSendStatus: number;
+let attitudesPayload: Record<string, { name?: string; count?: number; selected?: boolean }[]>;
+let attitudesStatus: number;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -177,6 +179,13 @@ test.beforeAll(async () => {
       send();
       return;
     }
+    if (path === '/chat/attitudes') {
+      const mids = (url.searchParams.get('mids') ?? '').split(',');
+      const result: typeof attitudesPayload = {};
+      for (const mid of mids) if (attitudesPayload[mid]) result[mid] = attitudesPayload[mid];
+      sendJson(response, attitudesStatus, attitudesStatus === 200 ? result : { msg: '表态读取失败' });
+      return;
+    }
     if (path === '/chat/media') {
       const mid = Number(url.searchParams.get('mid'));
       const send = () => {
@@ -228,6 +237,8 @@ test.beforeEach(({ page }) => {
   onSend = null;
   mediaSendBodies = [];
   mediaSendStatus = 200;
+  attitudesPayload = {};
+  attitudesStatus = 200;
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD'].includes(request.method())) return;
@@ -873,6 +884,98 @@ test('chat_pastes_an_image_into_the_attachment_flow', async ({ page }) => {
 
   await expect(page.locator('.composer-attachment img')).toHaveCount(1);
   await expect(page.locator('.composer-hint')).toHaveText('按下 Enter 发送图片');
+});
+
+test('chat_loads_attitudes_only_after_enabling_the_toggle', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 5, '消息'));
+  attitudesPayload = {
+    '1': [{ name: 'doge', count: 3 }, { name: '赞', count: 1, selected: true }],
+    '2': [{ name: '未知表情', count: 2 }],
+    '3': [{ name: 'doge', count: 0 }],
+  };
+  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
+  }));
+  await openChat(page);
+
+  const toggle = page.locator('.attitudes-toggle');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  expect(requests.some(value => value.includes('/chat/attitudes'))).toBe(false);
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  const attitudeRequest = requests.find(value => value.includes('/chat/attitudes'));
+  expect(attitudeRequest).toBeTruthy();
+  const query = new URLSearchParams(attitudeRequest!.split('?')[1]);
+  expect(query.get('gid')).toBe('1');
+  expect(query.get('mids')).toBe('1,2,3,4,5');
+
+  const chips = page.locator('[data-mid="1"] .attitude-chip');
+  await expect(chips).toHaveCount(2);
+  await expect(chips.first()).toHaveAttribute('title', 'doge');
+  await expect(chips.first().locator('img')).toHaveAttribute('alt', 'doge');
+  await expect(chips.nth(1)).toHaveClass(/selected/);
+  await expect(page.locator('[data-mid="2"] .attitude-chip')).toContainText('未知表情');
+  await expect(page.locator('[data-mid="3"] .attitude-chip')).toHaveCount(0);
+});
+
+test('chat_persists_attitudes_and_stops_requesting_after_turning_it_off', async ({ page }) => {
+  const items = makeMessages(1, 5, '消息');
+  messagesByGid.set(1, items);
+  attitudesPayload = { '1': [{ name: 'doge', count: 2 }] };
+  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+  }));
+  await openChat(page);
+
+  const toggle = page.locator('.attitudes-toggle');
+  await toggle.click();
+  await expect(page.locator('[data-mid="1"] .attitude-chip')).toHaveCount(1);
+
+  await page.reload();
+  await expect(page.locator('[data-mid="1"] .attitude-chip')).toHaveCount(1);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('[data-mid="1"] .attitude-chip')).toHaveCount(1);
+  const requestCount = requests.filter(value => value.includes('/chat/attitudes')).length;
+  items.push(makeMessages(1, 6, '消息')[5]);
+  await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 4000 });
+  await page.waitForTimeout(400);
+  expect(requests.filter(value => value.includes('/chat/attitudes')).length).toBe(requestCount);
+});
+
+test('chat_loads_attitudes_for_new_messages', async ({ page }) => {
+  const items = makeMessages(1, 5, '消息');
+  messagesByGid.set(1, items);
+  attitudesPayload = { '6': [{ name: 'doge', count: 1 }] };
+  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+  }));
+  await openChat(page);
+  await page.locator('.attitudes-toggle').click();
+
+  items.push(makeMessages(1, 6, '消息')[5]);
+  const pill = page.locator('.new-messages-button');
+  await expect(pill).toBeVisible({ timeout: 4000 });
+  await expect.poll(() => requests.some(value => value.includes('mids=6'))).toBe(true);
+  await pill.click();
+  await expect(page.locator('[data-mid="6"] .attitude-chip')).toHaveCount(1);
+});
+
+test('chat_keeps_messages_when_attitudes_fail', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  attitudesStatus = 500;
+  await openChat(page);
+  await page.locator('.attitudes-toggle').click();
+  await page.waitForTimeout(300);
+
+  await expect(page.locator('.message').last()).toContainText('消息 3');
+  await expect(page.locator('.attitude-chip')).toHaveCount(0);
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {

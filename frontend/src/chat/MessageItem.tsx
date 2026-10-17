@@ -2,11 +2,21 @@ import { useState } from 'react';
 import Avatar from './Avatar';
 import MessageText from './MessageText';
 import WeiboCard, { type WeiboUrlObject } from './WeiboCard';
-import type { ChatMessage } from './api';
+import { emojiSource } from './emoji';
+import type { Attitude, ChatMessage } from './api';
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
 });
+
+// 表态贴图缺失时的近似符号，与旧页的 ATTITUDE_ICONS 同源。
+const ATTITUDE_ICONS: Record<string, string> = {
+  good: '👍', '点赞': '👍', '赞啊': '👍', '干杯': '🍺',
+  '心': '❤️', '给你小心心': '💗', '送花花': '💐', '爱慕': '😘', '憧憬': '😍',
+  '太开心': '😆', '哈哈': '😃', '嘻嘻': '😁', '哇': '🤩', '期待': '🤞',
+  '抱一抱': '🤗', '来抱抱': '🫂', '鼓掌': '👏', '求饶': '🙏', '打call': '🙌',
+  '彩虹屁': '🌈', '不愧是你': '💯', 'yeah': '🥳', '比耶': '✌️', '努力': '💪',
+};
 
 // 与旧 message-view.js 一致：这些占位文案在媒体消息里不重复显示。
 const HIDDEN_CAPTIONS = new Set(['分享图片', '分享视频', '[动画表情]']);
@@ -36,6 +46,23 @@ type Props = {
   onOpenImage: (url: string) => void;
 };
 
+function attitudeChips(attitudes: Attitude[]) {
+  return attitudes
+    .filter(attitude => attitude?.name && (attitude.count ?? 0) > 0)
+    .map(attitude => {
+      const name = attitude.name as string;
+      const sticker = emojiSource(`[${name}]`);
+      return (
+        <span key={name} className={`attitude-chip${attitude.selected ? ' selected' : ''}`} title={name}>
+          {sticker
+            ? <img className="attitude-chip-icon" src={sticker} alt={name} loading="lazy" />
+            : <span aria-hidden="true">{ATTITUDE_ICONS[name] ?? name}</span>}
+          {attitude.count}
+        </span>
+      );
+    });
+}
+
 export default function MessageItem({ message, isAdmin, onOpenImage }: Props) {
   const [playing, setPlaying] = useState(false);
   const isSystem = message.senderName?.trim() === SYSTEM_SENDER;
@@ -44,6 +71,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage }: Props) {
   const hasMedia = hasVideo || hasImage;
   const text = message.text?.trim() ? message.text : `[${message.msgTypeName || '消息'}]`;
   const hideText = hasMedia && HIDDEN_CAPTIONS.has(message.text?.trim() ?? '');
+  const attitudes = attitudeChips(message.attitudes ?? []);
 
   if (isSystem) {
     return (
@@ -82,6 +110,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage }: Props) {
           <video className="message-video" src={message.videoUrl} controls preload="metadata"
             aria-label="群聊视频" autoPlay />
         )}
+        {attitudes.length > 0 && <div className="message-attitudes">{attitudes}</div>}
       </div>
     </article>
   );

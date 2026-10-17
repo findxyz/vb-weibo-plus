@@ -50,6 +50,10 @@
   --success-hint: #52c41a;
   --error-hint: #f5222d;
   --emoji-hover: #eef4fb;
+  --chip-text: #486b88;
+  --accent-soft: #dff0ff;
+  --paused-text: #9a6200;
+  --paused-bg: #fff7e6;
   --media-bg: #16232d;
 }
 
@@ -575,6 +579,37 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+/* 固定 5 列：表态多时按 5 个一行换行，避免一条消息拉出一长排。 */
+.message-attitudes {
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
+  justify-content: start;
+  gap: 6px;
+}
+
+.attitude-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 9px;
+  border: 1px solid var(--bubble-border);
+  border-radius: 999px;
+  color: var(--chip-text);
+  background: var(--surface-subtle);
+  font-size: 12px;
+}
+
+.attitude-chip-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.attitude-chip.selected {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
 .bubble {
   max-width: min(680px, 85%);
   padding: 8px 11px;
@@ -757,6 +792,50 @@ h1 {
   color: #ffffff;
   background: var(--accent);
   box-shadow: 0 2px 8px rgb(17 67 115 / 28%);
+}
+
+.attitudes-toggle {
+  position: absolute;
+  right: 26px;
+  bottom: 50px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: rgb(255 255 255 / 85%);
+  box-shadow: 0 2px 8px rgb(17 67 115 / 18%);
+}
+
+.attitudes-toggle-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.attitudes-toggle-slash {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+}
+
+.attitudes-toggle-slash path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.attitudes-toggle.active .attitudes-toggle-slash {
+  display: none;
+}
+
+.attitudes-toggle:not(.active) {
+  border-color: var(--focus);
+  color: var(--paused-text);
+  background: var(--paused-bg);
 }
 
 .scroll-bottom-button {

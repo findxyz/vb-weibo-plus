@@ -36,7 +36,11 @@ export type ChatMessage = {
   originalUrl: string;
   videoUrl: string;
   fileUrl: string;
+  // 表态由 `/chat/attitudes` 按需补入，服务端消息本身不携带。
+  attitudes?: Attitude[];
 };
+
+export type Attitude = { name?: string; count?: number; selected?: boolean };
 
 export type MessageCursor = { createdAt: number; mid: number };
 
@@ -131,6 +135,11 @@ export function fetchNewerMessages(gid: number, size: number, cursor: MessageCur
     afterMid: String(cursor.mid),
   });
   return getJson<MessagePage>(`/chat/messages/cursor?${query}`, signal);
+}
+
+export function fetchAttitudes(gid: number, mids: number[], signal: AbortSignal) {
+  const query = new URLSearchParams({ gid: String(gid), mids: mids.join(',') });
+  return getJson<Record<string, Attitude[]>>(`/chat/attitudes?${query}`, signal);
 }
 
 export function nextBeforeCursor(page: MessagePage): MessageCursor | null {

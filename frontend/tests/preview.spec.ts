@@ -2768,7 +2768,7 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain(mime);
   }
-  for (const path of ['preview/post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js', 'chat/groups-extra', 'chat/messages', 'chat/messages/cursor/extra', 'chat/messages/send-extra', 'chat/media-extra']) {
+  for (const path of ['preview/post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js', 'chat/groups-extra', 'chat/attitudes-extra', 'chat/messages', 'chat/messages/cursor/extra', 'chat/messages/send-extra', 'chat/media-extra']) {
     expect((await request.get(`${baseUrl}${path}`)).status()).toBe(404);
   }
   const response = await request.get(`${baseUrl}post/bloggers?probe=1`);

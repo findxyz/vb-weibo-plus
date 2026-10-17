@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  compareMessages, fetchEarlierMessages, fetchLatestMessages, fetchNewerMessages, MESSAGE_PAGE_SIZE,
-  nextAfterCursor, nextBeforeCursor, type ChatMessage, type MessageCursor,
+  compareMessages, fetchAttitudes, fetchEarlierMessages, fetchLatestMessages, fetchNewerMessages,
+  MESSAGE_PAGE_SIZE, nextAfterCursor, nextBeforeCursor, type Attitude, type ChatMessage, type MessageCursor,
 } from './api';
+import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import MessageItem from './MessageItem';
 import ImageViewer from './ImageViewer';
 
@@ -29,12 +30,6 @@ function sumHeights(heights: Map<number, number>, messages: ChatMessage[]) {
   return sum;
 }
 
-function mergeOlder(previous: ChatMessage[], items: ChatMessage[]) {
-  const merged = new Map<number, ChatMessage>();
-  for (const message of [...items, ...previous]) merged.set(message.mid, message);
-  return [...merged.values()].sort(compareMessages);
-}
-
 type Props = { gid: number; admins: number[]; refreshToken?: number };
 
 export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
@@ -45,6 +40,8 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [newMessagesVisible, setNewMessagesVisible] = useState(false);
   const [bottomRequest, setBottomRequest] = useState(0);
+  const [attitudesEnabled, setAttitudesEnabled] = useState(() =>
+    localStorage.getItem(STORAGE_KEYS.CHAT_ATTITUDES) === '1');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const topSpacerRef = useRef<HTMLDivElement>(null);
@@ -66,6 +63,7 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
   const refreshingRef = useRef(false);
   const initializingRef = useRef(true);
   const pollFailuresRef = useRef(0);
+  const attitudesEnabledRef = useRef(attitudesEnabled);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -89,6 +87,7 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
         pendingBottomRef.current = true;
       }
       setStatus('ready');
+      void loadAttitudes(items);
     }).catch(error => {
       if (controller.signal.aborted) return;
       setStatus('error');
@@ -98,6 +97,10 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
     });
     return () => controller.abort();
   }, [gid]);
+
+  useLayoutEffect(() => {
+    attitudesEnabledRef.current = attitudesEnabled;
+  }, [attitudesEnabled]);
 
   const indexByMid = useMemo(() => {
     const index = new Map<number, number>();
@@ -324,11 +327,13 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
       // 新拉到的更早消息纳入窗口，保证刚翻到的内容可见，同时不越过 360 条上限。
       const anchor = captureAnchor(container);
       pendingAnchorRef.current = anchor;
-      const merged = mergeOlder(ordered, items);
+      // 以消息 Map 为准合并，避免表态等异步写入被旧的 ordered 快照覆盖。
+      const merged = [...messagesRef.current.values()].sort(compareMessages);
       const anchorIndex = anchor ? merged.findIndex(message => message.mid === anchor.mid) : 0;
       const { start, end } = windowBounds(anchorIndex < 0 ? 0 : anchorIndex, merged.length);
       setOrdered(merged);
       setWindowMids({ start: merged[start].mid, end: merged[end].mid });
+      void loadAttitudes(items);
     } catch (error) {
       if (!controller.signal.aborted) console.warn('加载更早消息失败：', error);
     } finally {
@@ -358,6 +363,43 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
     for (const message of items) messagesRef.current.set(message.mid, message);
     setOrdered([...messagesRef.current.values()].sort(compareMessages));
     setNewMessagesVisible(true);
+    void loadAttitudes(items);
+  }
+
+  // 表态只写回当前群的消息对象；空数组同样落盘，用于清掉旧表态。
+  function applyAttitudes(result: Record<string, Attitude[]>) {
+    let changed = false;
+    for (const [mid, attitudes] of Object.entries(result)) {
+      const message = messagesRef.current.get(Number(mid));
+      if (!message) continue;
+      messagesRef.current.set(Number(mid), {
+        ...message,
+        attitudes: Array.isArray(attitudes) ? attitudes : [],
+      });
+      changed = true;
+    }
+    if (changed) setOrdered([...messagesRef.current.values()].sort(compareMessages));
+  }
+
+  async function loadAttitudes(items: ChatMessage[]) {
+    const controller = abortRef.current;
+    if (!controller || !attitudesEnabledRef.current || !items.length) return;
+    const mids = [...new Set(items.map(message => message.mid))];
+    try {
+      const result = await fetchAttitudes(gid, mids, controller.signal);
+      if (controller.signal.aborted) return;
+      applyAttitudes(result);
+    } catch (error) {
+      if (!controller.signal.aborted) console.warn('获取表态失败：', error);
+    }
+  }
+
+  function toggleAttitudes() {
+    const next = !attitudesEnabled;
+    attitudesEnabledRef.current = next;
+    setAttitudesEnabled(next);
+    localStorage.setItem(STORAGE_KEYS.CHAT_ATTITUDES, next ? '1' : '0');
+    if (next) void loadAttitudes(ordered.slice(startIndex, endIndex + 1));
   }
 
   async function catchUp(signal: AbortSignal) {
@@ -531,6 +573,16 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
         ))}
         <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
       </div>
+      <button type="button" className={`attitudes-toggle${attitudesEnabled ? ' active' : ''}`}
+        aria-pressed={attitudesEnabled}
+        aria-label={attitudesEnabled ? '表态已打开，随每次查询实时刷新' : '是否打开表态'}
+        title={attitudesEnabled ? '表态已打开，随每次查询实时刷新' : '是否打开表态'}
+        onClick={toggleAttitudes}>
+        <span className="attitudes-toggle-icon" aria-hidden="true">👍</span>
+        <svg className="attitudes-toggle-slash" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4.5 4.5 19.5 19.5" />
+        </svg>
+      </button>
       <button type="button" className="scroll-bottom-button" aria-label="滚到最新消息"
         onClick={() => { void jumpToLatest(); }}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
