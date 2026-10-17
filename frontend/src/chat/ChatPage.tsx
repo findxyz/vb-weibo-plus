@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-
 import Avatar from './Avatar';
 import Composer from './Composer';
 import GroupList from './GroupList';
+import HistoryDialog from './HistoryDialog';
 import MessageList from './MessageList';
 import { fetchGroups } from './api';
 import { groupCapacity, groupName } from './display';
@@ -33,6 +34,7 @@ export default function ChatPage() {
   });
   const [reloadToken, setReloadToken] = useState(0);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (!groups.length) return;
@@ -54,6 +56,7 @@ export default function ChatPage() {
 
   // 重复点击当前群也重新载入并落底，与旧页「选群即重新打开」一致。
   function selectGroup(gid: number) {
+    setHistoryOpen(false);
     setSelectedGid(gid);
     setReloadToken(token => token + 1);
   }
@@ -100,9 +103,12 @@ export default function ChatPage() {
               <p className="messages-state">{groupsQuery.isPending ? '正在加载群聊……' : '暂无群聊。'}</p>
             )}
           </div>
-          <Composer gid={selectedGroup?.gid ?? null} onSent={() => setRefreshToken(value => value + 1)} />
+          <Composer gid={selectedGroup?.gid ?? null} onSent={() => setRefreshToken(value => value + 1)}
+            onOpenHistory={() => setHistoryOpen(true)} />
         </section>
       </div>
+      <HistoryDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={historyOpen}
+        onClose={() => setHistoryOpen(false)} />
     </div>
   );
 }

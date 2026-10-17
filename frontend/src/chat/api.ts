@@ -1,4 +1,6 @@
 // chat 会话读取的接口层：路径与参数沿用旧页，排序口径全页只有 compareMessages 一处。
+import { toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
+
 export type ChatGroup = {
   gid: number;
   name: string;
@@ -140,6 +142,22 @@ export function fetchNewerMessages(gid: number, size: number, cursor: MessageCur
 export function fetchAttitudes(gid: number, mids: number[], signal: AbortSignal) {
   const query = new URLSearchParams({ gid: String(gid), mids: mids.join(',') });
   return getJson<Record<string, Attitude[]>>(`/chat/attitudes?${query}`, signal);
+}
+
+export type HistoryFilters = { start: string; end: string; sender: string; keyword: string };
+export type HistoryPage = { items: ChatMessage[]; page: number; size: number; total: number };
+
+export function queryHistoryMessages(
+  gid: number, filters: HistoryFilters, page: number, size: number, signal: AbortSignal,
+) {
+  const params = new URLSearchParams({ gid: String(gid), page: String(page), size: String(size) });
+  const start = toQueryDateTime(filters.start);
+  const end = toQueryEndTime(filters.end);
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+  if (filters.sender) params.set('senderName', filters.sender);
+  if (filters.keyword) params.set('keyword', filters.keyword);
+  return getJson<HistoryPage>(`/chat/messages?${params}`, signal);
 }
 
 export function nextBeforeCursor(page: MessagePage): MessageCursor | null {

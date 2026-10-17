@@ -44,6 +44,7 @@ type Props = {
   message: ChatMessage;
   isAdmin: boolean;
   onOpenImage: (url: string) => void;
+  highlighted?: boolean;
 };
 
 function attitudeChips(attitudes: Attitude[]) {
@@ -63,7 +64,7 @@ function attitudeChips(attitudes: Attitude[]) {
     });
 }
 
-export default function MessageItem({ message, isAdmin, onOpenImage }: Props) {
+export default function MessageItem({ message, isAdmin, onOpenImage, highlighted = false }: Props) {
   const [playing, setPlaying] = useState(false);
   const isSystem = message.senderName?.trim() === SYSTEM_SENDER;
   const hasVideo = Boolean(message.videoUrl) && Boolean(message.previewUrl);
@@ -82,7 +83,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage }: Props) {
   }
 
   return (
-    <article className={`message${isAdmin ? ' admin-message' : ''}`} data-mid={message.mid}>
+    <article className={`message${isAdmin ? ' admin-message' : ''}${highlighted ? ' target-message' : ''}`} data-mid={message.mid}>
       <Avatar
         className="message-avatar"
         name={message.senderName}

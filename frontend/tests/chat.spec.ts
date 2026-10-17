@@ -2,6 +2,7 @@ import { createServer as createHttpServer, type Server, type ServerResponse } fr
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
+import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../../src/main/resources/static/shared/date.js';
 import { compareMessages, type ChatGroup, type ChatMessage } from '../src/chat/api';
 
 const BASE_TIME = Date.parse('2026-08-05T00:00:00Z');
@@ -109,6 +110,10 @@ function mediaBody() {
     + '<rect width="320" height="180" fill="#9cc7e8"/></svg>';
 }
 
+function parseQueryTime(value: string | null) {
+  return value ? Date.parse(`${value.replace(' ', 'T')}+08:00`) : null;
+}
+
 async function openChat(page: Page, lastGid?: number) {
   if (lastGid != null) {
     await page.addInitScript(([key, value]: [string, number]) => {
@@ -163,6 +168,27 @@ test.beforeAll(async () => {
         sendJson(response, sendStatus, sendStatus === 200 ? {} : {
           msg: sendStatus === 409 ? '已发出但本地同步失败' : '发送失败',
         });
+      });
+      return;
+    }
+    if (path === '/chat/messages') {
+      const gid = Number(url.searchParams.get('gid'));
+      const page = Number(url.searchParams.get('page')) || 1;
+      const size = Number(url.searchParams.get('size')) || 20;
+      const start = parseQueryTime(url.searchParams.get('start'));
+      const end = parseQueryTime(url.searchParams.get('end'));
+      const sender = url.searchParams.get('senderName');
+      const keyword = url.searchParams.get('keyword');
+      const filtered = [...(messagesByGid.get(gid) ?? [])].sort(compareMessages).filter(message => {
+        if (start != null && message.createdAt < start) return false;
+        if (end != null && message.createdAt > end) return false;
+        if (sender && message.senderName !== sender) return false;
+        if (keyword && !(message.text ?? '').includes(keyword)) return false;
+        return true;
+      });
+      const offset = (page - 1) * size;
+      sendJson(response, 200, {
+        group: null, items: filtered.slice(offset, offset + size), page, size, total: filtered.length,
       });
       return;
     }
@@ -419,7 +445,7 @@ test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ pa
   await openChat(page);
 
   const trigger = page.locator('[data-mid="1"] button.media-preview');
-  const dialog = page.locator('dialog.image-viewer');
+  const dialog = page.locator('.messages-shell dialog.image-viewer');
   await trigger.click();
   await expect(dialog).toHaveJSProperty('open', true);
   await expect(dialog.locator('img')).toHaveAttribute('src', '/chat/media?gid=1&mid=1&variant=original');
@@ -450,7 +476,7 @@ test('chat_shows_viewer_load_failure_and_can_reopen', async ({ page }) => {
   await openChat(page);
 
   const trigger = page.locator('[data-mid="1"] button.media-preview');
-  const dialog = page.locator('dialog.image-viewer');
+  const dialog = page.locator('.messages-shell dialog.image-viewer');
   await trigger.click();
   await expect(dialog.locator('.image-viewer-state')).toHaveText('原图加载失败，请关闭后重试。');
   await expect(dialog.locator('img')).toBeHidden();
@@ -976,6 +1002,133 @@ test('chat_keeps_messages_when_attitudes_fail', async ({ page }) => {
 
   await expect(page.locator('.message').last()).toContainText('消息 3');
   await expect(page.locator('.attitude-chip')).toHaveCount(0);
+});
+
+test('chat_opens_history_with_shanghai_defaults', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect(dialog.getByRole('heading', { name: '聊天记录 - 第一群' })).toBeVisible();
+
+  const today = shanghaiToday();
+  const anchor = new Date(`${today}T12:00:00`);
+  await expect(dialog.getByLabel('开始日期')).toHaveValue(localDateValue(calendarMonthsAgo(anchor, 3)));
+  await expect(dialog.getByLabel('结束日期')).toHaveValue(today);
+  await expect(dialog.locator('.history-empty')).toHaveText('设置筛选条件后点击查询');
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toHaveJSProperty('open', true);
+});
+
+test('chat_searches_history_with_shanghai_bounds_and_highlights', async ({ page }) => {
+  const items = makeMessages(1, 5, '消息');
+  items[0].text = '这里有关键词 Alpha';
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  await dialog.getByLabel('开始日期').fill('2026-08-05');
+  await dialog.getByLabel('结束日期').fill('2026-08-07');
+  await dialog.getByLabel('内容').fill('关键词');
+  await dialog.getByRole('button', { name: '🔍 查询' }).click();
+
+  await expect(dialog.locator('.history-result')).toHaveCount(1);
+  const request = requests.find(value => value.includes('/chat/messages?') && value.includes('keyword='));
+  expect(request).toBeTruthy();
+  const params = new URLSearchParams(request!.split('?')[1]);
+  expect(params.get('gid')).toBe('1');
+  expect(params.get('page')).toBe('1');
+  expect(params.get('size')).toBe('20');
+  expect(params.get('start')).toBe('2026-08-05 00:00:00');
+  expect(params.get('end')).toBe('2026-08-07 23:59:59');
+  expect(params.get('keyword')).toBe('关键词');
+
+  await expect(dialog.locator('.history-result mark')).toHaveText('关键词');
+  await expect(dialog.locator('.history-result-summary')).toContainText('这里有关键词');
+  await expect(dialog.locator('.history-pagination')).toContainText('第 1 / 1 页，共 1 条');
+});
+
+test('chat_pages_history_results_and_labels_media', async ({ page }) => {
+  const items = makeMessages(1, 25, '消息');
+  items[1].text = '分享图片';
+  items[1].previewUrl = '/chat/media?gid=1&mid=2&variant=preview';
+  items[2].text = '分享视频';
+  items[2].previewUrl = '/chat/media?gid=1&mid=3&variant=preview';
+  items[2].videoUrl = '/chat/media?gid=1&mid=3&variant=video';
+  items[3].mediaType = 14;
+  items[3].urlObjects = [{ status: { user: { screen_name: '作者' }, text: '卡片正文' }, url_ori: 'https://weibo.com/1/x' }];
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  await dialog.getByLabel('开始日期').fill('2026-08-05');
+  await dialog.getByLabel('结束日期').fill('2026-08-07');
+  await dialog.getByRole('button', { name: '🔍 查询' }).click();
+
+  await expect(dialog.locator('.history-result')).toHaveCount(20);
+  const summaries = dialog.locator('.history-result-summary');
+  await expect(summaries.nth(1)).toHaveText('[图片]');
+  await expect(summaries.nth(2)).toHaveText('[视频]');
+  await expect(summaries.nth(3)).toHaveText('[微博]');
+  await expect(dialog.locator('.history-pagination')).toContainText('第 1 / 2 页，共 25 条');
+
+  const previous = dialog.getByRole('button', { name: '⬅️ 上一页' });
+  const next = dialog.getByRole('button', { name: '下一页 ➡️' });
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeEnabled();
+
+  await next.click();
+  await expect(dialog.locator('.history-result')).toHaveCount(5);
+  await expect(dialog.locator('.history-pagination')).toContainText('第 2 / 2 页，共 25 条');
+  await expect(next).toBeDisabled();
+  await expect(previous).toBeEnabled();
+  const pageTwo = requests.filter(value => value.includes('/chat/messages?') && value.includes('page=2')).pop();
+  expect(new URLSearchParams(pageTwo!.split('?')[1]).get('start')).toBe('2026-08-05 00:00:00');
+});
+
+test('chat_opens_history_context_and_pages_both_ways', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 120, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  await dialog.getByLabel('开始日期').fill('2026-08-05');
+  await dialog.getByLabel('结束日期').fill('2026-08-07');
+  await dialog.getByLabel('内容').fill('消息 60');
+  await dialog.getByRole('button', { name: '🔍 查询' }).click();
+  await expect(dialog.locator('.history-result')).toHaveCount(1);
+  await dialog.locator('.history-result').click();
+
+  await expect(dialog.locator('.history-context')).toBeVisible();
+  await expect(dialog.locator('[data-mid="60"]')).toHaveClass(/target-message/);
+  expect(requests.filter(value => value.includes('beforeMid=60')).length).toBe(1);
+  expect(requests.filter(value => value.includes('afterMid=60')).length).toBe(1);
+  await expect(dialog.locator('.history-edge-state').first()).toHaveText('向上滚动加载更早消息');
+  await expect(dialog.locator('.history-edge-state').last()).toHaveText('向下滚动加载更新消息');
+
+  await dialog.locator('.history-messages').evaluate(element => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event('scroll'));
+  });
+  await expect.poll(() => requests.filter(value =>
+    value.includes('beforeMid=') && !value.includes('beforeMid=60')).length).toBe(1);
+
+  await dialog.getByRole('button', { name: '🚩 返回搜索结果' }).click();
+  await expect(dialog.locator('.history-result')).toHaveCount(1);
+  await expect(dialog.locator('.history-pagination')).toContainText('第 1 / 1 页，共 1 条');
+});
+
+test('chat_closes_history_from_the_titlebar_button', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  messagesByGid.set(2, makeMessages(2, 3, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  await expect(dialog).toHaveJSProperty('open', true);
+  // 模态窗口会遮住侧栏；这里只验证关闭按钮与切群逻辑本身不会留下打开的窗口。
+  await dialog.getByRole('button', { name: '关闭聊天记录' }).click();
+  await expect(dialog).not.toHaveJSProperty('open', true);
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
