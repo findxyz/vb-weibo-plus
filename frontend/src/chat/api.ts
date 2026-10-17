@@ -144,6 +144,21 @@ export function fetchAttitudes(gid: number, mids: number[], signal: AbortSignal)
   return getJson<Record<string, Attitude[]>>(`/chat/attitudes?${query}`, signal);
 }
 
+export async function fetchLoginStatus(signal: AbortSignal) {
+  const response = await fetch('/weibo/login/status', { cache: 'no-store', signal });
+  if (!response.ok) throw new HttpError(await readError(response), response.status);
+  return response.json() as Promise<{ valid?: unknown }>;
+}
+
+// 后端最多等待扫码 300 秒，额外留出群列表同步时间。
+export async function startQrLogin(signal: AbortSignal) {
+  const response = await fetch('/weibo/login/qr', {
+    method: 'POST',
+    signal: AbortSignal.any([signal, AbortSignal.timeout(360_000)]),
+  });
+  if (!response.ok) throw new HttpError(await readError(response), response.status);
+}
+
 export type HistoryFilters = { start: string; end: string; sender: string; keyword: string };
 export type HistoryPage = { items: ChatMessage[]; page: number; size: number; total: number };
 

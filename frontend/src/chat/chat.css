@@ -149,7 +149,7 @@ h1 {
 .groups-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: 64px 54px minmax(0, 1fr);
+  grid-template-rows: 64px 54px minmax(0, 1fr) auto;
   border-right: 1px solid var(--border-strong);
   color: var(--sidebar-text);
   background: linear-gradient(90deg, var(--sidebar-from), var(--sidebar-to));
@@ -162,6 +162,54 @@ h1 {
   padding: 0 16px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(var(--heading-from), var(--heading-to));
+}
+
+.login-expired {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.login-expired img {
+  width: 180px;
+  height: 180px;
+  align-self: center;
+}
+
+.qr-loading {
+  width: 180px;
+  height: 180px;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  color: #999999;
+  font-size: 14px;
+  text-align: center;
+}
+
+.login-expired button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--tool-border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(var(--surface), var(--tool-to));
+}
+
+.panel-state {
+  color: var(--danger);
+  font-size: 15px;
+  animation: panel-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes panel-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .groups-heading h2 {

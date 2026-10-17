@@ -30,9 +30,9 @@ function sumHeights(heights: Map<number, number>, messages: ChatMessage[]) {
   return sum;
 }
 
-type Props = { gid: number; admins: number[]; refreshToken?: number };
+type Props = { gid: number; admins: number[]; refreshToken?: number; pollingEnabled?: boolean };
 
-export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
+export default function MessageList({ gid, admins, refreshToken = 0, pollingEnabled = true }: Props) {
   const [ordered, setOrdered] = useState<ChatMessage[]>([]);
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -203,8 +203,9 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
     };
   });
 
-  // 轮询当前群；失败按 1 秒起指数退避封顶 30 秒，成功后归零。
+  // 轮询当前群；失败按 1 秒起指数退避封顶 30 秒，成功后归零。登录失效时暂停。
   useEffect(() => {
+    if (!pollingEnabled) return;
     let stopped = false;
     let running = false;
     let wakePending = false;
@@ -257,7 +258,7 @@ export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
     };
-  }, []);
+  }, [pollingEnabled]);
 
   // 发送成功后立即补一次刷新，不必等下一秒轮询；仍走读取接口，不做乐观插入。
   useEffect(() => {

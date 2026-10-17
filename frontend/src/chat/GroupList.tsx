@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Avatar from './Avatar';
 import { groupName, groupPreview } from './display';
 import type { ChatGroup } from './api';
@@ -10,9 +10,10 @@ type Props = {
   failed: boolean;
   onSelect: (gid: number) => void;
   onRetry: () => void;
+  footer?: ReactNode;
 };
 
-export default function GroupList({ groups, selectedGid, pending, failed, onSelect, onRetry }: Props) {
+export default function GroupList({ groups, selectedGid, pending, failed, onSelect, onRetry, footer }: Props) {
   const [keyword, setKeyword] = useState('');
   const normalized = keyword.trim().toLowerCase();
   const matches = (group: ChatGroup) => !normalized
@@ -62,6 +63,7 @@ export default function GroupList({ groups, selectedGid, pending, failed, onSele
           );
         })}
       </div>
+      {footer}
     </aside>
   );
 }

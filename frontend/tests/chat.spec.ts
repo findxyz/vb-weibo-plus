@@ -1,4 +1,4 @@
-import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
@@ -36,6 +36,9 @@ let mediaSendStatus: number;
 let attitudesPayload: Record<string, { name?: string; count?: number; selected?: boolean }[]>;
 let attitudesStatus: number;
 let syncStatus: number;
+let loginValid: boolean;
+let qrStatus: number;
+let qrHold: boolean;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -147,6 +150,25 @@ test.beforeAll(async () => {
       const send = () => sendJson(response, groupsStatus, groupsStatus === 200 ? groups : { msg: '本地群聊暂时不可用' });
       if (holdPredicate?.(url)) { held.push({ url, send }); return; }
       send();
+      return;
+    }
+    if (path === '/weibo/login/status') {
+      sendJson(response, 200, { valid: loginValid });
+      return;
+    }
+    if (request.method === 'POST' && path === '/weibo/login/qr') {
+      const send = () => {
+        if (qrStatus === 200) { sendJson(response, 200, {}); return; }
+        sendJson(response, qrStatus, { msg: '扫码登录失败' });
+      };
+      if (qrHold) { held.push({ url, send }); return; }
+      send();
+      return;
+    }
+    if (path === '/weibo/login/qr/image') {
+      response.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
+      response.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">'
+        + '<rect width="180" height="180" fill="#ffffff"/></svg>');
       return;
     }
     if (request.method === 'POST' && (path === '/chat/messages/sendImage' || path === '/chat/messages/sendVideo')) {
@@ -278,12 +300,16 @@ test.beforeEach(({ page }) => {
   attitudesPayload = {};
   attitudesStatus = 200;
   syncStatus = 204;
+  loginValid = true;
+  qrStatus = 200;
+  qrHold = false;
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD'].includes(request.method())) return;
     // 发送与历史采集是业务写操作，单独记录；其他写请求仍由 afterEach 拦截。
     if (request.method() === 'POST' && request.url().includes('/chat/messages/send')) return;
     if (request.method() === 'POST' && request.url().includes('/chat/since')) return;
+    if (request.method() === 'POST' && request.url().includes('/weibo/login/qr')) return;
     writeRequests.push(`${request.method()} ${request.url()}`);
   });
 });
@@ -303,12 +329,14 @@ test('chat_selects_the_saved_group_and_lands_on_the_newest_messages', async ({ p
   await expect(page.locator('.message')).toHaveCount(50);
   await expect(page.locator('.message').last()).toContainText('群二 60');
   await expect.poll(() => atBottom(page)).toBe(true);
-  expect(requests.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=2&size=50']);
+  const polled = requests.filter(value => !value.includes('/weibo/login/status'));
+  expect(polled.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=2&size=50']);
 
-  await page.waitForTimeout(1500);
-  expect(requests.slice(2).every(value => value === 'GET /chat/groups'
+  await page.waitForTimeout(2500);
+  const afterPoll = requests.filter(value => !value.includes('/weibo/login/status'));
+  expect(afterPoll.slice(2).every(value => value === 'GET /chat/groups'
     || value === 'GET /chat/messages/cursor?gid=2&size=50')).toBe(true);
-  expect(requests.length).toBeGreaterThanOrEqual(3);
+  expect(afterPoll.length).toBeGreaterThanOrEqual(3);
 
   await page.reload();
   await expect(page.locator('.message').last()).toContainText('群二 60');
@@ -410,7 +438,8 @@ test('chat_explains_an_empty_group_without_loading_earlier_pages', async ({ page
 
   await expect(page.locator('.message')).toHaveCount(0);
   await expect(page.getByRole('status')).toHaveText('这个群还没有本地消息。');
-  expect(requests.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=1&size=50']);
+  const polled = requests.filter(value => !value.includes('/weibo/login/status'));
+  expect(polled.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=1&size=50']);
 });
 
 test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ page }) => {
@@ -423,8 +452,9 @@ test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ p
   await expect(page.getByRole('button', { name: '😊 表情' })).toBeDisabled();
   await expect(page.getByRole('button', { name: /图片/ })).toBeDisabled();
   await expect(page.getByRole('button', { name: /视频/ })).toBeDisabled();
-  expect(requests.length).toBeGreaterThanOrEqual(1);
-  expect(requests.every(value => value === 'GET /chat/groups')).toBe(true);
+  const groupRequests = requests.filter(value => !value.includes('/weibo/login/status'));
+  expect(groupRequests.length).toBeGreaterThanOrEqual(1);
+  expect(groupRequests.every(value => value === 'GET /chat/groups')).toBe(true);
 });
 
 test('chat_plays_video_in_place_without_navigation', async ({ page }) => {
@@ -1239,6 +1269,72 @@ test('chat_disables_sync_while_in_flight_and_hides_results', async ({ page }) =>
   releaseHeld();
   await expect(dialog.locator('.history-empty')).toHaveText('已开始同步更早的历史消息，稍后请手动刷新查看。');
   await expect(dialog.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
+});
+
+test('chat_shows_login_expired_and_pauses_polling', async ({ page }) => {
+  loginValid = false;
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+
+  const panel = page.locator('.login-expired');
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('.panel-state').first()).toHaveText('登录已失效');
+  await expect(panel.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
+  await expect(page.locator('.message')).toHaveCount(3);
+
+  await page.waitForTimeout(300);
+  const cursorCount = requests.filter(value => value.includes('/chat/messages/cursor')).length;
+  const groupsCount = requests.filter(value => value === 'GET /chat/groups').length;
+  await page.waitForTimeout(1400);
+  expect(requests.filter(value => value.includes('/chat/messages/cursor')).length).toBe(cursorCount);
+  expect(requests.filter(value => value === 'GET /chat/groups').length).toBe(groupsCount);
+});
+
+test('chat_scans_qr_and_reinitializes', async ({ page }) => {
+  loginValid = false;
+  qrHold = true;
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await expect(page.locator('.login-expired')).toBeVisible();
+
+  await page.getByRole('button', { name: '📱 扫码登录' }).click();
+  await expect.poll(() => held.length).toBe(1);
+  const button = page.locator('.login-expired button');
+  await expect(button).toBeDisabled();
+  await expect(button).toHaveText('📱 扫码中…');
+
+  await expect(page.locator('.login-expired img')).toBeVisible({ timeout: 6000 });
+  const groupsBefore = requests.filter(value => value === 'GET /chat/groups').length;
+  loginValid = true;
+  releaseHeld();
+  await expect(page.locator('.login-expired')).toHaveCount(0);
+  await expect.poll(() => requests.filter(value => value === 'GET /chat/groups').length).toBeGreaterThan(groupsBefore);
+  await expect(page.locator('.message')).toHaveCount(3);
+
+  const cursorBefore = requests.filter(value => value.includes('/chat/messages/cursor')).length;
+  await page.waitForTimeout(1500);
+  expect(requests.filter(value => value.includes('/chat/messages/cursor')).length).toBeGreaterThan(cursorBefore);
+});
+
+test('chat_reports_qr_login_failure_and_restores_the_button', async ({ page }) => {
+  loginValid = false;
+  qrStatus = 500;
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+
+  const panel = page.locator('.login-expired');
+  await expect(panel).toBeVisible();
+  await panel.getByRole('button', { name: '📱 扫码登录' }).click();
+  await expect(panel.locator('.panel-state').nth(1)).toHaveText('扫码登录失败，请重新扫码。');
+  await expect(panel.getByRole('button', { name: '📱 扫码登录' })).toBeEnabled();
+  await expect(panel.locator('.qr-loading')).toHaveText('暂无二维码');
+});
+
+test('chat_does_not_show_login_panel_when_valid', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await expect(page.locator('.message')).toHaveCount(3);
+  await expect(page.locator('.login-expired')).toHaveCount(0);
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
