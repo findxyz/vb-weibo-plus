@@ -29,6 +29,8 @@ let searchPosts: PostList;
 let searchStatus = 200;
 let holdSearch = false;
 let releaseSearch: (() => void) | undefined;
+let loginPayload: unknown;
+let loginStatus = 200;
 
 function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
   return { pid, thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720,
@@ -49,6 +51,11 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/weibo/login/status') {
+      response.writeHead(loginStatus, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify(loginPayload));
+      return;
+    }
     if (path === '/post/list' && url.searchParams.has('keyword')) {
       const payload = JSON.stringify(searchStatus === 200 ? searchPosts : { msg: '本地搜索暂时不可用' });
       const send = () => {
@@ -140,6 +147,8 @@ test.beforeEach(({ page }) => {
   searchStatus = 200;
   holdSearch = false;
   releaseSearch = undefined;
+  loginPayload = { valid: true };
+  loginStatus = 200;
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('request', (request) => {
     if (!['GET', 'HEAD'].includes(request.method())) writeRequests.push(`${request.method()} ${request.url()}`);
@@ -185,6 +194,206 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
+
+test('post_login_detects_invalid_status_without_hiding_local_reading_and_starts_only_on_click', async ({ page }) => {
+  loginPayload = { valid: false };
+  await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: { msg: '本地扫码失败' } }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  expect(requests.filter(value => value.includes('/weibo/login/status'))).toHaveLength(1);
+  expect(writeRequests).toHaveLength(0);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect(page.locator('.login-expired')).toContainText('扫码登录失败，请重新扫码。');
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
+  await expect(page.locator('.qr-loading')).toHaveText('暂无二维码');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('post_login_requires_strict_true_but_status_failure_stays_quiet', async ({ page }) => {
+  for (const payload of [{}, null, { valid: 'true' }, { valid: 1 }]) {
+    loginPayload = payload;
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+    await expect(page.locator('.qr-loading')).toHaveCount(0);
+  }
+  loginStatus = 500;
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.locator('.login-expired')).toHaveCount(0);
+});
+
+for (const path of ['/post/bloggers', '/post/calendar', '/post/list']) {
+  test(`post_login_reading_401_recovers_only_failed_active_query_${path.split('/').at(-1)}`, async ({ page }) => {
+    if (path === '/post/bloggers') status = 401;
+    if (path === '/post/calendar') calendarStatus = 401;
+    if (path === '/post/list') listStatus = 401;
+    await page.route('**/weibo/login/qr', async route => {
+      status = calendarStatus = listStatus = 200;
+      await route.fulfill({ json: {} });
+    });
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+    await expect(page.locator('.login-expired')).toHaveCount(0);
+    await expect(page.locator('.post-content')).toContainText('第一行');
+    expect(requests.filter(value => value.includes('/weibo/login/status'))).toHaveLength(2);
+    expect(writeRequests).toHaveLength(1);
+    writeRequests = [];
+  });
+}
+
+test('post_login_search_401_closes_modal_keeps_selection_and_failure_does_not_hide_prompt', async ({ page }) => {
+  await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: {} }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
+  searchStatus = 401;
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('失效');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '高级搜索', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
+  await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect(page.locator('.login-expired')).toContainText('扫码登录失败');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('post_login_qr_polling_keeps_last_image_and_stops_on_success', async ({ page }, testInfo) => {
+  await page.clock.install();
+  loginPayload = { valid: false };
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/weibo/login/qr', async route => { await gate; await route.fulfill({ json: {} }); });
+  const images: string[] = [];
+  let broken = false;
+  await page.route('**/weibo/login/qr/image?*', route => {
+    images.push(route.request().url());
+    return route.fulfill({ status: broken ? 404 : 200, contentType: 'image/svg+xml', body: broken ? 'Missing QR' : '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><path d="M0 0h180v180H0z" fill="#2b2620"/></svg>' });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect(page.getByRole('button', { name: '扫码中…', exact: true })).toBeDisabled();
+  await page.clock.runFor(2900);
+  expect(images).toHaveLength(0);
+  await page.clock.runFor(200);
+  await expect(page.getByAltText('扫码登录二维码')).toBeVisible();
+  const first = await page.getByAltText('扫码登录二维码').getAttribute('src');
+  const firstCount = images.length;
+  broken = true;
+  await page.clock.runFor(7000);
+  await expect.poll(() => images.length).toBeGreaterThan(firstCount);
+  await expect(page.getByAltText('扫码登录二维码')).toHaveAttribute('src', first!);
+  await page.screenshot({ path: testInfo.outputPath('post-qr.png') });
+  loginPayload = { valid: true };
+  finish();
+  await expect(page.locator('.login-expired')).toHaveCount(0);
+  const stopped = images.length;
+  await page.clock.runFor(30000);
+  expect(images).toHaveLength(stopped);
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('post_login_qr_first_image_failure_timeout_and_explicit_retry', async ({ page }) => {
+  await page.clock.install();
+  loginPayload = { valid: false };
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  let attempts = 0;
+  await page.route('**/weibo/login/qr', async route => { attempts++; if (attempts === 1) await gate; await route.fulfill({ status: 500, json: {} }).catch(() => {}); });
+  await page.route('**/weibo/login/qr/image?*', route => route.fulfill({ status: 204 }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect.poll(() => attempts).toBe(1);
+  await page.clock.runFor(3100);
+  await expect(page.locator('.qr-loading')).toHaveText('二维码加载重试…');
+  await page.clock.runFor(358000);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
+  await expect(page.locator('.qr-loading')).toHaveText('暂无二维码');
+  await expect(page.locator('.login-expired')).toContainText('扫码登录失败');
+  expect(attempts).toBe(1);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect.poll(() => attempts).toBe(2);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
+  finish();
+  expect(writeRequests).toHaveLength(2);
+  writeRequests = [];
+});
+
+test('post_login_unmount_stops_polling_and_late_status_cannot_hide_pending_qr', async ({ page }) => {
+  await page.clock.install();
+  listStatus = 401;
+  let releaseStatus!: () => void;
+  const statusGate = new Promise<void>(resolve => { releaseStatus = resolve; });
+  await page.route('**/weibo/login/status', async route => { await statusGate; await route.fulfill({ json: { valid: true } }).catch(() => {}); });
+  let releaseQr!: () => void;
+  const qrGate = new Promise<void>(resolve => { releaseQr = resolve; });
+  await page.route('**/weibo/login/qr', async route => { await qrGate; await route.fulfill({ json: {} }).catch(() => {}); });
+  const images: string[] = [];
+  await page.route('**/weibo/login/qr/image?*', route => { images.push(route.request().url()); return route.fulfill({ status: 204 }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect(page.getByRole('button', { name: '扫码中…', exact: true })).toBeDisabled();
+  releaseStatus();
+  await page.clock.runFor(3100);
+  await expect(page.locator('.qr-loading')).toHaveText('二维码加载重试…');
+  await expect(page.getByRole('button', { name: '扫码中…', exact: true })).toBeDisabled();
+  await page.goto('about:blank');
+  const count = images.length;
+  await page.clock.runFor(30000);
+  expect(images).toHaveLength(count);
+  releaseQr();
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('post_login_late_valid_status_does_not_clear_a_new_reading_401', async ({ page }) => {
+  listStatus = 401;
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  await page.route('**/weibo/login/status', async route => { await gate; await route.fulfill({ json: { valid: true } }); });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  const response = page.waitForResponse('**/weibo/login/status');
+  finish();
+  await response;
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+});
+
+test('post_login_completed_qr_does_not_poll_while_failed_reading_is_recovering', async ({ page }) => {
+  await page.clock.install();
+  loginPayload = { valid: false };
+  listStatus = 401;
+  const images: string[] = [];
+  await page.route('**/weibo/login/qr/image?*', route => { images.push(route.request().url()); return route.fulfill({ status: 204 }); });
+  await page.route('**/weibo/login/qr', route => {
+    listStatus = 200;
+    holdPath = '/post/list';
+    holdResponse = true;
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  await page.clock.runFor(3100);
+  expect(images).toHaveLength(0);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
+  holdResponse = false;
+  releaseResponse!();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
 
 test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_card', async ({ page }) => {
   calendar.months.push(
@@ -654,7 +863,7 @@ test('blogger_name_filter_applies_to_late_data_without_restarting_queries', asyn
   const search = page.getByRole('searchbox', { name: '搜索博主' });
   await search.fill('第二');
   await expect(page.getByRole('status')).toHaveText('正在加载博主……');
-  expect(requests).toEqual(['GET /post/bloggers']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers']);
   await expect.poll(() => Boolean(releaseResponse)).toBe(true);
   holdResponse = false;
   releaseResponse!();
@@ -1521,7 +1730,7 @@ test('retweet_text_keeps_outer_comment_and_reads_original_author_and_safe_links'
   await expect(original.locator('.post-retweet-content')).toHaveCSS('white-space', 'pre-wrap');
   await expect(original.locator('.post-retweet-content')).toHaveCSS('font-size', '17px');
   await expect(page.locator('.date-item[aria-label=\"2026-08-05\"]')).toHaveAttribute('aria-pressed', 'true');
-  expect(requests.map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status').map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
   await page.screenshot({ path: testInfo.outputPath('retweet-reading.png') });
 });
 
@@ -1829,7 +2038,7 @@ test('calendar_empty_and_day_empty_are_distinct_reading_states', async ({ page }
   calendar = { months: [] };
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('status')).toHaveText('暂无有博文的日期。');
-  expect(requests).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
   calendar = { months: [{ month: '2026-08', count: 1, days: [{ date: '2026-08-05', count: 1 }] }] };
   posts.items = [];
   posts.total = 0;
@@ -1844,7 +2053,7 @@ test('calendar_error_retains_loaded_bloggers_and_backend_message', async ({ page
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('alert')).toHaveText('日期加载失败，请刷新页面重试。（本地读取暂时不可用）');
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
-  expect(requests).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
 });
 
 test('list_retry_only_recovers_list_and_keeps_blogger_and_date_regions', async ({ page }) => {
@@ -1934,7 +2143,7 @@ test('post_displays_names_from_proxied_query', async ({ page }, testInfo) => {
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
-  expect(requests.map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status').map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
   await page.screenshot({ path: testInfo.outputPath('post.png') });
 });
 
@@ -1943,7 +2152,7 @@ test('post_explains_empty_blogger_list', async ({ page }) => {
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('status')).toHaveText('暂无博主。');
   await expect(page.getByRole('listitem')).toHaveCount(0);
-  expect(requests).toEqual(['GET /post/bloggers']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers']);
 });
 
 test('post_announces_query_failure', async ({ page }) => {
@@ -1951,7 +2160,7 @@ test('post_announces_query_failure', async ({ page }) => {
   await page.goto(`${baseUrl}preview/post/index.html`);
   await expect(page.getByRole('alert')).toHaveText('博主加载失败，请刷新页面重试。（HTTP 503）');
   await expect(page.getByRole('status')).toHaveCount(0);
-  expect(requests).toEqual(['GET /post/bloggers']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers']);
 });
 
 test('chat_entry_refreshes_with_its_own_skin_without_business_requests', async ({ page }, testInfo) => {
@@ -1960,7 +2169,7 @@ test('chat_entry_refreshes_with_its_own_skin_without_business_requests', async (
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(185, 216, 242)');
   await page.reload();
   await expect(page.getByRole('heading', { name: '微博群聊预览' })).toBeVisible();
-  expect(requests).toEqual([]);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('chat.png') });
 });
 
@@ -1973,7 +2182,7 @@ test('post_entry_refreshes_with_paper_skin', async ({ page }) => {
   await page.reload();
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
-  expect(requests.map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list', 'GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status').map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list', 'GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
 });
 
 test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ request }) => {
@@ -2004,7 +2213,7 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
   const avatar = await request.get(`${baseUrl}chat/image?${avatarQuery}`);
   expect(avatar.status()).toBe(200);
   expect(avatar.headers()['content-type']).toBe('image/svg+xml');
-  expect(requests).toEqual(['GET /post/bloggers?probe=1', 'GET /post/image?mblogId=local-1&pid=probe&variant=thumbnail', 'GET /post/video-cover?mblogId=local-1&retweeted=true', `GET /chat/image?${avatarQuery}`]);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers?probe=1', 'GET /post/image?mblogId=local-1&pid=probe&variant=thumbnail', 'GET /post/video-cover?mblogId=local-1&retweeted=true', `GET /chat/image?${avatarQuery}`]);
 });
 
 test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }) => {

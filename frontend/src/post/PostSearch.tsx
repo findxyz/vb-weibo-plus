@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { formatDate, isDateRangeValid, shanghaiToday } from '../../../src/main/resources/static/shared/date.js';
-import { usePostSearch, type Post, type SearchRequest } from './queries';
+import { isUnauthorized, usePostSearch, type Post, type SearchRequest } from './queries';
 
 function SearchSnippet({ post, keyword }: { post: Post; keyword: string }) {
   const text = (post.contentRaw || new DOMParser().parseFromString(post.content || '', 'text/html').body.textContent || '').trim();
@@ -11,7 +11,7 @@ function SearchSnippet({ post, keyword }: { post: Post; keyword: string }) {
   return <>{start > 0 && '…'}{text.slice(start, index)}<mark>{text.slice(index, index + keyword.length)}</mark>{text.slice(index + keyword.length, end)}{end < text.length && '…'}</>;
 }
 
-export default function PostSearch({ uid, scopeLabel, onClose, onSelectPost }: { uid: number | null; scopeLabel: string; onClose: () => void; onSelectPost: (post: Post) => void }) {
+export default function PostSearch({ uid, scopeLabel, onClose, onSelectPost, onUnauthorized }: { uid: number | null; scopeLabel: string; onClose: () => void; onSelectPost: (post: Post) => void; onUnauthorized: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const keywordRef = useRef<HTMLInputElement>(null);
   const [keyword, setKeyword] = useState('');
@@ -20,6 +20,9 @@ export default function PostSearch({ uid, scopeLabel, onClose, onSelectPost }: {
   const [validation, setValidation] = useState('');
   const [request, setRequest] = useState<SearchRequest | null>(null);
   const search = usePostSearch(uid, request);
+  useEffect(() => {
+    if (isUnauthorized(search.error)) { onUnauthorized(); dialogRef.current?.close(); }
+  }, [search.error, onUnauthorized]);
   useEffect(() => {
     const dialog = dialogRef.current!;
     dialog.showModal();
