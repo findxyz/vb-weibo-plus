@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { epochToShanghaiDate, toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
 
 export type Blogger = { uid: number; screenName: string; avatar?: string | null; verified?: boolean };
@@ -64,6 +64,7 @@ export function usePostSearch(uid: number | null, request: SearchRequest | null)
 // https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries
 // https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation
 export function useDefaultReading() {
+  const readingVersion = useRef(0);
   const [selection, setSelection] = useState<{ uid: number | null; visit: number }>({ uid: null, visit: 0 });
   const [selectedDate, setSelectedDate] = useState<{ visit: number; value: string; jump?: { mblogId: string; version: number } }>();
   const bloggers = useQuery({ queryKey: ['post', 'bloggers'], queryFn: ({ signal }) => getJson<Blogger[]>('/post/bloggers', signal) });
@@ -87,15 +88,18 @@ export function useDefaultReading() {
   });
   function selectDate(nextDate: string) {
     if (posts.isFetching) return;
+    readingVersion.current++;
     if (nextDate === date && !jump) void posts.refetch();
     else setSelectedDate({ visit: selection.visit, value: nextDate });
   }
   function jumpToPost(post: Post) {
+    readingVersion.current++;
     setSelectedDate(previous => ({ visit: selection.visit, value: epochToShanghaiDate(post.createdAt),
       jump: { mblogId: post.mblogId, version: (previous?.jump?.version ?? 0) + 1 } }));
   }
   function selectBlogger(uid: number | null) {
+    readingVersion.current++;
     setSelection(previous => ({ uid, visit: previous.visit + 1 }));
   }
-  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost };
+  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion };
 }

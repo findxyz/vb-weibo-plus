@@ -368,6 +368,55 @@ test('add_blogger_later_scope_selection_wins_while_list_refresh_is_pending', asy
   expect(writeRequests).toHaveLength(1); writeRequests = [];
 });
 
+for (const navigation of ['date', 'search']) {
+  test(`add_blogger_preserves_later_${navigation}_navigation_during_list_refresh`, async ({ page }) => {
+    calendar.months[0].days.push({ date: '2026-08-04', count: 1 });
+    searchPosts = { ...posts, total: 1, items: [{ ...posts.items[0], createdAt: Date.parse('2026-08-04T00:00:00Z') }] };
+    await page.route('**/post/bloggers?uid=*', route => {
+      bloggers.push({ uid: 1234, screenName: '添加后博主' });
+      holdPath = '/post/bloggers'; holdResponse = true;
+      return route.fulfill({ json: {} });
+    });
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect(page.locator('.post-content')).toContainText('第一行');
+    await page.getByRole('button', { name: '添加博主', exact: true }).click();
+    await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
+    await page.getByRole('button', { name: '添加', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+    if (navigation === 'date') await page.getByRole('button', { name: '2026-08-04', exact: true }).click();
+    else {
+      await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+      await page.getByLabel('关键词', { exact: true }).fill('第一');
+      await page.getByRole('button', { name: '搜索', exact: true }).click();
+      await page.locator('.search-result').click();
+    }
+    await expect(page.getByRole('button', { name: '2026-08-04', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    holdResponse = false; releaseResponse!();
+    await expect(page.getByRole('button', { name: '添加后博主', exact: true })).toBeVisible();
+    await expect(page.locator('.feed-header h2')).toHaveText('全部微博');
+    await expect(page.getByRole('button', { name: '2026-08-04', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    expect(writeRequests).toHaveLength(1); writeRequests = [];
+  });
+}
+
+test('add_blogger_preserves_submitted_leading_zeros_and_selects_canonical_uid', async ({ page }) => {
+  let submitted = '';
+  await page.route('**/post/bloggers?uid=*', route => {
+    submitted = new URL(route.request().url()).searchParams.get('uid')!;
+    bloggers.push({ uid: 1234, screenName: '规范 UID 博主' });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('00001234');
+  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('规范 UID 博主的微博');
+  expect(submitted).toBe('00001234');
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
 test('post_login_detects_invalid_status_without_hiding_local_reading_and_starts_only_on_click', async ({ page }) => {
   loginPayload = { valid: false };
   await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: { msg: '本地扫码失败' } }));

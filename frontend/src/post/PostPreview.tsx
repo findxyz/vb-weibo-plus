@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { isUnauthorized, useDefaultReading, type Blogger } from './queries';
 import { usePostLogin } from './usePostLogin';
 import PostLogin from './PostLogin';
@@ -24,14 +24,12 @@ function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
 export default function PostPreview() {
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost } = useDefaultReading();
+  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion } = useDefaultReading();
   const login = usePostLogin();
-  const selectionRef = useRef(selection);
-  selectionRef.current = selection;
   async function bloggerAdded(uid: string, select: boolean) {
-    const visit = selection.visit;
+    const version = readingVersion.current;
     const refreshed = await bloggers.refetch();
-    if (select && selectionRef.current.visit === visit && refreshed.isSuccess && refreshed.data.some(blogger => String(blogger.uid) === uid)) selectBlogger(Number(uid));
+    if (select && readingVersion.current === version && refreshed.isSuccess && refreshed.data.some(blogger => blogger.uid === Number(uid))) selectBlogger(Number(uid));
   }
   useEffect(() => {
     if ([bloggers.error, calendar.error, posts.error].some(isUnauthorized)) login.expire();
