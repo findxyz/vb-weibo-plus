@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import Avatar from './Avatar';
 import AnalysisDialog from './AnalysisDialog';
-import { CelebrationPopover, CelebrationRoster, type CelebrationDraft } from './CelebrationPanel';
 import Composer from './Composer';
 import GroupList from './GroupList';
 import HistoryDialog from './HistoryDialog';
 import MessageList from './MessageList';
-import { fetchGroups, fetchLoginStatus, startQrLogin as requestQrLogin, type ChatMessage } from './api';
-import { createCelebration, type CelebrationController, type CelebrationMember } from './celebration';
+import { fetchGroups, fetchLoginStatus, startQrLogin as requestQrLogin } from './api';
 import { groupMemberCount, groupName } from './display';
 
 export default function ChatPage() {
@@ -51,36 +49,6 @@ export default function ChatPage() {
   const qrControllerRef = useRef<AbortController | null>(null);
   const statusControllerRef = useRef<AbortController | null>(null);
   const checkStatusRef = useRef<() => void>(() => {});
-  const stageRef = useRef<HTMLDivElement>(null);
-  const celebrationRef = useRef<CelebrationController | null>(null);
-  const selectedGidRef = useRef<number | null>(null);
-  const messagesRef = useRef<ChatMessage[]>([]);
-  const [celebrationVersion, setCelebrationVersion] = useState(0);
-  const [celebrationDraft, setCelebrationDraft] = useState<CelebrationDraft | null>(null);
-
-  useEffect(() => {
-    selectedGidRef.current = selectedGid;
-  }, [selectedGid]);
-
-  useEffect(() => {
-    if (!stageRef.current) return;
-    celebrationRef.current = createCelebration(
-      stageRef.current,
-      () => selectedGidRef.current,
-      () => messagesRef.current,
-    );
-    setCelebrationVersion(value => value + 1);
-    const controller = celebrationRef.current;
-    return () => {
-      controller?.cancel();
-      celebrationRef.current = null;
-    };
-  }, []);
-
-  const celebrationMembers = useMemo(() => {
-    if (selectedGid == null || !celebrationRef.current) return [];
-    return celebrationRef.current.members(selectedGid);
-  }, [selectedGid, celebrationVersion]);
 
   // 登录检测：进入页面一次，之后每 180 秒一次；扫码中或页面隐藏时跳过。
   useEffect(() => {
@@ -143,30 +111,10 @@ export default function ChatPage() {
 
   // 重复点击当前群也重新载入并落底，与旧页「选群即重新打开」一致。
   function selectGroup(gid: number) {
-    celebrationRef.current?.cancel();
-    setCelebrationDraft(null);
     setHistoryOpen(false);
     setAnalysisOpen(false);
     setSelectedGid(gid);
     setReloadToken(token => token + 1);
-  }
-
-  function setCelebrationMember(senderId: number, name: string, avatar: string, interval: number | null) {
-    const gid = selectedGidRef.current;
-    if (gid == null) return;
-    celebrationRef.current?.setMember(gid, senderId, interval == null ? null : { name, avatar, interval });
-    setCelebrationVersion(value => value + 1);
-  }
-
-  function openCelebration(senderId: number, name: string, avatar: string, anchor: HTMLElement) {
-    const gid = selectedGidRef.current;
-    if (gid == null) return;
-    const member = celebrationRef.current?.entry(gid, senderId);
-    setCelebrationDraft({
-      senderId, name, avatar, anchor,
-      interval: member?.interval ?? 30,
-      member: Boolean(member),
-    });
   }
 
   const memberMeta = selectedGroup ? groupMemberCount(selectedGroup) : '';
@@ -276,9 +224,6 @@ export default function ChatPage() {
                     </>
                   )}
                 </p>
-                <CelebrationRoster members={celebrationMembers}
-                  onOpen={(member, anchor) => openCelebration(member.senderId, member.name, member.avatar, anchor)}
-                  onRemove={member => setCelebrationMember(member.senderId, member.name, member.avatar, null)} />
               </div>
             </header>
           ) : (
@@ -294,21 +239,10 @@ export default function ChatPage() {
                 admins={selectedGroup.admins ?? []}
                 refreshToken={refreshToken}
                 pollingEnabled={!loginExpired}
-                onLoaded={messages => {
-                  const gid = selectedGidRef.current;
-                  if (gid != null) celebrationRef.current?.seed(gid, messages);
-                }}
-                onArrivals={messages => {
-                  const gid = selectedGidRef.current;
-                  if (gid != null) celebrationRef.current?.process(gid, messages);
-                }}
-                onMessages={messages => { messagesRef.current = messages; }}
-                onSenderClick={openCelebration}
               />
             ) : (
               <p className="messages-state">{groupsQuery.isPending ? '正在加载群聊……' : '暂无群聊。'}</p>
             )}
-            <div className="celebration-stage" ref={stageRef} />
           </div>
           <Composer gid={selectedGroup?.gid ?? null} onSent={() => setRefreshToken(value => value + 1)}
             onOpenHistory={() => setHistoryOpen(true)}
@@ -319,21 +253,6 @@ export default function ChatPage() {
         onClose={() => setHistoryOpen(false)} />
       <AnalysisDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={analysisOpen}
         onClose={() => setAnalysisOpen(false)} />
-      {celebrationDraft && (
-        <CelebrationPopover draft={celebrationDraft}
-          onClose={() => setCelebrationDraft(null)}
-          onSave={interval => {
-            setCelebrationMember(celebrationDraft.senderId, celebrationDraft.name, celebrationDraft.avatar, interval);
-            setCelebrationDraft(null);
-          }}
-          onInterval={interval => {
-            setCelebrationMember(celebrationDraft.senderId, celebrationDraft.name, celebrationDraft.avatar, interval);
-          }}
-          onRemove={() => {
-            setCelebrationMember(celebrationDraft.senderId, celebrationDraft.name, celebrationDraft.avatar, null);
-            setCelebrationDraft(null);
-          }} />
-      )}
     </div>
   );
 }

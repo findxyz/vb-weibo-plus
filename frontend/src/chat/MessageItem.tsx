@@ -45,7 +45,6 @@ type Props = {
   isAdmin: boolean;
   onOpenImage: (url: string) => void;
   highlighted?: boolean;
-  onSenderClick?: (senderId: number, senderName: string, senderAvatar: string, anchor: HTMLElement) => void;
 };
 
 function attitudeChips(attitudes: Attitude[]) {
@@ -65,7 +64,7 @@ function attitudeChips(attitudes: Attitude[]) {
     });
 }
 
-export default function MessageItem({ message, isAdmin, onOpenImage, highlighted = false, onSenderClick }: Props) {
+export default function MessageItem({ message, isAdmin, onOpenImage, highlighted = false }: Props) {
   const [playing, setPlaying] = useState(false);
   const isSystem = message.senderName?.trim() === SYSTEM_SENDER;
   const hasVideo = Boolean(message.videoUrl) && Boolean(message.previewUrl);
@@ -92,15 +91,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
       />
       <div className="message-content">
         <div className="message-meta">
-          {onSenderClick ? (
-            <>
-              <button type="button" className="message-sender" title="设置回归庆祝"
-                onClick={event => onSenderClick(message.senderId, message.senderName, message.senderAvatar, event.currentTarget)}>
-                {message.senderName?.trim() || '未知成员'}
-              </button>
-              {` · ${timeFormatter.format(new Date(message.createdAt))}`}
-            </>
-          ) : `${message.senderName?.trim() || '未知成员'} · ${timeFormatter.format(new Date(message.createdAt))}`}
+          {`${message.senderName?.trim() || '未知成员'} · ${timeFormatter.format(new Date(message.createdAt))}`}
         </div>
         {messageBody(message, text, hideText)}
         {hasImage && (

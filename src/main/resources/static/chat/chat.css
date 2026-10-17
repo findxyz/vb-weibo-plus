@@ -139,12 +139,11 @@ textarea:disabled {
   background: var(--surface);
 }
 
-/* 五处标题栏（主窗、三个对话框、两个弹层）共用同一套玻璃渐变，只声明一次 */
+/* 标题栏（主窗、三个对话框、一个弹层）共用同一套玻璃渐变，只声明一次。 */
 .titlebar,
 .history-titlebar,
 .analysis-titlebar,
 .dream-titlebar,
-.celebration-popover-titlebar,
 .dream-popover-titlebar {
   min-width: 0;
   display: flex;
@@ -164,7 +163,6 @@ textarea:disabled {
 .history-titlebar,
 .analysis-titlebar,
 .dream-titlebar,
-.celebration-popover-titlebar,
 .dream-popover-titlebar {
   padding: 0 8px 0 10px;
 }
@@ -352,8 +350,7 @@ h1 {
 
 .group-avatar img,
 .main-group-avatar img,
-.message-avatar img,
-.celebration-chip-avatar img {
+.message-avatar img {
   display: block;
   width: 100%;
   height: 100%;
@@ -474,7 +471,6 @@ h1 {
 .analysis-detail-toolbar button,
 .panel-feedback button,
 .login-expired button,
-.celebration-popover-body button,
 .dream-popover-body button {
   min-height: 32px;
   padding: 0 14px;
@@ -1084,7 +1080,6 @@ h1 {
 .history-titlebar h2,
 .analysis-titlebar h2,
 .dream-titlebar h2,
-.celebration-popover-titlebar h2,
 .dream-popover-titlebar h2 {
   min-width: 0;
   margin: 0;
@@ -1099,7 +1094,6 @@ h1 {
 .history-title-icon,
 .analysis-title-icon,
 .dream-title-icon,
-.celebration-popover-icon,
 .dream-popover-icon {
   flex: none;
   filter: drop-shadow(0 1px 1px var(--titlebar-text-shadow));
@@ -1109,7 +1103,6 @@ h1 {
 .history-titlebar button,
 .analysis-titlebar button,
 .dream-titlebar button,
-.celebration-popover-titlebar button,
 .dream-popover-titlebar button {
   width: 28px;
   height: 26px;
@@ -1128,7 +1121,6 @@ h1 {
 .history-titlebar button::before,
 .analysis-titlebar button::before,
 .dream-titlebar button::before,
-.celebration-popover-titlebar button::before,
 .dream-popover-titlebar button::before {
   content: "";
   display: block;
@@ -1141,7 +1133,6 @@ h1 {
 .history-titlebar button:hover,
 .analysis-titlebar button:hover,
 .dream-titlebar button:hover,
-.celebration-popover-titlebar button:hover,
 .dream-popover-titlebar button:hover {
   filter: brightness(1.08);
 }
@@ -1419,7 +1410,7 @@ h1 {
   *::before,
   *::after {
     scroll-behavior: auto !important;
-    /* 无限闪烁（panel-state）等 CSS 动画一并停掉；celebration 的 JS 驱动动画另行跳过 */
+    /* 无限闪烁（panel-state）等 CSS 动画一并停掉。 */
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -1599,317 +1590,6 @@ h1 {
   word-break: break-word;
 }
 
-/* ---------- 回归庆祝 ---------- */
-
-.message-sender {
-  border: none;
-  background: none;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.message-sender:hover {
-  color: var(--accent-strong);
-  text-decoration: underline;
-}
-
-.celebration-roster {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.celebration-roster[hidden] {
-  display: none;
-}
-
-.celebration-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px 2px 2px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  font-size: 12px;
-}
-
-.celebration-chip-avatar {
-  overflow: hidden;
-  width: 18px;
-  height: 18px;
-  border: none;
-  border-radius: 50%;
-  font-size: 10px;
-}
-
-.celebration-chip-name {
-  border: none;
-  background: none;
-  padding: 0 2px;
-  color: var(--text);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.celebration-chip-name:hover {
-  color: var(--accent-strong);
-  text-decoration: underline;
-}
-
-.celebration-chip-remove {
-  border: none;
-  background: none;
-  padding: 0 4px;
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.celebration-chip-remove:hover {
-  color: var(--danger);
-}
-
-.celebration-stage {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.celebration {
-  position: absolute;
-  top: 0;
-  left: 0;
-  will-change: transform;
-}
-
-.celebration-actor {
-  position: relative;
-  pointer-events: auto;
-  border: none;
-  background: none;
-  padding: 4px;
-  cursor: pointer;
-}
-
-/* 成员卡片：头像被水泡罩住，停在舞台中上部 */
-.celebration-member {
-  position: absolute;
-  z-index: 2;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-/* 成员整体上下微微浮动，像被泡泡托着漂 */
-.celebration-member-figure {
-  position: relative;
-  animation: celebration-bob 3s ease-in-out infinite;
-}
-
-@keyframes celebration-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
-}
-
-.celebration-member-avatar {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  width: 54px;
-  height: 54px;
-  border: 2px solid rgb(255 255 255 / 92%);
-  border-radius: 50%;
-  background: linear-gradient(145deg, var(--avatar-from), var(--avatar-to));
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.celebration-member-avatar img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* 水泡：左上白芯、右下浅蓝的玻璃球体，配双高光与底部微光 */
-.celebration-bubble {
-  position: absolute;
-  inset: -13px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 108%, rgb(255 255 255 / 50%), rgb(255 255 255 / 0%) 34%),
-    radial-gradient(circle at 30% 24%, rgb(255 255 255 / 88%), rgb(255 255 255 / 0%) 40%),
-    radial-gradient(circle at 72% 84%, rgb(8 108 224 / 14%), rgb(8 108 224 / 0%) 46%),
-    radial-gradient(circle at 50% 50%, rgb(223 240 255 / 12%) 56%, rgb(191 224 247 / 42%) 84%, rgb(255 255 255 / 78%) 97%);
-  box-shadow:
-    inset 0 0 12px rgb(255 255 255 / 65%),
-    inset -7px -9px 14px rgb(111 159 201 / 30%),
-    0 6px 16px rgb(8 108 224 / 18%);
-  animation: celebration-float 2.8s ease-in-out infinite;
-}
-
-.celebration-bubble::before {
-  content: "";
-  position: absolute;
-  left: 14px;
-  top: 9px;
-  width: 22px;
-  height: 13px;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 92%);
-  transform: rotate(-32deg);
-}
-
-.celebration-bubble::after {
-  content: "";
-  position: absolute;
-  right: 12px;
-  bottom: 11px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 80%);
-}
-
-@keyframes celebration-float {
-  0%, 100% { transform: translateY(0) scale(1, 1); }
-  50% { transform: translateY(-4px) scale(1.01, 0.99); }
-}
-
-/* 被轻戳时整颗泡泡果冻式晃动 */
-.celebration-member.is-poked .celebration-bubble {
-  animation: celebration-jelly 0.8s ease-in-out;
-}
-
-@keyframes celebration-jelly {
-  0%, 100% { transform: scale(1, 1); }
-  22% { transform: scale(1.09, 0.91) rotate(-3deg); }
-  52% { transform: scale(0.93, 1.07) rotate(2deg); }
-  78% { transform: scale(1.05, 0.96); }
-}
-
-/* 破裂：先胀一下再散掉 */
-.celebration-member.is-popped .celebration-bubble {
-  animation: celebration-pop 0.3s ease-out forwards;
-}
-
-@keyframes celebration-pop {
-  0% { opacity: 1; transform: scale(1); }
-  45% { opacity: 1; transform: scale(1.16); }
-  100% { opacity: 0; transform: scale(1.32); }
-}
-
-.celebration-ring {
-  position: absolute;
-  inset: -13px;
-  border: 2px solid rgb(255 255 255 / 85%);
-  border-radius: 50%;
-  pointer-events: none;
-  animation: celebration-ring 0.45s ease-out forwards;
-}
-
-@keyframes celebration-ring {
-  from { opacity: 0.9; transform: scale(0.72); }
-  to { opacity: 0; transform: scale(1.5); }
-}
-
-.celebration-drop {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  margin: -4px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 30%, #ffffff, #9fd2f0 72%);
-  pointer-events: none;
-}
-
-.celebration-member.is-popped .celebration-member-avatar {
-  animation: celebration-awake 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes celebration-awake {
-  0% { transform: scale(0.88); }
-  55% { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-
-/* 怪兽台词：悬在怪兽头顶的药丸气泡，带指向头顶的小尾巴 */
-.celebration-speech {
-  position: absolute;
-  bottom: calc(100% - 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 11px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 12px;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgb(16 24 32 / 15%);
-}
-
-.celebration-speech::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 8px;
-  height: 8px;
-  border-right: 1px solid var(--border-strong);
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--surface);
-  transform: translateX(-50%) rotate(45deg);
-}
-
-.celebration-monster {
-  display: block;
-  width: 220px;
-  height: 220px;
-}
-
-/* 轻戳水泡：朝泡泡方向探身两下；flip 时镜像探向另一侧 */
-.celebration-actor.is-poking .celebration-monster {
-  animation: celebration-poke 0.8s ease-in-out;
-  transform-origin: 50% 100%;
-}
-
-.celebration-actor.is-poking.flip .celebration-monster {
-  animation-name: celebration-poke-flip;
-}
-
-@keyframes celebration-poke {
-  0%, 100% { transform: translate(0, 0) rotate(0); }
-  20% { transform: translate(9px, -16px) rotate(8deg); }
-  34% { transform: translate(3px, -3px) rotate(2deg); }
-  54% { transform: translate(10px, -17px) rotate(9deg); }
-  74% { transform: translate(2px, 0) rotate(0); }
-}
-
-@keyframes celebration-poke-flip {
-  0%, 100% { transform: translate(0, 0) rotate(0); }
-  20% { transform: translate(-9px, -16px) rotate(-8deg); }
-  34% { transform: translate(-3px, -3px) rotate(-2deg); }
-  54% { transform: translate(-10px, -17px) rotate(-9deg); }
-  74% { transform: translate(-2px, 0) rotate(0); }
-}
-
-.celebration-popover-join[hidden] {
-  display: none;
-}
-
-.celebration-popover,
 .dream-popover {
   position: fixed;
   z-index: 1000;
@@ -1925,47 +1605,14 @@ h1 {
   overflow: hidden;
 }
 
-.celebration-popover[hidden],
 .dream-popover[hidden] {
   display: none;
 }
 
-.celebration-popover-body,
 .dream-popover-body {
   display: grid;
   gap: 10px;
   padding: 12px;
-}
-
-.celebration-popover-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.celebration-popover-row input {
-  width: 76px;
-  height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--search-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.celebration-popover-hint {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.celebration-popover-remove {
-  color: var(--danger);
-}
-
-.celebration-popover-remove:hover {
-  border-color: var(--danger);
 }
 
 .dream-dialog {

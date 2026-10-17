@@ -25,8 +25,7 @@ const ATTITUDE_ICONS = {
 export function createMessageView({
   elements: {imageViewer, imageViewerImage, imageViewerState},
   getWeiboEmojiMap,
-  isAdminSender,
-  onSenderClick
+  isAdminSender
 }) {
   function initials(value, fallback) {
     return value?.trim().slice(0, 1) || fallback;
@@ -213,7 +212,7 @@ export function createMessageView({
     appendAttitudes(content, message);
   }
 
-  function messageElement(message, targetMid, onMediaLoad = null, gid = null) {
+  function messageElement(message, targetMid, onMediaLoad = null) {
     const article = document.createElement("article");
     article.className = "message";
     article.dataset.mid = String(message.mid);
@@ -250,18 +249,7 @@ export function createMessageView({
     content.className = "message-content";
     const meta = document.createElement("div");
     meta.className = "message-meta";
-    if (gid && onSenderClick) {
-      const sender = document.createElement("button");
-      sender.type = "button";
-      sender.className = "message-sender";
-      sender.textContent = message.senderName || "未知成员";
-      sender.title = "设置回归庆祝";
-      sender.addEventListener("click", () => onSenderClick(
-        gid, message.senderId, message.senderName, message.senderAvatar, sender));
-      meta.append(sender, document.createTextNode(` · ${formatTime(message.createdAt)}`));
-    } else {
-      meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
-    }
+    meta.textContent = `${message.senderName || "未知成员"} · ${formatTime(message.createdAt)}`;
     const media = messageMedia(message, onMediaLoad);
     const hidesBubbleText = media && ["分享图片", "分享视频", "[动画表情]"].includes(message.text?.trim());
     content.append(meta);

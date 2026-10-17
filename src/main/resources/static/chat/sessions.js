@@ -1,6 +1,6 @@
 // 会话消息流：当前群的消息加载、滑动窗口与滚动跟随。
-// compareMessages 与滚动锚点是无状态原语，history（聊天记录）与 celebration（回归庆祝）
-// 直接 import 复用，全页对「消息顺序」只有这一种定义。
+// compareMessages 与滚动锚点是无状态原语，history（聊天记录）直接 import 复用，
+// 全页对「消息顺序」只有这一种定义。
 import {fetchJson} from "../shared/fetch.js";
 
 export function compareMessages(left, right) {
@@ -267,7 +267,7 @@ export function createSessions({
         // 判定——撑高发生在 load 事件之前，视口已被顶离底部
         if (currentGid() !== renderGid || version !== renderVersion) return;
         settleGrowth(message);
-      }, renderGid);
+      });
       if (element !== previous.nextElementSibling) previous.after(element);
       previous = element;
     }
@@ -622,7 +622,6 @@ export function createSessions({
     markAway,
     refreshAfterSend,
     applyAttitudes,
-    getRenderedMessages,
-    getMessagesSnapshot: () => [...messages.values()]
+    getRenderedMessages
   };
 }

@@ -6,9 +6,5 @@ export const STORAGE_KEYS = {
   // chat 页沉浸阅读开关（localStorage）
   CHAT_IMMERSIVE: "weibo-chat:immersive",
   // chat 页表态开关（localStorage）
-  CHAT_ATTITUDES: "weibo-chat:attitudes",
-  // chat 页回归庆祝名单：按群按成员（localStorage）
-  CHAT_CELEBRATION_ROSTER: "weibo-chat:celebration-roster",
-  // chat 页庆祝基线：按「群:成员」记最后发言时间（localStorage）
-  CHAT_CELEBRATION_SEEN: "weibo-chat:celebration-seen"
+  CHAT_ATTITUDES: "weibo-chat:attitudes"
 };

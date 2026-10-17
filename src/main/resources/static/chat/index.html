@@ -55,13 +55,11 @@
             </div>
             <div class="group-number">群号：<span id="current-id">-</span></div>
             <div id="current-size"></div>
-            <div class="celebration-roster" id="celebration-roster" hidden></div>
           </div>
         </header>
 
         <div class="messages-shell">
           <div class="messages" id="messages"></div>
-          <div class="celebration-stage" id="celebration-stage"></div>
           <button class="attitudes-toggle" id="attitudes-toggle" type="button" aria-pressed="false" aria-label="是否打开表态">
             <span class="attitudes-toggle-icon" aria-hidden="true">👍</span>
             <svg class="attitudes-toggle-slash" viewBox="0 0 24 24" aria-hidden="true">
@@ -108,23 +106,6 @@
       </section>
     </div>
   </main>
-
-  <div class="celebration-popover" id="celebration-popover" hidden role="dialog" aria-label="回归庆祝设置">
-    <header class="celebration-popover-titlebar">
-      <span class="celebration-popover-icon" aria-hidden="true">🎉</span>
-      <h2 id="celebration-popover-title">回归庆祝</h2>
-      <button id="celebration-popover-close" type="button" aria-label="关闭回归庆祝设置"></button>
-    </header>
-    <div class="celebration-popover-body">
-      <label class="celebration-popover-row">
-        <span>沉默多少秒算回归</span>
-        <input id="celebration-interval" type="number" min="1" step="1" value="30">
-      </label>
-      <span class="celebration-popover-hint">沉默达到间隔后，怪兽会来戳破泡泡欢迎回归</span>
-      <button class="celebration-popover-join" id="celebration-popover-join" type="button">🎉 加入庆祝名单</button>
-      <button class="celebration-popover-remove" id="celebration-popover-remove" type="button" hidden>👋 移出庆祝名单</button>
-    </div>
-  </div>
 
   <div class="dream-popover" id="dream-popover" hidden role="dialog" aria-label="盗梦空间入口">
     <header class="dream-popover-titlebar">

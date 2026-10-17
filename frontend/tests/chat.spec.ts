@@ -1,5 +1,4 @@
 import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
@@ -177,19 +176,6 @@ test.beforeAll(async () => {
       response.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
       response.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">'
         + '<rect width="180" height="180" fill="#ffffff"/></svg>');
-      return;
-    }
-    if (request.method === 'GET' && path.startsWith('/chat/assets/monster/')) {
-      const name = path.slice('/chat/assets/monster/'.length);
-      if (!/^(walk|point|leo)\.png$/.test(name)) { response.writeHead(404); response.end(); return; }
-      try {
-        const data = await readFile(new URL(`../../src/main/resources/static/chat/assets/monster/${name}`, import.meta.url));
-        response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' });
-        response.end(data);
-      } catch {
-        response.writeHead(404);
-        response.end();
-      }
       return;
     }
     if (path === '/chat/analyses' && request.method === 'GET') {
@@ -1533,66 +1519,24 @@ test('chat_pages_analysis_history_and_reports_empty', async ({ page }) => {
   await expect(dialog.locator('.analysis-feedback')).toHaveText('暂无历史分析记录。');
 });
 
-test('chat_configures_celebration_from_a_sender_name', async ({ page }) => {
-  messagesByGid.set(1, makeMessages(1, 3, '消息'));
-  await openChat(page);
-  await page.locator('.message-sender').first().click();
-  const popover = page.locator('.celebration-popover');
-  await expect(popover.getByRole('heading', { name: '回归庆祝' })).toBeVisible();
-  await expect(popover.locator('input[type="number"]')).toHaveValue('30');
-  const closeIcon = await popover.getByRole('button', { name: '关闭回归庆祝设置' })
-    .evaluate(button => getComputedStyle(button, '::before').content);
-  expect(closeIcon).not.toBe('none');
-  await popover.getByRole('button', { name: '🎉 加入庆祝名单' }).click();
-  await expect(popover).toHaveCount(0);
-
-  const roster = page.locator('.celebration-roster');
-  await expect(roster.locator('.celebration-chip-name')).toHaveText('成员1');
-  const stored = await page.evaluate(() => localStorage.getItem('weibo-chat:celebration-roster'));
-  expect(stored).toContain('"interval":30');
-
-  await page.reload();
-  await expect(page.locator('.celebration-roster .celebration-chip-name')).toHaveText('成员1');
-  await page.locator('.celebration-chip-name').click();
-  await page.locator('.celebration-popover').getByRole('button', { name: '👋 移出庆祝名单' }).click();
-  await expect(page.locator('.celebration-chip')).toHaveCount(0);
-});
-
-test('chat_celebrates_a_returning_member', async ({ page }) => {
+test('chat_has_no_return_celebration_even_with_saved_settings', async ({ page }) => {
   const items = makeMessages(1, 3, '消息');
   messagesByGid.set(1, items);
+  await page.addInitScript(() => {
+    localStorage.setItem('weibo-chat:celebration-roster', JSON.stringify({
+      '1': { '101': { name: '成员1', avatar: '', interval: 1 } },
+    }));
+  });
   await openChat(page);
-  await page.locator('.message-sender').first().click();
-  const popover = page.locator('.celebration-popover');
-  await popover.locator('input[type="number"]').fill('1');
-  await popover.getByRole('button', { name: '🎉 加入庆祝名单' }).click();
-
-  const latest = items[items.length - 1].createdAt;
-  items.push({ ...items[0], mid: 999, createdAt: latest + 120000, text: '回归消息' });
-  await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 5000 });
-
-  const stage = page.locator('.celebration-stage');
-  await expect(stage.locator('.celebration-member')).toHaveCount(1, { timeout: 8000 });
-  await expect(stage.locator('.celebration-speech')).toHaveText('你终于冒泡了');
-  await stage.getByRole('button', { name: /跳过/ }).click();
-  await expect(stage.locator('.celebration-member')).toHaveCount(0);
-});
-
-test('chat_saves_a_changed_celebration_interval_immediately', async ({ page }) => {
-  messagesByGid.set(1, makeMessages(1, 3, '消息'));
-  await openChat(page);
-  await page.locator('.message-sender').first().click();
-  await page.getByRole('button', { name: '🎉 加入庆祝名单' }).click();
-
-  await page.locator('.celebration-chip-name').click();
-  await page.locator('.celebration-popover input[type="number"]').fill('1');
-  await page.locator('.titlebar').click();
-  await expect(page.locator('.celebration-popover')).toHaveCount(0);
-
-  const stored = await page.evaluate(() => localStorage.getItem('weibo-chat:celebration-roster'));
-  expect(stored).toContain('"interval":1');
-  await page.locator('.celebration-chip-name').click();
-  await expect(page.locator('.celebration-popover input[type="number"]')).toHaveValue('1');
+  await expect(page.locator('.message')).toHaveCount(3);
+  await expect(page.locator('[class*="celebration"]')).toHaveCount(0);
+  await expect(page.getByTitle('设置回归庆祝')).toHaveCount(0);
+  items.push({ ...items[0], mid: 999, createdAt: items[2].createdAt + 120000, text: '新的消息' });
+  await expect(page.locator('.new-messages-button')).toBeVisible();
+  await page.getByRole('button', { name: '有新消息', exact: true }).click();
+  await expect(page.locator('.messages')).toContainText('新的消息');
+  await expect(page.locator('[class*="celebration"]')).toHaveCount(0);
+  expect(requests.some(request => request.includes('/chat/assets/monster/'))).toBe(false);
 });
 
 test('chat_uses_one_close_button_style_across_windows', async ({ page }) => {
@@ -1623,10 +1567,7 @@ test('chat_uses_one_close_button_style_across_windows', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.locator('dialog.analysis-dialog')).not.toHaveJSProperty('open', true);
 
-  await page.locator('.message-sender').first().click();
-  const celebration = await read('.celebration-popover-titlebar button');
   expect(history).toEqual(analysis);
-  expect(history).toEqual(celebration);
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {

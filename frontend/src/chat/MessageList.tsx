@@ -35,14 +35,10 @@ type Props = {
   admins: number[];
   refreshToken?: number;
   pollingEnabled?: boolean;
-  onLoaded?: (messages: ChatMessage[]) => void;
-  onArrivals?: (messages: ChatMessage[]) => void;
-  onMessages?: (messages: ChatMessage[]) => void;
-  onSenderClick?: (senderId: number, senderName: string, senderAvatar: string, anchor: HTMLElement) => void;
 };
 
 export default function MessageList({
-  gid, admins, refreshToken = 0, pollingEnabled = true, onLoaded, onArrivals, onMessages, onSenderClick,
+  gid, admins, refreshToken = 0, pollingEnabled = true,
 }: Props) {
   const [ordered, setOrdered] = useState<ChatMessage[]>([]);
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
@@ -98,8 +94,6 @@ export default function MessageList({
         pendingBottomRef.current = true;
       }
       setStatus('ready');
-      onLoaded?.(items);
-      onMessages?.(items);
       void loadAttitudes(items);
     }).catch(error => {
       if (controller.signal.aborted) return;
@@ -346,7 +340,6 @@ export default function MessageList({
       const anchorIndex = anchor ? merged.findIndex(message => message.mid === anchor.mid) : 0;
       const { start, end } = windowBounds(anchorIndex < 0 ? 0 : anchorIndex, merged.length);
       setOrdered(merged);
-      onMessages?.(merged);
       setWindowMids({ start: merged[start].mid, end: merged[end].mid });
       void loadAttitudes(items);
     } catch (error) {
@@ -374,14 +367,11 @@ export default function MessageList({
   // 新消息只追加、不移动视口；到达即结束落底收尾，旧图片随后加载也不能把视口拉回底部。
   function appendFresh(items: ChatMessage[]) {
     if (!items.length) return;
-    const fresh = items.filter(message => !messagesRef.current.has(message.mid));
     settleRef.current = null;
     for (const message of items) messagesRef.current.set(message.mid, message);
     const merged = [...messagesRef.current.values()].sort(compareMessages);
     setOrdered(merged);
     setNewMessagesVisible(true);
-    onMessages?.(merged);
-    if (fresh.length) onArrivals?.(fresh);
     void loadAttitudes(items);
   }
 
@@ -588,7 +578,7 @@ export default function MessageList({
         )}
         {status === 'ready' && ordered.slice(startIndex, endIndex + 1).map(message => (
           <MessageItem key={message.mid} message={message} isAdmin={adminIds.has(message.senderId)}
-            onOpenImage={setViewerUrl} onSenderClick={onSenderClick} />
+            onOpenImage={setViewerUrl} />
         ))}
         <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
       </div>

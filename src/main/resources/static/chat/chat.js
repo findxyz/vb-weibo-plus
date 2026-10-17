@@ -1,7 +1,6 @@
 import {createMessageView} from "./message-view.js";
 import {createAnalysis} from "./analysis.js";
 import {createHistory} from "./history.js";
-import {createCelebration} from "./celebration.js";
 import {createComposer} from "./composer.js";
 import {createGroups} from "./groups.js";
 import {createSessions} from "./sessions.js";
@@ -60,11 +59,7 @@ function bootstrap() {
     analysisBack: document.querySelector("#analysis-back"), analysisDownload: document.querySelector("#analysis-download"),
     analysisDetailContent: document.querySelector("#analysis-detail-content"), analysisDetailMeta: document.querySelector("#analysis-detail-meta"),
     conversation: document.querySelector(".conversation"), immersiveToggle: document.querySelector("#immersive-toggle"),
-    windowToggle: document.querySelector(".window-control.toggle"), celebrationStage: document.querySelector("#celebration-stage"),
-    celebrationRoster: document.querySelector("#celebration-roster"), celebrationPopover: document.querySelector("#celebration-popover"),
-    celebrationPopoverTitle: document.querySelector("#celebration-popover-title"), celebrationPopoverClose: document.querySelector("#celebration-popover-close"),
-    celebrationPopoverRemove: document.querySelector("#celebration-popover-remove"), celebrationInterval: document.querySelector("#celebration-interval"),
-    celebrationPopoverJoin: document.querySelector("#celebration-popover-join"),
+    windowToggle: document.querySelector(".window-control.toggle"),
     dreamPopover: document.querySelector("#dream-popover"), dreamEnter: document.querySelector("#dream-enter"),
     dreamPopoverClose: document.querySelector("#dream-popover-close"),
     dreamDialog: document.querySelector("#dream-dialog"), dreamFrame: document.querySelector("#dream-frame"),
@@ -81,12 +76,10 @@ function bootstrap() {
     login.showLoginExpired();
   }
 
-  let celebration;
   // 大列表容器不带 aria-live（见 shared/announcer.js 头注释），事件级摘要走这里
   const announce = createAnnouncer();
-  // 首屏与向上翻页都是「垫高庆祝基线 + 补一次表态」，共用同一回调
-  function seedCelebrationAndAttitudes(gid, messages) {
-    celebration.seed(gid, messages);
+  // 首屏与向上翻页都补一次表态，共用同一回调。
+  function loadMessageAttitudes(gid, messages) {
     void attitudes.load(gid, messages);
   }
   // 各工厂只收自己用到的元素句柄：按工厂签名里的名单挑子集，不再整包透传
@@ -111,17 +104,15 @@ function bootstrap() {
   const messageView = createMessageView({
     elements: pickElements(elements, "imageViewer", "imageViewerImage", "imageViewerState"),
     getWeiboEmojiMap: () => window.WEIBO_EMOJI_MAP || {},
-    isAdminSender,
-    onSenderClick: (...args) => celebration.openPopover(...args)
+    isAdminSender
   });
   const sessions = createSessions({
     elements: pickElements(elements, "messages", "newMessages", "scrollBottom"),
     messageView,
     pageSize: PAGE_SIZE, earlierLoadThreshold: 120,
-    onInitialMessages: seedCelebrationAndAttitudes,
-    onEarlierMessages: seedCelebrationAndAttitudes,
+    onInitialMessages: loadMessageAttitudes,
+    onEarlierMessages: loadMessageAttitudes,
     onNewMessages: (gid, messages) => {
-      celebration.process(gid, messages);
       void attitudes.load(gid, messages);
       announce(`收到 ${messages.length} 条新消息`);
     },
@@ -143,15 +134,6 @@ function bootstrap() {
       "analysisDate", "analysisPrompt", "analysisSubmit", "analysisBack", "analysisDownload",
       "analysisEmpty", "analysisFeedback", "analysisResults", "analysisList", "analysisPageState",
       "analysisPrev", "analysisNext", "analysisDetail", "analysisDetailMeta", "analysisDetailContent")
-  });
-  celebration = createCelebration({
-    elements: pickElements(elements, 
-      "celebrationRoster", "celebrationStage", "celebrationInterval", "celebrationPopover",
-      "celebrationPopoverTitle", "celebrationPopoverJoin", "celebrationPopoverRemove",
-      "celebrationPopoverClose"),
-    messageView, getCurrentGid: () => state.currentGid,
-    getMessages: () => sessions.getMessagesSnapshot(),
-    announce
   });
   const composer = createComposer({
     elements: pickElements(elements, 
@@ -197,10 +179,9 @@ function bootstrap() {
   async function selectGroup(gid) {
     const group = groups.findGroup(gid);
     if (!group) return;
-    if (state.currentGid !== gid) { celebration.cancel(); history.close(); }
+    if (state.currentGid !== gid) history.close();
     state.currentGid = gid;
     history.setGroup(group); analysis.setGroup(group);
-    celebration.render();
     localStorage.setItem(LAST_GROUP_KEY, String(gid));
     elements.currentGroup.textContent = group.name || `群聊 ${group.gid}`;
     elements.currentId.textContent = String(group.gid);

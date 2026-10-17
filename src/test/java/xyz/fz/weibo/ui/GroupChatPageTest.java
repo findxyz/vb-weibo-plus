@@ -68,7 +68,6 @@ class GroupChatPageTest {
     private static final AtomicBoolean emptyGroup202 = new AtomicBoolean();
     private static final AtomicBoolean textOnlyGroup202 = new AtomicBoolean();
     private static final AtomicBoolean catchUpMessages = new AtomicBoolean();
-    private static final AtomicBoolean multipleCelebrationMessages = new AtomicBoolean();
     private static final AtomicBoolean delayAnalysisDetail = new AtomicBoolean();
     private static final AtomicBoolean dreamEggMessage = new AtomicBoolean();
     private static final AtomicBoolean holdNewMessages = new AtomicBoolean();
@@ -272,16 +271,10 @@ class GroupChatPageTest {
             String dreamEgg = requestNumber == 1 && dreamEggMessage.getAndSet(false)
                     ? dreamMessageJson(14) + ","
                     : "";
-            String newMessage;
-            if (refreshed && multipleCelebrationMessages.getAndSet(false)) {
-                newMessage = messageJson(4, "小凯", "第二条刷新后消息", 4000) + ","
-                        + messageJson(3, "阿呆", "第一条刷新后消息", 3000) + ",";
-            } else {
-                newMessage = !refreshed ? "" : requestNumber > 2
-                        ? messageJson(4, "小凯", "点击后消息", 4000) + ","
-                                + messageJson(3, "阿呆", "刷新后消息", 3000) + ","
-                        : refreshed ? messageJson(3, "阿呆", "刷新后消息", 3000) + "," : "";
-            }
+            String newMessage = !refreshed ? "" : requestNumber > 2
+                    ? messageJson(4, "小凯", "点击后消息", 4000) + ","
+                            + messageJson(3, "阿呆", "刷新后消息", 3000) + ","
+                    : messageJson(3, "阿呆", "刷新后消息", 3000) + ",";
             sendJson(exchange, cursorMessagesJson(true,
                     refreshed ? 2_000L : 1_000L, refreshed ? 2L : 1L,
                     dreamEgg
@@ -560,7 +553,6 @@ class GroupChatPageTest {
         emptyGroup202.set(false);
         textOnlyGroup202.set(false);
         catchUpMessages.set(false);
-        multipleCelebrationMessages.set(false);
         delayAnalysisDetail.set(false);
         dreamEggMessage.set(false);
         holdNewMessages.set(false);
@@ -1575,31 +1567,6 @@ class GroupChatPageTest {
     }
 
     @Test
-    void does_not_celebrate_initial_messages_when_switching_groups() {
-        Page page = browser.newPage();
-        page.addInitScript("""
-                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
-                  "202": {"9": {"name": "媒体用户", "avatar": "", "interval": 1}}
-                }));
-                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
-                  "202:9": 0
-                }));
-                """);
-        page.navigate(baseUrl + "/chat/index.html");
-        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-
-        delayGroup202Latest.set(true);
-        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
-        page.evaluate("setTimeout(() => window.dispatchEvent(new Event('focus')), 20)");
-        page.waitForTimeout(800);
-
-        assertThat(page.locator("#current-group")).hasText("LinkNow");
-        page.waitForTimeout(100);
-        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
-        page.close();
-    }
-
-    @Test
     void catches_up_messages_after_returning_from_a_hidden_page() {
         holdNewMessages.set(true);
         Page page = browser.newPage();
@@ -2350,100 +2317,21 @@ class GroupChatPageTest {
     }
 
     @Test
-    void cancels_a_celebration_when_switching_groups() {
+    void has_no_return_celebration_even_with_saved_settings() {
         Page page = browser.newPage();
         page.addInitScript("""
                 localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
                   "101": {"3": {"name": "阿呆", "avatar": "", "interval": 1}}
                 }));
-                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
-                  "101:3": 1000
-                }));
                 """);
         page.navigate(baseUrl + "/chat/index.html");
         assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-
+        assertThat(page.locator("[class*='celebration']")).hasCount(0);
+        assertThat(page.locator("[title='设置回归庆祝']")).hasCount(0);
         page.evaluate("window.dispatchEvent(new Event('focus'))");
-        assertThat(page.locator(".celebration-member")).isVisible();
-        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
-
-        assertThat(page.locator("#current-group")).hasText("LinkNow");
-        page.waitForTimeout(100);
-        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
-        page.close();
-    }
-
-    @Test
-    void refreshes_the_celebration_roster_when_switching_groups() {
-        Page page = browser.newPage();
-        page.addInitScript("""
-                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
-                  "101": {"3": {"name": "阿呆", "avatar": "", "interval": 30}}
-                }));
-                """);
-        page.navigate(baseUrl + "/chat/index.html");
-        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-        // 进入会话后渲染当前群的庆祝名单
-        assertThat(page.locator("#celebration-roster .celebration-chip")).hasCount(1);
-
-        page.getByText("LinkNow", new Page.GetByTextOptions().setExact(true)).click();
-        assertThat(page.locator("#current-group")).hasText("LinkNow");
-        // 切到无名单的群后不得残留上一群的成员
-        assertThat(page.locator("#celebration-roster")).isHidden();
-
-        page.getByText("周末活动讨论组", new Page.GetByTextOptions().setExact(true)).click();
-        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-        assertThat(page.locator("#celebration-roster .celebration-chip")).hasCount(1);
-        page.close();
-    }
-
-    @Test
-    void establishes_a_baseline_before_celebrating_when_seen_time_is_missing() {
-        Page page = browser.newPage();
-        page.addInitScript("""
-                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
-                  "101": {"3": {"name": "阿呆", "avatar": "", "interval": 1}}
-                }));
-                localStorage.removeItem("weibo-chat:celebration-seen");
-                """);
-        page.navigate(baseUrl + "/chat/index.html");
-        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-
-        page.evaluate("window.dispatchEvent(new Event('focus'))");
-        page.waitForTimeout(800);
-
-        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count()).isEqualTo(0);
-        Object seen = page.evaluate("JSON.parse(localStorage.getItem('weibo-chat:celebration-seen'))['101:3']");
-        Assertions.assertThat(((Number) seen).longValue()).isEqualTo(3_000L);
-        page.close();
-    }
-
-    @Test
-    void celebrates_each_qualifying_message_in_one_refresh() {
-        Page page = browser.newPage();
-        page.addInitScript("""
-                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
-                  "101": {
-                    "3": {"name": "阿呆", "avatar": "", "interval": 1},
-                    "4": {"name": "小凯", "avatar": "", "interval": 1}
-                  }
-                }));
-                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
-                  "101:3": 1000,
-                  "101:4": 1000
-                }));
-                """);
-        page.navigate(baseUrl + "/chat/index.html");
-        assertThat(page.locator("#current-group")).hasText("周末活动讨论组");
-
-        multipleCelebrationMessages.set(true);
-        page.evaluate("window.dispatchEvent(new Event('focus'))");
-        page.waitForTimeout(800);
-
-        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count())
-                .isEqualTo(2);
-        Assertions.assertThat(page.locator("#celebration-stage .celebration-monster").count())
-                .isEqualTo(2);
+        page.locator("#new-messages").click();
+        assertThat(page.locator("#messages")).containsText("刷新后消息");
+        assertThat(page.locator("[class*='celebration']")).hasCount(0);
         page.close();
     }
 
@@ -2653,16 +2541,8 @@ class GroupChatPageTest {
     }
 
     @Test
-    void walks_the_full_group_chat_path_from_selection_to_celebration() {
+    void walks_the_full_group_chat_path_from_selection_to_sending() {
         Page page = browser.newPage();
-        page.addInitScript("""
-                localStorage.setItem("weibo-chat:celebration-roster", JSON.stringify({
-                  "202": {"1": {"name": "测试者", "avatar": "", "interval": 1}}
-                }));
-                localStorage.setItem("weibo-chat:celebration-seen", JSON.stringify({
-                  "202:1": 4000
-                }));
-                """);
         page.navigate(baseUrl + "/chat/index.html");
 
         // 群选择与媒体串联：切到 LinkNow，图片、视频与微博卡片正常渲染
@@ -2696,11 +2576,6 @@ class GroupChatPageTest {
         page.waitForResponse(item -> item.url().contains("/chat/messages/cursor"), () -> {});
         assertThat(page.locator("#messages")).containsText("刚发出的消息");
 
-        // Return Celebration 串联：新消息命中名单后出现庆祝
-        page.evaluate("window.dispatchEvent(new Event('focus'))");
-        page.waitForTimeout(800);
-        Assertions.assertThat(page.locator("#celebration-stage .celebration-member").count())
-                .isEqualTo(1);
         page.close();
     }
 
