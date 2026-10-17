@@ -114,6 +114,7 @@ class ReactPreviewPageTest {
             exchange.close();
         });
         server.createContext("/preview/", ReactPreviewPageTest::sendStaticResource);
+        server.createContext("/chat/", ReactPreviewPageTest::sendStaticResource);
         server.createContext("/weibo/login/status", exchange -> sendJson(exchange, "{\"valid\":true}"));
         server.createContext("/assets/", ReactPreviewPageTest::sendStaticResource);
         server.start();
@@ -243,6 +244,29 @@ class ReactPreviewPageTest {
             assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
             Assertions.assertThat(rangeQuery.get()).isEqualTo("uid=2&start=2026-07-01 00:00:00&end=2026-07-31 23:59:59");
             Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
+        }
+    }
+
+    @Test
+    void classpath_preview_announces_reading_and_navigates_to_formal_chat() {
+        try (Page page = browser.newPage()) {
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".reading-announcement")).hasText("已加载 1 条微博");
+            assertThat(page.locator(".reading-announcement")).hasAttribute("aria-live", "polite");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到微博群聊").setExact(true)).press("Enter");
+            assertThat(page).hasURL(baseUrl + "/chat/index.html");
+            assertThat(page.locator("h1")).hasText("微博群聊");
+        }
+    }
+
+    @Test
+    void classpath_preview_media_fits_minimum_desktop_without_horizontal_scroll() {
+        try (Page page = browser.newPage()) {
+            page.setViewportSize(900, 560);
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            assertThat(page.locator(".post-pic")).hasCount(2);
+            Assertions.assertThat((Boolean) page.locator(".posts").evaluate("element => element.scrollWidth <= element.clientWidth")).isTrue();
         }
     }
 
