@@ -46,6 +46,9 @@
   --media-border: #91abc0;
   --search-border: #8badca;
   --search-bg: #e8f3fb;
+  --success-hint: #52c41a;
+  --error-hint: #f5222d;
+  --emoji-hover: #eef4fb;
   --media-bg: #16232d;
 }
 
@@ -304,8 +307,118 @@ h1 {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(104px, auto) minmax(0, 1fr);
+  grid-template-rows: minmax(104px, auto) minmax(0, 1fr) 154px;
   background: var(--surface);
+}
+
+.composer {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+  border-top: 1px solid #7ea7ca;
+  background: var(--surface);
+}
+
+.composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border-bottom: 1px solid #9dbbd4;
+}
+
+.composer-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--tool-border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(var(--surface), var(--tool-to));
+}
+
+.composer textarea {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  padding: 9px 12px;
+  border: 0;
+  outline: none;
+  color: #000000;
+  background: var(--surface);
+  font-size: 15px;
+}
+
+.composer textarea:disabled {
+  cursor: not-allowed;
+}
+
+.composer-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  color: var(--link);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.composer-hint.is-sending {
+  color: var(--success-hint);
+}
+
+.composer-hint.is-error {
+  color: var(--error-hint);
+}
+
+.emoji-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 10px;
+  z-index: 10;
+  width: 320px;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--bubble-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgb(17 67 115 / 16%);
+}
+
+.emoji-panel[hidden] {
+  display: none;
+}
+
+.emoji-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 32px);
+  gap: 4px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.emoji-cell {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+}
+
+.emoji-cell img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.emoji-cell:hover {
+  background: var(--emoji-hover);
 }
 
 .group-header {

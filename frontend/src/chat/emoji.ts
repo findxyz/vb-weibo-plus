@@ -11,3 +11,7 @@ export function emojiSource(phrase: string) {
   if (image) return IMAGE_BASE + image[1];
   return (window as EmojiWindow).WEIBO_EMOJI_MAP?.[phrase];
 }
+
+export function emojiEntries() {
+  return Object.entries((window as EmojiWindow).WEIBO_EMOJI_MAP ?? {});
+}

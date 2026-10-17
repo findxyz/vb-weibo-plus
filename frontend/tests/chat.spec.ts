@@ -22,6 +22,9 @@ let held: { url: URL; send: () => void }[];
 let mediaHoldMids: Set<number>;
 let heldMedia: Map<number, () => void>;
 let pollDelayMs: number;
+let sendBodies: string[];
+let sendStatus: number;
+let onSend: (() => void) | null;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -131,6 +134,18 @@ test.beforeAll(async () => {
       send();
       return;
     }
+    if (request.method === 'POST' && path === '/chat/messages/send') {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        sendBodies.push(body);
+        if (sendStatus === 200) onSend?.();
+        sendJson(response, sendStatus, sendStatus === 200 ? {} : {
+          msg: sendStatus === 409 ? '已发出但本地同步失败' : '发送失败',
+        });
+      });
+      return;
+    }
     if (path === '/chat/messages/cursor') {
       const gid = Number(url.searchParams.get('gid'));
       const status = messagesStatus.get(gid) ?? 200;
@@ -190,9 +205,15 @@ test.beforeEach(({ page }) => {
   mediaHoldMids = new Set();
   heldMedia = new Map();
   pollDelayMs = 0;
+  sendBodies = [];
+  sendStatus = 200;
+  onSend = null;
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
-    if (!['GET', 'HEAD'].includes(request.method())) writeRequests.push(`${request.method()} ${request.url()}`);
+    if (['GET', 'HEAD'].includes(request.method())) return;
+    // 发送是业务写操作，单独记录；其他写请求仍由 afterEach 拦截。
+    if (request.method() === 'POST' && request.url().includes('/chat/messages/send')) return;
+    writeRequests.push(`${request.method()} ${request.url()}`);
   });
 });
 
@@ -306,7 +327,10 @@ test('chat_holds_the_true_bottom_while_images_load_and_stops_after_user_input', 
   releaseMedia(50);
   await expect.poll(() => page.locator('[data-mid="50"] img').evaluate(image =>
     (image as HTMLImageElement).naturalWidth)).toBe(320);
-  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(pausedAt);
+  const after = await page.locator('.messages').evaluate(element => element.scrollTop);
+  // 收尾已结束：撑高不得把视口拽回底部（Chrome 的滚动锚定允许小幅补偿）。
+  expect(after - pausedAt).toBeLessThan(200);
+  await expect.poll(() => atBottom(page)).toBe(false);
 });
 
 test('chat_explains_an_empty_group_without_loading_earlier_pages', async ({ page }) => {
@@ -324,6 +348,8 @@ test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ p
 
   await expect(page.getByRole('status')).toHaveText('暂无群聊数据');
   await expect(page.locator('.messages-state')).toHaveText('暂无群聊。');
+  await expect(page.getByRole('textbox', { name: '输入消息' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '😊 表情' })).toBeDisabled();
   expect(requests.length).toBeGreaterThanOrEqual(1);
   expect(requests.every(value => value === 'GET /chat/groups')).toBe(true);
 });
@@ -607,6 +633,106 @@ test('chat_keeps_the_group_list_when_a_metadata_refresh_fails', async ({ page })
   groups[0] = makeGroup(1, '第一群', { latestSenderName: '甲', latestMessage: '新' });
   groupsStatus = 200;
   await expect(page.locator('.group-row')).toContainText('甲：新', { timeout: 4000 });
+});
+
+test('chat_sends_text_on_enter_and_refreshes_immediately', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  onSend = () => {
+    const extra = makeMessages(1, 61, '消息')[60];
+    extra.text = '你好';
+    items.push(extra);
+  };
+  await openChat(page);
+  await expect(page.locator('.message').last()).toContainText('消息 60');
+
+  const input = page.getByRole('textbox', { name: '输入消息' });
+  await input.fill('你好');
+  await input.press('Enter');
+
+  await expect.poll(() => sendBodies.length).toBe(1);
+  const body = new URLSearchParams(sendBodies[0]);
+  expect(body.get('gid')).toBe('1');
+  expect(body.get('content')).toBe('你好');
+  await expect(input).toHaveValue('');
+
+  const pill = page.locator('.new-messages-button');
+  await expect(pill).toBeVisible({ timeout: 3000 });
+  await pill.click();
+  await expect(page.locator('[data-mid="61"]')).toContainText('你好');
+});
+
+test('chat_keeps_shift_enter_for_newlines_and_ignores_blank_text', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const input = page.getByRole('textbox', { name: '输入消息' });
+
+  await input.fill('第一行');
+  await input.press('Shift+Enter');
+  await input.type('第二行');
+  expect(await input.inputValue()).toBe('第一行\n第二行');
+  expect(sendBodies).toHaveLength(0);
+
+  await input.fill('   ');
+  await input.press('Enter');
+  await page.waitForTimeout(200);
+  expect(sendBodies).toHaveLength(0);
+});
+
+test('chat_keeps_the_text_when_sending_fails', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const input = page.getByRole('textbox', { name: '输入消息' });
+  const hint = page.locator('.composer-hint');
+
+  sendStatus = 500;
+  await input.fill('失败内容');
+  await input.press('Enter');
+  await expect(hint).toHaveText('发送失败');
+  await expect(input).toHaveValue('失败内容');
+
+  sendStatus = 409;
+  await input.press('Enter');
+  await expect(hint).toHaveText('已发出但本地同步失败');
+  await expect(input).toHaveValue('失败内容');
+});
+
+test('chat_inserts_emoji_at_the_cursor_and_closes_the_panel', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
+  }));
+  await openChat(page);
+
+  const input = page.getByRole('textbox', { name: '输入消息' });
+  const trigger = page.getByRole('button', { name: '😊 表情' });
+  const panel = page.getByRole('dialog', { name: '表情选择' });
+  await input.fill('你好');
+  await trigger.click();
+  await expect(panel).toBeVisible();
+
+  const doge = panel.locator('button[title="[doge]"]');
+  await expect(doge).toHaveCount(1);
+  await doge.click();
+  await expect(input).toHaveValue('你好[doge]');
+  await expect(input).toBeFocused();
+  await expect(panel).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(input).toBeFocused();
+
+  await trigger.click();
+  await expect(panel.locator('button').first()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await expect(panel).toBeVisible();
+  await page.locator('.group-header').click();
+  await expect(panel).toBeHidden();
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {

@@ -35,7 +35,9 @@ function mergeOlder(previous: ChatMessage[], items: ChatMessage[]) {
   return [...merged.values()].sort(compareMessages);
 }
 
-export default function MessageList({ gid, admins }: { gid: number; admins: number[] }) {
+type Props = { gid: number; admins: number[]; refreshToken?: number };
+
+export default function MessageList({ gid, admins, refreshToken = 0 }: Props) {
   const [ordered, setOrdered] = useState<ChatMessage[]>([]);
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -253,6 +255,12 @@ export default function MessageList({ gid, admins }: { gid: number; admins: numb
       window.removeEventListener('focus', onFocus);
     };
   }, []);
+
+  // 发送成功后立即补一次刷新，不必等下一秒轮询；仍走读取接口，不做乐观插入。
+  useEffect(() => {
+    if (!refreshToken) return;
+    void refreshOnce();
+  }, [refreshToken]);
 
   useEffect(() => {
     const container = containerRef.current;

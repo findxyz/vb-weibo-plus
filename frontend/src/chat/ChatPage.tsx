@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import Avatar from './Avatar';
+import Composer from './Composer';
 import GroupList from './GroupList';
 import MessageList from './MessageList';
 import { fetchGroups } from './api';
@@ -31,6 +32,7 @@ export default function ChatPage() {
     return Number.isSafeInteger(saved) && saved > 0 ? saved : null;
   });
   const [reloadToken, setReloadToken] = useState(0);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     if (!groups.length) return;
@@ -92,11 +94,13 @@ export default function ChatPage() {
                 key={`${selectedGroup.gid}-${reloadToken}`}
                 gid={selectedGroup.gid}
                 admins={selectedGroup.admins ?? []}
+                refreshToken={refreshToken}
               />
             ) : (
               <p className="messages-state">{groupsQuery.isPending ? '正在加载群聊……' : '暂无群聊。'}</p>
             )}
           </div>
+          <Composer gid={selectedGroup?.gid ?? null} onSent={() => setRefreshToken(value => value + 1)} />
         </section>
       </div>
     </div>

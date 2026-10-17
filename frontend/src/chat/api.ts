@@ -52,19 +52,37 @@ export type MessagePage = {
 
 export const MESSAGE_PAGE_SIZE = 50;
 
+export class HttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
+async function readError(response: Response) {
+  let message = `HTTP ${response.status}`;
+  try {
+    const body = await response.json() as { msg?: unknown };
+    if (typeof body?.msg === 'string' && body.msg) message = body.msg;
+  } catch {
+    // 非 JSON 错误响应保留状态码文案。
+  }
+  return message;
+}
+
 async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', signal });
-  if (!response.ok) {
-    let message = `HTTP ${response.status}`;
-    try {
-      const body = await response.json() as { msg?: unknown };
-      if (typeof body?.msg === 'string' && body.msg) message = body.msg;
-    } catch {
-      // 非 JSON 错误响应保留状态码文案。
-    }
-    throw new Error(message);
-  }
+  if (!response.ok) throw new HttpError(await readError(response), response.status);
   return await response.json() as T;
+}
+
+export async function sendText(gid: number, content: string) {
+  const response = await fetch('/chat/messages/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ gid: String(gid), content }),
+  });
+  if (!response.ok) throw new HttpError(await readError(response), response.status);
 }
 
 export function fetchGroups(signal: AbortSignal) {
