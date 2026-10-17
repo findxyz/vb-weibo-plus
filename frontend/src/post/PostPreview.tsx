@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isUnauthorized, useDefaultReading, type Blogger } from './queries';
 import { usePostLogin } from './usePostLogin';
 import PostLogin from './PostLogin';
 import AddBlogger from './AddBlogger';
+import SyncHistory from './SyncHistory';
 import PostFeed from './PostFeed';
 import DateTimeline from './DateTimeline';
 import PostSearch from './PostSearch';
@@ -24,8 +25,16 @@ function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
 export default function PostPreview() {
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion } = useDefaultReading();
+  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion, refreshCalendar } = useDefaultReading();
   const login = usePostLogin();
+  const [syncNotice, setSyncNotice] = useState<{ uid: number; visit: number }>();
+  const scopeRef = useRef(selection);
+  scopeRef.current = selection;
+  async function historyCompleted(uid: number, visit: number) {
+    if (scopeRef.current.uid !== uid || scopeRef.current.visit !== visit) return;
+    const refreshed = await refreshCalendar();
+    if (scopeRef.current.uid === uid && scopeRef.current.visit === visit && refreshed.isSuccess) setSyncNotice({ uid, visit });
+  }
   async function bloggerAdded(uid: string, select: boolean) {
     const version = readingVersion.current;
     const refreshed = await bloggers.refetch();
@@ -61,7 +70,7 @@ export default function PostPreview() {
           {login.expired && <PostLogin pending={login.pending} started={login.started} message={login.message} onStart={login.start} />}
         </section>
         <section className="dates-panel" aria-label="日期区域">
-          <header className="dates-heading"><h2>日期</h2></header>
+          <header className="dates-heading"><h2>日期</h2>{syncNotice?.uid === selection.uid && syncNotice?.visit === selection.visit && <span className="sync-notice" role="status">同步完成</span>}</header>
           <div className="dates-list">
             {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
             {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
@@ -73,6 +82,7 @@ export default function PostPreview() {
           <header className="feed-header">
             <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
             {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
+            <SyncHistory blogger={selectedBlogger} visit={selection.visit} onStart={() => setSyncNotice(undefined)} onComplete={historyCompleted} onUnauthorized={login.expire} />
             <button type="button" className="search-open" onClick={() => setSearchOpen(true)}>高级搜索</button>
           </header>
           <div className="posts">

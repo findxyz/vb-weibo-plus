@@ -195,6 +195,41 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   });
 }
 
+test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refreshing_calendar', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
+  const writes: URL[] = [];
+  await page.route('**/post/range?*', route => {
+    writes.push(new URL(route.request().url()));
+    calendar = { months: [{ month: '2026-08', count: 4, days: [{ date: '2026-08-06', count: 1 }, { date: '2026-08-05', count: 3 }] }] };
+    return route.fulfill({ json: { inserted: 1 } });
+  });
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '第二位', exact: true }).click();
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  const reading = requests.filter(value => value.startsWith('GET /post/list?'));
+  await page.getByRole('button', { name: '同步历史', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '同步历史微博', exact: true });
+  await expect(dialog.getByLabel('开始日期')).toHaveValue('2024-08-06');
+  await expect(dialog.getByLabel('结束日期')).toHaveValue('2026-08-06');
+  await expect(dialog.locator('.search-overlay-tip')).toContainText('@第二位');
+  await dialog.getByLabel('开始日期').fill('');
+  await dialog.getByRole('button', { name: '开始同步' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('请选择开始与结束日期。');
+  expect(writes).toHaveLength(0);
+  await dialog.getByLabel('开始日期').fill('2026-07-01');
+  await dialog.getByLabel('结束日期').fill('2026-07-31');
+  await dialog.getByRole('button', { name: '开始同步' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.dates-heading')).toContainText('同步完成');
+  await expect(page.getByRole('button', { name: '2026-08-06', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(requests.filter(value => value.startsWith('GET /post/list?'))).toEqual(reading);
+  expect(Object.fromEntries(writes[0].searchParams)).toEqual({ uid: '2', start: '2026-07-01 00:00:00', end: '2026-07-31 23:59:59' });
+  expect(writeRequests).toHaveLength(1); writeRequests = [];
+});
+
 test('add_blogger_validates_then_posts_uid_refreshes_and_selects_new_blogger', async ({ page }) => {
   const added = { uid: 1234567890, screenName: '新博主' };
   const calls: string[] = [];

@@ -101,5 +101,9 @@ export function useDefaultReading() {
     readingVersion.current++;
     setSelection(previous => ({ uid, visit: previous.visit + 1 }));
   }
-  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion };
+  function refreshCalendar() {
+    if (date) setSelectedDate(previous => previous?.visit === selection.visit ? previous : { visit: selection.visit, value: date });
+    return calendar.refetch();
+  }
+  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion, refreshCalendar };
 }
