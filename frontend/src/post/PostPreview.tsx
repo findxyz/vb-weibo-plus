@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isUnauthorized, useDefaultReading, type Blogger } from './queries';
 import { usePostLogin } from './usePostLogin';
 import PostLogin from './PostLogin';
+import AddBlogger from './AddBlogger';
 import PostFeed from './PostFeed';
 import DateTimeline from './DateTimeline';
 import PostSearch from './PostSearch';
@@ -25,6 +26,13 @@ export default function PostPreview() {
   const [searchOpen, setSearchOpen] = useState(false);
   const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost } = useDefaultReading();
   const login = usePostLogin();
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  async function bloggerAdded(uid: string, select: boolean) {
+    const visit = selection.visit;
+    const refreshed = await bloggers.refetch();
+    if (select && selectionRef.current.visit === visit && refreshed.isSuccess && refreshed.data.some(blogger => String(blogger.uid) === uid)) selectBlogger(Number(uid));
+  }
   useEffect(() => {
     if ([bloggers.error, calendar.error, posts.error].some(isUnauthorized)) login.expire();
   }, [bloggers.error, calendar.error, posts.error, login.expire]);
@@ -40,7 +48,7 @@ export default function PostPreview() {
       </header>
       <main className="columns">
         <section className="bloggers-panel" aria-label="博主区域">
-          <header className="bloggers-heading"><h2>博主列表</h2>{bloggers.isSuccess && <span>{bloggers.data.length} 位博主</span>}</header>
+          <header className="bloggers-heading"><h2>博主列表</h2>{bloggers.isSuccess && <span>{bloggers.data.length} 位博主</span>}<AddBlogger onAdded={bloggerAdded} onUnauthorized={login.expire} /></header>
           <div className="search-box"><input type="search" aria-label="搜索博主" placeholder="搜索博主" value={bloggerSearch} onChange={event => setBloggerSearch(event.target.value)} /></div>
           <div className="bloggers-list">
             <button className="blogger-row all-bloggers" aria-pressed={selection.uid === null} onClick={() => selectBlogger(null)}>

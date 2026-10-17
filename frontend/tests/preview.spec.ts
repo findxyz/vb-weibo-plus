@@ -195,6 +195,37 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   });
 }
 
+test('add_blogger_validates_then_posts_uid_refreshes_and_selects_new_blogger', async ({ page }) => {
+  const added = { uid: 1234567890, screenName: '新博主' };
+  const calls: string[] = [];
+  await page.route('**/post/bloggers?uid=*', async route => {
+    calls.push(route.request().url());
+    bloggers = [...bloggers, added];
+    await route.fulfill({ json: added });
+  });
+  postsByUid[String(added.uid)] = { ...posts, total: 1, items: [{ ...posts.items[0], content: '新博主正文', blogger: added }] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
+  await page.getByRole('button', { name: '添加博主', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '添加博主', exact: true });
+  const input = dialog.getByRole('textbox', { name: 'UID 或主页链接' });
+  await expect(input).toBeFocused();
+  await input.fill('abc');
+  await input.press('Enter');
+  await expect(dialog.getByRole('alert')).toContainText('无法识别');
+  expect(calls).toHaveLength(0);
+  await input.fill(' https://weibo.com/u/1234567890 ');
+  await input.press('Enter');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.feed-header h2')).toHaveText('新博主的微博');
+  await expect(page.locator('.post-content')).toHaveText('新博主正文');
+  await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
+  expect(new URL(calls[0]).search).toBe('?uid=1234567890');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
 test('post_login_detects_invalid_status_without_hiding_local_reading_and_starts_only_on_click', async ({ page }) => {
   loginPayload = { valid: false };
   await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: { msg: '本地扫码失败' } }));
