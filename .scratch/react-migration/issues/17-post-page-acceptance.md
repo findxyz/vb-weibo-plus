@@ -82,3 +82,5 @@
 同一范围独立只读审查：0 项发现。三项修补对应已记录迁移缺陷，边界符合本票。
 
 post 还剩任务 18：正式入口切换、回退与专属旧实现清理；本票不实施该任务。
+
+集成提交 25a0847。主工作目录的 900×560 Vite 检查通过阅读摘要、媒体适配／查看器、搜索隔离、扫码恢复、添加、采集及正式 chat 开发目标，全部业务请求使用本地替身。证据为 react-post-acceptance-integrated-smoke.log 和 integrated.png。首次检查发现 5173 未监听；重启时 npm 参数转发使 Vite 根目录错误，已停止本次启动的进程，改为从 frontend 直接启动 Vite 后通过。失败日志分别保留为 integrated-unavailable.log、integrated-launch-argument.log，未修改应用代码，未停止 18080 用户后端。
