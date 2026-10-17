@@ -216,3 +216,5 @@ post preview 在阶段 3 结束，chat preview 在阶段 5 结束，两页各自
 任务 15 集成 65e1921。开发预览进程已退出后重新启动，5173 本地 HTTP 替身的登录／添加与阅读检查通过，证据 react-add-blogger-integrated-smoke.log；未触发真实业务写入。
 
 2026-10-17，完成任务 16，实施 29a675d、2ea8b97。10 项定向、完整 118 项 Chrome 回归、类型／双入口构建、15 项 Maven 资源及隔离 JAR 采集替身／阅读保持通过，Standards／Spec 各 0 项。发布包 ticket-16。本批 13 至 16 完成，后续主票为 17 整页验收与 18 正式入口切换。
+
+任务 16 集成 5b77a6d。主工作目录 5173 的组合检查覆盖搜索、扫码恢复、添加博主、采集和日期／正文保持，业务读取与 POST 均由本地替身拦截，未触发用户业务操作；证据 react-sync-history-integrated-smoke.log、react-sync-history-integrated.png。5173／18080 均在监听，未停止或替换用户后端。实施 worktree 归档已请求，queued 仅表示排队；任务 14 的诊断生成目录和工作树保留。

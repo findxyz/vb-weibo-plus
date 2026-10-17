@@ -49,3 +49,5 @@
 同一范围独立审查，0 项发现，范围、阅读保持、请求与反馈生命周期符合本票。
 
 本批用户授权的 13 至 16 已逐票完成，下一步是 17 整页验收，再由 18 切换入口并结束 post preview。两张后续主票尚未实施。
+
+集成 5b77a6d。主工作目录现有预览的本地替身组合检查通过搜索、登录恢复、添加与采集；未请求真实写接口。证据 react-sync-history-integrated-smoke.log、react-sync-history-integrated.png。实施工作树已提交归档请求，queued 不代表已确认清理完成。
