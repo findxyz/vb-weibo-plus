@@ -29,6 +29,8 @@ let searchPosts: PostList;
 let searchStatus = 200;
 let holdSearch = false;
 let releaseSearch: (() => void) | undefined;
+let loginPayload: unknown;
+let loginStatus = 200;
 
 function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
   return { pid, thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720,
@@ -49,6 +51,11 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/weibo/login/status') {
+      response.writeHead(loginStatus, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify(loginPayload));
+      return;
+    }
     if (path === '/post/list' && url.searchParams.has('keyword')) {
       const payload = JSON.stringify(searchStatus === 200 ? searchPosts : { msg: '本地搜索暂时不可用' });
       const send = () => {
@@ -140,6 +147,8 @@ test.beforeEach(({ page }) => {
   searchStatus = 200;
   holdSearch = false;
   releaseSearch = undefined;
+  loginPayload = { valid: true };
+  loginStatus = 200;
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('request', (request) => {
     if (!['GET', 'HEAD'].includes(request.method())) writeRequests.push(`${request.method()} ${request.url()}`);
@@ -185,6 +194,22 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
+
+test('post_login_detects_invalid_status_without_hiding_local_reading_and_starts_only_on_click', async ({ page }) => {
+  loginPayload = { valid: false };
+  await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: { msg: '本地扫码失败' } }));
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  expect(requests.filter(value => value.includes('/weibo/login/status'))).toHaveLength(1);
+  expect(writeRequests).toHaveLength(0);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect(page.locator('.login-expired')).toContainText('扫码登录失败，请重新扫码。');
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
+  await expect(page.locator('.qr-loading')).toHaveText('暂无二维码');
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
 
 test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_card', async ({ page }) => {
   calendar.months.push(

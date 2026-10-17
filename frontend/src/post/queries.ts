@@ -14,9 +14,11 @@ class QueryError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
-async function getJson<T>(url: string, signal: AbortSignal, timeoutMs = 15000): Promise<T> {
+export function isUnauthorized(error: unknown) { return error instanceof QueryError && error.status === 401; }
+
+export async function getJson<T>(url: string, signal: AbortSignal, timeoutMs = 15000, options?: RequestInit): Promise<T> {
   try {
-    const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) });
+    const response = await fetch(url, { ...options, signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) });
     if (!response.ok) {
       let message = `HTTP ${response.status}`;
       try {

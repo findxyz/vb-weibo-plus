@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
     server: {
       strictPort: true,
       proxy: {
+        '^/weibo/login/(?:status|qr|qr/image)(?:\\?.*)?$': {
+          target: backendUrl,
+        },
         '^/post/(?:bloggers|calendar|list|image|video-cover)(?:\\?.*)?$': {
           target: backendUrl,
         },

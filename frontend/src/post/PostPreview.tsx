@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { useDefaultReading, type Blogger } from './queries';
+import { useEffect, useState } from 'react';
+import { isUnauthorized, useDefaultReading, type Blogger } from './queries';
+import { usePostLogin } from './usePostLogin';
+import PostLogin from './PostLogin';
 import PostFeed from './PostFeed';
 import DateTimeline from './DateTimeline';
 import PostSearch from './PostSearch';
@@ -22,6 +24,10 @@ export default function PostPreview() {
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost } = useDefaultReading();
+  const login = usePostLogin();
+  useEffect(() => {
+    if ([bloggers.error, calendar.error, posts.error].some(isUnauthorized)) login.expire();
+  }, [bloggers.error, calendar.error, posts.error, login.expire]);
   const selectedBlogger = bloggers.data?.find(blogger => blogger.uid === selection.uid);
   const formalPage = import.meta.env.DEV ? new URL('/post/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/post/index.html';
 
@@ -42,16 +48,17 @@ export default function PostPreview() {
               <span className="blogger-name">全部博主</span>
             </button>
             {bloggers.isPending && <p className="panel-feedback" role="status">正在加载博主……</p>}
-            {bloggers.isError && <p className="panel-feedback" role="alert">博主加载失败，请刷新页面重试。（{bloggers.error.message}）</p>}
+            {bloggers.isError && !isUnauthorized(bloggers.error) && <p className="panel-feedback" role="alert">博主加载失败，请刷新页面重试。（{bloggers.error.message}）</p>}
             {bloggers.isSuccess && bloggers.data.length === 0 && <p className="panel-feedback" role="status">暂无博主。</p>}
             <BloggerList bloggers={bloggers.data ?? []} keyword={bloggerSearch} selectedUid={selection.uid} onSelect={selectBlogger} />
           </div>
+          {login.expired && <PostLogin pending={login.pending} started={login.started} message={login.message} onStart={login.start} />}
         </section>
         <section className="dates-panel" aria-label="日期区域">
           <header className="dates-heading"><h2>日期</h2></header>
           <div className="dates-list">
             {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
-            {calendar.isError && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
+            {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
             {calendar.isSuccess && !date && <p className="panel-feedback" role="status">暂无有博文的日期。</p>}
             {date && <DateTimeline key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
           </div>
@@ -64,12 +71,12 @@ export default function PostPreview() {
           </header>
           <div className="posts">
             {posts.isFetching && <p role="status">正在加载博文……</p>}
-            {posts.isError && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
+            {posts.isError && !isUnauthorized(posts.error) && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
             {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} targetPostId={jump?.mblogId} />}
           </div>
         </section>
       </main>
-      {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} onSelectPost={jumpToPost} />}
+      {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} onSelectPost={jumpToPost} onUnauthorized={login.expire} />}
     </div>
   );
 }
