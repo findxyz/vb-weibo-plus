@@ -57,6 +57,9 @@ body {
 h1 { margin: 0; font-family: var(--serif); font-size: 22px; line-height: 1; font-weight: 800; letter-spacing: 0.2px; }
 .preview-note { margin: 0 0 0 auto; font: 12px/1.3 var(--hand); }
 .preview-note a { color: var(--paper); }
+.window-control { flex: none; width: 30px; height: 28px; display: grid; place-items: center; padding: 0; border: 1.5px solid var(--paper); border-radius: 5px; color: var(--paper); background: var(--accent); transform: rotate(-0.6deg); }
+.window-control::before { content: ""; display: block; width: 12px; height: 12px; background: center / contain no-repeat; }
+.window-control.toggle::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='14' viewBox='0 0 12 14'%3E%3Cpath d='M1 3h7M6 1l3 2-3 2' fill='none' stroke='%23fbf6ec' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M11 11H4M6 9L3 11l3 2' fill='none' stroke='%23fbf6ec' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 .columns { position: relative; display: grid; grid-template-columns: 280px 200px minmax(0, 1fr); min-height: 0; }
 .columns::before { content: ""; position: absolute; inset: 0; background: var(--paper-tint); opacity: .55; pointer-events: none; }
 .columns > section { position: relative; z-index: 1; min-height: 0; display: grid; grid-template-rows: 48px minmax(0, 1fr); }
@@ -99,18 +102,18 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .posts { min-height: 0; overflow-y: auto; padding: 18px; scrollbar-gutter: stable; }
 .post-card { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: start; gap: 12px; max-width: 720px; padding: 16px; margin: 14px 0; border: 2px solid var(--pencil); border-radius: 10px; background: var(--paper); }
 .post-card.pure-retweet { grid-template-columns: minmax(0, 1fr); }
-.post-body { min-width: 0; display: grid; gap: 8px; }
+.post-body { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .post-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 120px)); gap: 6px; margin-top: 4px; }
-.post-pic { position: relative; display: block; width: 120px; height: 120px; padding: 0; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper-tint); }
+.post-pic { position: relative; display: block; width: 120px; max-width: 100%; height: auto; aspect-ratio: 1; padding: 0; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper-tint); }
 .post-pic img, .post-retweet-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .post-pic img { transition: filter .15s ease; }
 .post-pic:hover img { filter: brightness(.9) contrast(.95); }
 .post-pic[hidden], .post-retweet-pic[hidden] { display: none; }
 .post-pics.one-image { grid-template-columns: minmax(0, 320px); }
-.post-pics.one-image .post-pic { width: fit-content; height: auto; max-width: 320px; max-height: 320px; }
+.post-pics.one-image .post-pic { width: fit-content; height: auto; aspect-ratio: auto; max-width: min(100%, 320px); max-height: 320px; }
 .post-pics.one-image .post-pic img { width: auto; height: auto; max-width: 100%; max-height: 320px; object-fit: contain; }
 .post-retweet-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 100px)); gap: 4px; margin-top: 4px; }
-.post-retweet-pic { position: relative; display: block; width: 100px; height: 100px; padding: 0; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: repeating-linear-gradient(45deg, var(--grid) 0 4px, transparent 4px 8px), var(--paper-tint); }
+.post-retweet-pic { position: relative; display: block; width: 100px; max-width: 100%; height: auto; aspect-ratio: 1; padding: 0; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 4px; background: repeating-linear-gradient(45deg, var(--grid) 0 4px, transparent 4px 8px), var(--paper-tint); }
 .post-header { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .post-author { font: 700 16px/1.2 var(--hand-b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .post-time { color: var(--pencil); font: 12px/1 var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -120,15 +123,15 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-source::before { content: " · 来自 "; }
 .post-content, .post-retweet-content { font: 19px/1.55 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .post-content img, .post-retweet-content img { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
-.post-retweet { margin-top: 4px; padding: 10px 12px; border: 1.5px dashed var(--pencil); border-radius: 8px; background: var(--paper-tint); display: grid; gap: 6px; }
+.post-retweet { margin-top: 4px; padding: 10px 12px; border: 1.5px dashed var(--pencil); border-radius: 8px; background: var(--paper-tint); display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .post-retweet-author { font: 600 15px/1.2 var(--hand-b); }
 .post-retweet-content { font-size: 17px; color: var(--pencil); }
 .post-actions { display: flex; align-items: center; margin-top: 4px; font: 13px/1 var(--hand); }
 .post-link { margin-left: auto; color: var(--accent); font: 14px/1 var(--hand-b); white-space: nowrap; }
-.post-video { position: relative; display: inline-block; justify-self: start; margin-top: 4px; }
-.post-video img { display: block; width: 320px; max-height: 240px; object-fit: cover; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--ink); cursor: pointer; }
+.post-video { position: relative; display: inline-block; justify-self: start; max-width: 100%; margin-top: 4px; }
+.post-video img { display: block; width: 320px; max-width: 100%; max-height: 240px; object-fit: cover; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--ink); cursor: pointer; }
 .post-video img[hidden] { display: none; }
-.post-video.cover-failed { width: 320px; height: 240px; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--ink); }
+.post-video.cover-failed { width: 320px; height: auto; aspect-ratio: 4 / 3; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--ink); }
 .post-video-play { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
 .post-video-play span { display: grid; place-items: center; width: 48px; height: 48px; border: 2px solid var(--paper); border-radius: 50%; background: rgb(0 0 0 / 55%); box-shadow: var(--shadow-near); }
 .post-video-play span::before { content: ""; margin-left: 4px; border-left: 14px solid var(--paper); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
@@ -140,6 +143,7 @@ button { font: inherit; color: inherit; cursor: pointer; user-select: none; }
 .posts > button { min-height: 30px; padding: 0 14px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper); font: 14px/1 var(--hand); }
 a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 [role="alert"] { color: var(--danger); }
+.reading-announcement { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .image-viewer { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; padding: 32px; border: 0; background: rgb(43 38 32 / 82%); }
 .image-viewer[open] { display: flex; align-items: center; justify-content: center; }
 .image-viewer::backdrop { background: transparent; }

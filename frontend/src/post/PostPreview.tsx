@@ -45,6 +45,7 @@ export default function PostPreview() {
   }, [bloggers.error, calendar.error, posts.error, login.expire]);
   const selectedBlogger = bloggers.data?.find(blogger => blogger.uid === selection.uid);
   const formalPage = import.meta.env.DEV ? new URL('/post/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/post/index.html';
+  const formalChat = import.meta.env.DEV ? new URL('/chat/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/chat/index.html';
 
   return (
     <div className="app">
@@ -52,6 +53,7 @@ export default function PostPreview() {
         <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
         <h1>本地微博预览</h1>
         <p className="preview-note">完整功能请使用<a href={formalPage}>正式 post 页面</a>。</p>
+        <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = formalChat; }} />
       </header>
       <main className="columns">
         <section className="bloggers-panel" aria-label="博主区域">
@@ -92,6 +94,7 @@ export default function PostPreview() {
           </div>
         </section>
       </main>
+      <div className="reading-announcement" aria-live="polite" aria-atomic="true">{posts.isSuccess && !posts.isFetching && posts.data.items.length > 0 ? `已加载 ${posts.data.items.length} 条微博` : ''}</div>
       {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} onSelectPost={jumpToPost} onUnauthorized={login.expire} />}
     </div>
   );

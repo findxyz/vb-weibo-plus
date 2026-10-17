@@ -94,9 +94,9 @@ test.beforeAll(async () => {
       return;
     }
     const uid = url.searchParams.get('uid') ?? url.searchParams.get('uids') ?? 'all';
-    if (path === '/post/index.html') {
+    if (path === '/post/index.html' || path === '/chat/index.html') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-      response.end('<h1>后端正式页面</h1>');
+      response.end(path === '/chat/index.html' ? '<h1>后端群聊页面</h1>' : '<h1>后端正式页面</h1>');
       return;
     }
     const responseStatus = path === '/post/calendar' ? calendarStatus : path === '/post/list' ? listStatus : status;
@@ -194,6 +194,163 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
+
+test('acceptance_chat_control_matches_paper_skin_and_opens_formal_backend_with_mouse_and_keyboard', async ({ page }) => {
+  await serveLegacy(page);
+  const measure = () => page.locator('.window-control.toggle').evaluate(element => {
+    const style = getComputedStyle(element);
+    return { width: style.width, height: style.height, background: style.backgroundColor, border: style.border, radius: style.borderRadius, transform: style.transform, icon: getComputedStyle(element, '::before').backgroundImage };
+  });
+  await page.goto(`${baseUrl}legacy/post/index.html`);
+  const legacy = await measure();
+  const destination = `${process.env.API_PROXY_TARGET}/chat/index.html`;
+  for (const action of ['click', 'Enter', 'Space']) {
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    const control = page.getByRole('button', { name: '切换到微博群聊', exact: true });
+    await expect(control).toBeVisible();
+    expect(await measure()).toEqual(legacy);
+    if (action === 'click') await control.click();
+    else { await control.focus(); await control.press(action); }
+    await expect(page).toHaveURL(destination);
+    await expect(page.getByRole('heading', { name: '后端群聊页面' })).toBeVisible();
+  }
+});
+
+test('acceptance_reading_announces_loaded_items_without_making_the_feed_live', async ({ page }) => {
+  await page.clock.install();
+  posts = { ...posts, total: 9, items: [posts.items[0], { ...posts.items[0], mblogId: 'second-item' }] };
+  holdResponse = true; holdPath = '/post/list';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const announcement = page.locator('.reading-announcement');
+  await expect(announcement).toHaveAttribute('aria-live', 'polite');
+  await expect(announcement).toHaveAttribute('aria-atomic', 'true');
+  await expect(announcement).toBeEmpty();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  holdResponse = false; releaseResponse!();
+  await expect(announcement).toHaveText('已加载 2 条微博');
+  await expect(page.locator('.posts')).not.toHaveAttribute('aria-live', /.+/);
+  holdResponse = true;
+  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await expect(announcement).toBeEmpty();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  holdResponse = false; releaseResponse!();
+  await expect(announcement).toHaveText('已加载 2 条微博');
+  const reads = [...requests];
+  await page.clock.runFor(3000);
+  expect(requests).toEqual(reads);
+  listStatus = 500;
+  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('博文加载失败');
+  await expect(announcement).toBeEmpty();
+});
+
+for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
+  test(`acceptance_combined_post_workflow_at_${viewport.width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    calendarsByUid['2'] = { months: [
+      { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
+      { month: '2026-06', count: 1, days: [{ date: '2026-06-30', count: 1 }] },
+    ] };
+    const target = { ...posts.items[0], mblogId: 'acceptance-target', blogger: bloggers[1], createdAt: Date.parse('2026-06-29T18:00:00Z'),
+      content: '目标完整正文<br>安全链接 https://example.com/local.', contentRaw: '安全 <b>命中</b>',
+      pics: [imageFixture('flow-1'), imageFixture('flow-2'), imageFixture('flow-3')],
+      retweeted: { screenName: '原作者', content: '转发正文', video: { pageUrl: 'https://video.example.test/flow', coverUrl: '/post/video-cover?mblogId=flow' } } };
+    searchPosts = { ...posts, total: 1, items: [target] };
+    postsByUid['2'] = { ...posts, total: 1, items: [{ ...posts.items[0], content: '第二位七月正文', blogger: bloggers[1] }] };
+    postsByDate['2026-06-30'] = { ...posts, total: 1, items: [target] };
+    const added = { uid: 1234, screenName: '新增博主', verified: true };
+    calendarsByUid['1234'] = { months: [{ month: '2026-05', count: 1, days: [{ date: '2026-05-12', count: 1 }] }] };
+    postsByUid['1234'] = { ...posts, total: 1, items: [{ ...posts.items[0], blogger: added, content: '新增博主本地正文', createdAt: Date.parse('2026-05-12T00:00:00Z') }] };
+    const mutationParams: [string, Record<string, string>][] = [];
+    await page.route('**/weibo/login/qr', route => { searchStatus = 200; return route.fulfill({ json: {} }); });
+    await page.route('**/post/bloggers?uid=*', route => {
+      mutationParams.push(['add', Object.fromEntries(new URL(route.request().url()).searchParams)]);
+      bloggers = [...bloggers, added]; return route.fulfill({ json: added });
+    });
+    await page.route('**/post/range?*', route => {
+      mutationParams.push(['range', Object.fromEntries(new URL(route.request().url()).searchParams)]);
+      calendarsByUid['1234'].months.unshift({ month: '2026-06', count: 1, days: [{ date: '2026-06-01', count: 1 }] });
+      return route.fulfill({ json: {} });
+    });
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    await expect(page.locator('.post-content')).toContainText('第一行');
+    await page.getByRole('searchbox', { name: '搜索博主' }).fill('第二');
+    await page.getByRole('button', { name: '第二位', exact: true }).click();
+    await expect(page.locator('.post-content')).toHaveText('第二位七月正文');
+    searchStatus = 401;
+    await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+    await page.getByLabel('关键词', { exact: true }).fill('命中');
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+    await expect(page.locator('.login-expired')).toHaveCount(0);
+    await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+    await page.getByLabel('关键词', { exact: true }).fill('命中');
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    await expect(page.locator('.search-result-snippet')).toHaveText('安全 <b>命中</b>');
+    await page.locator('.search-result').press('Enter');
+    await expect(page.getByRole('button', { name: '2026-06-30', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.post-content')).toContainText('目标完整正文');
+    await expect(page.locator('.post-retweet-content')).toHaveText('转发正文');
+    const picture = page.locator('.post-pic').nth(1);
+    await picture.click();
+    const viewer = page.getByRole('dialog', { name: '查看原图' });
+    await expect(viewer.locator('.viewer-counter')).toHaveText('2 / 3');
+    await page.keyboard.press('ArrowRight');
+    await expect(viewer.locator('.viewer-counter')).toHaveText('3 / 3');
+    await page.keyboard.press('Escape');
+    await expect(picture).toBeFocused();
+    await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第二');
+    await page.screenshot({ path: testInfo.outputPath('combined-media.png') });
+    await writeFile(testInfo.outputPath('media-bounds.json'), JSON.stringify(await page.locator('.posts, .post-card, .post-body, .post-pics, .post-pic, .post-retweet, .post-video, .post-video img').evaluateAll(elements => elements.map(element => {
+      const bounds = element.getBoundingClientRect();
+      return { className: element.className, width: bounds.width, right: bounds.right, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth, columns: getComputedStyle(element).gridTemplateColumns };
+    })), null, 2));
+    expect(await page.locator('.posts').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.getByRole('button', { name: '添加博主', exact: true }).click();
+    await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('https://weibo.com/u/1234');
+    await page.getByRole('button', { name: '添加', exact: true }).click();
+    await expect(page.locator('.feed-header h2')).toHaveText('新增博主的微博');
+    await expect(page.locator('.post-content')).toHaveText('新增博主本地正文');
+    const dayReads = requests.filter(value => value.startsWith('GET /post/list?') && !value.includes('keyword='));
+    await page.getByRole('button', { name: '同步历史', exact: true }).click();
+    await page.getByLabel('开始日期', { exact: true }).fill('2026-01-01');
+    await page.getByLabel('结束日期', { exact: true }).fill('2026-06-30');
+    await page.getByRole('button', { name: '开始同步', exact: true }).click();
+    await expect(page.locator('.sync-notice')).toHaveText('同步完成');
+    await expect(page.getByRole('button', { name: '2026-05-12', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.post-content')).toHaveText('新增博主本地正文');
+    expect(requests.filter(value => value.startsWith('GET /post/list?') && !value.includes('keyword='))).toEqual(dayReads);
+    expect(mutationParams).toEqual([['add', { uid: '1234' }], ['range', { uid: '1234', start: '2026-01-01 00:00:00', end: '2026-06-30 23:59:59' }]]);
+    expect(writeRequests.map(value => new URL(value.slice(5)).pathname)).toEqual(['/weibo/login/qr', '/post/bloggers', '/post/range']);
+    writeRequests = [];
+    await page.screenshot({ path: testInfo.outputPath('combined-complete.png') });
+  });
+}
+
+test('acceptance_minimum_media_preserves_square_tiles_single_image_and_failed_video_ratio', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 560 });
+  posts = { ...posts, total: 3, items: [
+    { ...posts.items[0], mblogId: 'single-minimum', pics: [imageFixture('single-minimum')] },
+    { ...posts.items[0], mblogId: 'retweet-minimum', source: '很长来源'.repeat(60), retweeted: { screenName: '原作者', content: '转发图片',
+      pics: Array.from({ length: 3 }, (_, index) => imageFixture(`minimum-${index}`)),
+      video: { coverUrl: '/post/video-cover?mblogId=broken-video', pageUrl: 'https://video.example.test/minimum' } } },
+    { ...posts.items[0], mblogId: 'pure-minimum', content: '', retweeted: { screenName: '原作者', content: '纯转发',
+      pics: Array.from({ length: 3 }, (_, index) => imageFixture(`pure-minimum-${index}`)) } },
+  ] };
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  await expect(page.locator('.post-card')).toHaveCount(3);
+  await page.locator('.post-video').scrollIntoViewIfNeeded();
+  await expect(page.locator('.post-video')).toHaveClass(/cover-failed/);
+  expect(await page.locator('.posts').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  for (const selector of ['.post-retweet-pic', '.post-video.cover-failed']) {
+    for (const element of await page.locator(selector).all()) {
+      const bounds = await element.boundingBox();
+      expect(bounds!.width / bounds!.height).toBeCloseTo(selector.includes('video') ? 4 / 3 : 1, 2);
+    }
+  }
+  expect(await page.locator('.post-pics.one-image .post-pic').evaluate(element => element.getBoundingClientRect().right <= element.closest('.post-card')!.getBoundingClientRect().right)).toBe(true);
+});
 
 test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refreshing_calendar', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
