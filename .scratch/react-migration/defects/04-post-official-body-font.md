@@ -1,0 +1,21 @@
+# 正文调整 04：对齐微博官网字体
+
+**Status:** resolved
+
+2026-10-17，用户要求将本地微博正文字体改为官网相同字体，同时询问 chat 的迁移票数。
+
+从用户已打开的 https://weibo.com/ 页面实际读取普通正文（epoch 与 DeepSeek 两条）的 computed style：font-family 为 `QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif`，font-weight 为 400，官网字号 15px、行高 24px。
+
+官网 CSS 来源 https://h5.sinaimg.cn/m/weibo-pro-next/assets/index-DCZHqfDD.css。读取 CSSOM 确认 html 声明以上字体栈，QuoteFallback 的字体来源仅为本机 Georgia／SimSun，unicode-range 为 U+2018-2019、U+201C-201D，仅处理引号。不是仅凭截图猜测字体，也未读取或导出用户登录凭据。
+
+按用户所说“字体”调整普通／转发正文的字体族；保留本地 19px／17px、1.55 行高、UI 字体与纸感样式。DESIGN.md 及组件实样同步。固定几何 fixture 只按明确批准的新字体更新两个正文 font 字段，不重录尺寸或其他基准。
+
+chat 票数仅更新路线图估算，约 17 张主票，尚未发布具体实施票；不因此实施 chat 功能。
+
+## Answer
+
+普通与转发正文已对齐官网字体栈及本机引号回退规则。用户现有 localhost:5173 页面热更新后，实际 computed style 已分别确认新字体栈、19px／29.45px 和 17px／26.35px。未改 chat 字体、字号或其他 UI 字体，没有字体文件或外部字体请求。
+
+15 项真实浏览器定向检查通过，覆盖两尺寸固定几何、三尺寸组合、最小桌面媒体、元信息、图片／视频布局、长列表内容高度、正文清洗和行内表情；TypeScript 检查与双入口生产构建通过。仅两个固定基准中的正文 font 字段按本次批准的字体更新，尺寸与其他样式基准未重录。
+
+证据为仓库外 react-post-body-font-tests.log、react-post-body-font-build.log。按正确性、简单性、职责、资源与请求影响自查，改动限于正文令牌、官网本机回退定义及设计实样。此小范围样式调整未重复运行完整 Maven，也没有替换用户正在运行的 JAR；后续 Maven 打包会收集新 CSS，ticket-18 的已保存发布包继续作为切换时的基线。

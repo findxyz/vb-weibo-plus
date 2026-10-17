@@ -113,11 +113,11 @@ typography:
     fontSize: 12px
     lineHeight: 1.4
   post-content:
-    fontFamily: 'Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif'
+    fontFamily: 'QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif'
     fontSize: 19px
     lineHeight: 1.55
   retweet-content:
-    fontFamily: 'Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif'
+    fontFamily: 'QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif'
     fontSize: 17px
     lineHeight: 1.55
   sketch-display:
@@ -229,7 +229,7 @@ vb-weibo-plus 的前端由两套独立皮肤组成，共用同一副「骨架习
 - **蔚蓝拟物（chat.css，群聊客户端）**：Windows Aero 式高光渐变标题栏、内嵌阴影面板、四段蓝色渐变，制造「桌面软件」的实在感。
 - **纸感手绘（post.css，博文阅读器）**：米纸底 + 22px 铅笔点阵、45° 斜线填充、硬偏移投影、±0.5–3° 微旋转与荧光笔涂选，制造「纸面草稿」的轻松感。
 
-两套皮肤共享：Tahoma / 微软雅黑字体栈、浅色 `color-scheme`、3px 焦点环外扩 2px、最小窗宽 900px、计数用 `tabular-nums`。
+两套皮肤共享：浅色 `color-scheme`、3px 焦点环外扩 2px、最小窗宽 900px、计数用 `tabular-nums`。工具与导航仍以 Tahoma / 微软雅黑为主；post 正文采用微博官网的系统字体栈。
 
 一句话：**工具窗格用拟物表达「专业软件」，阅读界面用手绘表达「轻量纸面」，令牌互不混用。**
 
@@ -244,7 +244,8 @@ vb-weibo-plus 的前端由两套独立皮肤组成，共用同一副「骨架习
 
 ## Typography
 
-- 全局唯一字体栈 `Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif`；post.css 有意让 `--serif/--hand/--mono` 全部指向微软雅黑，**不加载任何字体文件**。
+- 工具文字使用 `Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif`；post.css 的 `--serif/--hand/--mono` 仍指向微软雅黑。
+- post 普通与转发正文使用 `QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif`。`QuoteFallback` 的本机来源为 `local("Georgia"), local("SimSun")`，仅覆盖 `U+2018-2019, U+201C-201D` 引号。只使用本机字体，不下载字体文件；保留 19px／17px 及 1.55 行高。来源为 2026-10-17 实测的[微博官网 CSS](https://h5.sinaimg.cn/m/weibo-pro-next/assets/index-DCZHqfDD.css)，官网当前正文为 15px／24px，本次只对齐字体，不改变本地字号。
 - 字号阶梯：12/13 元信息与计数 → 14/15 工具与正文 → 16–18 面板/标题栏 → 19–22 内容与展示（post 正文 19px/1.55，标题 22px/800）。
 - 时间、地区、计数一律 12px + `font-variant-numeric: tabular-nums`。
 

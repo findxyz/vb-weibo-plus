@@ -21,6 +21,7 @@
       --font-body:    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       --font-mono:    ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
       --font-app:     Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
+      --font-post:    QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
 
       --fs-h1: clamp(40px, 5vw, 64px);
       --fs-h2: clamp(28px, 3.4vw, 42px);
@@ -314,7 +315,8 @@
     .bw-author { font-size: 16px; font-weight: 700; }
     .bw-badge { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-left: 4px; }
     .bw-time { font-size: 12px; color: var(--b-pencil); font-variant-numeric: tabular-nums; }
-    .bw-content { font-size: 19px; line-height: 1.55; overflow-wrap: anywhere; }
+    @font-face { font-family: QuoteFallback; src: local("Georgia"), local("SimSun"); unicode-range: U+2018-2019, U+201C-201D; }
+    .bw-content { font-family: var(--font-post); font-size: 19px; line-height: 1.55; overflow-wrap: anywhere; }
     .bw-content a { color: var(--b-sketch-accent); text-decoration: underline wavy; text-underline-offset: 3px; }
     .bw-content a:hover { text-decoration-style: solid; }
     .bw-pics { display: grid; grid-template-columns: repeat(3, 92px); gap: 6px; }
@@ -326,7 +328,7 @@
     .bw-pic::after { content: "img"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; color: var(--b-pencil); letter-spacing: 0.1em; }
     .bw-rt { padding: 10px 12px; border: 1.5px dashed var(--b-pencil); border-radius: 8px; background: var(--b-paper-tint); display: grid; gap: 6px; }
     .bw-rt-author { font-size: 15px; font-weight: 600; color: var(--b-ink); }
-    .bw-rt-content { font-size: 17px; line-height: 1.55; color: var(--b-pencil); }
+    .bw-rt-content { font-family: var(--font-post); font-size: 17px; line-height: 1.55; color: var(--b-pencil); }
     .bw-actions { display: flex; align-items: center; gap: 16px; margin-top: 2px; font-size: 13px; color: var(--b-pencil); }
     .bw-link { margin-left: auto; color: var(--b-sketch-accent); font-size: 14px; font-weight: 700; text-decoration: underline wavy; text-underline-offset: 3px; white-space: nowrap; }
     .bw-link:hover { text-decoration-style: solid; }
@@ -440,7 +442,7 @@
       <div class="container">
         <p class="eyebrow">01 · 双皮肤</p>
         <h2>工具窗格拟物，阅读界面手绘。</h2>
-        <p class="lead" style="margin: 14px 0 40px;">同一次抽取得到的两种气质——差别在渐变与纹理，共同点是骨架习惯：Tahoma / 微软雅黑栈、4–18px 间距、3px 焦点环外扩 2px、最小窗宽 900px。</p>
+        <p class="lead" style="margin: 14px 0 40px;">两种气质的差别在渐变与纹理，共同点是骨架习惯：4–18px 间距、3px 焦点环外扩 2px、最小窗宽 900px。工具文字沿用 Tahoma / 微软雅黑，post 正文采用微博官网系统字体栈。</p>
         <div class="grid-2">
           <div>
             <h3 style="margin-bottom: 12px;">A · 蔚蓝拟物 <span class="meta">chat.css · 群聊客户端</span></h3>
@@ -569,15 +571,15 @@
     <section class="section" data-od-id="type">
       <div class="container">
         <p class="eyebrow">03 · 字型阶梯</p>
-        <h2>一支字体栈，八档字号。</h2>
-        <p class="lead" style="margin: 14px 0 36px;">全项目只有 Tahoma → 微软雅黑 → SimSun 一条栈，post.css 的 serif / hand / mono 变量有意全部指向它，零字体文件加载。样例即真实渲染。</p>
+        <h2>系统字体，八档字号。</h2>
+        <p class="lead" style="margin: 14px 0 36px;">工具文字沿用 Tahoma → 微软雅黑 → SimSun；post 正文对齐微博官网的 system-ui 栈，QuoteFallback 仅处理引号。只使用本机字体，样例即真实渲染。</p>
         <div class="type-row">
           <div class="type-spec">sketch-display · 22px / 800<br>letter-spacing 0.2px · 应用标题</div>
           <div class="type-sample" style="font-size:22px; font-weight:800; letter-spacing:0.2px;">博文阅读器</div>
         </div>
         <div class="type-row">
           <div class="type-spec">post-content · 19px / 1.55<br>正文 · 最大内容字号</div>
-          <div class="type-sample" style="font-size:19px; line-height:1.55;">清晨的雾还没散，山脊线先亮了。</div>
+          <div class="type-sample" style="font-family:var(--font-post); font-size:19px; line-height:1.55;">清晨的雾还没散，山脊线先亮了。DeepSeek V4.1，“系统字体”。</div>
         </div>
         <div class="type-row">
           <div class="type-spec">app-title · 18px / 700<br>letter-spacing 0.4px · 标题栏</div>

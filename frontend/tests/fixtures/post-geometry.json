@@ -1091,7 +1091,7 @@
         "y": 172.1875,
         "width": 624,
         "height": 88.3125,
-        "font": "19px / 29.45px Tahoma, \"Microsoft YaHei\", \"Microsoft JhengHei\", SimSun, sans-serif",
+        "font": "19px / 29.45px QuoteFallback, system-ui, -apple-system, \"Segoe UI\", Roboto, Ubuntu, Cantarell, \"Noto Sans\", sans-serif",
         "border": "0px none rgb(43, 38, 32)",
         "padding": "0px",
         "shadow": "none"
@@ -1246,7 +1246,7 @@
         "y": 172.1875,
         "width": 624,
         "height": 88.3125,
-        "font": "19px / 29.45px Tahoma, \"Microsoft YaHei\", \"Microsoft JhengHei\", SimSun, sans-serif",
+        "font": "19px / 29.45px QuoteFallback, system-ui, -apple-system, \"Segoe UI\", Roboto, Ubuntu, Cantarell, \"Noto Sans\", sans-serif",
         "border": "0px none rgb(43, 38, 32)",
         "padding": "0px",
         "shadow": "none"

@@ -1,4 +1,10 @@
 /* Tokens from docs/design/DESIGN.md: paper sketch skin. */
+@font-face {
+  font-family: QuoteFallback;
+  src: local("Georgia"), local("SimSun");
+  unicode-range: U+2018-2019, U+201C-201D;
+}
+
 :root {
   color-scheme: light;
   --paper: #fbf6ec;
@@ -17,6 +23,7 @@
   --serif: 'Microsoft YaHei', serif;
   --mono: 'Microsoft YaHei', monospace;
   --sans: Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
+  --post-body-font: QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
   --avatar-hatch: repeating-linear-gradient(45deg, var(--accent) 0 3px, var(--hatch) 3px 6px);
   --shadow-card: 6px 8px 0 -3px rgb(43 38 32 / 18%);
   --shadow-near: 2px 2px 0 -1px rgb(43 38 32 / 18%);
@@ -119,7 +126,7 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-region::before { content: " · "; }
 .post-source { color: var(--pencil); font: 12px/1 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .post-source::before { content: " · 来自 "; }
-.post-content, .post-retweet-content { font: 19px/1.55 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.post-content, .post-retweet-content { font: 19px/1.55 var(--post-body-font); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .post-content img, .post-retweet-content img { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
 .post-retweet { margin-top: 4px; padding: 10px 12px; border: 1.5px dashed var(--pencil); border-radius: 8px; background: var(--paper-tint); display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .post-retweet-author { font: 600 15px/1.2 var(--hand-b); }
