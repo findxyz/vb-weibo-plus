@@ -241,7 +241,7 @@ export default function AnalysisDialog({ gid, group, open, onClose }: Props) {
         <header className="analysis-titlebar">
           <span aria-hidden="true">🤖</span>
           <h2 id="analysis-title">{title}</h2>
-          <button type="button" className="analysis-close" aria-label="关闭群聊分析" onClick={onClose}>✕</button>
+          <button type="button" className="analysis-close" aria-label="关闭群聊分析" onClick={onClose} />
         </header>
         <div className="analysis-layout">
           <form className="analysis-filters" onSubmit={submit}>

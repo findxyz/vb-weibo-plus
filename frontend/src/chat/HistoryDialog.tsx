@@ -307,7 +307,7 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
         <header className="history-titlebar">
           <span aria-hidden="true">📜</span>
           <h2 id="history-title">{title}</h2>
-          <button type="button" className="history-close" aria-label="关闭聊天记录" onClick={onClose}>✕</button>
+          <button type="button" className="history-close" aria-label="关闭聊天记录" onClick={onClose} />
         </header>
         <div className="history-layout">
           <form className="history-filters" onSubmit={submit}>

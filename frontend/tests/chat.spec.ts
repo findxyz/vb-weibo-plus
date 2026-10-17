@@ -1578,6 +1578,40 @@ test('chat_celebrates_a_returning_member', async ({ page }) => {
   await expect(stage.locator('.celebration-member')).toHaveCount(0);
 });
 
+test('chat_uses_one_close_button_style_across_windows', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+
+  const read = (selector: string) => page.locator(selector).evaluate(button => {
+    const style = getComputedStyle(button);
+    const icon = getComputedStyle(button, '::before');
+    return {
+      width: style.width,
+      height: style.height,
+      radius: style.borderRadius,
+      shadow: style.boxShadow,
+      background: style.backgroundImage,
+      icon: icon.content,
+      iconSize: icon.width,
+    };
+  });
+
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const history = await read('.history-close');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog.history-dialog')).not.toHaveJSProperty('open', true);
+
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const analysis = await read('.analysis-close');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog.analysis-dialog')).not.toHaveJSProperty('open', true);
+
+  await page.locator('.message-sender').first().click();
+  const celebration = await read('.celebration-popover-titlebar button');
+  expect(history).toEqual(analysis);
+  expect(history).toEqual(celebration);
+});
+
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '旧群'));
   messagesByGid.set(2, makeMessages(2, 3, '新群'));
