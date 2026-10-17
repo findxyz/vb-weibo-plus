@@ -42,10 +42,11 @@ function parseInterval(value: string) {
   return text !== '' && Number.isFinite(raw) ? Math.max(Math.floor(raw), 1) : 30;
 }
 
-export function CelebrationPopover({ draft, onClose, onSave, onRemove }: {
+export function CelebrationPopover({ draft, onClose, onSave, onInterval, onRemove }: {
   draft: CelebrationDraft;
   onClose: () => void;
   onSave: (interval: number) => void;
+  onInterval: (interval: number) => void;
   onRemove: () => void;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -89,8 +90,11 @@ export function CelebrationPopover({ draft, onClose, onSave, onRemove }: {
         <label className="celebration-popover-row">
           <span>沉默间隔（秒）</span>
           <input type="number" min={1} step={1} value={interval}
-            onChange={event => setInterval(event.target.value)}
-            onBlur={() => { if (draft.member) onSave(parseInterval(interval)); }} />
+            onChange={event => {
+              setInterval(event.target.value);
+              if (draft.member) onInterval(parseInterval(event.target.value));
+            }}
+            onBlur={() => { if (draft.member) onInterval(parseInterval(interval)); }} />
         </label>
         <span className="celebration-popover-hint">沉默达到间隔后，怪兽会来戳破泡泡欢迎回归</span>
         {draft.member ? (

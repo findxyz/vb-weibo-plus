@@ -1578,6 +1578,23 @@ test('chat_celebrates_a_returning_member', async ({ page }) => {
   await expect(stage.locator('.celebration-member')).toHaveCount(0);
 });
 
+test('chat_saves_a_changed_celebration_interval_immediately', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.locator('.message-sender').first().click();
+  await page.getByRole('button', { name: '🎉 加入庆祝名单' }).click();
+
+  await page.locator('.celebration-chip-name').click();
+  await page.locator('.celebration-popover input[type="number"]').fill('1');
+  await page.locator('.titlebar').click();
+  await expect(page.locator('.celebration-popover')).toHaveCount(0);
+
+  const stored = await page.evaluate(() => localStorage.getItem('weibo-chat:celebration-roster'));
+  expect(stored).toContain('"interval":1');
+  await page.locator('.celebration-chip-name').click();
+  await expect(page.locator('.celebration-popover input[type="number"]')).toHaveValue('1');
+});
+
 test('chat_uses_one_close_button_style_across_windows', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);

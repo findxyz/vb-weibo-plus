@@ -326,6 +326,9 @@ export default function ChatPage() {
             setCelebrationMember(celebrationDraft.senderId, celebrationDraft.name, celebrationDraft.avatar, interval);
             setCelebrationDraft(null);
           }}
+          onInterval={interval => {
+            setCelebrationMember(celebrationDraft.senderId, celebrationDraft.name, celebrationDraft.avatar, interval);
+          }}
           onRemove={() => {
             setCelebrationMember(celebrationDraft.senderId, celebrationDraft.name, celebrationDraft.avatar, null);
             setCelebrationDraft(null);
