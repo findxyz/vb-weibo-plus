@@ -682,11 +682,16 @@ test('chat_refreshes_group_metadata_without_losing_selection', async ({ page }) 
 
   await expect(page.locator('.group-row').first()).toContainText('成员A：早上好');
   await expect(page.locator('.group-number')).toContainText('+ 3 条消息');
+  await expect(page.locator('.current-message-count')).toHaveText('3');
+  await expect(page.locator('.current-message-count')).not.toHaveClass(/size-flash/);
   const before = await page.locator('.messages').evaluate(element => element.scrollTop);
 
   groups[0] = makeGroup(1, '第一群', { latestSenderName: '成员B', latestMessage: '新内容', messageCount: 7 });
   await expect(page.locator('.group-row').first()).toContainText('成员B：新内容', { timeout: 4000 });
   await expect(page.locator('.group-number')).toContainText('+ 7 条消息');
+  await expect(page.locator('.current-message-count')).toHaveText('7');
+  // 消息数变化时数字闪一次，与旧页 size-flash 一致。
+  await expect(page.locator('.current-message-count')).toHaveClass(/size-flash/);
   await expect(page.locator('.group-row').first()).toHaveAttribute('aria-current', 'true');
   expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
   await expect(page.locator('.message').last()).toContainText('消息 5');

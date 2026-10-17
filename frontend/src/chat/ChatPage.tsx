@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import Avatar from './Avatar';
@@ -7,7 +7,7 @@ import GroupList from './GroupList';
 import HistoryDialog from './HistoryDialog';
 import MessageList from './MessageList';
 import { fetchGroups } from './api';
-import { groupCapacity, groupName } from './display';
+import { groupMemberCount, groupName } from './display';
 
 export default function ChatPage() {
   const groupsQuery = useQuery({
@@ -50,6 +50,17 @@ export default function ChatPage() {
   const selectedGroup = groups.find(group => group.gid === selectedGid) ?? null;
   const title = selectedGroup ? `微博群聊 - ${groupName(selectedGroup)}` : '微博群聊';
 
+  // 消息数变化时让「+ N」闪一次：换 key 重新挂载以重启动画，切群时不闪。
+  const lastSizeRef = useRef<{ gid: number; count: number } | null>(null);
+  const [flashNonce, setFlashNonce] = useState(0);
+  useEffect(() => {
+    if (!selectedGroup || typeof selectedGroup.messageCount !== 'number') return;
+    const previous = lastSizeRef.current;
+    lastSizeRef.current = { gid: selectedGroup.gid, count: selectedGroup.messageCount };
+    if (!previous || previous.gid !== selectedGroup.gid) return;
+    if (previous.count !== selectedGroup.messageCount) setFlashNonce(value => value + 1);
+  }, [selectedGroup]);
+
   useEffect(() => {
     document.title = title;
   }, [title]);
@@ -61,7 +72,9 @@ export default function ChatPage() {
     setReloadToken(token => token + 1);
   }
 
-  const groupMeta = selectedGroup ? groupCapacity(selectedGroup) : '';
+  const memberMeta = selectedGroup ? groupMemberCount(selectedGroup) : '';
+  const messageCount = selectedGroup && typeof selectedGroup.messageCount === 'number'
+    ? selectedGroup.messageCount : null;
 
   return (
     <div className="app">
@@ -83,7 +96,17 @@ export default function ChatPage() {
                 <div className="group-title-line">
                   <h2>{groupName(selectedGroup)}</h2>
                 </div>
-                <p className="group-number">{groupMeta}</p>
+                <p className="group-number">
+                  {memberMeta}
+                  {messageCount != null && (
+                    <>
+                      {' + '}
+                      <span key={flashNonce}
+                        className={`current-message-count${flashNonce ? ' size-flash' : ''}`}>{messageCount}</span>
+                      {' 条消息'}
+                    </>
+                  )}
+                </p>
               </div>
             </header>
           ) : (
