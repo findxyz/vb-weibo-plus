@@ -85,6 +85,25 @@ export async function sendText(gid: number, content: string) {
   if (!response.ok) throw new HttpError(await readError(response), response.status);
 }
 
+async function postForm(url: string, form: FormData) {
+  const response = await fetch(url, { method: 'POST', body: form });
+  if (!response.ok) throw new HttpError(await readError(response), response.status);
+}
+
+export function sendImage(gid: number, file: File) {
+  const form = new FormData();
+  form.append('gid', String(gid));
+  form.append('file', file);
+  return postForm('/chat/messages/sendImage', form);
+}
+
+export function sendVideo(gid: number, file: File) {
+  const form = new FormData();
+  form.append('gid', String(gid));
+  form.append('file', file);
+  return postForm('/chat/messages/sendVideo', form);
+}
+
 export function fetchGroups(signal: AbortSignal) {
   return getJson<ChatGroup[]>('/chat/groups', signal);
 }

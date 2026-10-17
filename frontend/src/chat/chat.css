@@ -46,6 +46,7 @@
   --media-border: #91abc0;
   --search-border: #8badca;
   --search-bg: #e8f3fb;
+  --surface-subtle: #f3f8fc;
   --success-hint: #52c41a;
   --error-hint: #f5222d;
   --emoji-hover: #eef4fb;
@@ -342,6 +343,47 @@ h1 {
   border: 1px solid var(--tool-border);
   border-radius: var(--radius-sm);
   background: linear-gradient(var(--surface), var(--tool-to));
+}
+
+.composer-tool-emoji {
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.composer-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface-subtle);
+}
+
+/* 选中文件后程序化聚焦本区以支撑 Enter 发送，不显示容器自身的焦点环。 */
+.composer-attachment:focus-visible {
+  outline: none;
+}
+
+.composer-attachment-preview,
+.composer-attachment-preview-video {
+  width: 120px;
+  height: 60px;
+  border: 1px solid var(--media-border);
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
+.composer-attachment-remove {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #c0a0a0;
+  border-radius: 50%;
+  color: var(--danger);
+  background: var(--surface);
+  font-size: 12px;
 }
 
 .composer textarea {

@@ -5,6 +5,11 @@ import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-key
 import { compareMessages, type ChatGroup, type ChatMessage } from '../src/chat/api';
 
 const BASE_TIME = Date.parse('2026-08-05T00:00:00Z');
+const PNG_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+const MP4_BYTES = Buffer.from('00000018667479706d703432000000006d70343269736f6d', 'hex');
 
 let backend: Server;
 let vite: ViteDevServer;
@@ -25,6 +30,8 @@ let pollDelayMs: number;
 let sendBodies: string[];
 let sendStatus: number;
 let onSend: (() => void) | null;
+let mediaSendBodies: { url: string; body: string; contentType: string }[];
+let mediaSendStatus: number;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -134,6 +141,17 @@ test.beforeAll(async () => {
       send();
       return;
     }
+    if (request.method === 'POST' && (path === '/chat/messages/sendImage' || path === '/chat/messages/sendVideo')) {
+      let body = '';
+      const contentType = request.headers['content-type'] ?? '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        mediaSendBodies.push({ url: path, body, contentType });
+        if (mediaSendStatus === 200) onSend?.();
+        sendJson(response, mediaSendStatus, mediaSendStatus === 200 ? {} : { msg: '附件发送失败' });
+      });
+      return;
+    }
     if (request.method === 'POST' && path === '/chat/messages/send') {
       let body = '';
       request.on('data', chunk => { body += chunk; });
@@ -208,6 +226,8 @@ test.beforeEach(({ page }) => {
   sendBodies = [];
   sendStatus = 200;
   onSend = null;
+  mediaSendBodies = [];
+  mediaSendStatus = 200;
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD'].includes(request.method())) return;
@@ -350,6 +370,8 @@ test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ p
   await expect(page.locator('.messages-state')).toHaveText('暂无群聊。');
   await expect(page.getByRole('textbox', { name: '输入消息' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '😊 表情' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /图片/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /视频/ })).toBeDisabled();
   expect(requests.length).toBeGreaterThanOrEqual(1);
   expect(requests.every(value => value === 'GET /chat/groups')).toBe(true);
 });
@@ -733,6 +755,124 @@ test('chat_inserts_emoji_at_the_cursor_and_closes_the_panel', async ({ page }) =
   await expect(panel).toBeVisible();
   await page.locator('.group-header').click();
   await expect(panel).toBeHidden();
+});
+
+test('chat_sends_an_image_attachment_and_refreshes', async ({ page }) => {
+  const items = makeMessages(1, 5, '消息');
+  messagesByGid.set(1, items);
+  onSend = () => {
+    const extra = makeMessages(1, 6, '消息')[5];
+    extra.text = '新图片';
+    items.push(extra);
+  };
+  await openChat(page);
+  await page.locator('input[accept="image/*"]').setInputFiles({
+    name: 'pic.png', mimeType: 'image/png', buffer: PNG_BYTES,
+  });
+
+  await expect(page.locator('.composer-attachment img')).toHaveCount(1);
+  await expect(page.locator('.composer-attachment img')).toHaveAttribute('src', /^blob:/);
+  await expect(page.getByRole('textbox', { name: '输入消息' })).toHaveCount(0);
+  await expect(page.locator('.composer-hint')).toHaveText('按下 Enter 发送图片');
+  await expect(page.locator('.composer-attachment')).toBeFocused();
+
+  await page.locator('.composer-attachment').press('Enter');
+  await expect.poll(() => mediaSendBodies.length).toBe(1);
+  expect(mediaSendBodies[0].url).toBe('/chat/messages/sendImage');
+  expect(mediaSendBodies[0].contentType).toContain('multipart/form-data');
+  expect(mediaSendBodies[0].body).toContain('pic.png');
+  expect(mediaSendBodies[0].body).toContain('name="gid"');
+  await expect(page.locator('.composer-attachment')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: '输入消息' })).toBeVisible();
+  await expect(page.locator('.composer-hint')).toHaveText('按下 Enter 发送内容 / Shift+Enter 换行');
+
+  const pill = page.locator('.new-messages-button');
+  await expect(pill).toBeVisible({ timeout: 3000 });
+  await pill.click();
+  await expect(page.locator('[data-mid="6"]')).toContainText('新图片');
+});
+
+test('chat_sends_a_video_attachment', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.locator('input[accept="video/mp4"]').setInputFiles({
+    name: 'clip.mp4', mimeType: 'video/mp4', buffer: MP4_BYTES,
+  });
+
+  await expect(page.locator('.composer-attachment video')).toHaveCount(1);
+  await expect(page.locator('.composer-hint')).toHaveText('按下 Enter 发送视频');
+  await page.locator('.composer-attachment').press('Enter');
+  await expect.poll(() => mediaSendBodies.length).toBe(1);
+  expect(mediaSendBodies[0].url).toBe('/chat/messages/sendVideo');
+  expect(mediaSendBodies[0].body).toContain('clip.mp4');
+  await expect(page.locator('.composer-attachment')).toHaveCount(0);
+});
+
+test('chat_removes_a_pending_attachment', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.locator('input[accept="image/*"]').setInputFiles({
+    name: 'pic.png', mimeType: 'image/png', buffer: PNG_BYTES,
+  });
+  await expect(page.locator('.composer-attachment')).toHaveCount(1);
+
+  await page.getByRole('button', { name: '删除附件' }).click();
+  await expect(page.locator('.composer-attachment')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: '输入消息' })).toBeVisible();
+  await expect(page.locator('.composer-hint')).toHaveText('按下 Enter 发送内容 / Shift+Enter 换行');
+});
+
+test('chat_validates_attachment_type_and_size', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const hint = page.locator('.composer-hint');
+
+  await page.locator('input[accept="image/*"]').setInputFiles({
+    name: 'note.txt', mimeType: 'text/plain', buffer: Buffer.from('x'),
+  });
+  await expect(hint).toHaveText('仅支持图片文件。');
+  await expect(page.locator('.composer-attachment')).toHaveCount(0);
+
+  await page.locator('input[accept="image/*"]').setInputFiles({
+    name: 'huge.png', mimeType: 'image/png', buffer: Buffer.alloc(20 * 1024 * 1024 + 1),
+  });
+  await expect(hint).toHaveText('图片不能超过 20MB。');
+
+  await page.locator('input[accept="video/mp4"]').setInputFiles({
+    name: 'clip.mp4', mimeType: 'image/png', buffer: PNG_BYTES,
+  });
+  await expect(hint).toHaveText('仅支持 MP4 视频文件。');
+});
+
+test('chat_keeps_the_attachment_when_media_send_fails', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.locator('input[accept="image/*"]').setInputFiles({
+    name: 'pic.png', mimeType: 'image/png', buffer: PNG_BYTES,
+  });
+  mediaSendStatus = 500;
+  await page.locator('.composer-attachment').press('Enter');
+  await expect(page.locator('.composer-hint')).toHaveText('附件发送失败');
+  await expect(page.locator('.composer-attachment')).toHaveCount(1);
+});
+
+test('chat_pastes_an_image_into_the_attachment_flow', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  // 群选中前编辑器是禁用的，粘贴守卫会直接跳过。
+  await expect(page.getByRole('textbox', { name: '输入消息' })).toBeEnabled();
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.items.add(new File([new Uint8Array([137, 80, 78, 71])], 'paste.png', { type: 'image/png' }));
+    const textarea = document.querySelector('.composer textarea') as HTMLTextAreaElement;
+    textarea.focus();
+    const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: data });
+    textarea.dispatchEvent(event);
+  });
+
+  await expect(page.locator('.composer-attachment img')).toHaveCount(1);
+  await expect(page.locator('.composer-hint')).toHaveText('按下 Enter 发送图片');
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
