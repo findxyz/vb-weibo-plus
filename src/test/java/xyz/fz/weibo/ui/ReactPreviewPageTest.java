@@ -213,6 +213,39 @@ class ReactPreviewPageTest {
         }
     }
 
+    @Test
+    void classpath_preview_syncs_range_with_local_fixture_and_keeps_reading_day() {
+        try (Page page = browser.newPage()) {
+            AtomicReference<Boolean> completed = new AtomicReference<>(false);
+            AtomicReference<String> rangeQuery = new AtomicReference<>();
+            page.route("**/post/range?*", route -> {
+                rangeQuery.set(URLDecoder.decode(route.request().url().split("\\?", 2)[1], StandardCharsets.UTF_8));
+                completed.set(true);
+                route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("{}"));
+            });
+            page.route("**/post/calendar?uid=2", route -> {
+                if (!completed.get()) route.resume();
+                else route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("""
+                        {"months":[{"month":"2026-08","count":1,"days":[{"date":"2026-08-01","count":1}]},
+                        {"month":"2026-07","count":1,"days":[{"date":"2026-07-10","count":1}]}]}
+                        """));
+            });
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("同步历史").setExact(true)).click();
+            page.getByLabel("开始日期", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-01");
+            page.getByLabel("结束日期", new Page.GetByLabelOptions().setExact(true)).fill("2026-07-31");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("开始同步").setExact(true)).click();
+            assertThat(page.locator(".sync-notice")).hasText("同步完成");
+            assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
+            assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
+            Assertions.assertThat(rangeQuery.get()).isEqualTo("uid=2&start=2026-07-01 00:00:00&end=2026-07-31 23:59:59");
+            Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
+        }
+    }
+
     @AfterAll
     static void stopBrowserAndServer() {
         if (browser != null) browser.close();

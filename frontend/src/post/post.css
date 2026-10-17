@@ -192,6 +192,10 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid 
 .management-window { display: grid; grid-template-rows: 40px minmax(0, 1fr); max-height: calc(80vh - 4px); }
 .add-blogger-title-icon { flex: none; width: 14px; height: 14px; font: 700 17px/14px var(--sans); }
 .management-status { min-height: 18px; margin: 0; color: var(--danger); font: 13px/1.3 var(--hand); }
+.sync-notice { margin-left: auto; color: var(--pencil); font: 12px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.global-tip { position: fixed; z-index: 50; top: 55px; right: 19px; max-width: 360px; padding: 8px 12px; border-radius: 6px; background: var(--danger); color: var(--paper); box-shadow: var(--shadow-near); font: 13px/1.3 var(--hand); pointer-events: none; overflow-wrap: anywhere; }
+.sync-history-open[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+.management-dialog .search-overlay-tip { overflow-wrap: anywhere; }
 .post-card.flash-highlight { animation: flash-card 1.6s ease-out; }
 @keyframes flash-card {
   0%, 100% { background: var(--paper); }

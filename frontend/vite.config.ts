@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
         '^/weibo/login/(?:status|qr|qr/image)(?:\\?.*)?$': {
           target: backendUrl,
         },
-        '^/post/(?:bloggers|calendar|list|image|video-cover)(?:\\?.*)?$': {
+        '^/post/(?:bloggers|calendar|list|image|video-cover|range)(?:\\?.*)?$': {
           target: backendUrl,
         },
         '^/chat/image(?:\\?.*)?$': {
