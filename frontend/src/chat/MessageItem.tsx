@@ -88,6 +88,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         className="message-avatar"
         name={message.senderName}
         avatar={message.senderAvatar}
+        senderId={message.senderId}
       />
       <div className="message-content">
         <div className="message-meta">

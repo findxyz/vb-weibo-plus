@@ -178,6 +178,16 @@ test.beforeAll(async () => {
         + '<rect width="180" height="180" fill="#ffffff"/></svg>');
       return;
     }
+    if (path.startsWith('/chat/dream/')) {
+      if (path === '/chat/dream/101.html') {
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+        response.end('<!doctype html><html><body>dream</body></html>');
+        return;
+      }
+      response.writeHead(404);
+      response.end();
+      return;
+    }
     if (path === '/chat/analyses' && request.method === 'GET') {
       const page = Number(url.searchParams.get('page')) || 1;
       const size = Number(url.searchParams.get('size')) || 20;
@@ -1568,6 +1578,49 @@ test('chat_uses_one_close_button_style_across_windows', async ({ page }) => {
   await expect(page.locator('dialog.analysis-dialog')).not.toHaveJSProperty('open', true);
 
   expect(history).toEqual(analysis);
+});
+
+test('chat_toggles_immersive_reading', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await expect(page.locator('.conversation')).not.toHaveClass(/immersive/);
+
+  await page.getByRole('button', { name: '进入沉浸阅读' }).click();
+  await expect(page.locator('.conversation')).toHaveClass(/immersive/);
+  await expect(page.locator('.group-header')).toBeHidden();
+  await expect(page.locator('.composer')).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('weibo-chat:immersive'))).toBe('1');
+
+  await page.reload();
+  await expect(page.locator('.conversation')).toHaveClass(/immersive/);
+  await page.getByRole('button', { name: '退出沉浸阅读' }).click();
+  await expect(page.locator('.conversation')).not.toHaveClass(/immersive/);
+  expect(await page.evaluate(() => localStorage.getItem('weibo-chat:immersive'))).toBe('0');
+});
+
+test('chat_opens_the_dream_game_from_a_member_avatar', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.locator('[data-sender-id="101"]').first().hover();
+
+  const popover = page.locator('.dream-popover');
+  await expect(popover).toBeVisible({ timeout: 6000 });
+  await popover.getByRole('button', { name: '🌀 进入盗梦空间' }).click();
+
+  const dialog = page.locator('dialog.dream-dialog');
+  await expect(dialog).toHaveJSProperty('open', true);
+  await expect(dialog.locator('iframe')).toHaveAttribute('src', /\/chat\/dream\/101\.html\?v=\d+/);
+  await dialog.getByRole('button', { name: '关闭盗梦空间' }).click();
+  await expect(dialog).not.toHaveJSProperty('open', true);
+  await expect.poll(() => dialog.locator('iframe').getAttribute('src')).toBe('about:blank');
+});
+
+test('chat_skips_avatars_without_a_dream_page', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.locator('[data-sender-id="102"]').first().hover();
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.dream-popover')).toHaveCount(0);
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {

@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-
 import Avatar from './Avatar';
 import AnalysisDialog from './AnalysisDialog';
 import Composer from './Composer';
+import DreamLauncher from './DreamLauncher';
 import GroupList from './GroupList';
 import HistoryDialog from './HistoryDialog';
 import MessageList from './MessageList';
@@ -38,6 +39,12 @@ export default function ChatPage() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [immersive, setImmersive] = useState(
+    () => localStorage.getItem(STORAGE_KEYS.CHAT_IMMERSIVE) === '1',
+  );
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CHAT_IMMERSIVE, immersive ? '1' : '0');
+  }, [immersive]);
   const [qrPending, setQrPending] = useState(false);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState('');
@@ -194,7 +201,15 @@ export default function ChatPage() {
 
   return (
     <div className="app">
-      <header className="titlebar"><h1>{title}</h1></header>
+      <header className="titlebar">
+        <h1>{title}</h1>
+        <div className="window-controls">
+          <button type="button" className="window-control immersive" aria-pressed={immersive}
+            aria-label={immersive ? '退出沉浸阅读' : '进入沉浸阅读'}
+            title={immersive ? '退出沉浸阅读' : '进入沉浸阅读'}
+            onClick={() => setImmersive(value => !value)} />
+        </div>
+      </header>
       <div className="workspace">
         <GroupList
           groups={groups}
@@ -205,7 +220,7 @@ export default function ChatPage() {
           onRetry={() => { void groupsQuery.refetch(); }}
           footer={loginPanel}
         />
-        <section className="conversation">
+        <section className={`conversation${immersive ? ' immersive' : ''}`}>
           {selectedGroup ? (
             <header className="group-header">
               <Avatar className="main-group-avatar" name={selectedGroup.name} avatar={selectedGroup.avatar} />
@@ -253,6 +268,7 @@ export default function ChatPage() {
         onClose={() => setHistoryOpen(false)} />
       <AnalysisDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={analysisOpen}
         onClose={() => setAnalysisOpen(false)} />
+      <DreamLauncher />
     </div>
   );
 }
