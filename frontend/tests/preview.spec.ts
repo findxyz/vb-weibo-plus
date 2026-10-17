@@ -94,9 +94,9 @@ test.beforeAll(async () => {
       return;
     }
     const uid = url.searchParams.get('uid') ?? url.searchParams.get('uids') ?? 'all';
-    if (path === '/post/index.html') {
+    if (path === '/post/index.html' || path === '/chat/index.html') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-      response.end('<h1>后端正式页面</h1>');
+      response.end(path === '/chat/index.html' ? '<h1>后端群聊页面</h1>' : '<h1>后端正式页面</h1>');
       return;
     }
     const responseStatus = path === '/post/calendar' ? calendarStatus : path === '/post/list' ? listStatus : status;
@@ -194,6 +194,27 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
+
+test('acceptance_chat_control_matches_paper_skin_and_opens_formal_backend_with_mouse_and_keyboard', async ({ page }) => {
+  await serveLegacy(page);
+  const measure = () => page.locator('.window-control.toggle').evaluate(element => {
+    const style = getComputedStyle(element);
+    return { width: style.width, height: style.height, background: style.backgroundColor, border: style.border, radius: style.borderRadius, transform: style.transform, icon: getComputedStyle(element, '::before').backgroundImage };
+  });
+  await page.goto(`${baseUrl}legacy/post/index.html`);
+  const legacy = await measure();
+  const destination = `${process.env.API_PROXY_TARGET}/chat/index.html`;
+  for (const action of ['click', 'Enter', 'Space']) {
+    await page.goto(`${baseUrl}preview/post/index.html`);
+    const control = page.getByRole('button', { name: '切换到微博群聊', exact: true });
+    await expect(control).toBeVisible();
+    expect(await measure()).toEqual(legacy);
+    if (action === 'click') await control.click();
+    else { await control.focus(); await control.press(action); }
+    await expect(page).toHaveURL(destination);
+    await expect(page.getByRole('heading', { name: '后端群聊页面' })).toBeVisible();
+  }
+});
 
 test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refreshing_calendar', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
