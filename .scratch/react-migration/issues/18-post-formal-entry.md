@@ -73,3 +73,7 @@
 首次两项 P3 已解决。复核要求进一步保留内容总高度断言，48f9154 补齐后复核通过，无剩余发现。
 
 post 的 01 至 18 主票全部完成；下一阶段为 chat 业务迁移，尚未发布新实施票。
+
+集成于 ce552a3。主工作目录现有 5173 服务通过正式 /post/index.html、标题、旧 preview 的 404、最小桌面媒体／查看器、搜索、替身扫码／添加／采集及旧 chat 开发目标检查；业务请求均本地拦截。首次外部脚本将 /post/index.html 按 /post/ 前缀误当 API，修正为三个精确读取接口后通过，应用代码无需调整。证据 react-post-cutover-integrated-smoke.log、integrated.png，失败日志 integrated-fixture-document.log 保留。没有启动或停止用户后端服务。
+
+最终 Surefire 报告已复制到仓库外 react-post-cutover-surefire 目录，发布包与生产截图已保存。实施工作树通过 Codex 提交归档请求，返回 queued，尚未确认目录清理完成。
