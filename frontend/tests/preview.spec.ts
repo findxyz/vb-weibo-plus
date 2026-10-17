@@ -12,6 +12,13 @@ test('formal_post_entry_refreshes_without_preview_and_retires_preview_document',
   const response = await page.goto(`${baseUrl}post/index.html`);
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle('本地微博');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('type', 'image/svg+xml');
+  expect(await page.evaluate(async () => {
+    const image = new Image();
+    image.src = (document.querySelector('link[rel="icon"]') as HTMLLinkElement).href;
+    await image.decode();
+    return image.naturalWidth;
+  })).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: '正式 post 页面' })).toHaveCount(0);
   await expect(page.getByRole('article')).toBeVisible();
@@ -1162,6 +1169,8 @@ test('advanced_search_opens_with_shanghai_defaults_resets_and_restores_focus_wit
   await expect(dialog.getByLabel('起止日期', { exact: true })).toHaveValue('2010-01-01');
   await expect(dialog.getByLabel('至', { exact: true })).toHaveValue('2026-08-06');
   await expect(dialog).toContainText('在「全部博主」范围内搜索。');
+  await page.mouse.click(5, 5);
+  await expect(dialog).toBeVisible();
   await dialog.getByLabel('关键词', { exact: true }).fill('尚未提交');
   await page.keyboard.press('Escape');
   await expect(dialog.getByLabel('关键词', { exact: true })).toHaveValue('');
@@ -2437,10 +2446,12 @@ test('long_feed_scrolls_independently_of_blogger_and_date_navigation', async ({ 
   const dateButton = page.getByRole('button', { name: '2026-08-05', exact: true });
   const dateTop = (await dateButton.boundingBox())!.y;
   const feed = page.locator('.posts');
+  const feedHeight = (await feed.boundingBox())!.height;
   await feed.hover();
   await page.mouse.wheel(0, 1200);
   await expect.poll(() => feed.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   expect((await dateButton.boundingBox())!.y).toBe(dateTop);
+  expect((await feed.boundingBox())!.height).toBe(feedHeight);
   expect(await page.getByRole('region', { name: '博主区域', exact: true }).evaluate(element => element.scrollTop)).toBe(0);
   expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
 });

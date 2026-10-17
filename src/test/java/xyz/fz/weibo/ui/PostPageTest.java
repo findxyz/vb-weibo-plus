@@ -258,6 +258,15 @@ class PostPageTest {
         try (Page page = browser.newPage()) {
             Assertions.assertThat(page.navigate(baseUrl + "/post/index.html").status()).isEqualTo(200);
             assertThat(page).hasTitle("本地微博");
+            assertThat(page.locator("head link[rel='icon']")).hasAttribute("type", "image/svg+xml");
+            Assertions.assertThat(page.evaluate("""
+                    async () => {
+                      const image = new Image();
+                      image.src = document.querySelector('head link[rel="icon"]').href;
+                      await image.decode();
+                      return image.naturalWidth;
+                    }
+                    """)).isEqualTo(256);
             assertThat(page.locator(".preview-note")).hasCount(0);
             assertThat(page.locator(".post-content")).containsText("打包后的正文");
             page.reload();
@@ -283,6 +292,9 @@ class PostPageTest {
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到微博群聊").setExact(true)).press("Enter");
             assertThat(page).hasURL(baseUrl + "/chat/index.html");
             assertThat(page.locator("h1")).hasText("微博群聊");
+            page.waitForLoadState();
+            Assertions.assertThat(errors).isEmpty();
+            assertThat(page.getByText("暂无群聊数据", new Page.GetByTextOptions().setExact(true))).isVisible();
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到本地微博").setExact(true)).press("Enter");
             assertThat(page).hasURL(baseUrl + "/post/index.html");
             assertThat(page.locator(".post-content")).containsText("打包后的正文");
