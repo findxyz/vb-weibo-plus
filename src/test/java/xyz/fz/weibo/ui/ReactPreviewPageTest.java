@@ -185,6 +185,34 @@ class ReactPreviewPageTest {
         }
     }
 
+    @Test
+    void classpath_preview_adds_blogger_through_local_post_fixture() {
+        try (Page page = browser.newPage()) {
+            AtomicReference<Boolean> added = new AtomicReference<>(false);
+            page.route("**/post/bloggers**", route -> {
+                if ("POST".equals(route.request().method())) {
+                    Assertions.assertThat(route.request().url()).endsWith("?uid=1234567890");
+                    added.set(true);
+                    route.fulfill(new Route.FulfillOptions().setContentType("application/json").setBody("{}"));
+                } else if (added.get()) {
+                    route.fulfill(new Route.FulfillOptions().setContentType("application/json")
+                            .setBody("[{\"uid\":1,\"screenName\":\"打包资源博主\"},{\"uid\":1234567890,\"screenName\":\"新博主\"}]"));
+                } else {
+                    route.resume();
+                }
+            });
+            page.navigate(baseUrl + "/preview/post/index.html");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("添加博主").setExact(true)).click();
+            page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("UID 或主页链接")).fill("https://weibo.com/u/1234567890");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("添加").setExact(true)).click();
+            assertThat(page.getByRole(AriaRole.DIALOG)).hasCount(0);
+            assertThat(page.locator(".feed-header h2")).hasText("新博主的微博");
+            assertThat(page.locator(".post-content")).containsText("打包后的正文");
+            Assertions.assertThat(listQuery.get()).contains("uids=1234567890");
+        }
+    }
+
     @AfterAll
     static void stopBrowserAndServer() {
         if (browser != null) browser.close();
