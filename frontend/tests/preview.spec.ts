@@ -2440,13 +2440,15 @@ test('inflight_day_read_keeps_selection_and_same_day_click_reads_again', async (
 });
 
 test('long_feed_scrolls_independently_of_blogger_and_date_navigation', async ({ page }) => {
-  posts.items[0].content = '长正文阅读\n'.repeat(80);
+  posts.items = Array.from({ length: 24 }, (_, index) => ({ ...posts.items[0], mblogId: `scroll-${index}`, content: '用于滚动回归测试的长微博正文。'.repeat(100) }));
+  posts.total = 24;
   await page.goto(`${baseUrl}post/index.html`);
-  await expect(page.getByRole('article')).toBeVisible();
+  await expect(page.getByRole('article')).toHaveCount(24);
   const dateButton = page.getByRole('button', { name: '2026-08-05', exact: true });
   const dateTop = (await dateButton.boundingBox())!.y;
   const feed = page.locator('.posts');
   const feedHeight = (await feed.boundingBox())!.height;
+  const scrollHeight = await feed.evaluate(element => element.scrollHeight);
   await feed.hover();
   await page.mouse.wheel(0, 1200);
   await expect.poll(() => feed.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
@@ -2454,6 +2456,16 @@ test('long_feed_scrolls_independently_of_blogger_and_date_navigation', async ({ 
   expect((await feed.boundingBox())!.height).toBe(feedHeight);
   expect(await page.getByRole('region', { name: '博主区域', exact: true }).evaluate(element => element.scrollTop)).toBe(0);
   expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+  const drift = await feed.evaluate(async (element, initialHeight) => {
+    for (let frame = 0; frame < 200; frame++) {
+      element.scrollTop += element.clientHeight;
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      if (element.scrollTop + element.clientHeight >= element.scrollHeight - 1) break;
+    }
+    return { height: Math.abs(element.scrollHeight - initialHeight), remaining: element.scrollHeight - element.scrollTop - element.clientHeight };
+  }, scrollHeight);
+  expect(drift.remaining).toBeLessThanOrEqual(1);
+  expect(drift.height).toBeLessThanOrEqual(1);
 });
 
 test('switching_blogger_cancels_old_calendar_and_ignores_its_late_error', async ({ page }) => {
