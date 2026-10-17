@@ -30,9 +30,20 @@ function sumHeights(heights: Map<number, number>, messages: ChatMessage[]) {
   return sum;
 }
 
-type Props = { gid: number; admins: number[]; refreshToken?: number; pollingEnabled?: boolean };
+type Props = {
+  gid: number;
+  admins: number[];
+  refreshToken?: number;
+  pollingEnabled?: boolean;
+  onLoaded?: (messages: ChatMessage[]) => void;
+  onArrivals?: (messages: ChatMessage[]) => void;
+  onMessages?: (messages: ChatMessage[]) => void;
+  onSenderClick?: (senderId: number, senderName: string, senderAvatar: string, anchor: HTMLElement) => void;
+};
 
-export default function MessageList({ gid, admins, refreshToken = 0, pollingEnabled = true }: Props) {
+export default function MessageList({
+  gid, admins, refreshToken = 0, pollingEnabled = true, onLoaded, onArrivals, onMessages, onSenderClick,
+}: Props) {
   const [ordered, setOrdered] = useState<ChatMessage[]>([]);
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -87,6 +98,8 @@ export default function MessageList({ gid, admins, refreshToken = 0, pollingEnab
         pendingBottomRef.current = true;
       }
       setStatus('ready');
+      onLoaded?.(items);
+      onMessages?.(items);
       void loadAttitudes(items);
     }).catch(error => {
       if (controller.signal.aborted) return;
@@ -333,6 +346,7 @@ export default function MessageList({ gid, admins, refreshToken = 0, pollingEnab
       const anchorIndex = anchor ? merged.findIndex(message => message.mid === anchor.mid) : 0;
       const { start, end } = windowBounds(anchorIndex < 0 ? 0 : anchorIndex, merged.length);
       setOrdered(merged);
+      onMessages?.(merged);
       setWindowMids({ start: merged[start].mid, end: merged[end].mid });
       void loadAttitudes(items);
     } catch (error) {
@@ -360,10 +374,14 @@ export default function MessageList({ gid, admins, refreshToken = 0, pollingEnab
   // 新消息只追加、不移动视口；到达即结束落底收尾，旧图片随后加载也不能把视口拉回底部。
   function appendFresh(items: ChatMessage[]) {
     if (!items.length) return;
+    const fresh = items.filter(message => !messagesRef.current.has(message.mid));
     settleRef.current = null;
     for (const message of items) messagesRef.current.set(message.mid, message);
-    setOrdered([...messagesRef.current.values()].sort(compareMessages));
+    const merged = [...messagesRef.current.values()].sort(compareMessages);
+    setOrdered(merged);
     setNewMessagesVisible(true);
+    onMessages?.(merged);
+    if (fresh.length) onArrivals?.(fresh);
     void loadAttitudes(items);
   }
 
@@ -570,7 +588,7 @@ export default function MessageList({ gid, admins, refreshToken = 0, pollingEnab
         )}
         {status === 'ready' && ordered.slice(startIndex, endIndex + 1).map(message => (
           <MessageItem key={message.mid} message={message} isAdmin={adminIds.has(message.senderId)}
-            onOpenImage={setViewerUrl} />
+            onOpenImage={setViewerUrl} onSenderClick={onSenderClick} />
         ))}
         <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
       </div>

@@ -1,4 +1,5 @@
-import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
@@ -149,7 +150,7 @@ function releaseMedia(mid: number) {
 }
 
 test.beforeAll(async () => {
-  backend = createHttpServer((request, response) => {
+  backend = createHttpServer(async (request, response) => {
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
     requests.push(`${request.method} ${request.url}`);
@@ -176,6 +177,19 @@ test.beforeAll(async () => {
       response.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
       response.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">'
         + '<rect width="180" height="180" fill="#ffffff"/></svg>');
+      return;
+    }
+    if (request.method === 'GET' && path.startsWith('/chat/assets/monster/')) {
+      const name = path.slice('/chat/assets/monster/'.length);
+      if (!/^(walk|point|leo)\.png$/.test(name)) { response.writeHead(404); response.end(); return; }
+      try {
+        const data = await readFile(new URL(`../../src/main/resources/static/chat/assets/monster/${name}`, import.meta.url));
+        response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' });
+        response.end(data);
+      } catch {
+        response.writeHead(404);
+        response.end();
+      }
       return;
     }
     if (path === '/chat/analyses' && request.method === 'GET') {
@@ -1517,6 +1531,48 @@ test('chat_pages_analysis_history_and_reports_empty', async ({ page }) => {
   await expect(dialog).not.toHaveJSProperty('open', true);
   await page.getByRole('button', { name: '🤖 群聊分析' }).click();
   await expect(dialog.locator('.analysis-feedback')).toHaveText('暂无历史分析记录。');
+});
+
+test('chat_configures_celebration_from_a_sender_name', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.locator('.message-sender').first().click();
+  const popover = page.locator('.celebration-popover');
+  await expect(popover.getByRole('heading', { name: '回归庆祝' })).toBeVisible();
+  await expect(popover.locator('input[type="number"]')).toHaveValue('30');
+  await popover.getByRole('button', { name: '🎉 加入庆祝名单' }).click();
+  await expect(popover).toHaveCount(0);
+
+  const roster = page.locator('.celebration-roster');
+  await expect(roster.locator('.celebration-chip-name')).toHaveText('成员1');
+  const stored = await page.evaluate(() => localStorage.getItem('weibo-chat:celebration-roster'));
+  expect(stored).toContain('"interval":30');
+
+  await page.reload();
+  await expect(page.locator('.celebration-roster .celebration-chip-name')).toHaveText('成员1');
+  await page.locator('.celebration-chip-name').click();
+  await page.locator('.celebration-popover').getByRole('button', { name: '👋 移出庆祝名单' }).click();
+  await expect(page.locator('.celebration-chip')).toHaveCount(0);
+});
+
+test('chat_celebrates_a_returning_member', async ({ page }) => {
+  const items = makeMessages(1, 3, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await page.locator('.message-sender').first().click();
+  const popover = page.locator('.celebration-popover');
+  await popover.locator('input[type="number"]').fill('1');
+  await popover.getByRole('button', { name: '🎉 加入庆祝名单' }).click();
+
+  const latest = items[items.length - 1].createdAt;
+  items.push({ ...items[0], mid: 999, createdAt: latest + 120000, text: '回归消息' });
+  await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 5000 });
+
+  const stage = page.locator('.celebration-stage');
+  await expect(stage.locator('.celebration-member')).toHaveCount(1, { timeout: 8000 });
+  await expect(stage.locator('.celebration-speech')).toHaveText('你终于冒泡了');
+  await stage.getByRole('button', { name: /跳过/ }).click();
+  await expect(stage.locator('.celebration-member')).toHaveCount(0);
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
