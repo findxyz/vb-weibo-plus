@@ -216,6 +216,34 @@ test('acceptance_chat_control_matches_paper_skin_and_opens_formal_backend_with_m
   }
 });
 
+test('acceptance_reading_announces_loaded_items_without_making_the_feed_live', async ({ page }) => {
+  await page.clock.install();
+  posts = { ...posts, total: 9, items: [posts.items[0], { ...posts.items[0], mblogId: 'second-item' }] };
+  holdResponse = true; holdPath = '/post/list';
+  await page.goto(`${baseUrl}preview/post/index.html`);
+  const announcement = page.locator('.reading-announcement');
+  await expect(announcement).toHaveAttribute('aria-live', 'polite');
+  await expect(announcement).toHaveAttribute('aria-atomic', 'true');
+  await expect(announcement).toBeEmpty();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  holdResponse = false; releaseResponse!();
+  await expect(announcement).toHaveText('已加载 2 条微博');
+  await expect(page.locator('.posts')).not.toHaveAttribute('aria-live', /.+/);
+  holdResponse = true;
+  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await expect(announcement).toBeEmpty();
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  holdResponse = false; releaseResponse!();
+  await expect(announcement).toHaveText('已加载 2 条微博');
+  const reads = [...requests];
+  await page.clock.runFor(3000);
+  expect(requests).toEqual(reads);
+  listStatus = 500;
+  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('博文加载失败');
+  await expect(announcement).toBeEmpty();
+});
+
 test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refreshing_calendar', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
   const writes: URL[] = [];

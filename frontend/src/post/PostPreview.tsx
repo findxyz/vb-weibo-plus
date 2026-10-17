@@ -94,6 +94,7 @@ export default function PostPreview() {
           </div>
         </section>
       </main>
+      <div className="reading-announcement" aria-live="polite" aria-atomic="true">{posts.isSuccess && !posts.isFetching && posts.data.items.length > 0 ? `已加载 ${posts.data.items.length} 条微博` : ''}</div>
       {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} onSelectPost={jumpToPost} onUnauthorized={login.expire} />}
     </div>
   );
