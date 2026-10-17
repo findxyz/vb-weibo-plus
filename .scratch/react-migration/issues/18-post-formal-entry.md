@@ -4,7 +4,7 @@
 
 **Blocked by:** 17，已完成。
 
-**Status:** claimed
+**Status:** resolved
 
 日期：2026-10-17。用户在任务 17 完成后授权继续；本票不迁移 chat 业务，不替换运行中的用户 JAR。
 
@@ -17,10 +17,10 @@
 
 ## 成功标准
 
-- [ ] 先复现正式入口／标题未切换，再验证开发与构建资源中的正式入口、刷新、纸感及键盘导航；post preview 不再提供页面。
-- [ ] 所有旧 post 专属运行时代码与源码依赖移除，旧 chat、共享工具和 React 既有行为／几何检查通过；旧测试行为覆盖有映射。
-- [ ] 完整前端回归、类型／构建、干净 Maven verify、隔离最终 JAR 与模块 MIME／移除资源检查通过，独立 Standards／Spec 审查完成。
-- [ ] 发布包、哈希、切换前旧 JAR／提交和具体回退方法已记录，地图与开发文档同步；不部署或停止用户后端，不触发真实扫码／业务写。
+- [x] 先复现正式入口／标题未切换，再验证开发与构建资源中的正式入口、刷新、纸感及键盘导航；post preview 不再提供页面。
+- [x] 所有旧 post 专属运行时代码与源码依赖移除，旧 chat、共享工具和 React 既有行为／几何检查通过；旧测试行为覆盖有映射。
+- [x] 完整前端回归、类型／构建、干净 Maven verify、隔离最终 JAR 与模块 MIME／移除资源检查通过，独立 Standards／Spec 审查完成。
+- [x] 发布包、哈希、切换前旧 JAR／提交和具体回退方法已记录，地图与开发文档同步；不部署或停止用户后端，不触发真实扫码／业务写。
 
 ## 验证隔离与回退基线
 
@@ -50,3 +50,26 @@
 首次 Standards 为 0 项。Spec 指出两项 P3：遗漏正式页 favicon，旧测试映射缺少滚动高度稳定和搜索遮罩不关闭断言。已补齐两项断言；图标复用 shared static 中的唯一 SVG 来源，由 React 的 link 元数据标签放入 head，并经 Vite 输出为构建资源，避免新增副本或依赖开发后端的图标请求。开发与 classpath 检查实际解码图标。
 
 首次 Maven 全量 411 项中 410 项通过，新增旧 chat 返回测试过早在 HTML 标题出现后按 Enter，模块尚未初始化；等待页面加载及实际空群列表后再交互，定向测试通过。未改旧 chat 运行时代码。最初完整前端测试的热更新用例仍替换旧预览标题，123 项通过、该用例失败；修正过期测试后完整 124 项通过。失败日志保留，最终验证另行记录。
+
+## Answer
+
+2026-10-17，正式入口切换完成。实施 45b0e55，审查修正 a79b064，内容高度回归 48f9154。React 正式页为 /post/index.html，post preview 和旧 post 专属 HTML／JS／CSS 已移除，旧 chat 与 chat preview 保留。共享日期、链接工具和 favicon 维持单一来源，post 专属 logo 已归 frontend。
+
+- 正式入口在开发环境先复现 404，再修正；17 项入口／原版几何／代理检查通过。原始 15 项实时旧版对照全部通过后冻结测量，不维护第二份可执行旧 post。
+- 图标修正后完整 124 项 Chrome 回归一次通过；内容高度复核进一步使用旧测试的 24 条长微博，滚至底部并验证 scrollHeight 漂移不超过 1px，定向通过。头像 18px 行高与行内表情 1.3em 尺寸也明确补入行为覆盖。类型检查和生产构建通过。本次未出现已留档的 worker 原生退出，独立问题继续保留，不认定已修复。
+- 最终 mvn clean verify：411 项，失败、错误、跳过均为 0。包含旧 chat 的 82 项及正式 React PostPageTest 的 18 项；Java 总数变化来自退休 37 项旧 DOM 测试并新增 1 项正式入口／移除资源检查，原 React 17 项已接管正式路径，行为覆盖见上表。
+- 最终 JAR 使用临时 SQLite、本机图片上游、缺失 Credential、空采集群号。3 个保留入口、10 条直接资源及浏览器实际加载的生产模块／图标 MIME 通过；JAR 清单确认无旧 post 专属文件与 preview。三个尺寸 900×560、1280×800、1600×900 的真实读取／搜索定位／查看器、替身 QR／添加／采集、阅读保持、正式页往返与刷新通过；9 条退休 URL 全为 404。
+- 每个尺寸的 3 次业务 POST 全部本地拦截，临时数据库最终仍为种子的 3 位博主、5 条博文；无用户数据库写入或真实扫码／采集。正式 JAR 冒烟最初同样过早操作旧 chat，保留日志后改为等待可见的空群列表，重跑通过；无应用代码改动或自动重试。测试进程树与图片上游已关闭。
+- JAR 证据 C:/Users/fixyz/AppData/Local/Temp/react-post-cutover-jar-a1oh6ewq，含三尺寸媒体／完成截图、acceptance.json 和上游图片记录；900 媒体截图人工检查通过。测试头像为空时按既有规则回退文字，真实头像代理由原行为检查覆盖。
+- 仓库外证据目录 C:/Users/fixyz/.codex/visualizations/2026/10/11/01a12b52-9038-7f91-870b-e108c8ddf003，保留 react-post-cutover-final-frontend.log、final-verify.log、jar-smoke.log、scroll-height.log、coverage.log、红／绿与失败日志、冒烟脚本及 release-hashes.json。失败日志包括 frontend-stale-title.log、verify-chat-fixture-failure.log、jar-smoke-chat-readiness.log。
+- 新包 target/react-migration-release/ticket-18/weibo-plus.jar 与 weibo-plus.7z 已保存，SHA-256 与验收产物一致，7z 完整性通过。切换前 ticket-17 JAR 的哈希与旧 post／chat／preview 资源已复核，记录于 react-post-cutover-rollback.json。README 已写明开发入口、干净构建和回退方法；没有替换用户运行服务或修改后端／数据库格式。
+
+### Standards
+
+2cc6ef8...45b0e55 独立审查为 0 项硬规范违例、0 项需处理的 smell；45b0e55...a79b064 复核无新增问题。
+
+### Spec
+
+首次两项 P3 已解决。复核要求进一步保留内容总高度断言，48f9154 补齐后复核通过，无剩余发现。
+
+post 的 01 至 18 主票全部完成；下一阶段为 chat 业务迁移，尚未发布新实施票。
