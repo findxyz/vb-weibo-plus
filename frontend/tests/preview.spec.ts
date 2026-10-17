@@ -2295,7 +2295,10 @@ test('retweet_text_keeps_outer_comment_and_reads_original_author_and_safe_links'
   }
   await page.mouse.move(0, 0);
   await expect(original.locator('.post-retweet-content')).toHaveCSS('white-space', 'pre-wrap');
-  await expect(original.locator('.post-retweet-content')).toHaveCSS('font-size', '17px');
+  await expect(page.locator('.post-content')).toHaveCSS('font-size', '15px');
+  await expect(page.locator('.post-content')).toHaveCSS('line-height', '24px');
+  await expect(original.locator('.post-retweet-content')).toHaveCSS('font-size', '14px');
+  await expect(original.locator('.post-retweet-content')).toHaveCSS('line-height', '24px');
   await expect(page.locator('.date-item[aria-label=\"2026-08-05\"]')).toHaveAttribute('aria-pressed', 'true');
   expect(requests.filter(value => value !== 'GET /weibo/login/status').map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
   await page.screenshot({ path: testInfo.outputPath('retweet-reading.png') });

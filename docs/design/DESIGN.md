@@ -114,12 +114,12 @@ typography:
     lineHeight: 1.4
   post-content:
     fontFamily: 'QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif'
-    fontSize: 19px
-    lineHeight: 1.55
+    fontSize: 15px
+    lineHeight: 24px
   retweet-content:
     fontFamily: 'QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif'
-    fontSize: 17px
-    lineHeight: 1.55
+    fontSize: 14px
+    lineHeight: 24px
   sketch-display:
     fontFamily: '"Microsoft YaHei", sans-serif'
     fontSize: 22px
@@ -245,8 +245,8 @@ vb-weibo-plus 的前端由两套独立皮肤组成，共用同一副「骨架习
 ## Typography
 
 - 工具文字使用 `Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif`；post.css 的 `--serif/--hand/--mono` 仍指向微软雅黑。
-- post 普通与转发正文使用 `QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif`。`QuoteFallback` 的本机来源为 `local("Georgia"), local("SimSun")`，仅覆盖 `U+2018-2019, U+201C-201D` 引号。只使用本机字体，不下载字体文件；保留 19px／17px 及 1.55 行高。来源为 2026-10-17 实测的[微博官网 CSS](https://h5.sinaimg.cn/m/weibo-pro-next/assets/index-DCZHqfDD.css)，官网当前正文为 15px／24px，本次只对齐字体，不改变本地字号。
-- 字号阶梯：12/13 元信息与计数 → 14/15 工具与正文 → 16–18 面板/标题栏 → 19–22 内容与展示（post 正文 19px/1.55，标题 22px/800）。
+- post 普通与转发正文使用 `QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif`。`QuoteFallback` 的本机来源为 `local("Georgia"), local("SimSun")`，仅覆盖 `U+2018-2019, U+201C-201D` 引号。只使用本机字体，不下载字体文件。普通正文为 15px／24px，转发正文为 14px／24px。来源为 2026-10-17 实测的[微博官网 CSS](https://h5.sinaimg.cn/m/weibo-pro-next/assets/index-DCZHqfDD.css)，分别对应 `--feed-detail-og-font-size`／`--feed-detail-og-line-height` 与 `--feed-detail-re-font-size`／`--feed-detail-re-line-height`。
+- 字号阶梯：12/13 元信息与计数 → 14/15 工具与正文 → 16–18 面板/标题栏 → 19–22 展示文字（post 标题 22px/800）。
 - 时间、地区、计数一律 12px + `font-variant-numeric: tabular-nums`。
 
 ## Layout

@@ -572,7 +572,8 @@ class PostPageTest {
             assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
             assertThat(page.locator(".post-retweet-author")).hasText("@原作者");
             assertThat(page.locator(".post-retweet-content")).containsText("打包转发原文");
-            assertThat(page.locator(".post-retweet-content")).hasCSS("font-size", "17px");
+            assertThat(page.locator(".post-retweet-content")).hasCSS("font-size", "14px");
+            assertThat(page.locator(".post-retweet-content")).hasCSS("line-height", "24px");
             assertThat(page.locator(".post-retweet-content script, .post-retweet-content svg, .post-retweet-content [onload]")).hasCount(0);
             assertThat(page.locator(".post-retweet-content a")).hasAttribute("href", "https://example.com/retweet");
             assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-line", "none");

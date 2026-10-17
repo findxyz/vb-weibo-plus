@@ -126,11 +126,11 @@ h2 { margin: 0; font: 700 19px/1 var(--serif); }
 .post-region::before { content: " · "; }
 .post-source { color: var(--pencil); font: 12px/1 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .post-source::before { content: " · 来自 "; }
-.post-content, .post-retweet-content { font: 19px/1.55 var(--post-body-font); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.post-content, .post-retweet-content { font: 15px/24px var(--post-body-font); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .post-content img, .post-retweet-content img { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
 .post-retweet { margin-top: 4px; padding: 10px 12px; border: 1.5px dashed var(--pencil); border-radius: 8px; background: var(--paper-tint); display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .post-retweet-author { font: 600 15px/1.2 var(--hand-b); }
-.post-retweet-content { font-size: 17px; color: var(--pencil); }
+.post-retweet-content { font-size: 14px; color: var(--pencil); }
 .post-actions { display: flex; align-items: center; margin-top: 4px; font: 13px/1 var(--hand); }
 .post-link { margin-left: auto; color: var(--accent); font: 14px/1 var(--hand-b); white-space: nowrap; }
 .post-video { position: relative; display: inline-block; justify-self: start; max-width: 100%; margin-top: 4px; }
