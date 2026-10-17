@@ -1,5 +1,18 @@
 import { createRoot } from 'react-dom/client';
-import ChatPreview from './ChatPreview';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import ChatPage from './ChatPage';
 import './chat.css';
 
-createRoot(document.getElementById('root')!).render(<ChatPreview />);
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
+
+createRoot(document.getElementById('root')!).render(
+  <QueryClientProvider client={queryClient}><ChatPage /></QueryClientProvider>,
+);

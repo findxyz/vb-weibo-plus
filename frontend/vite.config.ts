@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
         '^/post/(?:bloggers|calendar|list|image|video-cover|range)(?:\\?.*)?$': {
           target: backendUrl,
         },
-        '^/chat/image(?:\\?.*)?$': {
+        '^/chat/(?:groups|messages/cursor|media|image)(?:\\?.*)?$': {
           target: backendUrl,
         },
       },

@@ -110,6 +110,27 @@ class PostPageTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/chat/groups", exchange -> {
+            if (!exchange.getRequestURI().getPath().equals("/chat/groups")) {
+                sendStaticResource(exchange);
+                return;
+            }
+            sendJson(exchange, """
+                    [{"gid":9001,"name":"打包资源群","avatar":"","memberCount":10,"maxMember":50,
+                    "ownerId":1,"admins":[],"summary":"","groupType":0,"latestSenderName":"",
+                    "latestMessage":"","messageCount":1}]
+                    """);
+        });
+        server.createContext("/chat/messages/cursor", exchange -> sendJson(exchange, """
+                {"group":null,"items":[{"mid":1,"gid":9001,"msgType":1,"msgTypeName":"文本",
+                "mediaType":0,"senderId":7,"senderName":"打包成员","senderAvatar":"",
+                "text":"打包后的消息","urlObjects":null,"picInfos":null,"template":null,
+                "templateData":null,"recallMids":null,"recallBy":null,
+                "createdAt":1785889800000,"savedAt":1785889800000,"previewUrl":"",
+                "originalUrl":"","videoUrl":"","fileUrl":""}],"size":50,"hasMore":false,
+                "nextBeforeCreatedAt":null,"nextBeforeMid":null,
+                "nextAfterCreatedAt":null,"nextAfterMid":null}
+                """));
         server.createContext("/chat/image", exchange -> {
             byte[] body = "<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='48' height='48' fill='#d8482b'/></svg>".getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "image/svg+xml");
@@ -634,8 +655,10 @@ class PostPageTest {
             Assertions.assertThat(page.evaluate("window.attack")).isNull();
             Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-08-05 00:00:00&end=2026-08-05 23:59:59");
             page.navigate(baseUrl + "/preview/chat/index.html");
-            assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("微博群聊预览")))
+            assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("微博群聊 - 打包资源群")))
                     .isVisible();
+            assertThat(page.locator(".message")).containsText("打包后的消息");
+            assertThat(page.locator(".bubble")).hasCSS("border-top-color", "rgb(167, 189, 205)");
             Assertions.assertThat(errors).isEmpty();
         }
     }

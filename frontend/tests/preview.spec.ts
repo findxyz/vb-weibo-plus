@@ -2743,16 +2743,6 @@ test('post_announces_query_failure', async ({ page }) => {
   expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers']);
 });
 
-test('chat_entry_refreshes_with_its_own_skin_without_business_requests', async ({ page }, testInfo) => {
-  await page.goto(`${baseUrl}preview/chat/index.html`);
-  await expect(page.getByRole('heading', { name: '微博群聊预览' })).toBeVisible();
-  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(185, 216, 242)');
-  await page.reload();
-  await expect(page.getByRole('heading', { name: '微博群聊预览' })).toBeVisible();
-  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('chat.png') });
-});
-
 test('post_entry_refreshes_with_paper_skin', async ({ page }) => {
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
@@ -2778,7 +2768,7 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain(mime);
   }
-  for (const path of ['preview/post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js']) {
+  for (const path of ['preview/post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js', 'chat/groups-extra', 'chat/messages', 'chat/messages/cursor/extra', 'chat/media-extra']) {
     expect((await request.get(`${baseUrl}${path}`)).status()).toBe(404);
   }
   const response = await request.get(`${baseUrl}post/bloggers?probe=1`);
@@ -2793,7 +2783,15 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
   const avatar = await request.get(`${baseUrl}chat/image?${avatarQuery}`);
   expect(avatar.status()).toBe(200);
   expect(avatar.headers()['content-type']).toBe('image/svg+xml');
-  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers?probe=1', 'GET /post/image?mblogId=local-1&pid=probe&variant=thumbnail', 'GET /post/video-cover?mblogId=local-1&retweeted=true', `GET /chat/image?${avatarQuery}`]);
+  const chatGroups = await request.get(`${baseUrl}chat/groups?probe=1`);
+  expect(chatGroups.status()).toBe(200);
+  expect(await chatGroups.json()).toEqual(bloggers);
+  const chatCursor = await request.get(`${baseUrl}chat/messages/cursor?gid=1&size=50&probe=1`);
+  expect(chatCursor.status()).toBe(200);
+  expect(await chatCursor.json()).toEqual(bloggers);
+  const chatMedia = await request.get(`${baseUrl}chat/media?gid=1&mid=1&variant=preview`);
+  expect(chatMedia.status()).toBe(200);
+  expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers?probe=1', 'GET /post/image?mblogId=local-1&pid=probe&variant=thumbnail', 'GET /post/video-cover?mblogId=local-1&retweeted=true', `GET /chat/image?${avatarQuery}`, 'GET /chat/groups?probe=1', 'GET /chat/messages/cursor?gid=1&size=50&probe=1', 'GET /chat/media?gid=1&mid=1&variant=preview']);
 });
 
 test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }) => {
