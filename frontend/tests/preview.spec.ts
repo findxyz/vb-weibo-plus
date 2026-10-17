@@ -4,7 +4,28 @@ import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import type { Blogger, PostImage, PostList, Video } from '../src/post/queries';
 
+const approvedGeometry = JSON.parse(await readFile(new URL('./fixtures/post-geometry.json', import.meta.url), 'utf8'));
+
 let backend: Server;
+
+test('formal_post_entry_refreshes_without_preview_and_retires_preview_document', async ({ page }) => {
+  const response = await page.goto(`${baseUrl}post/index.html`);
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveTitle('本地微博');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('type', 'image/svg+xml');
+  expect(await page.evaluate(async () => {
+    const image = new Image();
+    image.src = (document.querySelector('link[rel="icon"]') as HTMLLinkElement).href;
+    await image.decode();
+    return image.naturalWidth;
+  })).toBeGreaterThan(0);
+  await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '正式 post 页面' })).toHaveCount(0);
+  await expect(page.getByRole('article')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('article')).toBeVisible();
+  expect((await page.request.get(`${baseUrl}preview/post/index.html`)).status()).toBe(404);
+});
 let vite: ViteDevServer;
 let baseUrl: string;
 let requests: string[];
@@ -38,13 +59,6 @@ function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImag
     originalUrl: `/post/image?mblogId=local-1&pid=${pid}&variant=original`, ...overrides };
 }
 
-async function serveLegacy(page: Page) {
-  await page.route('**/legacy/**', async route => {
-    const path = new URL(route.request().url()).pathname.slice('/legacy/'.length);
-    const body = await readFile(new URL(`../../src/main/resources/static/${path}`, import.meta.url));
-    await route.fulfill({ body, contentType: path.endsWith('.css') ? 'text/css' : path.endsWith('.js') ? 'text/javascript' : path.endsWith('.svg') ? 'image/svg+xml' : 'text/html' });
-  });
-}
 
 test.beforeAll(async () => {
   backend = createHttpServer((request, response) => {
@@ -163,7 +177,6 @@ test.afterEach(() => {
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
   test(`post_visual_alignment_matches_legacy_reading_at_${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    await serveLegacy(page);
     const selectors = ['.titlebar', '.bloggers-heading', '.search-box', '.search-box input', '.bloggers-list', '.dates-heading', '.feed-header', '.year-header', '.month-header', '.date-item', '.blogger-row', '.post-card', '.post-avatar', '.post-header', '.post-content'];
     const measure = () => page.evaluate(selectors => selectors.map(selector => {
       const element = document.querySelector(selector)!;
@@ -171,12 +184,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
       const rect = element.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, font: style.font, border: style.border, padding: style.padding, shadow: style.boxShadow };
     }), selectors);
-    await page.goto(`${baseUrl}legacy/post/index.html`);
-    await expect(page.locator('.post-content')).toContainText('第一行');
-    const legacy = await measure();
-    const legacyHighlight = await page.locator('.blogger-row.active').evaluate(element => getComputedStyle(element, '::before').transform);
-    await page.screenshot({ path: testInfo.outputPath('legacy.png') });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    const { legacy, legacyHighlight } = approvedGeometry[`visual-${viewport.width}`];
+  await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
     const react = await measure();
     for (let index = 0; index < selectors.length; index++) {
@@ -190,22 +199,20 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     expect(await page.locator('.blogger-row[aria-pressed="true"]').evaluate(element => getComputedStyle(element, '::before').transform)).toBe(legacyHighlight);
     await expect(page.locator('.feed-header').getByLabel('博文总数')).toHaveText('共 3 条');
     await expect(page.locator('.selected')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: '正式 post 页面' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
   });
 }
 
 test('acceptance_chat_control_matches_paper_skin_and_opens_formal_backend_with_mouse_and_keyboard', async ({ page }) => {
-  await serveLegacy(page);
   const measure = () => page.locator('.window-control.toggle').evaluate(element => {
     const style = getComputedStyle(element);
     return { width: style.width, height: style.height, background: style.backgroundColor, border: style.border, radius: style.borderRadius, transform: style.transform, icon: getComputedStyle(element, '::before').backgroundImage };
   });
-  await page.goto(`${baseUrl}legacy/post/index.html`);
-  const legacy = await measure();
+  const { legacy } = approvedGeometry['navigation'];
   const destination = `${process.env.API_PROXY_TARGET}/chat/index.html`;
   for (const action of ['click', 'Enter', 'Space']) {
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     const control = page.getByRole('button', { name: '切换到微博群聊', exact: true });
     await expect(control).toBeVisible();
     expect(await measure()).toEqual(legacy);
@@ -220,7 +227,7 @@ test('acceptance_reading_announces_loaded_items_without_making_the_feed_live', a
   await page.clock.install();
   posts = { ...posts, total: 9, items: [posts.items[0], { ...posts.items[0], mblogId: 'second-item' }] };
   holdResponse = true; holdPath = '/post/list';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const announcement = page.locator('.reading-announcement');
   await expect(announcement).toHaveAttribute('aria-live', 'polite');
   await expect(announcement).toHaveAttribute('aria-atomic', 'true');
@@ -272,7 +279,7 @@ for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 
       calendarsByUid['1234'].months.unshift({ month: '2026-06', count: 1, days: [{ date: '2026-06-01', count: 1 }] });
       return route.fulfill({ json: {} });
     });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
     await page.getByRole('searchbox', { name: '搜索博主' }).fill('第二');
     await page.getByRole('button', { name: '第二位', exact: true }).click();
@@ -338,7 +345,7 @@ test('acceptance_minimum_media_preserves_square_tiles_single_image_and_failed_vi
     { ...posts.items[0], mblogId: 'pure-minimum', content: '', retweeted: { screenName: '原作者', content: '纯转发',
       pics: Array.from({ length: 3 }, (_, index) => imageFixture(`pure-minimum-${index}`)) } },
   ] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-card')).toHaveCount(3);
   await page.locator('.post-video').scrollIntoViewIfNeeded();
   await expect(page.locator('.post-video')).toHaveClass(/cover-failed/);
@@ -360,7 +367,7 @@ test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refre
     calendar = { months: [{ month: '2026-08', count: 4, days: [{ date: '2026-08-06', count: 1 }, { date: '2026-08-05', count: 3 }] }] };
     return route.fulfill({ json: { inserted: 1 } });
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '第二位', exact: true }).click();
@@ -391,7 +398,7 @@ test('sync_history_leap_defaults_order_same_day_cancel_and_reset', async ({ page
   await page.clock.install({ time: new Date('2024-02-28T18:00:00Z') });
   const calls: string[] = [];
   await page.route('**/post/range?*', route => { calls.push(route.request().url()); return route.fulfill({ json: {} }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   const entry = page.getByRole('button', { name: '同步历史', exact: true });
@@ -425,7 +432,7 @@ test('sync_history_pending_request_keeps_snapshot_and_does_not_refresh_a_new_sco
   const gate = new Promise<void>(resolve => { finish = resolve; });
   const calls: URL[] = [];
   await page.route('**/post/range?*', async route => { calls.push(new URL(route.request().url())); await gate; await route.fulfill({ json: {} }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
@@ -455,7 +462,7 @@ for (const responseStatus of [500, 401]) {
   test(`sync_history_error_${responseStatus}_uses_expected_feedback_without_reposting`, async ({ page }) => {
     await page.clock.install();
     await page.route('**/post/range?*', route => route.fulfill({ status: responseStatus, json: { msg: '本地采集失败' } }));
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
     await page.getByRole('button', { name: '第一位', exact: true }).click();
     await page.getByRole('button', { name: '同步历史', exact: true }).click();
@@ -475,7 +482,7 @@ for (const responseStatus of [500, 401]) {
 
 test('sync_history_calendar_failure_does_not_repeat_successful_post', async ({ page }) => {
   await page.route('**/post/range?*', route => { calendarStatus = 500; return route.fulfill({ json: {} }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
@@ -490,7 +497,7 @@ test('sync_history_calendar_failure_does_not_repeat_successful_post', async ({ p
 test('sync_history_initially_empty_scope_uses_default_reading_when_data_arrives', async ({ page }) => {
   calendarsByUid['1'] = { months: [] };
   await page.route('**/post/range?*', route => { calendarsByUid['1'] = calendar; return route.fulfill({ json: {} }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('暂无有博文的日期');
@@ -506,7 +513,7 @@ test('sync_history_timeout_releases_operation_and_does_not_auto_retry', async ({
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
   await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
@@ -521,18 +528,14 @@ test('sync_history_timeout_releases_operation_and_does_not_auto_retry', async ({
 });
 
 test('sync_history_geometry_matches_legacy_and_long_name_fits_minimum_window', async ({ page }, testInfo) => {
-  await serveLegacy(page);
   const measure = () => page.locator('dialog:modal').evaluate(dialog => {
     const rect = dialog.getBoundingClientRect();
     return { width: rect.width, height: rect.height, inputs: [...dialog.querySelectorAll('input')].map(input => {
       const bounds = input.getBoundingClientRect(); return { width: bounds.width, height: bounds.height, x: bounds.x - rect.x, y: bounds.y - rect.y };
     }) };
   });
-  await page.goto(`${baseUrl}legacy/post/index.html`);
-  await page.locator('.blogger-row[data-uid="1"]').click();
-  await page.getByRole('button', { name: '同步历史', exact: true }).click();
-  const old = await measure();
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  const { old } = approvedGeometry['sync'];
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
   expect(await measure()).toEqual(old);
@@ -553,7 +556,7 @@ test('sync_history_unmount_aborts_local_request_without_applying_late_result', a
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
   await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
@@ -573,7 +576,7 @@ test('add_blogger_validates_then_posts_uid_refreshes_and_selects_new_blogger', a
     await route.fulfill({ json: added });
   });
   postsByUid[String(added.uid)] = { ...posts, total: 1, items: [{ ...posts.items[0], content: '新博主正文', blogger: added }] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
@@ -601,7 +604,7 @@ test('add_blogger_accepts_numeric_and_short_homepage_forms_and_resets_on_reopen'
     submitted.push(new URL(route.request().url()).searchParams.get('uid')!);
     return route.fulfill({ status: 500, json: { msg: '本地添加暂时失败' } });
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const entry = page.getByRole('button', { name: '添加博主', exact: true });
   await entry.click();
   const dialog = page.getByRole('dialog', { name: '添加博主', exact: true });
@@ -628,7 +631,7 @@ test('add_blogger_pending_cancel_keeps_one_write_and_preserves_later_selection',
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
   await page.route('**/post/bloggers?uid=*', async route => { await gate; bloggers.push({ uid: 1234, screenName: '添加完成' }); await route.fulfill({ json: {} }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   const entry = page.getByRole('button', { name: '添加博主', exact: true });
   await entry.click();
@@ -653,7 +656,7 @@ test('add_blogger_pending_cancel_keeps_one_write_and_preserves_later_selection',
 
 test('add_blogger_list_refresh_failure_does_not_repeat_successful_post', async ({ page }) => {
   await page.route('**/post/bloggers?uid=*', route => { status = 500; return route.fulfill({ json: {} }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
   await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
@@ -667,7 +670,7 @@ test('add_blogger_list_refresh_failure_does_not_repeat_successful_post', async (
 
 test('add_blogger_401_uses_login_recovery_without_reposting', async ({ page }) => {
   await page.route('**/post/bloggers?uid=*', route => route.fulfill({ status: 401, json: { msg: '失效' } }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
   await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
@@ -683,7 +686,7 @@ test('add_blogger_timeout_releases_submit_without_automatic_retry', async ({ pag
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
   await page.route('**/post/bloggers?uid=*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
   await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
   await page.getByRole('button', { name: '添加', exact: true }).click();
@@ -697,17 +700,14 @@ test('add_blogger_timeout_releases_submit_without_automatic_retry', async ({ pag
 });
 
 test('add_blogger_geometry_matches_legacy_and_paper_modal_fits_minimum_viewport', async ({ page }, testInfo) => {
-  await serveLegacy(page);
   const measure = () => page.locator('dialog:modal').evaluate(dialog => {
     const rect = dialog.getBoundingClientRect();
     const input = dialog.querySelector('input')!.getBoundingClientRect();
     const style = getComputedStyle(dialog);
     return { width: rect.width, height: rect.height, border: style.border, radius: style.borderRadius, input: { width: input.width, height: input.height, x: input.x - rect.x, y: input.y - rect.y } };
   });
-  await page.goto(`${baseUrl}legacy/post/index.html`);
-  await page.getByRole('button', { name: '添加博主', exact: true }).click();
-  const legacy = await measure();
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  const { legacy } = approvedGeometry['add'];
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
   expect(await measure()).toEqual(legacy);
   await expect(page.locator('.management-dialog')).toHaveCSS('box-shadow', 'rgba(43, 38, 32, 0.18) 6px 8px 0px -3px');
@@ -722,7 +722,7 @@ test('add_blogger_later_scope_selection_wins_while_list_refresh_is_pending', asy
     holdPath = '/post/bloggers'; holdResponse = true;
     return route.fulfill({ json: {} });
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
   await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
@@ -746,7 +746,7 @@ for (const navigation of ['date', 'search']) {
       holdPath = '/post/bloggers'; holdResponse = true;
       return route.fulfill({ json: {} });
     });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
     await page.getByRole('button', { name: '添加博主', exact: true }).click();
     await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('1234');
@@ -776,7 +776,7 @@ test('add_blogger_preserves_submitted_leading_zeros_and_selects_canonical_uid', 
     bloggers.push({ uid: 1234, screenName: '规范 UID 博主' });
     return route.fulfill({ json: {} });
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
   await page.getByRole('textbox', { name: 'UID 或主页链接' }).fill('00001234');
@@ -789,7 +789,7 @@ test('add_blogger_preserves_submitted_leading_zeros_and_selects_canonical_uid', 
 test('post_login_detects_invalid_status_without_hiding_local_reading_and_starts_only_on_click', async ({ page }) => {
   loginPayload = { valid: false };
   await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: { msg: '本地扫码失败' } }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
   expect(requests.filter(value => value.includes('/weibo/login/status'))).toHaveLength(1);
@@ -805,12 +805,12 @@ test('post_login_detects_invalid_status_without_hiding_local_reading_and_starts_
 test('post_login_requires_strict_true_but_status_failure_stays_quiet', async ({ page }) => {
   for (const payload of [{}, null, { valid: 'true' }, { valid: 1 }]) {
     loginPayload = payload;
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
     await expect(page.locator('.qr-loading')).toHaveCount(0);
   }
   loginStatus = 500;
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await expect(page.locator('.login-expired')).toHaveCount(0);
 });
@@ -824,7 +824,7 @@ for (const path of ['/post/bloggers', '/post/calendar', '/post/list']) {
       status = calendarStatus = listStatus = 200;
       await route.fulfill({ json: {} });
     });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);
     await page.getByRole('button', { name: '扫码登录', exact: true }).click();
@@ -838,7 +838,7 @@ for (const path of ['/post/bloggers', '/post/calendar', '/post/list']) {
 
 test('post_login_search_401_closes_modal_keeps_selection_and_failure_does_not_hide_prompt', async ({ page }) => {
   await page.route('**/weibo/login/qr', route => route.fulfill({ status: 500, json: {} }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第二位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
@@ -870,7 +870,7 @@ test('post_login_qr_polling_keeps_last_image_and_stops_on_success', async ({ pag
     images.push(route.request().url());
     return route.fulfill({ status: broken ? 404 : 200, contentType: 'image/svg+xml', body: broken ? 'Missing QR' : '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><path d="M0 0h180v180H0z" fill="#2b2620"/></svg>' });
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '扫码登录', exact: true }).click();
   await expect(page.getByRole('button', { name: '扫码中…', exact: true })).toBeDisabled();
@@ -903,7 +903,7 @@ test('post_login_qr_first_image_failure_timeout_and_explicit_retry', async ({ pa
   let attempts = 0;
   await page.route('**/weibo/login/qr', async route => { attempts++; if (attempts === 1) await gate; await route.fulfill({ status: 500, json: {} }).catch(() => {}); });
   await page.route('**/weibo/login/qr/image?*', route => route.fulfill({ status: 204 }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '扫码登录', exact: true }).click();
   await expect.poll(() => attempts).toBe(1);
   await page.clock.runFor(3100);
@@ -932,7 +932,7 @@ test('post_login_unmount_stops_polling_and_late_status_cannot_hide_pending_qr', 
   await page.route('**/weibo/login/qr', async route => { await qrGate; await route.fulfill({ json: {} }).catch(() => {}); });
   const images: string[] = [];
   await page.route('**/weibo/login/qr/image?*', route => { images.push(route.request().url()); return route.fulfill({ status: 204 }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '扫码登录', exact: true }).click();
   await expect(page.getByRole('button', { name: '扫码中…', exact: true })).toBeDisabled();
   releaseStatus();
@@ -953,7 +953,7 @@ test('post_login_late_valid_status_does_not_clear_a_new_reading_401', async ({ p
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
   await page.route('**/weibo/login/status', async route => { await gate; await route.fulfill({ json: { valid: true } }); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
   const response = page.waitForResponse('**/weibo/login/status');
   finish();
@@ -973,7 +973,7 @@ test('post_login_completed_qr_does_not_poll_while_failed_reading_is_recovering',
     holdResponse = true;
     return route.fulfill({ json: {} });
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '扫码登录', exact: true }).click();
   await expect.poll(() => Boolean(releaseResponse)).toBe(true);
   await page.clock.runFor(3100);
@@ -994,7 +994,7 @@ test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_car
   const target = { ...posts.items[0], mblogId: 'result:a[0]"', createdAt: Date.parse('2025-12-30T17:00:00Z'), contentRaw: '跨年定位摘要', content: '目标完整正文' };
   searchPosts = { ...posts, total: 1, items: [target] };
   postsByDate['2025-12-31'] = { ...posts, total: 30, items: Array.from({ length: 30 }, (_, index) => index === 15 ? target : { ...target, mblogId: `other-${index}`, content: `其他完整正文 ${index}` }) };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '2026-07，1 条', exact: true }).click();
   await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
@@ -1032,7 +1032,7 @@ test('search_location_keeps_scope_and_filter_reloads_same_day_with_enter_and_spa
   const target = { ...posts.items[0], mblogId: 'same-day', content: '完整同日正文', blogger: bloggers[1] };
   postsByUid['2'] = { ...posts, total: 1, items: [target] };
   searchPosts = { ...posts, total: 1, items: [{ ...target, contentRaw: '同日摘要' }] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第二位', exact: true }).click();
   await expect(page.locator('.post-content')).toHaveText('完整同日正文');
@@ -1063,7 +1063,7 @@ test('search_location_preempts_pending_day_and_ignores_its_late_response', async
   const target = { ...posts.items[0], mblogId: 'july', createdAt: Date.parse('2026-07-10T00:00:00Z'), content: '新的七月正文' };
   searchPosts = { ...posts, total: 1, items: [target] };
   postsByDate['2026-07-10'] = searchPosts;
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   holdResponse = true;
   holdPath = '/post/list';
@@ -1085,7 +1085,7 @@ test('search_location_preempts_pending_day_and_ignores_its_late_response', async
 test('search_location_failed_day_retries_before_highlighting', async ({ page }) => {
   const target = { ...posts.items[0], mblogId: 'retry-day', content: '重试后的完整正文' };
   searchPosts = { ...posts, total: 1, items: [target] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   await page.getByLabel('关键词', { exact: true }).fill('重试');
@@ -1103,7 +1103,7 @@ test('search_location_failed_day_retries_before_highlighting', async ({ page }) 
 
 test('search_location_new_scope_discards_pending_target_and_cleanup_has_no_late_highlight', async ({ page }) => {
   searchPosts = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'old-target', content: '旧目标' }] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   await page.getByLabel('关键词', { exact: true }).fill('旧');
@@ -1125,7 +1125,7 @@ test('search_location_new_scope_discards_pending_target_and_cleanup_has_no_late_
 
 test('search_location_missing_target_does_not_highlight_another_card_or_scroll', async ({ page }) => {
   searchPosts = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'missing', content: '缺失摘要' }] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   await page.getByLabel('关键词', { exact: true }).fill('缺失');
@@ -1140,7 +1140,7 @@ test('search_location_missing_target_does_not_highlight_another_card_or_scroll',
 test('search_location_reduced_motion_uses_static_paper_highlight_then_clears', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   searchPosts = { ...posts, total: 1, items: posts.items };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   await page.getByLabel('关键词', { exact: true }).fill('第一');
@@ -1157,7 +1157,7 @@ test('search_location_reduced_motion_uses_static_paper_highlight_then_clears', a
 
 test('advanced_search_opens_with_shanghai_defaults_resets_and_restores_focus_without_querying', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   const initialRequests = [...requests];
   const open = page.getByRole('button', { name: '高级搜索', exact: true });
@@ -1169,6 +1169,8 @@ test('advanced_search_opens_with_shanghai_defaults_resets_and_restores_focus_wit
   await expect(dialog.getByLabel('起止日期', { exact: true })).toHaveValue('2010-01-01');
   await expect(dialog.getByLabel('至', { exact: true })).toHaveValue('2026-08-06');
   await expect(dialog).toContainText('在「全部博主」范围内搜索。');
+  await page.mouse.click(5, 5);
+  await expect(dialog).toBeVisible();
   await dialog.getByLabel('关键词', { exact: true }).fill('尚未提交');
   await page.keyboard.press('Escape');
   await expect(dialog.getByLabel('关键词', { exact: true })).toHaveValue('');
@@ -1184,7 +1186,7 @@ test('advanced_search_opens_with_shanghai_defaults_resets_and_restores_focus_wit
 });
 
 test('advanced_search_validates_and_sends_trimmed_keyword_scope_dates_and_optional_bounds', async ({ page }) => {
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第二位', exact: true }).click();
   await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
@@ -1232,7 +1234,7 @@ test('advanced_search_snippets_keep_order_plain_text_first_highlight_and_submitt
   ] };
   const external: string[] = [];
   await context.route('https://bad.example.test/**', route => { external.push(route.request().url()); return route.abort(); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
   const keyword = dialog.getByLabel('关键词', { exact: true });
@@ -1256,7 +1258,7 @@ test('advanced_search_snippets_keep_order_plain_text_first_highlight_and_submitt
 });
 
 test('advanced_search_empty_limit_and_error_allow_explicit_same_condition_retry', async ({ page }) => {
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
   const keyword = dialog.getByLabel('关键词', { exact: true });
@@ -1286,7 +1288,7 @@ test('advanced_search_empty_limit_and_error_allow_explicit_same_condition_retry'
 test('advanced_search_close_cancels_old_request_and_reopen_isolates_next_search', async ({ page }) => {
   const canceled: string[] = [];
   page.on('requestfailed', request => { if (request.url().includes('keyword=')) canceled.push(request.url()); });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   const readingRequests = requests.filter(value => !value.includes('keyword='));
   const open = page.getByRole('button', { name: '高级搜索', exact: true });
@@ -1321,7 +1323,7 @@ for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 
     await page.setViewportSize(viewport);
     searchPosts.items = Array.from({ length: 30 }, (_, index) => ({ ...searchPosts.items[0], mblogId: `search-${index}`, contentRaw: `关键词结果 ${index}` }));
     searchPosts.total = 30;
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await page.getByRole('button', { name: '高级搜索', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '高级搜索', exact: true });
     await dialog.getByLabel('关键词', { exact: true }).fill('关键词');
@@ -1343,7 +1345,7 @@ for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 
 
 test('advanced_search_timeout_releases_submit_without_restarting_reading', async ({ page }) => {
   await page.clock.install();
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   const readingRequests = [...requests];
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
@@ -1359,7 +1361,6 @@ test('advanced_search_timeout_releases_submit_without_restarting_reading', async
 });
 
 test('advanced_search_geometry_matches_legacy_form_and_result_with_paper_tokens', async ({ page }, testInfo) => {
-  await serveLegacy(page);
   const selectors = ['.search-open', '.search-overlay-window', '.search-overlay-titlebar', '.search-overlay-body', '.search-overlay-tip', '.search-date-row', '.search-status', '.search-actions', '.search-result', '.search-result-meta', '.search-result-snippet', '.search-result-snippet mark'];
   const measure = () => page.evaluate(selectors => selectors.map(selector => {
     const element = document.querySelector(selector)!;
@@ -1367,15 +1368,8 @@ test('advanced_search_geometry_matches_legacy_form_and_result_with_paper_tokens'
     const style = getComputedStyle(element);
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, color: style.color, border: style.border, padding: style.padding, radius: style.borderRadius, fontSize: style.fontSize, fontFamily: style.fontFamily };
   }), selectors);
-  await page.goto(`${baseUrl}legacy/post/index.html`);
-  await expect(page.locator('.post-content')).toContainText('第一行');
-  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
-  await page.getByLabel('关键词', { exact: true }).fill('关键词');
-  await page.getByRole('button', { name: '搜索', exact: true }).click();
-  await expect(page.locator('.search-result mark')).toHaveText('关键词');
-  const legacy = await measure();
-  await page.screenshot({ path: testInfo.outputPath('legacy-search.png') });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  const { legacy } = approvedGeometry['search'];
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   await page.getByLabel('关键词', { exact: true }).fill('关键词');
@@ -1397,7 +1391,7 @@ test('advanced_search_geometry_matches_legacy_form_and_result_with_paper_tokens'
 
 test('blogger_name_filter_matches_locally_and_keeps_all_row_total_and_order', async ({ page }) => {
   bloggers = [{ uid: 1, screenName: '第一位 Alice [1]' }, { uid: 2, screenName: '第二位 BOB' }, { uid: 3, screenName: '第三位 ALICE' }];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   const initialRequests = [...requests];
   const search = page.getByRole('searchbox', { name: '搜索博主' });
@@ -1421,7 +1415,7 @@ test('blogger_name_filter_matches_locally_and_keeps_all_row_total_and_order', as
 test('blogger_name_filter_hides_selected_row_without_changing_reading_or_selection', async ({ page }) => {
   calendarsByUid['2'] = { months: [{ month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] }] };
   postsByUid['2'] = { ...posts, items: [{ ...posts.items[0], mblogId: 'second', content: '第二位本地正文', blogger: bloggers[1] }] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第二位', exact: true }).click();
   await expect(page.locator('.post-content')).toHaveText('第二位本地正文');
@@ -1450,7 +1444,7 @@ test('blogger_name_filter_hides_selected_row_without_changing_reading_or_selecti
 
 test('blogger_name_filter_applies_to_late_data_without_restarting_queries', async ({ page }) => {
   holdResponse = true;
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const search = page.getByRole('searchbox', { name: '搜索博主' });
   await search.fill('第二');
   await expect(page.getByRole('status')).toHaveText('正在加载博主……');
@@ -1466,7 +1460,7 @@ test('blogger_name_filter_applies_to_late_data_without_restarting_queries', asyn
 
 test('blogger_name_filter_keyboard_skips_hidden_rows_and_keeps_failed_avatar_state', async ({ page }) => {
   bloggers[0].avatar = 'https://avatar.test/broken.svg';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const first = page.getByRole('button', { name: '第一位', exact: true });
   await expect(first.locator('.blogger-avatar')).toHaveText('第');
   await expect(page.locator('.post-content')).toContainText('第一行');
@@ -1493,7 +1487,7 @@ test('post_images_use_thumbnail_grid_and_original_fallback_before_viewing', asyn
     { pid: 'p1', thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720, thumbnailUrl: '/post/image?mblogId=local-1&pid=p1&variant=thumbnail', originalUrl: '/post/image?mblogId=local-1&pid=p1&variant=original' },
     { pid: 'p2', thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180, thumbnailUrl: '', originalUrl: '/post/image?mblogId=local-1&pid=p2&variant=original' },
   ];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const images = page.getByRole('img', { name: '微博图片', exact: true });
   await expect(images).toHaveCount(2);
   await expect(images.first()).toHaveAttribute('src', '/post/image?mblogId=local-1&pid=p1&variant=thumbnail');
@@ -1516,7 +1510,7 @@ test('post_images_use_thumbnail_grid_and_original_fallback_before_viewing', asyn
 test('post_metadata_keeps_backend_text_order_typography_and_empty_field_behavior', async ({ page }) => {
   posts.items[0].region = '发布于 上海';
   posts.items[0].source = '<b>网页端</b>';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-region')).toHaveText('发布于 上海');
   await expect(page.locator('.post-source')).toHaveText('<b>网页端</b>');
   await expect(page.locator('.post-source b')).toHaveCount(0);
@@ -1539,7 +1533,7 @@ test('post_links_open_homepage_and_original_with_keyboard_and_preserve_reading_s
   posts.items[0].content = Array(35).fill('本地长正文').join('\n');
   posts.items[0].blogger!.verified = true;
   await context.route('https://weibo.com/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Weibo fixture</h1>' }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const homepage = page.getByRole('link', { name: '前往 第一位 的微博首页', exact: true });
   const original = page.getByRole('link', { name: '查看原文', exact: true });
   await expect(homepage).toHaveAttribute('href', 'https://weibo.com/u/1');
@@ -1568,7 +1562,7 @@ test('post_links_open_homepage_and_original_with_keyboard_and_preserve_reading_s
     await expect(popup).toHaveURL(index ? posts.items[0].postUrl! : 'https://weibo.com/u/1');
     expect(await popup.evaluate(() => window.opener)).toBeNull();
     await popup.close();
-    await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+    await expect(page).toHaveURL(`${baseUrl}post/index.html`);
     expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBe(scrollTop);
     await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
     await expect(page.getByRole('button', { name: '全部博主', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -1581,7 +1575,7 @@ test('post_links_omit_unsafe_urls_and_invalid_uids_without_changing_avatar_fallb
   const invalidUids = [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN];
   posts.items = invalidUrls.map((postUrl, index) => ({ ...posts.items[0], mblogId: `invalid-${index}`, postUrl,
     blogger: index === 0 ? null : { uid: invalidUids[index % invalidUids.length], screenName: '占位博主', avatar: '/missing-avatar' } }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('article')).toHaveCount(invalidUrls.length);
   await expect(page.locator('.post-actions, a.post-avatar')).toHaveCount(0);
   await expect(page.locator('.post-avatar').first()).toHaveText('?');
@@ -1599,7 +1593,6 @@ for (const width of [1280, 1600]) {
     await page.setViewportSize({ width, height: 900 });
     posts.items[0] = { ...posts.items[0], source: '网页端', region: '发布于 上海', postUrl: 'https://weibo.com/1/local-1' };
     posts.items.push({ ...posts.items[0], mblogId: 'pure', content: '', postUrl: 'https://weibo.com/1/pure', retweeted: { screenName: '原作者', content: '转发正文' } });
-    await serveLegacy(page);
     const measure = () => page.locator('article').evaluateAll(cards => cards.map(card => {
       return ['.post-header', '.post-author', '.post-time', '.post-region', '.post-source', '.post-actions', '.post-link', ''].map(selector => {
         const element = selector ? card.querySelector(selector)! : card;
@@ -1608,11 +1601,8 @@ for (const width of [1280, 1600]) {
         return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fontSize: style.fontSize, fontFamily: style.fontFamily, fontWeight: style.fontWeight, lineHeight: style.lineHeight, color: style.color, overflow: style.overflow, textOverflow: style.textOverflow };
       });
     }));
-    await page.goto(`${baseUrl}legacy/post/index.html`);
-    await expect(page.locator('article')).toHaveCount(2);
-    const legacy = await measure();
-    await page.screenshot({ path: testInfo.outputPath('legacy-metadata.png') });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    const { legacy } = approvedGeometry[`metadata-${width}`];
+  await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('article')).toHaveCount(2);
     expect(await measure()).toEqual(legacy);
     const pure = page.locator('article').last();
@@ -1637,7 +1627,7 @@ for (const width of [1280, 1600]) {
 test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ page, context }) => {
   posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/watch/outer' };
   await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const link = page.getByRole('link', { name: '播放微博视频', exact: true });
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute('target', '_blank');
@@ -1657,7 +1647,7 @@ test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ 
   await expect(popup).toHaveURL(posts.items[0].video.pageUrl!);
   expect(await popup.evaluate(() => window.opener)).toBeNull();
   await popup.close();
-  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page).toHaveURL(`${baseUrl}post/index.html`);
   await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
   await expect(page.locator('video, iframe, .image-viewer')).toHaveCount(0);
   expect(requests.filter(value => value.startsWith('GET /post/video-cover'))).toEqual(['GET /post/video-cover?mblogId=local-1']);
@@ -1666,7 +1656,7 @@ test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ 
 test('video_retweets_deduplicate_only_the_same_playable_page_and_keep_pure_layout', async ({ page }) => {
   posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/same' };
   posts.items[0].retweeted = { screenName: '原作者', content: '转发视频', video: { coverUrl: '/post/video-cover?mblogId=local-1&retweeted=true', pageUrl: 'https://video.example.test/same' } };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('link', { name: '播放转发视频', exact: true })).toBeVisible();
   await expect(page.locator('.post-body > .post-video')).toHaveCount(0);
   await expect(page.locator('.post-retweet .post-video img')).toHaveAttribute('src', '/post/video-cover?mblogId=local-1&retweeted=true');
@@ -1686,7 +1676,7 @@ test('video_retweets_deduplicate_only_the_same_playable_page_and_keep_pure_layou
 test('failed_video_cover_keeps_a_visible_clickable_and_keyboard_accessible_placeholder', async ({ page, context }) => {
   posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=broken-video', pageUrl: 'https://video.example.test/fallback' };
   await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const link = page.getByRole('link', { name: '播放微博视频', exact: true });
   await expect(link.locator('img[hidden]')).toHaveCount(1);
   await expect(link).toBeVisible();
@@ -1704,7 +1694,7 @@ test('failed_video_cover_keeps_a_visible_clickable_and_keyboard_accessible_place
     await popup.close();
   }
   await expect(page.locator('.post-avatar')).toBeVisible();
-  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page).toHaveURL(`${baseUrl}post/index.html`);
 });
 
 test('video_cards_skip_incomplete_or_unsafe_sources_and_do_not_hide_a_valid_outer_video', async ({ page }) => {
@@ -1718,7 +1708,7 @@ test('video_cards_skip_incomplete_or_unsafe_sources_and_do_not_hide_a_valid_oute
   for (const video of invalid) {
     posts.items[0].video = video;
     posts.items[0].retweeted = { screenName: '原作者', content: '原文', video };
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
     await expect(page.locator('.post-video')).toHaveCount(0);
   }
@@ -1734,7 +1724,7 @@ test('video_cards_skip_incomplete_or_unsafe_sources_and_do_not_hide_a_valid_oute
 test('video_and_image_cards_keep_their_own_interactions_and_reading_order', async ({ page }) => {
   posts.items[0].pics = [imageFixture('mixed')];
   posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/mixed' };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const image = page.getByRole('img', { name: '微博图片', exact: true });
   await expect(image).toBeVisible();
   const video = page.getByRole('link', { name: '播放微博视频', exact: true });
@@ -1752,7 +1742,7 @@ test('long_video_feed_loads_covers_on_demand_without_prefetching_video_pages', a
   page.on('request', request => { if (request.url().startsWith('https://video.example.test/')) videoPageRequests++; });
   posts.items = Array.from({ length: 40 }, (_, index) => ({ ...posts.items[0], mblogId: `video-${index}`,
     video: { coverUrl: `/post/video-cover?mblogId=video-${index}`, pageUrl: `https://video.example.test/${index}` } }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const first = page.locator('.post-video img').first();
   const last = page.locator('.post-video img').last();
   await expect.poll(() => first.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
@@ -1770,7 +1760,6 @@ test('long_video_feed_loads_covers_on_demand_without_prefetching_video_pages', a
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
   test(`video_layout_matches_legacy_at_${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    await serveLegacy(page);
     posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/outer' };
     posts.items[0].retweeted = { screenName: '原作者', content: '转发视频', video: { coverUrl: '/post/video-cover?mblogId=local-1&retweeted=true', pageUrl: 'https://video.example.test/retweet' } };
     const measure = () => page.locator('.post-video, .post-video img, .post-video-play, .post-video-play span').evaluateAll(elements => elements.map(element => {
@@ -1778,12 +1767,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
       const style = getComputedStyle(element);
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, border: style.borderStyle === 'none' ? 'none' : style.border, radius: style.borderRadius, background: style.background, objectFit: style.objectFit };
     }));
-    await page.goto(`${baseUrl}legacy/post/index.html`);
-    await expect(page.locator('.post-video')).toHaveCount(2);
-    await expect.poll(() => page.locator('.post-video img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
-    const legacy = await measure();
-    await page.screenshot({ path: testInfo.outputPath('video-legacy.png') });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    const { legacy } = approvedGeometry[`video-${viewport.width}`];
+  await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-video')).toHaveCount(2);
     await expect.poll(() => page.locator('.post-video img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
     expect(await measure()).toEqual(legacy);
@@ -1797,7 +1782,7 @@ test('video_component_hot_updates_keep_the_open_image_viewer_and_document', asyn
   const originalComponent = await readFile(component, 'utf8');
   posts.items[0].pics = [imageFixture('mixed')];
   posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/mixed' };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
   const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
   await expect(viewer).toBeVisible();
@@ -1817,7 +1802,7 @@ test('video_component_hot_updates_keep_the_open_image_viewer_and_document', asyn
 
 test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focus', async ({ page }) => {
   posts.items[0].pics = [imageFixture('single')];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('img', { name: '微博图片', exact: true })).toBeVisible();
   expect(requests.some(value => value.includes('variant=original'))).toBe(false);
   const picture = page.getByRole('button', { name: '查看微博图片 1', exact: true });
@@ -1834,14 +1819,14 @@ test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focu
   await page.keyboard.press('Escape');
   await expect(viewer).toHaveCount(0);
   await expect(picture).toBeFocused();
-  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page).toHaveURL(`${baseUrl}post/index.html`);
   await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('image_viewer_cycles_with_buttons_and_arrows_and_keeps_retweet_groups_separate', async ({ page }) => {
   posts.items[0].pics = [imageFixture('p1'), imageFixture('p2'), imageFixture('p3', { originalUrl: 'javascript:window.viewerAttack=1' })];
   posts.items[0].retweeted = { screenName: '原作者', content: '原文', pics: [imageFixture('r1'), imageFixture('r2')] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const opener = page.getByRole('button', { name: '查看微博图片 2', exact: true });
   await opener.click();
   const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
@@ -1875,13 +1860,13 @@ test('image_viewer_cycles_with_buttons_and_arrows_and_keeps_retweet_groups_separ
   await expect(counter).toHaveText('2 / 2');
   await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('r2').originalUrl!);
   await page.keyboard.press('Escape');
-  await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+  await expect(page).toHaveURL(`${baseUrl}post/index.html`);
 });
 
 test('image_viewer_isolates_late_failure_and_can_navigate_or_close_after_an_error', async ({ page }) => {
   posts.items[0].pics = [imageFixture('broken-original'), imageFixture('fast')];
   holdOriginalPid = 'broken-original';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
   const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
   try {
@@ -1913,11 +1898,11 @@ test('image_viewer_isolates_late_failure_and_can_navigate_or_close_after_an_erro
 });
 
 test('image_viewer_closes_pending_loads_and_unmounts_without_leaving_a_modal', async ({ page }) => {
-  const component = new URL('../src/post/PostPreview.tsx', import.meta.url);
+  const component = new URL('../src/post/PostPage.tsx', import.meta.url);
   const originalComponent = await readFile(component, 'utf8');
   posts.items[0].pics = [imageFixture('slow'), imageFixture('fast')];
   holdOriginalPid = 'slow';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
   const opener = page.getByRole('button', { name: '查看微博图片 1', exact: true });
   try {
@@ -1931,7 +1916,7 @@ test('image_viewer_closes_pending_loads_and_unmounts_without_leaving_a_modal', a
     holdOriginalPid = undefined;
     await page.getByRole('button', { name: '查看微博图片 2', exact: true }).click();
     await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
-    await writeFile(component, "export default function PostPreview() { return <h1>图片阅读已退出</h1>; }");
+    await writeFile(component, "export default function PostPage() { return <h1>图片阅读已退出</h1>; }");
     await expect(page.getByRole('heading', { name: '图片阅读已退出' })).toBeVisible();
     expect(await page.locator('dialog:modal').count()).toBe(0);
     await page.keyboard.press('ArrowRight');
@@ -1956,7 +1941,7 @@ test('image_viewer_closes_pending_loads_and_unmounts_without_leaving_a_modal', a
 test('image_viewer_late_success_cannot_replace_the_current_picture', async ({ page }) => {
   posts.items[0].pics = [imageFixture('slow'), imageFixture('fast')];
   holdOriginalPid = 'slow';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
   const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
   try {
@@ -1979,7 +1964,7 @@ test('image_viewer_late_success_cannot_replace_the_current_picture', async ({ pa
 
 test('image_viewer_keeps_duplicate_and_hidden_entries_in_gallery_order', async ({ page }) => {
   posts.items[0].pics = [imageFixture('broken'), imageFixture('same'), imageFixture('same')];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-pic[hidden]')).toHaveCount(1);
   await page.getByRole('button', { name: '查看微博图片 3', exact: true }).click();
   const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
@@ -1996,20 +1981,14 @@ test('image_viewer_keeps_duplicate_and_hidden_entries_in_gallery_order', async (
 for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 }]) {
   test(`image_viewer_matches_legacy_at_${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    await serveLegacy(page);
     posts.items[0].pics = [imageFixture('v1'), imageFixture('v2')];
     const measure = () => page.locator('.image-viewer, .image-viewer img, .viewer-prev, .viewer-next, .viewer-counter').evaluateAll(elements => elements.map(element => {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, border: style.borderStyle === 'none' ? 'none' : style.border, background: style.background, font: style.font, objectFit: style.objectFit, shadow: style.boxShadow };
     }));
-    await page.goto(`${baseUrl}legacy/post/index.html`);
-    await expect(page.locator('.post-pic')).toHaveCount(2);
-    await page.locator('.post-pic').last().click();
-    await expect(page.locator('.image-viewer img')).toBeVisible();
-    const legacy = await measure();
-    await page.screenshot({ path: testInfo.outputPath('viewer-legacy.png') });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    const { legacy } = approvedGeometry[`viewer-${viewport.width}`];
+  await page.goto(`${baseUrl}post/index.html`);
     await page.getByRole('button', { name: '查看微博图片 2', exact: true }).click();
     await expect(page.locator('.image-viewer img')).toBeVisible();
     expect(await measure()).toEqual(legacy);
@@ -2020,7 +1999,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 
 
 test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', async ({ page }) => {
   posts.items[0].pics = [imageFixture('single', { thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 300, originalHeight: 180 })];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const image = page.getByRole('img', { name: '微博图片', exact: true });
   await expect(image).toBeVisible();
   await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
@@ -2036,7 +2015,7 @@ test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', asy
 test('retweet_images_follow_original_text_and_keep_the_small_grid_for_pure_retweets', async ({ page }, testInfo) => {
   posts.items[0].content = '';
   posts.items[0].retweeted = { screenName: '原作者', content: '转发原文', pics: [imageFixture('r1'), imageFixture('r2')] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const images = page.getByRole('img', { name: '转发微博图片', exact: true });
   await expect(images).toHaveCount(2);
   await expect.poll(() => images.first().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
@@ -2069,7 +2048,7 @@ test('failed_and_unsafe_images_do_not_break_other_images_or_pure_retweet_classif
   posts.items[0].pics = [imageFixture('broken'), imageFixture('good'), imageFixture('good'), ...invalid,
     imageFixture('fallback', { thumbnailUrl: 'javascript:window.imageAttack=3', originalUrl: `${process.env.API_PROXY_TARGET}/post/image?mblogId=local-1&pid=fallback&variant=original` })];
   posts.items[0].retweeted = { screenName: '原作者', content: '原文仍可读', pics: [imageFixture('broken'), imageFixture('good'), ...invalid] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-pic[hidden]')).toHaveCount(1);
   await expect(page.locator('.post-retweet-pic[hidden]')).toHaveCount(1);
   await expect(page.locator('.post-pic[hidden]')).toHaveCSS('display', 'none');
@@ -2097,7 +2076,7 @@ test('failed_and_unsafe_images_do_not_break_other_images_or_pure_retweet_classif
 
 test('long_image_feed_loads_thumbnails_as_it_scrolls_without_moving_navigation', async ({ page }) => {
   posts.items = Array.from({ length: 40 }, (_, index) => ({ ...posts.items[0], mblogId: `lazy-${index}`, pics: [imageFixture(`lazy-${index}`)] }));
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const first = page.getByRole('img', { name: '微博图片', exact: true }).first();
   const last = page.getByRole('img', { name: '微博图片', exact: true }).last();
   await expect.poll(() => first.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
@@ -2123,7 +2102,6 @@ test('long_image_feed_loads_thumbnails_as_it_scrolls_without_moving_navigation',
 
 for (const mode of ['single', 'multiple', 'retweet'] as const) {
   test(`image_layout_matches_legacy_${mode}`, async ({ page }, testInfo) => {
-    await serveLegacy(page);
     const pics = [imageFixture('same-1'), imageFixture('same-2'), imageFixture('same-3'), imageFixture('same-4')];
     if (mode === 'retweet') {
       posts.items[0].content = '';
@@ -2135,12 +2113,8 @@ for (const mode of ['single', 'multiple', 'retweet'] as const) {
       const style = getComputedStyle(element);
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, background: style.background, border: style.borderStyle === 'none' ? 'none' : style.border, gap: style.gap, objectFit: style.objectFit };
     }));
-    await page.goto(`${baseUrl}legacy/post/index.html`);
-    await expect(page.locator(selector).locator('img').first()).toHaveCount(1);
-    await expect.poll(() => page.locator('article img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
-    const legacy = await measure();
-    await page.screenshot({ path: testInfo.outputPath('legacy.png') });
-    await page.goto(`${baseUrl}preview/post/index.html`);
+    const { legacy } = approvedGeometry[`image-${mode}`];
+  await page.goto(`${baseUrl}post/index.html`);
     await expect.poll(() => page.locator('article img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
     expect(await measure()).toEqual(legacy);
     await page.screenshot({ path: testInfo.outputPath('react-images.png') });
@@ -2157,7 +2131,7 @@ test('inline_picture_links_open_through_proxy_when_cdn_rejects_browser_navigatio
     directReads.push(route.request().url());
     return route.fulfill({ status: 403, contentType: 'text/html', body: '<h1>403 Forbidden</h1>' });
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   for (const [selector, url] of [['.post-content', outer], ['.post-retweet-content', retweeted]]) {
     const link = page.locator(selector).getByRole('link', { name: '查看图片' });
     const proxyPath = `/chat/image?${new URLSearchParams({ url })}`;
@@ -2173,7 +2147,7 @@ test('inline_picture_links_open_through_proxy_when_cdn_rejects_browser_navigatio
     await expect.poll(() => popup.locator('svg').evaluateAll(images => images.length)).toBe(1);
     expect(await popup.evaluate(() => window.opener)).toBeNull();
     await popup.close();
-    await expect(page).toHaveURL(`${baseUrl}preview/post/index.html`);
+    await expect(page).toHaveURL(`${baseUrl}post/index.html`);
     await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
   }
   expect(directReads).toEqual([]);
@@ -2187,7 +2161,7 @@ test('inline_picture_proxy_leaves_ordinary_links_and_unsafe_addresses_to_existin
     + '<a href="https://wx3.sinaimg.cn/large/plain.jpg">普通图片链接</a>'
     + '<a href="/n/用户" data-pid="mention">用户</a>'
     + '<a href="javascript:window.pictureAttack=1" data-pid="unsafe">恶意地址</a>';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const content = page.locator('.post-content');
   await expect(content.getByRole('link', { name: '网页', exact: true })).toHaveAttribute('href', 'https://example.test/page');
   await expect(content.getByRole('link', { name: '相似域名' })).toHaveAttribute('href', 'https://wx3.sinaimg.cn.evil.test/large/fake.jpg');
@@ -2206,7 +2180,7 @@ test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', asyn
   });
   bloggers[0] = { uid: 1, screenName: '第一位', avatar: 'https://avatar.test/valid.svg?size=48&variant=small', verified: true };
   posts.items[0].blogger = bloggers[0];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-avatar img')).toBeVisible();
   await expect.poll(() => page.locator('.post-avatar img').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBe(48);
   await expect(page.locator('.blogger-list .blogger-avatar img')).toHaveAttribute('src', `/chat/image?${new URLSearchParams({ url: bloggers[0].avatar! })}`);
@@ -2214,6 +2188,8 @@ test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', asyn
   await expect(page.locator('.post-author').getByRole('img', { name: '已认证' })).toBeVisible();
   await expect(page.locator('.blogger-name').getByRole('img', { name: '已认证' })).toBeVisible();
   await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveText('第');
+  await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveCSS('font-size', '18px');
+  await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveCSS('line-height', '18px');
   for (const avatar of ['https://avatar.test/broken.svg', 'javascript:window.avatarAttack=1', 'not a URL']) {
     bloggers[0].avatar = avatar;
     await page.reload();
@@ -2231,7 +2207,7 @@ test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', asyn
 test('pure_retweet_layout_waits_for_absence_of_outer_media', async ({ page }) => {
   posts.items[0].content = '';
   posts.items[0].retweeted = { screenName: '原作者', content: '原文' };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-card.pure-retweet')).toBeVisible();
   await expect(page.locator('.post-avatar')).toHaveCount(0);
   posts.items[0].pics = [{ pid: 'unavailable' }];
@@ -2253,7 +2229,7 @@ test('minimum_desktop_keeps_headers_fixed_and_three_lists_independently_scrollab
   bloggers = Array.from({ length: 40 }, (_, i) => ({ uid: i + 1, screenName: `博主 ${i + 1}` }));
   calendar.months[0].days = Array.from({ length: 28 }, (_, i) => ({ date: `2026-08-${String(28 - i).padStart(2, '0')}`, count: 1 }));
   posts.items[0].content = '长正文\n'.repeat(80);
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toBeVisible();
   const headerTop = (await page.locator('.feed-header').boundingBox())!.y;
   const searchTop = (await page.locator('.search-box').boundingBox())!.y;
@@ -2267,7 +2243,7 @@ test('minimum_desktop_keeps_headers_fixed_and_three_lists_independently_scrollab
   expect((await page.locator('.search-box').boundingBox())!.y).toBe(searchTop);
   await expect(page.getByRole('searchbox', { name: '搜索博主' })).toBeVisible();
   expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
-  await expect(page.getByRole('link', { name: '正式 post 页面' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
   const year = page.getByRole('button', { name: '2026 年，3 条', exact: true });
   await year.focus();
   await expect(year).toHaveCSS('outline-width', '3px');
@@ -2285,7 +2261,7 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
     { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
     { month: '2026-08', count: 3, days: [{ date: '2026-08-05', count: 3 }] },
   ];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toContainText('第一行');
   await expect(page.getByRole('button', { name: '全部博主', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.date-item[aria-label=\"2026-08-05\"]')).toHaveAttribute('aria-pressed', 'true');
@@ -2301,7 +2277,7 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
 test('retweet_text_keeps_outer_comment_and_reads_original_author_and_safe_links', async ({ page }, testInfo) => {
   posts.items[0].content = '外层评论 https://outer.example.com.';
   posts.items[0].retweeted = { screenName: '原作者', content: '<b>原文第一行</b>\n第二行<br>第三行 https://example.com. //@原文用户: 文本' };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toHaveCount(1);
   await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
   await expect(page.locator('.post-content')).toHaveText('外层评论 https://outer.example.com.');
@@ -2328,7 +2304,7 @@ test('retweet_text_keeps_outer_comment_and_reads_original_author_and_safe_links'
 test('pure_retweet_omits_empty_outer_body_and_handles_missing_original_information', async ({ page }) => {
   posts.items[0].content = '';
   posts.items[0].retweeted = { screenName: null, content: '纯转发原文' };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-retweet')).toContainText('纯转发原文');
   await expect(page.locator('.post-retweet-author')).toHaveText('@未知用户');
   await expect(page.locator('.post-content')).toHaveCount(0);
@@ -2349,7 +2325,7 @@ test('pure_retweet_omits_empty_outer_body_and_handles_missing_original_informati
 test('retweet_body_blocks_executable_markup_and_author_name_stays_literal_text', async ({ page }) => {
   const author = '<img src=x onerror="window.retweetAttack=8">';
   posts.items[0].retweeted = { screenName: author, content: '<script>window.retweetAttack=1</script><svg onload="window.retweetAttack=2"></svg><a href="javascript:window.retweetAttack=3">危险链接</a><iframe srcdoc="<script>parent.retweetAttack=4</script>"></iframe><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="window.retweetAttack=5"><b>安全原文</b>' };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-retweet-author')).toHaveText(`@${author}`);
   await expect(page.locator('.post-retweet-author img')).toHaveCount(0);
   const original = page.locator('.post-retweet-content');
@@ -2365,7 +2341,7 @@ test('retweet_sanitizer_failure_uses_plain_text_and_keeps_navigation', async ({ 
   await page.addInitScript(() => {
     DOMParser.prototype.parseFromString = function() { throw new Error('Text parser unavailable'); };
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-retweet-content')).toHaveText(raw);
   await expect(page.locator('.post-retweet-content img, .post-retweet-content b')).toHaveCount(0);
   await expect(page.locator('.post-content')).toHaveText(posts.items[0].content);
@@ -2382,7 +2358,7 @@ test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async 
     { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
     { month: '2026-08', count: 3, days: [{ date: '2026-08-04', count: 1 }, { date: '2026-08-05', count: 2 }] },
   ];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toContainText('第一行');
   await expect(page.getByRole('button', { name: '2026 年，4 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByRole('button', { name: '2026-08，3 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
@@ -2409,7 +2385,7 @@ test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async 
 test('blogger_selection_resets_to_latest_day_and_returning_to_all_reloads_its_scope', async ({ page }) => {
   calendarsByUid['1'] = { months: [{ month: '2026-07', count: 2, days: [{ date: '2026-07-10', count: 1 }, { date: '2026-07-09', count: 1 }] }] };
   postsByUid['1'] = { ...posts, items: [{ ...posts.items[0], content: '单博主正文' }], total: 1 };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).focus();
   await page.keyboard.press('Enter');
@@ -2439,7 +2415,7 @@ test('blogger_selection_resets_to_latest_day_and_returning_to_all_reloads_its_sc
 
 test('inflight_day_read_keeps_selection_and_same_day_click_reads_again', async ({ page }) => {
   calendar.months[0].days.push({ date: '2026-08-04', count: 1 });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toBeVisible();
   const beforeReload = requests.length;
   holdResponse = true;
@@ -2464,18 +2440,32 @@ test('inflight_day_read_keeps_selection_and_same_day_click_reads_again', async (
 });
 
 test('long_feed_scrolls_independently_of_blogger_and_date_navigation', async ({ page }) => {
-  posts.items[0].content = '长正文阅读\n'.repeat(80);
-  await page.goto(`${baseUrl}preview/post/index.html`);
-  await expect(page.getByRole('article')).toBeVisible();
+  posts.items = Array.from({ length: 24 }, (_, index) => ({ ...posts.items[0], mblogId: `scroll-${index}`, content: '用于滚动回归测试的长微博正文。'.repeat(100) }));
+  posts.total = 24;
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(24);
   const dateButton = page.getByRole('button', { name: '2026-08-05', exact: true });
   const dateTop = (await dateButton.boundingBox())!.y;
   const feed = page.locator('.posts');
+  const feedHeight = (await feed.boundingBox())!.height;
+  const scrollHeight = await feed.evaluate(element => element.scrollHeight);
   await feed.hover();
   await page.mouse.wheel(0, 1200);
   await expect.poll(() => feed.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   expect((await dateButton.boundingBox())!.y).toBe(dateTop);
+  expect((await feed.boundingBox())!.height).toBe(feedHeight);
   expect(await page.getByRole('region', { name: '博主区域', exact: true }).evaluate(element => element.scrollTop)).toBe(0);
   expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+  const drift = await feed.evaluate(async (element, initialHeight) => {
+    for (let frame = 0; frame < 200; frame++) {
+      element.scrollTop += element.clientHeight;
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      if (element.scrollTop + element.clientHeight >= element.scrollHeight - 1) break;
+    }
+    return { height: Math.abs(element.scrollHeight - initialHeight), remaining: element.scrollHeight - element.scrollTop - element.clientHeight };
+  }, scrollHeight);
+  expect(drift.remaining).toBeLessThanOrEqual(1);
+  expect(drift.height).toBeLessThanOrEqual(1);
 });
 
 test('switching_blogger_cancels_old_calendar_and_ignores_its_late_error', async ({ page }) => {
@@ -2490,7 +2480,7 @@ test('switching_blogger_cancels_old_calendar_and_ignores_its_late_error', async 
   });
   calendarsByUid['2'] = { months: [{ month: '2025-12', count: 1, days: [{ date: '2025-12-31', count: 1 }] }] };
   postsByUid['2'] = { ...posts, items: [{ ...posts.items[0], content: '新范围正文', blogger: bloggers[1] }], total: 1 };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toBeVisible();
   holdResponse = true;
   holdPath = '/post/calendar';
@@ -2519,7 +2509,7 @@ test('switching_blogger_cancels_old_calendar_and_ignores_its_late_error', async 
 
 test('old_list_error_cannot_release_the_new_scope_loading_guard', async ({ page }) => {
   calendar.months[0].days.push({ date: '2026-08-04', count: 1 });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toBeVisible();
   holdResponse = true;
   holdPath = '/post/list';
@@ -2554,7 +2544,7 @@ test('old_list_error_cannot_release_the_new_scope_loading_guard', async ({ page 
 test('empty_scope_and_calendar_failure_clear_old_feed_then_retry_preserves_new_scope', async ({ page }) => {
   calendarsByUid['1'] = { months: [] };
   postsByUid['2'] = { ...posts, items: [{ ...posts.items[0], content: '第二位重试正文', blogger: bloggers[1] }], total: 1 };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toBeVisible();
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('暂无有博文的日期。');
@@ -2579,24 +2569,16 @@ test('empty_scope_and_calendar_failure_clear_old_feed_then_retry_preserves_new_s
   expect(new URL(requests.at(-1)!.slice(4), 'http://fixture').searchParams.get('uids')).toBe('2');
 });
 
-test('dev_formal_link_opens_the_configured_backend_page', async ({ page }) => {
-  await page.goto(`${baseUrl}preview/post/index.html`);
-  const destination = `${process.env.API_PROXY_TARGET}/post/index.html`;
-  await expect(page.getByRole('link', { name: '正式 post 页面' })).toHaveAttribute('href', destination);
-  await page.getByRole('link', { name: '正式 post 页面' }).click();
-  await expect(page).toHaveURL(destination);
-  await expect(page.getByRole('heading', { name: '后端正式页面' })).toBeVisible();
-});
 
 test('zero_count_day_does_not_replace_latest_day_with_captured_content', async ({ page }) => {
   calendar.months.unshift({ month: '2060-01', count: 0, days: [{ date: '2060-01-01', count: 0 }] });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.date-item[aria-label=\"2026-08-05\"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('rich_text_removes_executable_content_and_preserves_links_and_line_breaks', async ({ page }) => {
   posts.items[0].content = '<script>window.attack=1</script><svg onload="window.attack=2"></svg><a href="javascript:window.attack=3">危险链接</a><iframe srcdoc="<script>parent.attack=4</script>"></iframe><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="window.attack=5"><b>正常正文</b>\n第二行<br>第三行 https://example.com/A_(B). //@测试用户: 文本 <a href="/n/现有用户">现有用户</a> <a href="//weibo.com/u/1">主页</a>';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   const content = page.locator('.post-content');
   await expect(content).toContainText('正常正文');
   await expect(content.locator('script, svg, iframe, [onload], [onerror], [onclick], a[href^="javascript:"]')).toHaveCount(0);
@@ -2612,6 +2594,10 @@ test('rich_text_removes_executable_content_and_preserves_links_and_line_breaks',
   }
   await expect(content).toHaveCSS('white-space', 'pre-wrap');
   await expect(content.locator('br')).toHaveCount(1);
+  const emoji = await content.locator('img').boundingBox();
+  const fontSize = await content.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+  expect(emoji!.width).toBeCloseTo(fontSize * 1.3, 1);
+  expect(emoji!.height).toBeCloseTo(fontSize * 1.3, 1);
 });
 
 test('sanitizer_failure_renders_escaped_text_without_reinterpreting_markup', async ({ page }) => {
@@ -2619,7 +2605,7 @@ test('sanitizer_failure_renders_escaped_text_without_reinterpreting_markup', asy
   await page.addInitScript(() => {
     DOMParser.prototype.parseFromString = function() { throw new Error('Sanitizer unavailable'); };
   });
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toHaveText(posts.items[0].content);
   await expect(page.locator('.post-content img, .post-content b')).toHaveCount(0);
   expect(await page.evaluate(() => (window as Window & { attack?: number }).attack)).toBeUndefined();
@@ -2627,7 +2613,7 @@ test('sanitizer_failure_renders_escaped_text_without_reinterpreting_markup', asy
 
 test('calendar_empty_and_day_empty_are_distinct_reading_states', async ({ page }) => {
   calendar = { months: [] };
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('status')).toHaveText('暂无有博文的日期。');
   expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
   calendar = { months: [{ month: '2026-08', count: 1, days: [{ date: '2026-08-05', count: 1 }] }] };
@@ -2641,7 +2627,7 @@ test('calendar_empty_and_day_empty_are_distinct_reading_states', async ({ page }
 
 test('calendar_error_retains_loaded_bloggers_and_backend_message', async ({ page }) => {
   calendarStatus = 500;
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('alert')).toHaveText('日期加载失败，请刷新页面重试。（本地读取暂时不可用）');
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers', 'GET /post/calendar']);
@@ -2649,7 +2635,7 @@ test('calendar_error_retains_loaded_bloggers_and_backend_message', async ({ page
 
 test('list_retry_only_recovers_list_and_keeps_blogger_and_date_regions', async ({ page }) => {
   listStatus = 500;
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('alert')).toHaveText('博文加载失败。（本地读取暂时不可用）');
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.locator('.date-item[aria-label=\"2026-08-05\"]')).toHaveAttribute('aria-pressed', 'true');
@@ -2667,13 +2653,13 @@ test('unloaded_reading_discards_old_list_response_without_polling', async ({ pag
   holdResponse = true;
   holdPath = '/post/list';
   posts.items[0].content = '旧请求正文';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('status')).toHaveText('正在加载博文……');
   await page.goto(`${baseUrl}preview/chat/index.html`);
   releaseResponse?.();
   holdResponse = false;
   posts.items[0].content = '新请求正文';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toContainText('新请求正文');
   await expect(page.getByRole('article')).not.toContainText('旧请求正文');
   const completed = requests.slice();
@@ -2684,7 +2670,7 @@ test('unloaded_reading_discards_old_list_response_without_polling', async ({ pag
 });
 
 test('component_unmount_aborts_its_inflight_http_query_and_remount_loads_fresh_data', async ({ page }) => {
-  const component = new URL('../src/post/PostPreview.tsx', import.meta.url);
+  const component = new URL('../src/post/PostPage.tsx', import.meta.url);
   const original = await readFile(component, 'utf8');
   await page.addInitScript(() => {
     const originalFetch = window.fetch;
@@ -2698,10 +2684,10 @@ test('component_unmount_aborts_its_inflight_http_query_and_remount_loads_fresh_d
   holdResponse = true;
   holdPath = '/post/list';
   posts.items[0].content = '过期正文';
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('status')).toHaveText('正在加载博文……');
   try {
-    await writeFile(component, "export default function PostPreview() { return <h1>阅读已退出</h1>; }");
+    await writeFile(component, "export default function PostPage() { return <h1>阅读已退出</h1>; }");
     await expect(page.getByRole('heading', { name: '阅读已退出' })).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as Window & { readingAborted?: boolean }).readingAborted)).toBe(true);
     await page.waitForLoadState('networkidle');
@@ -2719,7 +2705,7 @@ test('component_unmount_aborts_its_inflight_http_query_and_remount_loads_fresh_d
 
 test('post_announces_loading_before_names_arrive', async ({ page }) => {
   holdResponse = true;
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   try {
     await expect(page.getByRole('status')).toHaveText('正在加载博主……');
   } finally {
@@ -2731,7 +2717,7 @@ test('post_announces_loading_before_names_arrive', async ({ page }) => {
 });
 
 test('post_displays_names_from_proxied_query', async ({ page }, testInfo) => {
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
   expect(requests.filter(value => value !== 'GET /weibo/login/status').map(value => value.split('?')[0])).toEqual(['GET /post/bloggers', 'GET /post/calendar', 'GET /post/list']);
@@ -2740,7 +2726,7 @@ test('post_displays_names_from_proxied_query', async ({ page }, testInfo) => {
 
 test('post_explains_empty_blogger_list', async ({ page }) => {
   bloggers = [];
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('status')).toHaveText('暂无博主。');
   await expect(page.getByRole('listitem')).toHaveCount(0);
   expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers']);
@@ -2748,7 +2734,7 @@ test('post_explains_empty_blogger_list', async ({ page }) => {
 
 test('post_announces_query_failure', async ({ page }) => {
   status = 503;
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('alert')).toHaveText('博主加载失败，请刷新页面重试。（HTTP 503）');
   await expect(page.getByRole('status')).toHaveCount(0);
   expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers']);
@@ -2765,7 +2751,7 @@ test('chat_entry_refreshes_with_its_own_skin_without_business_requests', async (
 });
 
 test('post_entry_refreshes_with_paper_skin', async ({ page }) => {
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
   await expect(page.locator('body')).toHaveCSS('color', 'rgb(43, 38, 32)');
@@ -2778,7 +2764,7 @@ test('post_entry_refreshes_with_paper_skin', async ({ page }) => {
 
 test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ request }) => {
   for (const [path, mime] of [
-    ['preview/post/index.html', 'text/html'],
+    ['post/index.html', 'text/html'],
     ['preview/chat/index.html', 'text/html'],
     ['src/post/main.tsx', 'javascript'],
     ['src/chat/main.tsx', 'javascript'],
@@ -2789,7 +2775,7 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain(mime);
   }
-  for (const path of ['post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js']) {
+  for (const path of ['preview/post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js']) {
     expect((await request.get(`${baseUrl}${path}`)).status()).toBe(404);
   }
   const response = await request.get(`${baseUrl}post/bloggers?probe=1`);
@@ -2808,15 +2794,15 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
 });
 
 test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }) => {
-  const component = new URL('../src/post/PostPreview.tsx', import.meta.url);
+  const component = new URL('../src/post/PostPage.tsx', import.meta.url);
   const stylesheet = new URL('../src/post/post.css', import.meta.url);
   const originalComponent = await readFile(component, 'utf8');
   const originalStylesheet = await readFile(stylesheet, 'utf8');
-  await page.goto(`${baseUrl}preview/post/index.html`);
+  await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await page.evaluate(() => Object.assign(window, { previewDocument: 'original' }));
   try {
-    await writeFile(component, originalComponent.replace('本地微博预览', '本地微博热更新验证'));
+    await writeFile(component, originalComponent.replace('<h1>本地微博</h1>', '<h1>本地微博热更新验证</h1>'));
     await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toBeVisible();
     await writeFile(stylesheet, originalStylesheet.replace('font-size: 22px', 'font-size: 19px'));
     await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toHaveCSS('font-size', '19px');
@@ -2825,5 +2811,5 @@ test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }
     await writeFile(component, originalComponent);
     await writeFile(stylesheet, originalStylesheet);
   }
-  await expect(page.getByRole('heading', { name: '本地微博预览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
 });
