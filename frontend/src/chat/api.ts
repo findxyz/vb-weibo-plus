@@ -160,6 +160,13 @@ export function queryHistoryMessages(
   return getJson<HistoryPage>(`/chat/messages?${params}`, signal);
 }
 
+// /chat/since 成功时返回 204 无响应体，不解析 JSON。
+export async function syncHistory(gid: number, sinceTime: string, signal: AbortSignal) {
+  const query = new URLSearchParams({ gid: String(gid), sinceTime });
+  const response = await fetch(`/chat/since?${query}`, { method: 'POST', signal });
+  if (!response.ok) throw new HttpError(await readError(response), response.status);
+}
+
 export function nextBeforeCursor(page: MessagePage): MessageCursor | null {
   if (!page.hasMore) return null;
   return page.nextBeforeCreatedAt != null && page.nextBeforeMid != null

@@ -1,4 +1,4 @@
-﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
@@ -35,6 +35,7 @@ let mediaSendBodies: { url: string; body: string; contentType: string }[];
 let mediaSendStatus: number;
 let attitudesPayload: Record<string, { name?: string; count?: number; selected?: boolean }[]>;
 let attitudesStatus: number;
+let syncStatus: number;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
@@ -171,6 +172,15 @@ test.beforeAll(async () => {
       });
       return;
     }
+    if (request.method === 'POST' && path === '/chat/since') {
+      const send = () => {
+        if (syncStatus === 204) { response.writeHead(204); response.end(); return; }
+        sendJson(response, syncStatus, { msg: '同步失败' });
+      };
+      if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      send();
+      return;
+    }
     if (path === '/chat/messages') {
       const gid = Number(url.searchParams.get('gid'));
       const page = Number(url.searchParams.get('page')) || 1;
@@ -267,11 +277,13 @@ test.beforeEach(({ page }) => {
   mediaSendStatus = 200;
   attitudesPayload = {};
   attitudesStatus = 200;
+  syncStatus = 204;
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD'].includes(request.method())) return;
-    // 发送是业务写操作，单独记录；其他写请求仍由 afterEach 拦截。
+    // 发送与历史采集是业务写操作，单独记录；其他写请求仍由 afterEach 拦截。
     if (request.method() === 'POST' && request.url().includes('/chat/messages/send')) return;
+    if (request.method() === 'POST' && request.url().includes('/chat/since')) return;
     writeRequests.push(`${request.method()} ${request.url()}`);
   });
 });
@@ -1162,6 +1174,66 @@ test('chat_closes_history_from_the_titlebar_button', async ({ page }) => {
   // 模态窗口会遮住侧栏；这里只验证关闭按钮与切群逻辑本身不会留下打开的窗口。
   await dialog.getByRole('button', { name: '关闭聊天记录' }).click();
   await expect(dialog).not.toHaveJSProperty('open', true);
+});
+
+test('chat_syncs_history_from_the_dialog', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 5, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  const today = shanghaiToday();
+  const anchor = new Date(`${today}T12:00:00`);
+  const expectedDate = localDateValue(calendarMonthsAgo(anchor, 24));
+  await expect(dialog.getByLabel('同步历史至')).toHaveValue(expectedDate);
+
+  await dialog.getByRole('button', { name: '⬇️ 同步历史' }).click();
+  await expect.poll(() => requests.filter(value => value.includes('/chat/since?')).length).toBe(1);
+  const request = requests.find(value => value.includes('/chat/since?'))!;
+  const params = new URLSearchParams(request.split('?')[1]);
+  expect(params.get('gid')).toBe('1');
+  expect(params.get('sinceTime')).toBe(`${expectedDate} 00:00:00`);
+  expect(params.has('beforeMid')).toBe(false);
+  await expect(dialog.locator('.history-empty')).toHaveText('已开始同步更早的历史消息，稍后请手动刷新查看。');
+  await expect(dialog.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
+});
+
+test('chat_validates_the_sync_date_and_reports_failure', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+
+  await dialog.getByLabel('同步历史至').fill('');
+  await dialog.getByRole('button', { name: '⬇️ 同步历史' }).click();
+  await expect(dialog.locator('.history-empty')).toHaveText('请先选择要同步到的历史日期。');
+  expect(requests.some(value => value.includes('/chat/since'))).toBe(false);
+
+  await dialog.getByLabel('同步历史至').fill('2026-08-05');
+  syncStatus = 500;
+  await dialog.getByRole('button', { name: '⬇️ 同步历史' }).click();
+  await expect(dialog.locator('.history-empty')).toHaveText('同步历史请求失败，请稍后重试。');
+});
+
+test('chat_disables_sync_while_in_flight_and_hides_results', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 25, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const dialog = page.locator('dialog.history-dialog');
+  await dialog.getByLabel('开始日期').fill('2026-08-05');
+  await dialog.getByLabel('结束日期').fill('2026-08-07');
+  await dialog.getByRole('button', { name: '🔍 查询' }).click();
+  await expect(dialog.locator('.history-result')).toHaveCount(20);
+
+  holdPredicate = url => url.pathname === '/chat/since';
+  await dialog.getByRole('button', { name: '⬇️ 同步历史' }).click();
+  await expect.poll(() => held.length).toBe(1);
+  await expect(dialog.getByRole('button', { name: '⬇️ 同步历史' })).toBeDisabled();
+  await expect(dialog.locator('.history-empty')).toHaveText('同步中…');
+  await expect(dialog.locator('.history-result')).toHaveCount(0);
+
+  releaseHeld();
+  await expect(dialog.locator('.history-empty')).toHaveText('已开始同步更早的历史消息，稍后请手动刷新查看。');
+  await expect(dialog.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {

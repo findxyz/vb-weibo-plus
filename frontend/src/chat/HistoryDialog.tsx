@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   compareMessages, fetchEarlierMessages, fetchNewerMessages, nextAfterCursor, nextBeforeCursor,
-  queryHistoryMessages, type ChatGroup, type ChatMessage, type HistoryFilters, type HistoryPage,
-  type MessageCursor,
+  queryHistoryMessages, syncHistory, type ChatGroup, type ChatMessage, type HistoryFilters,
+  type HistoryPage, type MessageCursor,
 } from './api';
-import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../../../src/main/resources/static/shared/date.js';
+import { calendarMonthsAgo, localDateValue, shanghaiToday, toQueryDateTime } from '../../../src/main/resources/static/shared/date.js';
 import ImageViewer from './ImageViewer';
 import MessageItem from './MessageItem';
 
@@ -69,6 +69,8 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
   const [earlierState, setEarlierState] = useState('');
   const [newerState, setNewerState] = useState('');
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [syncDate, setSyncDate] = useState('');
+  const [syncing, setSyncing] = useState(false);
   const versionRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
   const loadingMoreRef = useRef(false);
@@ -84,6 +86,8 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
     setFilters({
       start: localDateValue(calendarMonthsAgo(anchor, 3)), end: today, sender: '', keyword: '',
     });
+    setSyncDate(localDateValue(calendarMonthsAgo(anchor, 24)));
+    setSyncing(false);
     setApplied(null);
     setPage(1);
     setResult(null);
@@ -158,6 +162,32 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
   function submit(event: React.FormEvent) {
     event.preventDefault();
     void runQuery(1, filters);
+  }
+
+  async function runSync() {
+    if (gid == null || syncing) return;
+    if (!syncDate) {
+      setFeedback('请先选择要同步到的历史日期。');
+      return;
+    }
+    const controller = ensureController();
+    const version = ++versionRef.current;
+    setSyncing(true);
+    setStatus('idle');
+    setResult(null);
+    setContext(null);
+    setViewerUrl(null);
+    setFeedback('');
+    try {
+      await syncHistory(gid, toQueryDateTime(syncDate) ?? `${syncDate} 00:00:00`, controller.signal);
+      if (version !== versionRef.current || controller.signal.aborted) return;
+      setFeedback('已开始同步更早的历史消息，稍后请手动刷新查看。');
+    } catch {
+      if (version !== versionRef.current || controller.signal.aborted) return;
+      setFeedback('同步历史请求失败，请稍后重试。');
+    } finally {
+      setSyncing(false);
+    }
   }
 
   function setEdges(before: MessageCursor | null, after: MessageCursor | null) {
@@ -295,11 +325,15 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
             <input id="history-keyword" type="search" placeholder="包含关键词" value={filters.keyword}
               onChange={event => setFilters({ ...filters, keyword: event.target.value })} />
             <button type="submit" disabled={status === 'loading'}>🔍 查询</button>
+            <label htmlFor="history-sync-time">同步历史至</label>
+            <input id="history-sync-time" type="date" value={syncDate}
+              onChange={event => setSyncDate(event.target.value)} />
+            <button type="button" disabled={syncing} onClick={() => { void runSync(); }}>⬇️ 同步历史</button>
           </form>
           <section className="history-content" aria-label="聊天记录查询结果">
             {initialHint && (
               <div className="history-empty">
-                {status === 'loading' ? '查询中…' : (feedback || '设置筛选条件后点击查询')}
+                {syncing ? '同步中…' : status === 'loading' ? '查询中…' : (feedback || '设置筛选条件后点击查询')}
               </div>
             )}
             {result && !context && (
