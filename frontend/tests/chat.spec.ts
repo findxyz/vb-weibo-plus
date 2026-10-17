@@ -214,7 +214,8 @@ test('chat_selects_the_saved_group_and_lands_on_the_newest_messages', async ({ p
   expect(requests.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=2&size=50']);
 
   await page.waitForTimeout(1500);
-  expect(requests.slice(2).every(value => value === 'GET /chat/messages/cursor?gid=2&size=50')).toBe(true);
+  expect(requests.slice(2).every(value => value === 'GET /chat/groups'
+    || value === 'GET /chat/messages/cursor?gid=2&size=50')).toBe(true);
   expect(requests.length).toBeGreaterThanOrEqual(3);
 
   await page.reload();
@@ -321,9 +322,10 @@ test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ p
   groups = [];
   await openChat(page);
 
-  await expect(page.getByRole('status')).toHaveText('还没有群聊。');
+  await expect(page.getByRole('status')).toHaveText('暂无群聊数据');
   await expect(page.locator('.messages-state')).toHaveText('暂无群聊。');
-  expect(requests).toEqual(['GET /chat/groups']);
+  expect(requests.length).toBeGreaterThanOrEqual(1);
+  expect(requests.every(value => value === 'GET /chat/groups')).toBe(true);
 });
 
 test('chat_plays_video_in_place_without_navigation', async ({ page }) => {
@@ -544,6 +546,67 @@ test('chat_retries_a_failed_poll_and_recovers', async ({ page }) => {
   messagesStatus.delete(1);
   items.push(makeMessages(1, 61, '消息')[60]);
   await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 9000 });
+});
+
+test('chat_filters_groups_locally_without_changing_the_conversation', async ({ page }) => {
+  groups = [
+    makeGroup(1, '第一群', { latestSenderName: '甲', latestMessage: '早上好' }),
+    makeGroup(2, '第二群', { latestSenderName: '乙', latestMessage: '晚上好' }),
+  ];
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+
+  await expect(page.locator('.group-row .group-preview')).toHaveText(['甲：早上好', '乙：晚上好']);
+  const search = page.getByPlaceholder('搜索群聊');
+  await search.fill('第二');
+  await expect(page.locator('.group-row').first()).toBeHidden();
+  await expect(page.locator('.group-row').nth(1)).toBeVisible();
+  await expect(page.locator('.message').last()).toContainText('消息 3');
+  await expect(page.getByRole('heading', { name: '微博群聊 - 第一群' })).toBeVisible();
+
+  await search.fill('晚上');
+  await expect(page.locator('.group-row').nth(1)).toBeVisible();
+  await expect(page.locator('.group-row').first()).toBeHidden();
+
+  await search.fill('');
+  await expect(page.locator('.group-row').first()).toBeVisible();
+  await expect(page.locator('.group-row').nth(1)).toBeVisible();
+});
+
+test('chat_refreshes_group_metadata_without_losing_selection', async ({ page }) => {
+  groups = [
+    makeGroup(1, '第一群', { latestSenderName: '成员A', latestMessage: '早上好', messageCount: 3 }),
+    makeGroup(2, '第二群', { latestSenderName: '', latestMessage: '一条消息', messageCount: 2 }),
+  ];
+  messagesByGid.set(1, makeMessages(1, 5, '消息'));
+  await openChat(page);
+
+  await expect(page.locator('.group-row').first()).toContainText('成员A：早上好');
+  await expect(page.locator('.group-number')).toContainText('+ 3 条消息');
+  const before = await page.locator('.messages').evaluate(element => element.scrollTop);
+
+  groups[0] = makeGroup(1, '第一群', { latestSenderName: '成员B', latestMessage: '新内容', messageCount: 7 });
+  await expect(page.locator('.group-row').first()).toContainText('成员B：新内容', { timeout: 4000 });
+  await expect(page.locator('.group-number')).toContainText('+ 7 条消息');
+  await expect(page.locator('.group-row').first()).toHaveAttribute('aria-current', 'true');
+  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
+  await expect(page.locator('.message').last()).toContainText('消息 5');
+});
+
+test('chat_keeps_the_group_list_when_a_metadata_refresh_fails', async ({ page }) => {
+  groups = [makeGroup(1, '第一群', { latestSenderName: '甲', latestMessage: '旧' })];
+  messagesByGid.set(1, makeMessages(1, 1, '消息'));
+  await openChat(page);
+  await expect(page.locator('.group-row')).toHaveCount(1);
+
+  groupsStatus = 503;
+  await page.waitForTimeout(1600);
+  await expect(page.locator('.group-row')).toHaveCount(1);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+
+  groups[0] = makeGroup(1, '第一群', { latestSenderName: '甲', latestMessage: '新' });
+  groupsStatus = 200;
+  await expect(page.locator('.group-row')).toContainText('甲：新', { timeout: 4000 });
 });
 
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {

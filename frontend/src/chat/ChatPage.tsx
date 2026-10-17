@@ -13,8 +13,19 @@ export default function ChatPage() {
     queryFn: ({ signal }) => fetchGroups(signal),
     staleTime: Infinity,
     refetchOnMount: false,
+    // 与消息轮询同节奏；页面隐藏时暂停，回到页面时由 focus 立即刷新一次。
+    refetchInterval: 1000,
+    refetchIntervalInBackground: false,
   });
+  const { refetch } = groupsQuery;
   const groups = groupsQuery.data ?? [];
+
+  useEffect(() => {
+    const onFocus = () => { void refetch(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refetch]);
+
   const [selectedGid, setSelectedGid] = useState<number | null>(() => {
     const saved = Number(localStorage.getItem(STORAGE_KEYS.CHAT_LAST_GROUP));
     return Number.isSafeInteger(saved) && saved > 0 ? saved : null;
@@ -55,7 +66,7 @@ export default function ChatPage() {
           groups={groups}
           selectedGid={selectedGid}
           pending={groupsQuery.isPending}
-          failed={groupsQuery.isError}
+          failed={groupsQuery.isError && !groupsQuery.data}
           onSelect={selectGroup}
           onRetry={() => { void groupsQuery.refetch(); }}
         />
