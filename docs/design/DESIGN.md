@@ -3,7 +3,7 @@ version: alpha
 name: vb-weibo-plus
 description: >-
   微博辅助客户端 vb-weibo-plus 的双皮肤设计体系：「蔚蓝拟物」桌面窗格皮肤（chat.css）
-  与「纸感手绘」博文阅读皮肤（post.css）。全部取值逐行抽取自前端源码，
+  与「星空微博」博文阅读皮肤（post.css）。chat 令牌沿用源码，post 依据已确认效果图更新，
   作为后续界面扩展与一致性的唯一令牌依据。
 colors:
   primary: "#086ce0"
@@ -81,15 +81,24 @@ colors:
   error-bg: "#fdf4f3"
   filter-panel-from: "#e7f3fc"
   filter-panel-to: "#d1e6f7"
-  paper: "#fbf6ec"
-  paper-tint: "#f5eedf"
-  ink: "#2b2620"
-  pencil: "#4d473d"
-  rule: "#c8bfa9"
-  grid-line: "#e3d8b8"
-  sketch-accent: "#d8482b"
-  sketch-hatch: "#b53a20"
-  sketch-highlight: "#f9d27c"
+  post-sky: "#087fb7"
+  post-surface: "#031b28"
+  post-surface-alt: "#072b42"
+  post-surface-raised: "#0b3853"
+  post-text: "#e4eef5"
+  post-muted: "#9ac9e0"
+  post-link: "#60cfff"
+  post-line: "#1c5069"
+  post-border: "#2986b4"
+  post-selected: "#155d89"
+  post-accent: "#009fee"
+  post-focus: "#8cddff"
+  post-verified: "#ffad19"
+  post-danger: "#ffb4a8"
+  post-mark: "#ffe4a2"
+  post-button-top: "#104468"
+  post-button-bottom: "#052438"
+
 typography:
   app-title:
     fontFamily: 'Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif'
@@ -120,7 +129,7 @@ typography:
     fontFamily: 'QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif'
     fontSize: 14px
     lineHeight: 24px
-  sketch-display:
+  post-brand:
     fontFamily: '"Microsoft YaHei", sans-serif'
     fontSize: 22px
     fontWeight: 800
@@ -130,10 +139,9 @@ rounded:
   md: 4px
   control: 5px
   pill: 999px
-  sketch-rounded-sm: 4px
-  sketch-rounded-md: 8px
-  sketch-rounded-card: 10px
-  sketch-rounded-app: 12px
+  post-control: 3px
+  post-avatar: 1px
+  post-feed: 0px
 spacing:
   xs: 4px
   sm: 8px
@@ -201,95 +209,98 @@ components:
     textColor: "{colors.text}"
     rounded: "{rounded.md}"
   post-card:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
+    backgroundColor: "transparent"
+    textColor: "{colors.post-text}"
     typography: "{typography.post-content}"
-    rounded: "{rounded.sketch-rounded-card}"
+    rounded: "{rounded.post-feed}"
   retweet-note:
-    backgroundColor: "{colors.paper-tint}"
-    textColor: "{colors.pencil}"
+    backgroundColor: "{colors.post-surface-alt}"
+    textColor: "{colors.post-text}"
     typography: "{typography.retweet-content}"
-    rounded: "{rounded.sketch-rounded-md}"
-  sketch-action-button:
-    backgroundColor: "{colors.sketch-accent}"
-    textColor: "{colors.paper}"
+    rounded: "{rounded.post-control}"
+  post-button:
+    backgroundColor: "{colors.post-button-top}"
+    textColor: "{colors.post-text}"
+    height: 32px
+    rounded: "{rounded.post-control}"
+  post-input:
+    backgroundColor: "{colors.post-surface}"
+    textColor: "{colors.post-text}"
     height: 34px
-    rounded: "{rounded.sketch-rounded-sm}"
-  sketch-input:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
-    height: 36px
-    rounded: "{rounded.sketch-rounded-sm}"
+    rounded: "{rounded.post-control}"
+
 ---
 
 ## Overview
 
-vb-weibo-plus 的前端由两套独立皮肤组成，共用同一副「骨架习惯」：
+两套独立皮肤互不混用：
 
-- **蔚蓝拟物（chat.css，群聊客户端）**：Windows Aero 式高光渐变标题栏、内嵌阴影面板、四段蓝色渐变，制造「桌面软件」的实在感。
-- **纸感手绘（post.css，博文阅读器）**：米纸底 + 22px 铅笔点阵、45° 斜线填充、硬偏移投影、±0.5–3° 微旋转与荧光笔涂选，制造「纸面草稿」的轻松感。
+- **蔚蓝拟物（chat.css）**：沿用现有 Windows Aero 桌面窗格、蓝色高光渐变与浅色气泡。
+- **星空微博（post.css）**：根据用户确认的 2010 年微博效果图，使用星空背景、深蓝连续微博流、方形头像和右侧日历。它替代原来的纸感手绘皮肤。
 
-两套皮肤共享：浅色 `color-scheme`、3px 焦点环外扩 2px、最小窗宽 900px、计数用 `tabular-nums`。工具与导航仍以 Tahoma / 微软雅黑为主；post 正文采用微博官网的系统字体栈。
-
-一句话：**工具窗格用拟物表达「专业软件」，阅读界面用手绘表达「轻量纸面」，令牌互不混用。**
+post 的背景素材为本次效果图派生的纯星空图，路径为 frontend/src/post/assets/starry-sky.png。由 ImageGen 去除效果图中的界面内容后生成，固定在页外背景使用；正文区域使用不透明底色，保持阅读对比度。素材生成提示为“纯蓝色星空，顶部深蓝星云与两侧青色星团，底部平滑过渡为蓝色，无界面、文字和前景”。
 
 ## Colors
 
-- **primary（#086ce0）**：蔚蓝拟物皮肤唯一主操作色；新消息浮标、选中态、跟随指示。
-- **amber（#f4a51d）**：拟物皮肤的「定位/激活」信号，只做 4px 内嵌条与目标消息描边，不做大面积填充。
-- **sketch-accent（#d8482b）**：纸感皮肤的朱砂笔色，承担主按钮、链接、认证徽章、斜纹头像。
-- **sketch-highlight（#f9d27c）**：荧光笔涂选色，永远以 skew(-7deg) 斜道或 28% 透明底出现。
-- **titlebar 渐变**：`#1394fa 0 → #0879ed 28% → #0060d8 72% → #006bea 100%`，上覆 8px 白色高光（38% → 透明），下压 `inset 0 -2px 3px rgb(0 48 145 / 58%)` 暗边。
-- **danger（#b42318）**：两套皮肤共用同一错误红；焦点色各皮肤独立（A 琥珀 #ffb020，B 朱砂 #d8482b）。
+chat 继续使用 YAML 中原有拟物令牌。post 仅使用 post 前缀令牌，在 post.css 中映射为局部变量：
+
+| CSS 变量 | DESIGN 令牌 | 用途 |
+|---|---|---|
+| --sky | post-sky | 星空图片下的背景底色 |
+| --surface | post-surface | 连续微博流、输入框、弹窗 |
+| --surface-alt | post-surface-alt | 右侧栏和转发区域 |
+| --surface-raised | post-surface-raised | 标题带、悬停与定位高亮 |
+| --text／--muted | post-text／post-muted | 正文与元信息 |
+| --link | post-link | 昵称、原文链接 |
+| --line／--border | post-line／post-border | 条目分隔与控件描边 |
+| --selected／--accent | post-selected／post-accent | 博主选中与日期选中 |
+| --focus | post-focus | 键盘焦点环 |
+| --verified | post-verified | 认证标记 |
+| --danger／--mark | post-danger／post-mark | 错误提示与搜索命中 |
+| --button-top／--button-bottom | post-button-top／post-button-bottom | 紧凑蓝色按钮渐变 |
+
+post 的正文、链接与次要文字在深色底上保持清晰。禁用按钮使用 45% 不透明度，并设置原生 disabled；进行中的采集按钮沿用 aria-disabled 与提交防重。
 
 ## Typography
 
-- 工具文字使用 `Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif`；post.css 的 `--serif/--hand/--mono` 仍指向微软雅黑。
-- post 普通与转发正文使用 `QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif`。`QuoteFallback` 的本机来源为 `local("Georgia"), local("SimSun")`，仅覆盖 `U+2018-2019, U+201C-201D` 引号。只使用本机字体，不下载字体文件。普通正文为 15px／24px，转发正文为 14px／24px。来源为 2026-10-17 实测的[微博官网 CSS](https://h5.sinaimg.cn/m/weibo-pro-next/assets/index-DCZHqfDD.css)，分别对应 `--feed-detail-og-font-size`／`--feed-detail-og-line-height` 与 `--feed-detail-re-font-size`／`--feed-detail-re-line-height`。
-- 字号阶梯：12/13 元信息与计数 → 14/15 工具与正文 → 16–18 面板/标题栏 → 19–22 展示文字（post 标题 22px/800）。
-- 时间、地区、计数一律 12px + `font-variant-numeric: tabular-nums`。
+- post 的 UI、标题与昵称保留 Microsoft YaHei；中文不使用手写体或衬线体。
+- 正文沿用 QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif。
+- QuoteFallback 仅覆盖 U+2018-2019、U+201C-201D 引号，本机来源为 Georgia、SimSun。不下载字体。
+- 普通正文为 15px／24px，转发正文为 14px／24px；来源为 2026-10-17 对照的微博官网 CSS。
+- 元信息为 12px，并使用 tabular-nums。昵称为 16px／700，博主列表为 17px／700，面板标题为 19px／700。
+- banner 品牌字为 36px／700，标语为 24px／700；窄窗口标语降为 22px。
+- chat 字体与字号保持原有定义。
 
 ## Layout
 
-- 4/8 基座间距习惯：4、8、10、12、14、16、18px。
-- 结构尺寸：标题栏 38px（post 为 44px）、群列表侧栏 280px、工具/分页行 48px、输入区 154px；应用最小 900×560。
-- 列表行：hover 用半透明白（A）或 28% 荧光黄（B）；激活态 A 用 4px 琥珀内嵌条，B 用 skew(-7deg) 荧光笔道。
+- post 最小窗口为 900×560，居中外框最大宽度为 1120px；默认两侧总留白为 64px。
+- 顶部 banner 高 112px，包含现有微博标志、微博字样、“随时随地发现新鲜事”和群聊切换入口。
+- 主体为左侧微博流＋右侧 300px 工具栏。窗口宽度不超过 1100px 时，外侧总留白改为 32px，右栏为 260px，banner 高为 96px。
+- 正文面板标题高不小于 48px，正文独立滚动；右栏整体独立滚动，博主列表最大高为 336px，确保小窗口所有入口均可触达。
+- 右栏按“日期选择 → 博主管理”排列。日历星期一开头，日期格高 36px，空日期不可点，有内容日期显示圆点。
+- 年月下拉支持直接选择，前后月按钮在数据范围边缘禁用。导航月份不发请求；选择有效日期才读取当日内容。
+- 添加博主与同步历史并排，按钮最小高 32px；同步按钮常驻，选中单个博主后可用。
+- 博文头像为 48px 方形，博主列表头像为 40px 方形。条目左右间距 12px，正文容器内边距 18px，条目上下内边距 18px。
+- 元信息移至内容之后，与“查看原文”同行；长来源允许截断，不增加社交操作。
+- chat 的标题栏 38px、侧栏 280px、工具栏 48px 与输入区 154px 保持不变。
 
-## Elevation & Depth
+## Elevation & Shapes
 
-- 拟物皮肤三级投影：气泡 `0 1px 2px rgb(31 63 89 / 10%)` → 浮动控件 `0 2px 8px rgb(17 67 115 / 28%)` → 对话框 `0 12px 36px rgb(0 35 85 / 38%)`；标题栏立体感完全依赖 inset 高光与暗部，不加外投影。
-- 纸感皮肤全部为**硬偏移无模糊**阴影：近景 `2px 2px 0 -1px rgb(43 38 32 / 18%)`，卡片/对话框 `6px 8px 0 -3px rgb(43 38 32 / 18%–22%)`。
-
-## Shapes
-
-- 拟物皮肤是小圆角世界：2px 系统条、3/4px 输入与气泡、5px 窗控、6/7px 头像、16px 浮标、999px 胶囊。
-- 纸感皮肤：4/8px 基础、卡片 10px、应用外框 12px；标准描边宽度 1.5px，卡片 2px，应用外框 3px。
-- 纹理三件套（仅纸感皮肤）：22px 点阵纸纹（全局）、45° 斜纹填充（头像/空图位）、135° 影线（标题带，`rgba(0,0,0,.05) 0 2px / 透明 2px 6px`）。
+- post 按钮、转发框和弹窗为 3px 圆角；头像为 1px 圆角；连续微博流为直角、无独立卡片投影。
+- 面板与控件使用 1px 蓝色描边，头像为 2px 浅色描边；图片为 1px 浅色描边。
+- 弹窗投影为 0 12px 36px rgb(0 12 28 / 55%)，弹窗遮罩为 rgb(0 12 28 / 65%)。
+- 原图查看器遮罩为 rgb(0 12 28 / 90%)，图片保留 3px 浅色边框。
+- 焦点环为 3px solid var(--focus)，外扩 2px。
+- chat 延续既有 inset 高光暗边与气泡、浮控、弹窗三级模糊投影，不受 post 影响。
 
 ## Components
 
-- `titlebar`：四段渐变 + 高光 + 38px 高，白色文字带 `#003692` 1px 文字投影。
-- `window-control`：28×26px 蓝渐变窗控，白描边、内嵌环与 1px 外投影；关闭钮为 `#ff9a73 → #e63c20` 红渐变，切换钮为绿渐变，沉浸激活为琥珀渐变，hover 统一 `brightness(1.08)`。
-- `tool-button`：白→浅蓝渐变 + `#7f9fba` 描边，最小高 32px。
-- `bubble`：白底 `#a7bdcd` 描边 4px 圆角，15px/1.55；系统消息为灰条 2px 圆角，管理消息为 `#fff3e0/#f0c78a` 暖黄变体。
-- `attitude-chip`：胶囊表态符，选中态切 `primary-soft/primary/primary-strong` 三件套。
-- `post-card`：2px 铅笔描边 10px 圆角米纸卡；转发为虚线便签（tint 底）；九宫格 120px 方格 + 空位显示斜纹 "img" 印章。
-- `sketch-action-button`：朱砂底纸色字、`rotate(-0.6deg)`、hover `brightness(1.08)`；次级按钮 hover 换荧光黄底。
+- 星空背景只用于页面外层；正文使用稳定深色底。
+- 微博条目连续排列，以细线分隔；转发为深蓝内嵌面板。
+- 日期格使用原生按钮和完整日期可访问名称；选中态、无内容禁用态与内容圆点分开表达。
+- 搜索、添加、历史采集、扫码与图片查看器沿用现有交互，配色统一为星空皮肤。
+- 不混入米纸、铅笔点阵、斜纹填充、旋转按钮或硬偏移纸片阴影。
 
-## Do's and Don'ts
+## Historical reference
 
-**Do**
-
-- 标题栏永远保留顶部高光 + 底部内嵌暗边，这是拟物皮肤的「玻璃感」来源。
-- 激活/定位态统一交给琥珀（A）或荧光笔道（B），主操作色不参与状态表达。
-- 纸感皮肤链接默认无下划线，hover 时显示直线下划线，偏移 3px；拟物皮肤保持现有链接样式。
-- 焦点环固定 `3px solid <皮肤焦点色>` 外扩 2px，全组件一致。
-- 小控件允许 ±0.5–3° 微旋转（仅纸感皮肤），营造手贴便签的松动感。
-
-**Don't**
-
-- 不要把标题栏四段渐变简化成纯色，也不要把渐变蔓延到内容区背景。
-- 不要在两套皮肤间混用令牌：琥珀只属于拟物皮肤，荧光黄只属于纸感皮肤。
-- 不要移除纸面点阵纹理；去掉它纸感皮肤就退化成普通米色页面。
-- 不要给纸感皮肤加模糊投影——它只有硬偏移阴影。
-- 不要在 900px 以下硬挤布局，这是桌面应用，最小窗宽是硬约束。
+原纸感皮肤与三栏几何测量保留在 Git 历史和 frontend/tests/fixtures/post-geometry.json，仅作为迁移存档，不再作为 post 当前视觉验收依据。当前布局决策见 docs/adr/0009-post-starry-calendar-layout.md。

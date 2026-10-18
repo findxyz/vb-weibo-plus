@@ -54,7 +54,7 @@ export default function SyncHistory({ blogger, visit, onStart, onComplete, onUna
     sync.mutate({ uid: blogger.uid, visit, start, end });
   }
   return <>
-    <button type="button" className="search-open sync-history-open" disabled={!blogger} aria-disabled={!blogger || sync.isPending} title={!blogger ? '请先选择一位博主' : '同步历史微博'} onClick={() => {
+    <button type="button" className="search-open sync-history-open" aria-label="同步历史" disabled={!blogger} aria-disabled={!blogger || sync.isPending} title={!blogger ? '请先选择一位博主' : '同步历史微博'} onClick={() => {
       if (!blogger || pending.current) return;
       const today = shanghaiToday();
       setStart(localDateValue(calendarMonthsAgo(new Date(`${today}T12:00:00`), 24)));

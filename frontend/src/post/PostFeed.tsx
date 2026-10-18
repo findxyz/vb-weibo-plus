@@ -45,9 +45,6 @@ export default function PostFeed({ result, targetPostId }: { result: PostList; t
         <div className="post-body">
           <header className="post-header">
             <strong className="post-author">{post.blogger?.screenName || '未知博主'}{post.blogger?.verified && <VerifiedBadge />}</strong>
-            <time className="post-time" dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
-            {post.region && <span className="post-region">{post.region}</span>}
-            {post.source && <span className="post-source">{post.source}</span>}
           </header>
           {post.content && <PostContent content={post.content} />}
           {post.pics && <PostImages pics={post.pics} onOpen={openImages} />}
@@ -58,7 +55,14 @@ export default function PostFeed({ result, targetPostId }: { result: PostList; t
             {post.retweeted.pics && <PostImages pics={post.retweeted.pics} retweeted onOpen={openImages} />}
             {retweetVideo && <PostVideo video={retweetVideo} retweeted />}
           </aside>}
-          {postUrl && <div className="post-actions"><a className="post-link" href={postUrl} target="_blank" rel="noopener">查看原文</a></div>}
+          <div className="post-actions">
+            <div className="post-meta">
+              <time className="post-time" dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
+              {post.region && <span className="post-region">{post.region}</span>}
+              {post.source && <span className="post-source">{post.source}</span>}
+            </div>
+            {postUrl && <a className="post-link" href={postUrl} target="_blank" rel="noopener">查看原文</a>}
+          </div>
         </div>
       </article>;
     })}

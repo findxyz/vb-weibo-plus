@@ -50,39 +50,16 @@ export default function PostPage() {
       <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       <header className="titlebar">
         <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
-        <h1>本地微博</h1>
-        <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }} />
+        <h1 aria-label="本地微博">微博</h1>
+        <p className="brand-slogan">随时随地发现新鲜事</p>
+        <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }}>微博群聊</button>
       </header>
       <main className="columns">
-        <section className="bloggers-panel" aria-label="博主区域">
-          <header className="bloggers-heading"><h2>博主列表</h2>{bloggers.isSuccess && <span>{bloggers.data.length} 位博主</span>}<AddBlogger onAdded={bloggerAdded} onUnauthorized={login.expire} /></header>
-          <div className="search-box"><input type="search" aria-label="搜索博主" placeholder="搜索博主" value={bloggerSearch} onChange={event => setBloggerSearch(event.target.value)} /></div>
-          <div className="bloggers-list">
-            <button className="blogger-row all-bloggers" aria-pressed={selection.uid === null} onClick={() => selectBlogger(null)}>
-              <span className="blogger-avatar all-avatar" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
-              <span className="blogger-name">全部博主</span>
-            </button>
-            {bloggers.isPending && <p className="panel-feedback" role="status">正在加载博主……</p>}
-            {bloggers.isError && !isUnauthorized(bloggers.error) && <p className="panel-feedback" role="alert">博主加载失败，请刷新页面重试。（{bloggers.error.message}）</p>}
-            {bloggers.isSuccess && bloggers.data.length === 0 && <p className="panel-feedback" role="status">暂无博主。</p>}
-            <BloggerList bloggers={bloggers.data ?? []} keyword={bloggerSearch} selectedUid={selection.uid} onSelect={selectBlogger} />
-          </div>
-          {login.expired && <PostLogin pending={login.pending} started={login.started} message={login.message} onStart={login.start} />}
-        </section>
-        <section className="dates-panel" aria-label="日期区域">
-          <header className="dates-heading"><h2>日期</h2>{syncNotice?.uid === selection.uid && syncNotice?.visit === selection.visit && <span className="sync-notice" role="status">同步完成</span>}</header>
-          <div className="dates-list">
-            {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
-            {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
-            {calendar.isSuccess && !date && <p className="panel-feedback" role="status">暂无有博文的日期。</p>}
-            {date && <DateCalendar key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
-          </div>
-        </section>
         <section className="feed" aria-label="博文区域">
           <header className="feed-header">
             <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
+            {date && <time className="reading-date" dateTime={date}>{date}</time>}
             {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
-            <SyncHistory blogger={selectedBlogger} visit={selection.visit} onStart={() => setSyncNotice(undefined)} onComplete={historyCompleted} onUnauthorized={login.expire} />
             <button type="button" className="search-open" onClick={() => setSearchOpen(true)}>高级搜索</button>
           </header>
           <div className="posts">
@@ -91,6 +68,36 @@ export default function PostPage() {
             {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} targetPostId={jump?.mblogId} />}
           </div>
         </section>
+        <aside className="reading-sidebar" aria-label="阅读导航">
+          <section className="dates-panel" aria-label="日期区域">
+            <header className="dates-heading"><h2>日期选择</h2>{syncNotice?.uid === selection.uid && syncNotice?.visit === selection.visit && <span className="sync-notice" role="status">同步完成</span>}</header>
+            <div className="dates-list">
+              {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
+              {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
+              {calendar.isSuccess && !date && <p className="panel-feedback" role="status">暂无有博文的日期。</p>}
+              {date && <DateCalendar key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
+            </div>
+          </section>
+          <section className="bloggers-panel" aria-label="博主区域">
+            <header className="bloggers-heading"><h2>博主管理</h2>{bloggers.isSuccess && <span>{bloggers.data.length} 位博主</span>}</header>
+            <div className="search-box"><input type="search" aria-label="搜索博主" placeholder="搜索博主" value={bloggerSearch} onChange={event => setBloggerSearch(event.target.value)} /></div>
+            <div className="blogger-tools">
+              <AddBlogger onAdded={bloggerAdded} onUnauthorized={login.expire} />
+              <SyncHistory blogger={selectedBlogger} visit={selection.visit} onStart={() => setSyncNotice(undefined)} onComplete={historyCompleted} onUnauthorized={login.expire} />
+            </div>
+            <div className="bloggers-list">
+              <button className="blogger-row all-bloggers" aria-pressed={selection.uid === null} onClick={() => selectBlogger(null)}>
+                <span className="blogger-avatar all-avatar" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
+                <span className="blogger-name">全部博主</span>
+              </button>
+              {bloggers.isPending && <p className="panel-feedback" role="status">正在加载博主……</p>}
+              {bloggers.isError && !isUnauthorized(bloggers.error) && <p className="panel-feedback" role="alert">博主加载失败，请刷新页面重试。（{bloggers.error.message}）</p>}
+              {bloggers.isSuccess && bloggers.data.length === 0 && <p className="panel-feedback" role="status">暂无博主。</p>}
+              <BloggerList bloggers={bloggers.data ?? []} keyword={bloggerSearch} selectedUid={selection.uid} onSelect={selectBlogger} />
+            </div>
+            {login.expired && <PostLogin pending={login.pending} started={login.started} message={login.message} onStart={login.start} />}
+          </section>
+        </aside>
       </main>
       <div className="reading-announcement" aria-live="polite" aria-atomic="true">{posts.isSuccess && !posts.isFetching && posts.data.items.length > 0 ? `已加载 ${posts.data.items.length} 条微博` : ''}</div>
       {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} onSelectPost={jumpToPost} onUnauthorized={login.expire} />}

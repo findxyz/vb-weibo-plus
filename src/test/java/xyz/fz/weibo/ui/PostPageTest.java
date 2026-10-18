@@ -163,7 +163,7 @@ class PostPageTest {
             assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-07-10").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.locator("article")).containsText("第二位博主的本地正文");
             Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-07-10 00:00:00&end=2026-07-10 23:59:59&uids=2");
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByLabel("选择月份").selectOption("06");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
             assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.locator("article")).isVisible();
@@ -183,7 +183,7 @@ class PostPageTest {
             assertThat(page.locator(".post-content")).containsText("打包后的正文");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
             assertThat(page.locator(".post-content")).hasText("第二位博主的本地正文");
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByLabel("选择月份").selectOption("06");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
             assertThat(page.locator(".post-card")).hasClass("post-card pure-retweet");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("高级搜索").setExact(true)).click();
@@ -477,7 +477,7 @@ class PostPageTest {
             assertThat(page).hasURL(baseUrl + "/post/index.html");
             assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-08-05").setExact(true))).hasAttribute("aria-pressed", "true");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("第二位博主").setExact(true)).click();
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByLabel("选择月份").selectOption("06");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
             assertThat(page.locator("article")).hasClass("post-card pure-retweet");
             assertThat(page.locator(".post-avatar")).hasCount(0);
@@ -603,7 +603,7 @@ class PostPageTest {
             assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-line", "underline");
             assertThat(page.locator(".post-retweet-content a")).hasCSS("text-decoration-style", "solid");
             Assertions.assertThat(page.evaluate("window.retweetAttack")).isNull();
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06，1 条").setExact(true)).click();
+            page.getByLabel("选择月份").selectOption("06");
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true)).click();
             assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("2026-06-30").setExact(true))).hasAttribute("aria-pressed", "true");
             assertThat(page.locator(".post-retweet-content")).containsText("打包转发原文");
@@ -644,7 +644,7 @@ class PostPageTest {
             assertThat(page.locator(".title-logo img")).isVisible();
             Assertions.assertThat(page.locator(".title-logo img").evaluate("img => img.naturalWidth > 0")).isEqualTo(true);
             assertThat(page.locator(".post-avatar")).hasText("打");
-            assertThat(page.locator(".post-card")).hasCSS("max-width", "720px");
+            assertThat(page.locator(".post-card")).hasCSS("max-width", "none");
             assertThat(page.locator(".post-card")).hasCSS("box-shadow", "none");
             assertThat(page.locator(".posts")).hasCSS("overflow-y", "auto");
             assertThat(page.locator(".selected")).hasCount(0);

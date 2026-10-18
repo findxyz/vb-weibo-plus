@@ -54,7 +54,7 @@ export default function AddBlogger({ onAdded, onUnauthorized }: { onAdded: (uid:
     <button type="button" className="blogger-add" aria-label="添加博主" title="添加博主" aria-disabled={adding.isPending} onClick={() => {
       if (pending.current) return;
       setValue(''); setValidation(''); adding.reset(); setOpen(true);
-    }} />
+    }}>添加博主</button>
     {open && createPortal(<dialog ref={dialogRef} className="management-dialog" aria-labelledby="add-blogger-title" onClose={() => setOpen(false)}>
       <div className="management-window">
         <header className="search-overlay-titlebar">

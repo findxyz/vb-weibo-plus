@@ -206,47 +206,37 @@ test.afterEach(() => {
 });
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
-  test(`post_visual_alignment_matches_legacy_reading_at_${viewport.width}`, async ({ page }, testInfo) => {
+  test(`post_starry_layout_keeps_reading_left_and_calendar_above_bloggers_at_${viewport.width}`, async ({ page }, testInfo) => {
+
     await page.setViewportSize(viewport);
-    const selectors = ['.titlebar', '.bloggers-heading', '.search-box', '.search-box input', '.bloggers-list', '.dates-heading', '.feed-header', '.year-header', '.month-header', '.date-item', '.blogger-row', '.post-card', '.post-avatar', '.post-header', '.post-content'];
-    const measure = () => page.evaluate(selectors => selectors.map(selector => {
-      const element = document.querySelector(selector)!;
-      const style = getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, font: style.font, border: style.border, padding: style.padding, shadow: style.boxShadow };
-    }), selectors);
-    const { legacy, legacyHighlight } = approvedGeometry[`visual-${viewport.width}`];
-  await page.goto(`${baseUrl}post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
-    const react = await measure();
-    for (let index = 0; index < selectors.length; index++) {
-      const { y: oldY, height: oldHeight, ...oldStyle } = legacy[index];
-      const { y: newY, height: newHeight, ...newStyle } = react[index];
-      expect(newStyle, selectors[index]).toEqual(oldStyle);
-      expect(newY, selectors[index]).toBeCloseTo(oldY, 1);
-      // Legacy keeps an empty action row when the original URL is absent.
-      if (selectors[index] !== '.post-card') expect(newHeight, selectors[index]).toBeCloseTo(oldHeight, 1);
-    }
-    expect(await page.locator('.blogger-row[aria-pressed="true"]').evaluate(element => getComputedStyle(element, '::before').transform)).toBe(legacyHighlight);
-    await expect(page.locator('.feed-header').getByLabel('博文总数')).toHaveText('共 3 条');
-    await expect(page.locator('.selected')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath('react-aligned.png') });
+    await expect(page.locator('.brand-slogan')).toHaveText('随时随地发现新鲜事');
+    const feed = (await page.locator('.feed').boundingBox())!;
+    const sidebar = (await page.locator('.reading-sidebar').boundingBox())!;
+    const calendar = (await page.locator('.dates-panel').boundingBox())!;
+    const bloggers = (await page.locator('.bloggers-panel').boundingBox())!;
+    expect(sidebar.x).toBeGreaterThan(feed.x + feed.width - 1);
+    expect(calendar.y).toBe(feed.y);
+    expect(bloggers.y).toBeGreaterThan(calendar.y + calendar.height - 1);
+    const app = (await page.locator('.app').boundingBox())!;
+    expect(app.width).toBe(1120);
+    expect(app.x).toBe((viewport.width - 1120) / 2);
+    await expect(page.locator('.post-card')).toHaveCSS('border-radius', '0px');
+    await expect(page.locator('.post-card')).toHaveCSS('box-shadow', 'none');
+    await expect(page.locator('.post-content')).toHaveCSS('font-size', '15px');
+    await expect(page.locator('.post-content')).toHaveCSS('line-height', '24px');
+    await page.screenshot({ path: testInfo.outputPath('starry-reading.png') });
   });
 }
 
-test('acceptance_chat_control_matches_paper_skin_and_opens_formal_chat_with_mouse_and_keyboard', async ({ page }) => {
-  const measure = () => page.locator('.window-control.toggle').evaluate(element => {
-    const style = getComputedStyle(element);
-    return { width: style.width, height: style.height, background: style.backgroundColor, border: style.border, radius: style.borderRadius, transform: style.transform, icon: getComputedStyle(element, '::before').backgroundImage };
-  });
-  const { legacy } = approvedGeometry['navigation'];
+test('acceptance_chat_control_opens_formal_chat_with_mouse_and_keyboard', async ({ page }, testInfo) => {
+
   const destination = `${baseUrl}chat/index.html`;
   for (const action of ['click', 'Enter', 'Space']) {
     await page.goto(`${baseUrl}post/index.html`);
     const control = page.getByRole('button', { name: '切换到微博群聊', exact: true });
     await expect(control).toBeVisible();
-    expect(await measure()).toEqual(legacy);
     if (action === 'click') await control.click();
     else { await control.focus(); await control.press(action); }
     await expect(page).toHaveURL(destination);
@@ -558,29 +548,19 @@ test('sync_history_timeout_releases_operation_and_does_not_auto_retry', async ({
   expect(writeRequests).toHaveLength(1); writeRequests = [];
 });
 
-test('sync_history_geometry_matches_legacy_and_long_name_fits_minimum_window', async ({ page }, testInfo) => {
-  const measure = () => page.locator('dialog:modal').evaluate(dialog => {
-    const rect = dialog.getBoundingClientRect();
-    return { width: rect.width, height: rect.height, inputs: [...dialog.querySelectorAll('input')].map(input => {
-      const bounds = input.getBoundingClientRect(); return { width: bounds.width, height: bounds.height, x: bounds.x - rect.x, y: bounds.y - rect.y };
-    }) };
-  });
-  const { old } = approvedGeometry['sync'];
-  await page.goto(`${baseUrl}post/index.html`);
-  await page.getByRole('button', { name: '第一位', exact: true }).click();
-  await page.getByRole('button', { name: '同步历史', exact: true }).click();
-  expect(await measure()).toEqual(old);
-  await page.screenshot({ path: testInfo.outputPath('sync-history.png') });
-  await page.getByRole('button', { name: '关闭同步历史微博' }).click();
+test('sync_history_dark_dialog_and_long_name_fit_minimum_window', async ({ page }, testInfo) => {
+
   bloggers[0] = { ...bloggers[0], screenName: '很长博主名称'.repeat(20) };
   await page.setViewportSize({ width: 900, height: 560 });
-  await page.reload();
+  await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: bloggers[0].screenName, exact: true }).click();
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '同步历史微博' });
+  await expect(dialog).toHaveCSS('background-color', 'rgb(3, 27, 40)');
   expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await dialog.getByRole('button', { name: '开始同步' }).scrollIntoViewIfNeeded();
   await expect(dialog.getByRole('button', { name: '开始同步' })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('sync-history.png') });
 });
 
 test('sync_history_unmount_aborts_local_request_without_applying_late_result', async ({ page }) => {
@@ -730,18 +710,13 @@ test('add_blogger_timeout_releases_submit_without_automatic_retry', async ({ pag
   writeRequests = [];
 });
 
-test('add_blogger_geometry_matches_legacy_and_paper_modal_fits_minimum_viewport', async ({ page }, testInfo) => {
-  const measure = () => page.locator('dialog:modal').evaluate(dialog => {
-    const rect = dialog.getBoundingClientRect();
-    const input = dialog.querySelector('input')!.getBoundingClientRect();
-    const style = getComputedStyle(dialog);
-    return { width: rect.width, height: rect.height, border: style.border, radius: style.borderRadius, input: { width: input.width, height: input.height, x: input.x - rect.x, y: input.y - rect.y } };
-  });
-  const { legacy } = approvedGeometry['add'];
+test('add_blogger_dark_modal_fits_minimum_viewport', async ({ page }, testInfo) => {
+
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
-  expect(await measure()).toEqual(legacy);
-  await expect(page.locator('.management-dialog')).toHaveCSS('box-shadow', 'rgba(43, 38, 32, 0.18) 6px 8px 0px -3px');
+  await expect(page.locator('.management-dialog')).toHaveCSS('width', '420px');
+  await expect(page.locator('.management-dialog')).toHaveCSS('background-color', 'rgb(3, 27, 40)');
+  await expect(page.locator('.management-dialog')).toHaveCSS('border-radius', '3px');
   await page.setViewportSize({ width: 900, height: 560 });
   await expect(page.getByRole('button', { name: '添加', exact: true })).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('add-blogger.png') });
@@ -1017,7 +992,7 @@ test('post_login_completed_qr_does_not_poll_while_failed_reading_is_recovering',
   writeRequests = [];
 });
 
-test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_card', async ({ page }) => {
+test('search_location_switches_shanghai_day_reveals_month_and_centers_exact_card', async ({ page }) => {
   calendar.months.push(
     { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
     { month: '2025-12', count: 30, days: [{ date: '2025-12-31', count: 30 }] },
@@ -1027,7 +1002,7 @@ test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_car
   postsByDate['2025-12-31'] = { ...posts, total: 30, items: Array.from({ length: 30 }, (_, index) => index === 15 ? target : { ...target, mblogId: `other-${index}`, content: `其他完整正文 ${index}` }) };
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
-  await page.getByRole('button', { name: '2026-07，1 条', exact: true }).click();
+  await page.getByLabel('选择月份', { exact: true }).selectOption('07');
   await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '高级搜索' });
@@ -1039,9 +1014,8 @@ test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_car
   await result.click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: '高级搜索', exact: true })).toBeFocused();
-  await expect(page.getByRole('button', { name: '2025 年，30 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('button', { name: '2025-12，30 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('button', { name: '2026-07，1 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2025');
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('12');
   await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
   const card = page.locator('.post-card').filter({ hasText: '目标完整正文' });
@@ -1055,7 +1029,7 @@ test('search_location_switches_shanghai_day_reveals_groups_and_centers_exact_car
   const last = new URL(requests.filter(value => value.startsWith('GET /post/list?')).at(-1)!.slice(4), 'http://fixture');
   expect(Object.fromEntries(last.searchParams)).toEqual({ page: '1', size: '9999', start: '2025-12-31 00:00:00', end: '2025-12-31 23:59:59' });
   await expect(card).not.toHaveClass(/flash-highlight/);
-  await page.getByRole('button', { name: '2025-12，30 条', exact: true }).click();
+  await page.getByLabel('选择月份', { exact: true }).selectOption('11');
   await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeHidden();
 });
 
@@ -1110,7 +1084,7 @@ test('search_location_preempts_pending_day_and_ignores_its_late_response', async
   await expect(page.locator('.post-card.flash-highlight')).toContainText('新的七月正文');
   releaseOld();
   await expect(page.locator('.post-content')).toHaveText('新的七月正文');
-  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-07-10');
 });
 
 test('search_location_failed_day_retries_before_highlighting', async ({ page }) => {
@@ -1168,7 +1142,7 @@ test('search_location_missing_target_does_not_highlight_another_card_or_scroll',
   expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBe(0);
 });
 
-test('search_location_reduced_motion_uses_static_paper_highlight_then_clears', async ({ page }, testInfo) => {
+test('search_location_reduced_motion_uses_static_starry_highlight_then_clears', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   searchPosts = { ...posts, total: 1, items: posts.items };
   await page.goto(`${baseUrl}post/index.html`);
@@ -1181,7 +1155,7 @@ test('search_location_reduced_motion_uses_static_paper_highlight_then_clears', a
   const card = page.locator('.post-card');
   await expect(card).toHaveClass(/flash-highlight/);
   await expect(card).toHaveCSS('animation-name', 'none');
-  await expect(card).toHaveCSS('background-color', 'color(srgb 0.982118 0.925177 0.80251)');
+  await expect(card).toHaveCSS('background-color', 'rgb(11, 56, 83)');
   await page.screenshot({ path: testInfo.outputPath('reduced-location.png') });
   await expect(card).not.toHaveClass(/flash-highlight/);
 });
@@ -1391,33 +1365,19 @@ test('advanced_search_timeout_releases_submit_without_restarting_reading', async
   expect(requests.filter(value => !value.includes('keyword='))).toEqual(readingRequests);
 });
 
-test('advanced_search_geometry_matches_legacy_form_and_result_with_paper_tokens', async ({ page }, testInfo) => {
-  const selectors = ['.search-open', '.search-overlay-window', '.search-overlay-titlebar', '.search-overlay-body', '.search-overlay-tip', '.search-date-row', '.search-status', '.search-actions', '.search-result', '.search-result-meta', '.search-result-snippet', '.search-result-snippet mark'];
-  const measure = () => page.evaluate(selectors => selectors.map(selector => {
-    const element = document.querySelector(selector)!;
-    const rect = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, color: style.color, border: style.border, padding: style.padding, radius: style.borderRadius, fontSize: style.fontSize, fontFamily: style.fontFamily };
-  }), selectors);
-  const { legacy } = approvedGeometry['search'];
+test('advanced_search_dark_form_and_result_keep_readable_controls', async ({ page }, testInfo) => {
+
   await page.goto(`${baseUrl}post/index.html`);
-  await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   await page.getByLabel('关键词', { exact: true }).fill('关键词');
   await page.getByRole('button', { name: '搜索', exact: true }).click();
   await expect(page.locator('.search-result mark')).toHaveText('关键词');
-  const actual = await measure();
-  for (let index = 0; index < selectors.length; index++) {
-    const { x, y, width, height, ...style } = actual[index];
-    const { x: oldX, y: oldY, width: oldWidth, height: oldHeight, ...oldStyle } = legacy[index];
-    expect(style, selectors[index]).toEqual(oldStyle);
-    for (const [value, previous] of [[x, oldX], [y, oldY], [width, oldWidth], [height, oldHeight]]) expect(value, selectors[index]).toBeCloseTo(previous, 1);
-  }
-  await expect(page.locator('.search-overlay')).toHaveCSS('background-color', 'rgba(43, 38, 32, 0.32)');
-  await expect(page.locator('.search-overlay-window')).toHaveCSS('box-shadow', 'rgba(43, 38, 32, 0.18) 6px 8px 0px -3px');
+  await expect(page.locator('.search-overlay-window')).toHaveCSS('width', '520px');
+  await expect(page.locator('.search-overlay-window')).toHaveCSS('background-color', 'rgb(3, 27, 40)');
+  await expect(page.locator('.search-result-snippet')).toHaveCSS('color', 'rgb(228, 238, 245)');
   await expect(page.locator('.search-result')).toHaveCSS('cursor', 'pointer');
   await expect(page.locator('.search-result-meta')).toHaveCSS('font-variant-numeric', 'tabular-nums');
-  await page.screenshot({ path: testInfo.outputPath('react-search.png') });
+  await page.screenshot({ path: testInfo.outputPath('starry-search.png') });
 });
 
 test('blogger_name_filter_matches_locally_and_keeps_all_row_total_and_order', async ({ page }) => {
@@ -1502,6 +1462,8 @@ test('blogger_name_filter_keyboard_skips_hidden_rows_and_keeps_failed_avatar_sta
   await expect(search).toHaveCSS('outline-width', '3px');
   await expect(search).toHaveCSS('outline-offset', '2px');
   await search.press('Tab');
+  await expect(page.getByRole('button', { name: '添加博主', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: '全部博主', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: '第二位', exact: true })).toBeFocused();
@@ -1550,7 +1512,7 @@ test('post_metadata_keeps_backend_text_order_typography_and_empty_field_behavior
   await expect(page.locator('.post-source')).toHaveCSS('font-size', '12px');
   expect(await page.locator('.post-region').evaluate(element => getComputedStyle(element, '::before').content)).toBe('" · "');
   expect(await page.locator('.post-source').evaluate(element => getComputedStyle(element, '::before').content)).toBe('" · 来自 "');
-  expect(await page.locator('.post-header > *').evaluateAll(elements => elements.map(element => element.className))).toEqual(['post-author', 'post-time', 'post-region', 'post-source']);
+  expect(await page.locator('.post-meta > *').evaluateAll(elements => elements.map(element => element.className))).toEqual(['post-time', 'post-region', 'post-source']);
   posts.items[0].region = null;
   posts.items[0].source = '';
   await page.reload();
@@ -1608,7 +1570,7 @@ test('post_links_omit_unsafe_urls_and_invalid_uids_without_changing_avatar_fallb
     blogger: index === 0 ? null : { uid: invalidUids[index % invalidUids.length], screenName: '占位博主', avatar: '/missing-avatar' } }));
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('article')).toHaveCount(invalidUrls.length);
-  await expect(page.locator('.post-actions, a.post-avatar')).toHaveCount(0);
+  await expect(page.locator('.post-link, a.post-avatar')).toHaveCount(0);
   await expect(page.locator('.post-avatar').first()).toHaveText('?');
   await expect(page.locator('.post-avatar').last()).toHaveText('占');
   await expect(page.locator('.post-avatar[aria-hidden="true"]')).toHaveCount(invalidUrls.length);
@@ -1620,22 +1582,20 @@ test('post_links_omit_unsafe_urls_and_invalid_uids_without_changing_avatar_fallb
 });
 
 for (const width of [1280, 1600]) {
-  test(`post_complete_metadata_cards_match_legacy_geometry_at_${width}`, async ({ page }, testInfo) => {
+  test(`post_complete_metadata_cards_keep_footer_and_original_at_${width}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     posts.items[0] = { ...posts.items[0], source: '网页端', region: '发布于 上海', postUrl: 'https://weibo.com/1/local-1' };
     posts.items.push({ ...posts.items[0], mblogId: 'pure', content: '', postUrl: 'https://weibo.com/1/pure', retweeted: { screenName: '原作者', content: '转发正文' } });
-    const measure = () => page.locator('article').evaluateAll(cards => cards.map(card => {
-      return ['.post-header', '.post-author', '.post-time', '.post-region', '.post-source', '.post-actions', '.post-link', ''].map(selector => {
-        const element = selector ? card.querySelector(selector)! : card;
-        const rect = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, fontSize: style.fontSize, fontFamily: style.fontFamily, fontWeight: style.fontWeight, lineHeight: style.lineHeight, color: style.color, overflow: style.overflow, textOverflow: style.textOverflow };
-      });
-    }));
-    const { legacy } = approvedGeometry[`metadata-${width}`];
-  await page.goto(`${baseUrl}post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('article')).toHaveCount(2);
-    expect(await measure()).toEqual(legacy);
+    for (const card of await page.locator('article').all()) {
+      const content = (await card.locator('.post-content, .post-retweet').boundingBox())!;
+      const footer = (await card.locator('.post-actions').boundingBox())!;
+      expect(footer.y).toBeGreaterThanOrEqual(content.y + content.height);
+      await expect(card.locator('.post-time')).toHaveCSS('font-size', '12px');
+      await expect(card.locator('.post-region')).toHaveText('发布于 上海');
+    }
+    expect(await page.locator('.posts').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     const pure = page.locator('article').last();
     await expect(pure).toHaveClass('post-card pure-retweet');
     await expect(pure.locator('.post-avatar, .post-content')).toHaveCount(0);
@@ -1789,7 +1749,7 @@ test('long_video_feed_loads_covers_on_demand_without_prefetching_video_pages', a
 });
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
-  test(`video_layout_matches_legacy_at_${viewport.width}`, async ({ page }, testInfo) => {
+  test(`video_layout_preserves_media_dimensions_at_${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     posts.items[0].video = { coverUrl: '/post/video-cover?mblogId=local-1', pageUrl: 'https://video.example.test/outer' };
     posts.items[0].retweeted = { screenName: '原作者', content: '转发视频', video: { coverUrl: '/post/video-cover?mblogId=local-1&retweeted=true', pageUrl: 'https://video.example.test/retweet' } };
@@ -1802,8 +1762,12 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-video')).toHaveCount(2);
     await expect.poll(() => page.locator('.post-video img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
-    expect(await measure()).toEqual(legacy);
-    await expect(page.locator('.post-video-play span').first()).toHaveCSS('box-shadow', /2px 2px 0px -1px/);
+    const actual = await measure();
+    expect(actual.map(({ width, height, objectFit }) => ({ width, height, objectFit })))
+      .toEqual(legacy.map(({ width, height, objectFit }: { width: number; height: number; objectFit: string }) => ({ width, height, objectFit })));
+    expect(await page.locator('.posts').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await expect(page.locator('.post-video-play span').first()).toHaveCSS('width', '48px');
+    await expect(page.locator('.post-video img').first()).toHaveCSS('width', '320px');
     await page.screenshot({ path: testInfo.outputPath('video-react.png') });
   });
 }
@@ -2010,7 +1974,7 @@ test('image_viewer_keeps_duplicate_and_hidden_entries_in_gallery_order', async (
 });
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 }]) {
-  test(`image_viewer_matches_legacy_at_${viewport.width}`, async ({ page }, testInfo) => {
+  test(`image_viewer_preserves_fullscreen_geometry_at_${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     posts.items[0].pics = [imageFixture('v1'), imageFixture('v2')];
     const measure = () => page.locator('.image-viewer, .image-viewer img, .viewer-prev, .viewer-next, .viewer-counter').evaluateAll(elements => elements.map(element => {
@@ -2022,7 +1986,10 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 
   await page.goto(`${baseUrl}post/index.html`);
     await page.getByRole('button', { name: '查看微博图片 2', exact: true }).click();
     await expect(page.locator('.image-viewer img')).toBeVisible();
-    expect(await measure()).toEqual(legacy);
+    const actual = await measure();
+    expect(actual.map(({ x, y, width, height, objectFit }) => ({ x, y, width, height, objectFit })))
+      .toEqual(legacy.map(({ x, y, width, height, objectFit }: { x: number; y: number; width: number; height: number; objectFit: string }) => ({ x, y, width, height, objectFit })));
+    expect(await page.locator('.posts').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('viewer-react.png') });
     await page.keyboard.press('Escape');
   });
@@ -2053,7 +2020,7 @@ test('retweet_images_follow_original_text_and_keep_the_small_grid_for_pure_retwe
   await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('width', '100px');
   await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('height', '100px');
   await expect(page.locator('.post-retweet-pics')).toHaveCSS('gap', '4px');
-  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('background-image', /repeating-linear-gradient/);
+  await expect(page.locator('.post-retweet-pic').first()).toHaveCSS('background-color', 'rgb(7, 43, 66)');
   await expect(images.first()).not.toHaveAttribute('width');
   await expect(page.locator('.post-card.pure-retweet')).toBeVisible();
   await expect(page.locator('.post-avatar')).toHaveCount(0);
@@ -2132,22 +2099,23 @@ test('long_image_feed_loads_thumbnails_as_it_scrolls_without_moving_navigation',
 });
 
 for (const mode of ['single', 'multiple', 'retweet'] as const) {
-  test(`image_layout_matches_legacy_${mode}`, async ({ page }, testInfo) => {
+  test(`image_layout_preserves_media_dimensions_${mode}`, async ({ page }, testInfo) => {
     const pics = [imageFixture('same-1'), imageFixture('same-2'), imageFixture('same-3'), imageFixture('same-4')];
     if (mode === 'retweet') {
       posts.items[0].content = '';
       posts.items[0].retweeted = { screenName: '原作者', content: '图片之前的原文', pics };
     } else posts.items[0].pics = mode === 'single' ? pics.slice(0, 1) : pics;
-    const selector = mode === 'retweet' ? '.post-retweet-pics, .post-retweet-pic, .post-retweet-pic img' : '.post-pics, .post-pic, .post-pic img';
-    const measure = () => page.locator(selector).evaluateAll(elements => elements.map(element => {
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, background: style.background, border: style.borderStyle === 'none' ? 'none' : style.border, gap: style.gap, objectFit: style.objectFit };
-    }));
-    const { legacy } = approvedGeometry[`image-${mode}`];
-  await page.goto(`${baseUrl}post/index.html`);
+    await page.goto(`${baseUrl}post/index.html`);
     await expect.poll(() => page.locator('article img').last().evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
-    expect(await measure()).toEqual(legacy);
+    for (const tile of await page.locator('.post-pic, .post-retweet-pic').all()) {
+      const rect = (await tile.boundingBox())!;
+      if (mode === 'single') expect(rect.width / rect.height).toBeCloseTo(300 / 180, 1);
+      else {
+        expect(rect.width).toBe(mode === 'retweet' ? 100 : 120);
+        expect(rect.height).toBe(rect.width);
+      }
+    }
+    expect(await page.locator('.posts').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('react-images.png') });
   });
 }
@@ -2255,34 +2223,29 @@ test('pure_retweet_layout_waits_for_absence_of_outer_media', async ({ page }) =>
   await expect(page.locator('.post-avatar')).toHaveCount(0);
 });
 
-test('minimum_desktop_keeps_headers_fixed_and_three_lists_independently_scrollable', async ({ page }, testInfo) => {
+test('minimum_desktop_keeps_feed_header_fixed_and_sidebar_navigation_reachable', async ({ page }, testInfo) => {
+
   await page.setViewportSize({ width: 900, height: 560 });
   bloggers = Array.from({ length: 40 }, (_, i) => ({ uid: i + 1, screenName: `博主 ${i + 1}` }));
-  calendar.months[0].days = Array.from({ length: 28 }, (_, i) => ({ date: `2026-08-${String(28 - i).padStart(2, '0')}`, count: 1 }));
   posts.items[0].content = '长正文\n'.repeat(80);
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toBeVisible();
   const headerTop = (await page.locator('.feed-header').boundingBox())!.y;
-  const searchTop = (await page.locator('.search-box').boundingBox())!.y;
-  for (const selector of ['.bloggers-list', '.dates-list', '.posts']) {
-    const list = page.locator(selector);
-    await list.hover();
-    await page.mouse.wheel(0, 1200);
-    await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
-  }
+  await page.locator('.posts').hover();
+  await page.mouse.wheel(0, 1200);
+  await expect.poll(() => page.locator('.posts').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   expect((await page.locator('.feed-header').boundingBox())!.y).toBe(headerTop);
-  expect((await page.locator('.search-box').boundingBox())!.y).toBe(searchTop);
-  await expect(page.getByRole('searchbox', { name: '搜索博主' })).toBeVisible();
-  expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
-  await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
-  const year = page.getByRole('button', { name: '2026 年，3 条', exact: true });
+  await page.getByRole('button', { name: '添加博主', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: '添加博主', exact: true })).toBeInViewport();
+  await page.getByRole('button', { name: '博主 40', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('button', { name: '博主 40', exact: true })).toBeInViewport();
+  const year = page.getByLabel('选择年份', { exact: true });
   await year.focus();
   await expect(year).toHaveCSS('outline-width', '3px');
   await expect(year).toHaveCSS('outline-offset', '2px');
-  await page.keyboard.press('Enter');
-  await expect(year).toHaveAttribute('aria-expanded', 'false');
-  await page.keyboard.press('Enter');
-  await expect(year).toHaveAttribute('aria-expanded', 'true');
+  await expect(year).toBeInViewport();
+  expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(900);
   await page.screenshot({ path: testInfo.outputPath('minimum-desktop.png') });
 });
 
@@ -2343,7 +2306,7 @@ test('pure_retweet_omits_empty_outer_body_and_handles_missing_original_informati
   await expect(page.locator('.post-retweet-author')).toHaveText('@未知用户');
   await expect(page.locator('.post-content')).toHaveCount(0);
   await expect(page.locator('.post-header')).toContainText('第一位');
-  await expect(page.locator('.post-header time')).toHaveText('2026-08-05 08:30');
+  await expect(page.locator('.post-meta time')).toHaveText('2026-08-05 08:30');
   posts.items[0].retweeted = { screenName: '', content: null };
   await page.reload();
   await expect(page.locator('.post-retweet-author')).toHaveText('@未知用户');
@@ -2386,7 +2349,7 @@ test('retweet_sanitizer_failure_uses_plain_text_and_keeps_navigation', async ({ 
   await expect(page.locator('.post-retweet-content')).toHaveText(raw);
 });
 
-test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async ({ page }, testInfo) => {
+test('date_navigation_selects_year_and_month_and_reads_the_clicked_day', async ({ page }, testInfo) => {
   calendar.months = [
     { month: '2025-12', count: 1, days: [{ date: '2025-12-31', count: 1 }] },
     { month: '2026-07', count: 1, days: [{ date: '2026-07-10', count: 1 }] },
@@ -2394,15 +2357,12 @@ test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async 
   ];
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toContainText('第一行');
-  await expect(page.getByRole('button', { name: '2026 年，4 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('button', { name: '2026-08，3 条', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2026');
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('08');
   await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: '2025 年，1 条', exact: true })).toHaveAttribute('aria-expanded', 'false');
   const beforeToggle = requests.slice();
-  await page.getByRole('button', { name: '2025 年，1 条', exact: true }).focus();
-  await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: '2025-12，1 条', exact: true }).focus();
-  await page.keyboard.press('Space');
+  await page.getByLabel('选择年份', { exact: true }).selectOption('2025');
+  await page.getByLabel('选择月份', { exact: true }).selectOption('12');
   await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeVisible();
   expect(requests).toEqual(beforeToggle);
   posts.items[0].content = '较早日期正文';
@@ -2410,7 +2370,7 @@ test('date_navigation_groups_years_and_months_and_reads_the_clicked_day', async 
   await page.getByRole('button', { name: '2025-12-31', exact: true }).click();
   await expect(page.getByRole('article')).toContainText('较早日期正文');
   await expect(page.locator('.date-item[aria-label=\"2025-12-31\"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2025');
   const query = new URL(requests.at(-1)!.slice(4), 'http://fixture').searchParams;
   expect(Object.fromEntries(query)).toEqual({ page: '1', size: '9999', start: '2025-12-31 00:00:00', end: '2025-12-31 23:59:59' });
   await page.screenshot({ path: testInfo.outputPath('date-navigation.png') });
@@ -2774,12 +2734,12 @@ test('post_announces_query_failure', async ({ page }) => {
   expect(requests.filter(value => value !== 'GET /weibo/login/status')).toEqual(['GET /post/bloggers']);
 });
 
-test('post_entry_refreshes_with_paper_skin', async ({ page }) => {
+test('post_entry_refreshes_with_starry_skin', async ({ page }) => {
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
-  await expect(page.locator('body')).toHaveCSS('color', 'rgb(43, 38, 32)');
-  await expect(page.locator('body')).toHaveCSS('background-image', /radial-gradient/);
+  await expect(page.locator('body')).toHaveCSS('color', 'rgb(228, 238, 245)');
+  await expect(page.locator('body')).toHaveCSS('background-image', /starry-sky/);
   await page.reload();
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
@@ -2834,9 +2794,9 @@ test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await page.evaluate(() => Object.assign(window, { previewDocument: 'original' }));
   try {
-    await writeFile(component, originalComponent.replace('<h1>本地微博</h1>', '<h1>本地微博热更新验证</h1>'));
+    await writeFile(component, originalComponent.replace('<h1 aria-label="本地微博">微博</h1>', '<h1>本地微博热更新验证</h1>'));
     await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toBeVisible();
-    await writeFile(stylesheet, originalStylesheet.replace('font-size: 22px', 'font-size: 19px'));
+    await writeFile(stylesheet, originalStylesheet.replace('700 36px/1', '700 19px/1'));
     await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toHaveCSS('font-size', '19px');
     expect(await page.evaluate(() => (window as Window & { previewDocument?: string }).previewDocument)).toBe('original');
   } finally {
