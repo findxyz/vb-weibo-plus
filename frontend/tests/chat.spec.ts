@@ -1,4 +1,5 @@
 ﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
@@ -181,7 +182,7 @@ test.beforeAll(async () => {
     if (path.startsWith('/chat/dream/')) {
       if (path === '/chat/dream/101.html') {
         response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-        response.end('<!doctype html><html><body>dream</body></html>');
+        response.end(await readFile(new URL('../../src/main/resources/static/chat/dream/1176117365.html', import.meta.url)));
         return;
       }
       response.writeHead(404);
@@ -1598,7 +1599,9 @@ test('chat_toggles_immersive_reading', async ({ page }) => {
   expect(await page.evaluate(() => localStorage.getItem('weibo-chat:immersive'))).toBe('0');
 });
 
-test('chat_opens_the_dream_game_from_a_member_avatar', async ({ page }) => {
+for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 }]) {
+test(`chat_opens_the_dream_game_from_a_member_avatar_at_${viewport.width}`, async ({ page }, testInfo) => {
+  await page.setViewportSize(viewport);
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
   await page.locator('[data-sender-id="101"]').first().hover();
@@ -1612,9 +1615,36 @@ test('chat_opens_the_dream_game_from_a_member_avatar', async ({ page }) => {
   const dialog = page.locator('dialog.dream-dialog');
   await expect(dialog).toHaveJSProperty('open', true);
   await expect(dialog.locator('iframe')).toHaveAttribute('src', /\/chat\/dream\/101\.html\?v=\d+/);
+  const geometry = await dialog.evaluate(element => {
+    const frame = element.querySelector('iframe')!.getBoundingClientRect();
+    const stage = element.querySelector('.dream-stage')!.getBoundingClientRect();
+    const bounds = element.getBoundingClientRect();
+    return { frameWidth: frame.width, frameHeight: frame.height, bottomGap: bounds.bottom - frame.bottom,
+      stageHeight: stage.height, dialogHeight: bounds.height };
+  });
+  expect(geometry.frameHeight).toBeCloseTo(geometry.frameWidth * 480 / 512, 0);
+  expect(Math.abs(geometry.bottomGap - 2)).toBeLessThanOrEqual(1);
+  expect(geometry.stageHeight).toBeCloseTo(geometry.frameHeight, 0);
+  await expect(dialog.locator('iframe').contentFrame().locator('#game')).toBeVisible();
+  await dialog.screenshot({ path: testInfo.outputPath('dream-window.png') });
   await dialog.getByRole('button', { name: '关闭盗梦空间' }).click();
   await expect(dialog).not.toHaveJSProperty('open', true);
   await expect.poll(() => dialog.locator('iframe').getAttribute('src')).toBe('about:blank');
+});
+}
+
+test('chat_has_a_keyboard_accessible_switch_to_the_formal_post_page', async ({ page }) => {
+  await openChat(page);
+  const control = page.getByRole('link', { name: '切换到本地微博', exact: true });
+  await expect(control).toBeVisible();
+  await expect(control).toHaveAttribute('href', '/post/index.html');
+  expect(await control.evaluate(element => getComputedStyle(element, '::before').backgroundImage)).toContain('svg');
+  await page.route('**/post/index.html', route => route.fulfill({
+    status: 200, contentType: 'text/html', body: '<html><body>本地微博</body></html>',
+  }));
+  await control.focus();
+  await control.press('Enter');
+  await expect(page).toHaveURL(/\/post\/index\.html$/);
 });
 
 test('chat_opens_a_member_weibo_profile_from_the_avatar', async ({ page }) => {
@@ -1878,4 +1908,33 @@ test('chat_analysis_abort_does_not_leave_a_false_failure', async ({ page }) => {
   await response;
   await expect(dialog.locator('.analysis-item')).toHaveCount(20);
   await expect(dialog.locator('.analysis-feedback')).toHaveCount(0);
+});
+
+test('chat_dream_can_rehover_after_an_interrupted_hover', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const avatar = page.locator('[data-sender-id="101"]').first();
+  await avatar.hover();
+  await page.waitForTimeout(200);
+  await page.mouse.move(20, 20);
+  await avatar.hover();
+  await expect(page.locator('.dream-popover')).toBeVisible({ timeout: 4000 });
+});
+
+test('chat_scrolling_cancels_a_pending_dream_probe', async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/chat/dream/101.html', async route => {
+    await gate;
+    await route.fulfill({ status: 200, contentType: 'text/html', body: '<html>dream</html>' });
+  });
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const probe = page.waitForRequest(request => request.url().endsWith('/chat/dream/101.html'));
+  await page.locator('[data-sender-id="101"]').first().hover();
+  await probe;
+  await page.locator('.messages').evaluate(element => element.dispatchEvent(new Event('scroll')));
+  release();
+  await page.waitForTimeout(150);
+  await expect(page.locator('.dream-popover')).toHaveCount(0);
 });

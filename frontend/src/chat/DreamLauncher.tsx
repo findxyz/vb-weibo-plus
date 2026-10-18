@@ -4,7 +4,7 @@ const HOVER_OPEN_MS = 3000;
 
 type Entry = { url: string; anchor: HTMLElement };
 
-export default function DreamLauncher() {
+export default function DreamLauncher({ gid }: { gid: number | null }) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -14,24 +14,27 @@ export default function DreamLauncher() {
   const confirmed = useRef(new Set<string>());
   const timer = useRef(0);
   const anchorRef = useRef<HTMLElement | null>(null);
+  const probeRef = useRef<AbortController | null>(null);
 
-  function hidePopover() {
+  function cancelProbe() {
     if (timer.current) {
       window.clearTimeout(timer.current);
       timer.current = 0;
     }
     anchorRef.current = null;
+    probeRef.current?.abort();
+    probeRef.current = null;
+  }
+
+  function hidePopover() {
+    cancelProbe();
     openRef.current = false;
     setEntry(null);
   }
 
+  useEffect(hidePopover, [gid]);
+
   useEffect(() => {
-    const cancel = () => {
-      if (timer.current) {
-        window.clearTimeout(timer.current);
-        timer.current = 0;
-      }
-    };
     const hoverable = (target: EventTarget | null) => {
       const element = target instanceof Element ? target.closest<HTMLElement>('[data-sender-id]') : null;
       if (!element || element.closest('dialog[open]')) return null;
@@ -52,15 +55,17 @@ export default function DreamLauncher() {
       if (popoverRef.current?.contains(event.target as Node)) return;
       const avatar = hoverable(event.target);
       if (!avatar || avatar === anchorRef.current) return;
-      cancel();
+      cancelProbe();
       anchorRef.current = avatar;
       timer.current = window.setTimeout(async () => {
         timer.current = 0;
         const uid = avatar.dataset.senderId ?? '';
         const url = `/chat/dream/${uid}.html`;
         if (!confirmed.current.has(uid)) {
-          const page = await fetch(url).catch(() => null);
-          if (anchorRef.current !== avatar) return;
+          const controller = new AbortController();
+          probeRef.current = controller;
+          const page = await fetch(url, { signal: controller.signal }).catch(() => null);
+          if (controller.signal.aborted || anchorRef.current !== avatar || !avatar.isConnected) return;
           if (!page?.ok) {
             openRef.current = false;
             setEntry(null);
@@ -77,14 +82,14 @@ export default function DreamLauncher() {
       if (!avatar) return;
       const to = event.relatedTarget instanceof Node ? event.relatedTarget : null;
       if (to && avatar.contains(to)) return;
-      cancel();
+      hidePopover();
     };
-    const onScroll = () => { if (openRef.current) hidePopover(); };
+    const onScroll = () => hidePopover();
     document.addEventListener('pointerover', onPointerOver);
     document.addEventListener('pointerout', onPointerOut);
     document.addEventListener('scroll', onScroll, true);
     return () => {
-      cancel();
+      cancelProbe();
       document.removeEventListener('pointerover', onPointerOver);
       document.removeEventListener('pointerout', onPointerOut);
       document.removeEventListener('scroll', onScroll, true);

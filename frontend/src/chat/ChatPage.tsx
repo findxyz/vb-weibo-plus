@@ -230,6 +230,8 @@ export default function ChatPage() {
             aria-label={immersive ? '退出沉浸阅读' : '进入沉浸阅读'}
             title={immersive ? '退出沉浸阅读' : '进入沉浸阅读'}
             onClick={() => setImmersive(value => !value)} />
+          <a className="window-control toggle" href="/post/index.html"
+            aria-label="切换到本地微博" title="切换到本地微博" />
         </div>
       </header>
       <div className="workspace">
@@ -293,7 +295,7 @@ export default function ChatPage() {
         onClose={() => setHistoryOpen(false)} onAuthExpired={markLoginExpired} />
       <AnalysisDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={analysisOpen}
         onClose={() => setAnalysisOpen(false)} onAuthExpired={markLoginExpired} />
-      <DreamLauncher />
+      <DreamLauncher gid={selectedGroup?.gid ?? null} />
     </div>
   );
 }

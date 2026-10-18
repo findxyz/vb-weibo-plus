@@ -22,6 +22,8 @@
   --immersive-to: #0f6cbd;
   --immersive-active-from: #fcd34d;
   --immersive-active-to: #d97706;
+  --toggle-from: #86efac;
+  --toggle-to: #16a34a;
   --desktop-backdrop: #b9d8f2;
   --titlebar-top: #1394fa;
   --titlebar-upper: #0879ed;
@@ -175,6 +177,14 @@ h1 {
   height: 12px;
   background: center / contain no-repeat;
   filter: drop-shadow(0 1px #074b9a);
+}
+
+.window-control.toggle {
+  background: linear-gradient(var(--toggle-from), var(--toggle-to) 72%);
+}
+
+.window-control.toggle::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='14' viewBox='0 0 12 14'%3E%3Cpath d='M1 3h7M6 1l3 2-3 2' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M11 11H4M6 9L3 11l3 2' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .window-control.immersive {
@@ -1706,9 +1716,10 @@ h1 {
 }
 
 .dream-dialog {
-  width: min(560px, calc(100vw - 32px));
+  /* 留出上下间距 32px、标题栏 38px 和边框 4px，游戏保持原始宽高比。 */
+  width: min(560px, calc(100vw - 32px), calc((100vh - 74px) * 512 / 480 + 4px));
   max-width: none;
-  height: auto;
+  height: fit-content;
   max-height: calc(100vh - 32px);
   margin: auto;
   padding: 0;
