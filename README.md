@@ -1,11 +1,11 @@
 ﻿# vb-weibo-plus
 
-本机单用户微博客户端。扫码登录后，服务在后台将群聊与博主发布的最新微博增量同步到本地 SQLite，并提供两个网页界面：
+本机单用户微博客户端。扫码登录后，服务会在后台将群聊消息和博主微博增量同步到本地 SQLite，并提供两个网页界面：
 
-- **本地微博**：添加博主，按日历浏览某一天的微博，支持按时间范围同步历史微博
-- **微博群聊**：查看群聊消息、发送文字／图片／视频，可选接入 OpenAI 兼容模型的 AI 分析
+- **本地微博**：添加博主，按日历浏览某一天的微博，支持按时间范围同步历史内容。
+- **微博群聊**：查看群聊消息，发送文字、图片和视频，可选接入 OpenAI 兼容模型进行 AI 分析。
 
-所有微博图片、视频经本地服务代理后直接在浏览器预览，无需在浏览器中登录微博。
+图片和视频由本地服务代理，可直接在浏览器中查看，无需登录微博网页版。
 
 ## 页面预览
 
@@ -19,14 +19,14 @@
 
 ## 系统架构
 
-浏览器中的 React 页面通过 HTTP／SSE 访问 Spring Boot（默认 `:18080`）；Spring Boot 负责微博 API、群聊 WebSocket、本地 SQLite、图片／视频代理及可选的 AI 分析。ffmpeg 可选，用于 HEIC 图片转码。
+React 页面通过 HTTP／SSE 访问 Spring Boot（默认 `:18080`）。后端负责微博 API、群聊 WebSocket、本地 SQLite、图片／视频代理，以及可选的 AI 分析；ffmpeg 可选，用于 HEIC 图片转码等媒体处理。
 
 ### 整体分层
 
 ```mermaid
 graph TB
-    subgraph Browser["浏览器前端（React 静态产物）"]
-        ChatUI["chat/index.html + React<br/>群聊查看 · 发消息 · AI 分析"]
+    subgraph Browser["浏览器前端（React 静态页面）"]
+        ChatUI["chat/index.html + React<br/>群聊查看 · 发送消息 · AI 分析"]
         PostUI["post/index.html + React<br/>微博浏览 · 日历 · 博主管理"]
     end
 
@@ -59,7 +59,7 @@ graph TB
     Service -->|开启 / 关闭| Push
     Service --> Repo
     API --> Client
-    Client -->|带 Cookie HTTP| Weibo
+    Client -->|携带 Cookie 的 HTTP| Weibo
     Push -->|携带 Credential 的 WebSocket| Weibo
     Push -->|原始 data 的 Spring 事件| SyncTask
     Client -->|SSE / 同步| AiAPI
@@ -75,7 +75,7 @@ graph TB
 
 - **JDK 21**
 - **Maven 3.9+**
-- **ffmpeg**（可选）：用于 HEIC 图片转码，未安装时 HEIC 图片无法预览。将 ffmpeg 加入 PATH，或用 `WEIBO_FFMPEG_PATH` 指定路径。
+- **ffmpeg**（可选）：用于 HEIC 图片转码。未安装时 HEIC 图片无法预览；将 ffmpeg 加入 PATH，或通过 `WEIBO_FFMPEG_PATH` 指定路径。
 
 ## 启动运行
 
@@ -85,11 +85,11 @@ mvn spring-boot:run
 
 默认监听 `http://localhost:18080`。接口示例见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
 
-也可将 `weibo-plus.jar` 放到 `run.bat` 同目录后双击运行。脚本使用固定参数（端口 `18080`、默认同步群号等），可在 `run.bat` 中调整。
+也可以将 `weibo-plus.jar` 与 `run.bat` 放在同一目录后双击运行。脚本内置端口、同步群号等参数，可直接在 `run.bat` 中修改。
 
 ## 前端开发
 
-前端位于 `frontend`，需要 Node.js 22.12.0 或更新版本，以及 npm 10 或更新版本。先启动 Spring Boot，再运行：
+前端代码位于 `frontend`，要求 Node.js 22.12.0 或更高版本、npm 10 或更高版本。请先启动 Spring Boot，再运行：
 
 ```bash
 cd frontend
@@ -97,7 +97,7 @@ npm ci
 npm run dev
 ```
 
-访问 `http://127.0.0.1:5173/post/index.html` 或 `http://127.0.0.1:5173/chat/index.html`。后端使用其他端口时，设置 `API_PROXY_TARGET`。
+访问 `http://127.0.0.1:5173/post/index.html` 或 `http://127.0.0.1:5173/chat/index.html`。若后端使用其他端口，设置 `API_PROXY_TARGET`。
 
 类型检查、构建与浏览器测试：
 
@@ -108,7 +108,7 @@ npx playwright install chromium
 npm test
 ```
 
-测试默认使用 Playwright Chromium；已有 Chrome 时可设置 `PREVIEW_BROWSER_CHANNEL=chrome`。
+测试默认使用 Playwright 自带的 Chromium；若已安装 Chrome，可设置 `PREVIEW_BROWSER_CHANNEL=chrome` 复用。
 
 ## 构建和发布
 
@@ -116,11 +116,11 @@ npm test
 mvn clean package
 ```
 
-产物为 `target/weibo-plus.jar` 和 `target/weibo-plus.7z`。首次构建会自动安装前端依赖；运行只需 JDK 21。
+产物为 `target/weibo-plus.jar` 和 `target/weibo-plus.7z`。首次构建会自动安装前端依赖；运行时只需 JDK 21。
 
 ## 配置说明
 
-主要配置在 `src/main/resources/application.yml`，均可通过环境变量覆盖：
+主要配置位于 `src/main/resources/application.yml`，部分配置支持环境变量覆盖：
 
 | 配置项 | 环境变量 | 默认值 |
 |--------|----------|--------|
@@ -139,4 +139,4 @@ mvn clean package
 | `spring.servlet.multipart.max-file-size` | - | `20MB` |
 | `spring.servlet.multipart.max-request-size` | - | `21MB` |
 
-`weibo.ai.base-url` 留空可禁用 AI 分析；`weibo.chat.auto-sync-gids` 留空则不同步任何群。修改 `server.port` 需直接编辑 yml。
+`weibo.ai.base-url` 留空即禁用 AI 分析；`weibo.chat.auto-sync-gids` 留空则不同步任何群。如需修改 `server.port`，请直接编辑 yml。
