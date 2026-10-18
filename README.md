@@ -1,4 +1,4 @@
-# vb-weibo-plus
+﻿# vb-weibo-plus
 
 本机单用户微博客户端。用一个微博账号扫码登录后，服务在后台将群聊与博主发布的最新微博增量同步到本地 SQLite，并提供两个网页界面：
 
@@ -146,7 +146,7 @@ Maven 在 `generate-resources` 阶段安装固定的 Node.js 24.15.0 和 npm 11.
 
 post 切换的回退基线为提交 `2cc6ef8` 和已验证的 `target/react-migration-release/ticket-17/weibo-plus.jar`，其 SHA-256 为 `932A7FF0E63847C1FFB39321DE3469801950CFFC7E3C822795AF3328CB288C58`。部署前保存原 JAR、配置与数据库备份；需要回退时停止新版，用原工作目录、相同配置和原端口启动该旧 JAR。此迁移没有数据库或配置格式变更，不需要清空数据库。重新构建旧源码时，应在独立检出中使用上述提交，避免覆盖正在工作的目录。迁移进度与逐票证据见 [.scratch/react-migration/PLAN.md](.scratch/react-migration/PLAN.md)。
 
-chat 切换的回退基线为提交 `68b0dec` 和 `target/react-migration-release/ticket-34`（JAR SHA-256 `53A726F35E46667EE00DE38EC943CE67429D5C4D593A2C47CA989455C1853C7D`，7z `16EEE75E2276C51BA4E959EE947D9859C41A07AE31C5F9A4BED24B6CD235C175`）。最终包保存于 `target/react-migration-release/ticket-35`：JAR SHA-256 `363EA930615F85E1F14E1CB5407A1ECFE35FBA4A64377FA690A9D6EA693926C3`，7z SHA-256 `51A3EC53C2FC7E34714DADF4792861E76740939420FFDB9B3FD71064234CF90E`。需要回退时停止新版，用原工作目录、相同配置与端口启动 ticket-34 的 JAR；迁移未改动数据库或配置格式。
+chat 切换的回退基线为提交 `68b0dec` 和 `target/react-migration-release/ticket-34`（JAR SHA-256 `53A726F35E46667EE00DE38EC943CE67429D5C4D593A2C47CA989455C1853C7D`，7z `16EEE75E2276C51BA4E959EE947D9859C41A07AE31C5F9A4BED24B6CD235C175`）。最终包保存于 `target/react-migration-release/ticket-35`：JAR SHA-256 `DB1711E80F009B3290ECDF974422A8B0A5582D61CBBF91ACE1EBF9CF2F38535A`，7z SHA-256 `EE7305BC34DDAA606C926290CB1BEA1B8235EF1B45E0DB6A2EEAAD2862FC5532`。需要回退时停止新版，用原工作目录、相同配置与端口启动 ticket-34 的 JAR；迁移未改动数据库或配置格式。
 
 构建配置依据：[Maven 生命周期](https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html)、[frontend-maven-plugin](https://github.com/eirslett/frontend-maven-plugin)和 [Spring Boot 可执行 JAR 打包](https://docs.spring.io/spring-boot/3.5/maven-plugin/packaging.html)。
 

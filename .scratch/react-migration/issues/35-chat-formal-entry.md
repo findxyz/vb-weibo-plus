@@ -40,10 +40,17 @@
 - 干净构建：`mvn clean verify` **335 项通过，0 失败／错误／跳过**，JAR 与 7z 重新打包成功。
 - 最终 JAR 冒烟（`jar-smoke.py` + `jar-smoke.mjs`）：900×560、1280×800、1600×900 三尺寸下正式页、历史筛选／采集与分析的本地路径、二维码／409／采集替身、盗梦空间 iframe、两页往返与资源 MIME 全部通过；数据库在写入替身前后逐行一致；分析结果的脚本被净化。
 - 证据：`.scratch/react-migration/audits/2026-10-18-chat-cutover/evidence/`（acceptance.json、artifact.json、application.log、三尺寸截图）。
-- 最终包：`target/react-migration-release/ticket-35/weibo-plus.jar`（SHA-256 `363EA930615F85E1F14E1CB5407A1ECFE35FBA4A64377FA690A9D6EA693926C3`）、`weibo-plus.7z`（SHA-256 `51A3EC53C2FC7E34714DADF4792861E76740939420FFDB9B3FD71064234CF90E`）。既有 ticket-04 至 34 包已先复制到仓外再恢复，未丢失。
+- 最终包：`target/react-migration-release/ticket-35/weibo-plus.jar`（SHA-256 `DB1711E80F009B3290ECDF974422A8B0A5582D61CBBF91ACE1EBF9CF2F38535A`）、`weibo-plus.7z`（SHA-256 `EE7305BC34DDAA606C926290CB1BEA1B8235EF1B45E0DB6A2EEAAD2862FC5532`）。既有 ticket-04 至 34 包已先复制到仓外再恢复，未丢失。
 - 回退基线：提交 `68b0dec` 与 `target/react-migration-release/ticket-34`（JAR `53A726F3…C1853C7D`、7z `16EEE75E…CD235C175`）。
 - 测试计数变化：旧 chat 的 82 项 Java 行为测试被 6 项 classpath 验收取代；前端 chat 从 62 项增加到 86 项正式入口与验收用例；post 123 项不变。
 - 未部署用户运行环境，未替换正在运行的后端；按约定另行处理。
+
+### 验收后修复（2026-10-18）
+
+- 聊天记录搜索选中结果后定位失效：上下文加载后通过 `requestAnimationFrame` 查询目标，React 尚未提交 DOM 时得到空元素，滚动从未发生（实测 `scrollTop=0`，目标在 4054px 处，用户需向下滚动很远）。
+- 改为在提交后的 `useLayoutEffect` 中按目标居中，并在目标上方图片加载期间做有限次校正；返回结果或重新打开同一目标会重置定位状态。
+- 用例在目标上方布置 10 张图片，断言初始居中、1.2 秒后仍居中，同时保留向上／向下翻页断言。
+- 修复后前端 209 项、`PostPageTest` 18 项与 `GroupChatPageTest` 6 项通过；重新打包并复跑 JAR 冒烟通过。最终包哈希更新为 JAR `DB1711E8…38535A`、7z `EE7305BC…FC5532`。
 
 ### 差异复核
 
