@@ -62,13 +62,13 @@ export default function SyncHistory({ blogger, visit, onStart, onComplete, onUna
     }}>同步历史</button>
     {open && blogger && createPortal(<dialog ref={dialogRef} className="management-dialog" aria-labelledby="sync-history-title" onClose={() => setOpen(false)}>
       <div className="management-window">
-        <header className="search-overlay-titlebar"><span className="add-blogger-title-icon" aria-hidden="true">↓</span><h2 id="sync-history-title">同步历史微博</h2><button type="button" aria-label="关闭同步历史微博" onClick={() => dialogRef.current!.close()} /></header>
+        <header className="search-overlay-titlebar"><h2 id="sync-history-title">同步历史微博</h2><button type="button" aria-label="关闭同步历史微博" onClick={() => dialogRef.current!.close()} /></header>
         <form className="search-overlay-body" onSubmit={submit}>
           <p className="search-overlay-tip">按天拉取 <b>@{blogger.screenName}</b> 在选定范围内的微博，已存在的会自动跳过；范围越大耗时越久，同步在服务端执行，发起后弹窗会自动关闭，完成后日期面板自动刷新。若已有同步任务在运行，本次请求会被跳过。</p>
           <label className="search-field">开始日期<input type="date" value={start} onChange={event => setStart(event.target.value)} /></label>
           <label className="search-field">结束日期<input type="date" value={end} onChange={event => setEnd(event.target.value)} /></label>
           <p className="management-status" role="alert">{validation}</p>
-          <div className="search-actions"><button type="submit">开始同步</button></div>
+          <div className="search-actions"><button type="submit" className="sync-submit">开始同步</button></div>
         </form>
       </div>
     </dialog>, document.body)}

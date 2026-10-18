@@ -48,36 +48,8 @@ export default function PostPage() {
   return (
     <div className="app">
       <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-      <header className="titlebar">
-        <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
-        <h1 aria-label="本地微博">微博</h1>
-        <p className="brand-slogan">随时随地发现新鲜事</p>
-        <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }}>微博群聊</button>
-      </header>
       <main className="columns">
-        <section className="feed" aria-label="博文区域">
-          <header className="feed-header">
-            <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
-            {date && <time className="reading-date" dateTime={date}>{date}</time>}
-            {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
-            <button type="button" className="search-open" onClick={() => setSearchOpen(true)}>高级搜索</button>
-          </header>
-          <div className="posts">
-            {posts.isFetching && <p role="status">正在加载博文……</p>}
-            {posts.isError && !isUnauthorized(posts.error) && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
-            {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} targetPostId={jump?.mblogId} />}
-          </div>
-        </section>
-        <aside className="reading-sidebar" aria-label="阅读导航">
-          <section className="dates-panel" aria-label="日期区域">
-            <header className="dates-heading"><h2>日期选择</h2>{syncNotice?.uid === selection.uid && syncNotice?.visit === selection.visit && <span className="sync-notice" role="status">同步完成</span>}</header>
-            <div className="dates-list">
-              {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
-              {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
-              {calendar.isSuccess && !date && <p className="panel-feedback" role="status">暂无有博文的日期。</p>}
-              {date && <DateCalendar key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
-            </div>
-          </section>
+        <aside className="bloggers-sidebar" aria-label="博主导航">
           <section className="bloggers-panel" aria-label="博主区域">
             <header className="bloggers-heading"><h2>博主管理</h2>{bloggers.isSuccess && <span>{bloggers.data.length} 位博主</span>}</header>
             <div className="search-box"><input type="search" aria-label="搜索博主" placeholder="搜索博主" value={bloggerSearch} onChange={event => setBloggerSearch(event.target.value)} /></div>
@@ -96,6 +68,33 @@ export default function PostPage() {
               <BloggerList bloggers={bloggers.data ?? []} keyword={bloggerSearch} selectedUid={selection.uid} onSelect={selectBlogger} />
             </div>
             {login.expired && <PostLogin pending={login.pending} started={login.started} message={login.message} onStart={login.start} />}
+          </section>
+        </aside>
+        <section className="feed" aria-label="博文区域">
+          <header className="feed-header">
+            <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
+            {date && <time className="reading-date" dateTime={date}>{date}</time>}
+            {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
+            <div className="feed-actions">
+              <button type="button" className="search-open" onClick={() => setSearchOpen(true)}>高级搜索</button>
+              <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }}>微博群聊</button>
+            </div>
+          </header>
+          <div className="posts">
+            {posts.isFetching && <p role="status">正在加载博文……</p>}
+            {posts.isError && !isUnauthorized(posts.error) && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
+            {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} targetPostId={jump?.mblogId} />}
+          </div>
+        </section>
+        <aside className="reading-sidebar" aria-label="日期导航">
+          <section className="dates-panel" aria-label="日期区域">
+            <header className="dates-heading"><h2>日期选择</h2>{syncNotice?.uid === selection.uid && syncNotice?.visit === selection.visit && <span className="sync-notice" role="status">同步完成</span>}</header>
+            <div className="dates-list">
+              {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
+              {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
+              {calendar.isSuccess && !date && <p className="panel-feedback" role="status">暂无有博文的日期。</p>}
+              {date && <DateCalendar key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
+            </div>
           </section>
         </aside>
       </main>

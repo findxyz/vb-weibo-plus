@@ -19,7 +19,7 @@ test('formal_post_entry_refreshes_without_preview_and_retires_preview_document',
     await image.decode();
     return image.naturalWidth;
   })).toBeGreaterThan(0);
-  await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '博主管理', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: '正式 post 页面' })).toHaveCount(0);
   await expect(page.getByRole('article')).toBeVisible();
   await page.reload();
@@ -206,19 +206,28 @@ test.afterEach(() => {
 });
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
-  test(`post_starry_layout_keeps_reading_left_and_calendar_above_bloggers_at_${viewport.width}`, async ({ page }, testInfo) => {
+  test(`post_starry_layout_keeps_bloggers_left_and_calendar_right_at_${viewport.width}`, async ({ page }, testInfo) => {
 
     await page.setViewportSize(viewport);
     await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
-    await expect(page.locator('.brand-slogan')).toHaveText('随时随地发现新鲜事');
+    await expect(page.locator('.brand-slogan, .titlebar')).toHaveCount(0);
     const feed = (await page.locator('.feed').boundingBox())!;
-    const sidebar = (await page.locator('.reading-sidebar').boundingBox())!;
+    const bloggersSidebar = (await page.locator('.bloggers-sidebar').boundingBox())!;
+    const datesSidebar = (await page.locator('.reading-sidebar').boundingBox())!;
     const calendar = (await page.locator('.dates-panel').boundingBox())!;
     const bloggers = (await page.locator('.bloggers-panel').boundingBox())!;
-    expect(sidebar.x).toBeGreaterThan(feed.x + feed.width - 1);
+    expect(bloggersSidebar.x + bloggersSidebar.width).toBeLessThanOrEqual(feed.x);
+    expect(datesSidebar.x).toBeGreaterThan(feed.x + feed.width - 1);
     expect(calendar.y).toBe(feed.y);
-    expect(bloggers.y).toBeGreaterThan(calendar.y + calendar.height - 1);
+    expect(bloggers.y).toBe(feed.y);
+    expect(feed.y).toBeGreaterThan(0);
+    expect(feed.y).toBeLessThan(96);
+    const search = (await page.locator('.feed-actions > .search-open').boundingBox())!;
+    const chat = (await page.getByRole('button', { name: '切换到微博群聊', exact: true }).boundingBox())!;
+    expect(chat.x).toBeGreaterThan(search.x + search.width - 1);
+    expect(chat.y).toBe(search.y);
+    expect(chat.x + chat.width).toBeGreaterThan(feed.x + feed.width - 40);
     const app = (await page.locator('.app').boundingBox())!;
     expect(app.width).toBe(1120);
     expect(app.x).toBe((viewport.width - 1120) / 2);
@@ -2798,14 +2807,14 @@ test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await page.evaluate(() => Object.assign(window, { previewDocument: 'original' }));
   try {
-    await writeFile(component, originalComponent.replace('<h1 aria-label="本地微博">微博</h1>', '<h1>本地微博热更新验证</h1>'));
+    await writeFile(component, originalComponent.replace('<h2>博主管理</h2>', '<h2>本地微博热更新验证</h2>'));
     await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toBeVisible();
-    await writeFile(stylesheet, originalStylesheet.replace('700 36px/1', '700 19px/1'));
-    await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toHaveCSS('font-size', '19px');
+    await writeFile(stylesheet, originalStylesheet.replace('700 19px/1.3', '700 17px/1.3'));
+    await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toHaveCSS('font-size', '17px');
     expect(await page.evaluate(() => (window as Window & { previewDocument?: string }).previewDocument)).toBe('original');
   } finally {
     await writeFile(component, originalComponent);
     await writeFile(stylesheet, originalStylesheet);
   }
-  await expect(page.getByRole('heading', { name: '本地微博', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '博主管理', exact: true })).toBeVisible();
 });

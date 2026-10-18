@@ -58,14 +58,14 @@ export default function AddBlogger({ onAdded, onUnauthorized }: { onAdded: (uid:
     {open && createPortal(<dialog ref={dialogRef} className="management-dialog" aria-labelledby="add-blogger-title" onClose={() => setOpen(false)}>
       <div className="management-window">
         <header className="search-overlay-titlebar">
-          <span className="add-blogger-title-icon" aria-hidden="true">＋</span><h2 id="add-blogger-title">添加博主</h2>
+          <h2 id="add-blogger-title">添加博主</h2>
           <button type="button" aria-label="关闭添加博主" onClick={() => dialogRef.current!.close()} />
         </header>
         <form className="search-overlay-body" onSubmit={submit}>
           <p className="search-overlay-tip">输入博主 UID 或主页链接，例如 https://weibo.com/u/1234567890，添加后会立即拉取最新一页微博。</p>
           <input ref={inputRef} type="text" aria-label="UID 或主页链接" placeholder="UID 或主页链接" autoComplete="off" value={value} onChange={event => setValue(event.target.value)} />
           <p className="management-status" role={validation || adding.isError ? 'alert' : 'status'}>{validation || (adding.isPending ? '正在添加并拉取微博…' : adding.isError ? `添加失败：${adding.error.message}` : '')}</p>
-          <div className="search-actions"><button type="submit" disabled={adding.isPending}>添加</button></div>
+          <div className="search-actions"><button type="submit" className="add-submit" disabled={adding.isPending}>添加</button></div>
         </form>
       </div>
     </dialog>, document.body)}
