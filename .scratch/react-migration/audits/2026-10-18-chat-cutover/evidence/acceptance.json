@@ -1,0 +1,344 @@
+[
+  {
+    "version": "react",
+    "viewport": {
+      "width": 900,
+      "height": 560
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 896,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 518
+      },
+      "composer": {
+        "x": 282,
+        "y": 404,
+        "width": 616,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [
+      "/chat/since",
+      "/chat/messages/send",
+      "/weibo/login/qr"
+    ],
+    "resources": [
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-Y69fz_rJ.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/marked.esm-BXVflPYz.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/purify.es-Y69fz_rJ.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-BBiCZOai.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  },
+  {
+    "version": "react",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 1276,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 758
+      },
+      "composer": {
+        "x": 282,
+        "y": 644,
+        "width": 996,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [
+      "/chat/since",
+      "/chat/messages/send",
+      "/weibo/login/qr"
+    ],
+    "resources": [
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-Y69fz_rJ.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/marked.esm-BXVflPYz.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/post-BBiCZOai.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-Y69fz_rJ.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  },
+  {
+    "version": "react",
+    "viewport": {
+      "width": 1600,
+      "height": 900
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 1596,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 858
+      },
+      "composer": {
+        "x": 282,
+        "y": 744,
+        "width": 1316,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [
+      "/chat/since",
+      "/chat/messages/send",
+      "/weibo/login/qr"
+    ],
+    "resources": [
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-Y69fz_rJ.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/marked.esm-BXVflPYz.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/post-BBiCZOai.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-Y69fz_rJ.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-DK1TZyIY.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/weibo-logo-DCb_5fn2.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  }
+]

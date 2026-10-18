@@ -1,0 +1,6 @@
+﻿[INFO] Tests run: 335, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  02:07 min
+[INFO] Finished at: 2026-10-18T14:55:40+08:00

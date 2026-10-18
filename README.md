@@ -146,6 +146,8 @@ Maven 在 `generate-resources` 阶段安装固定的 Node.js 24.15.0 和 npm 11.
 
 post 切换的回退基线为提交 `2cc6ef8` 和已验证的 `target/react-migration-release/ticket-17/weibo-plus.jar`，其 SHA-256 为 `932A7FF0E63847C1FFB39321DE3469801950CFFC7E3C822795AF3328CB288C58`。部署前保存原 JAR、配置与数据库备份；需要回退时停止新版，用原工作目录、相同配置和原端口启动该旧 JAR。此迁移没有数据库或配置格式变更，不需要清空数据库。重新构建旧源码时，应在独立检出中使用上述提交，避免覆盖正在工作的目录。迁移进度与逐票证据见 [.scratch/react-migration/PLAN.md](.scratch/react-migration/PLAN.md)。
 
+chat 切换的回退基线为提交 `68b0dec` 和 `target/react-migration-release/ticket-34`（JAR SHA-256 `53A726F35E46667EE00DE38EC943CE67429D5C4D593A2C47CA989455C1853C7D`，7z `16EEE75E2276C51BA4E959EE947D9859C41A07AE31C5F9A4BED24B6CD235C175`）。最终包保存于 `target/react-migration-release/ticket-35`：JAR SHA-256 `363EA930615F85E1F14E1CB5407A1ECFE35FBA4A64377FA690A9D6EA693926C3`，7z SHA-256 `51A3EC53C2FC7E34714DADF4792861E76740939420FFDB9B3FD71064234CF90E`。需要回退时停止新版，用原工作目录、相同配置与端口启动 ticket-34 的 JAR；迁移未改动数据库或配置格式。
+
 构建配置依据：[Maven 生命周期](https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html)、[frontend-maven-plugin](https://github.com/eirslett/frontend-maven-plugin)和 [Spring Boot 可执行 JAR 打包](https://docs.spring.io/spring-boot/3.5/maven-plugin/packaging.html)。
 
 也可直接使用 `run.bat` 启动：将打包产物 `weibo-plus.jar` 放到 run.bat 同目录后双击运行。脚本会自动检查 JDK 版本（要求 21 及以上），并以固定参数启动服务（端口 18080、默认同步群号 `4761715839862414`、AI 指向 DeepSeek），启动 5 秒后自动打开群聊页面。如需调整参数，直接修改 run.bat 中 java 命令行的值即可。
