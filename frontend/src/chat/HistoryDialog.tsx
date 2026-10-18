@@ -113,7 +113,11 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    const handleClose = () => onClose();
+    const handleClose = () => {
+      versionRef.current += 1;
+      controllerRef.current?.abort();
+      onClose();
+    };
     dialog.addEventListener('close', handleClose);
     return () => dialog.removeEventListener('close', handleClose);
   }, [onClose]);

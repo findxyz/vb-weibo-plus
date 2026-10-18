@@ -2041,3 +2041,96 @@ test('chat_scrolling_cancels_a_pending_dream_probe', async ({ page }) => {
   await page.waitForTimeout(150);
   await expect(page.locator('.dream-popover')).toHaveCount(0);
 });
+
+for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
+test(`chat_acceptance_combines_history_media_analysis_and_reading_at_${viewport.width}`, async ({ page }, testInfo) => {
+  await page.setViewportSize(viewport);
+  const items = makeMessages(1, 60, '组合消息');
+  items[59].text = '验收图片';
+  items[59].previewUrl = '/chat/media?gid=1&mid=60&variant=preview';
+  items[59].originalUrl = '/chat/media?gid=1&mid=60&variant=original';
+  messagesByGid.set(1, items);
+  analysisItems = [{ id: 1, date: '2026-10-17', promptPreview: '验收分析', messageCount: 12, createdAt: '2026-10-17 09:00' }];
+  await openChat(page);
+  await expect(page.locator('.messages [data-mid="60"]')).toBeVisible();
+  await expect.poll(() => atBottom(page)).toBe(true);
+  await page.getByRole('searchbox', { name: '搜索群聊' }).fill('第一');
+  await page.getByRole('textbox', { name: '输入消息' }).fill('保留的草稿');
+  const scrollTop = await page.locator('.messages').evaluate(element => element.scrollTop);
+
+  const historyTrigger = page.getByRole('button', { name: '📜 聊天记录' });
+  await historyTrigger.focus();
+  await page.keyboard.press('Enter');
+  const history = page.locator('dialog.history-dialog');
+  await history.getByLabel('开始日期').fill('2026-08-05');
+  await history.getByLabel('结束日期').fill('2026-08-07');
+  await history.getByLabel('内容', { exact: true }).fill('验收图片');
+  await history.getByRole('button', { name: '🔍 查询' }).click();
+  await expect(history.locator('.history-result')).toHaveCount(1);
+  await history.locator('.history-result').click();
+  const imageTrigger = history.locator('[data-mid="60"]').getByRole('button', { name: '查看原图' });
+  await imageTrigger.click();
+  const viewer = history.locator('dialog.image-viewer');
+  await expect(viewer.getByAltText('消息原图')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(viewer).not.toHaveJSProperty('open', true);
+  await expect(history).toHaveJSProperty('open', true);
+  await expect(imageTrigger).toBeFocused();
+  await history.screenshot({ path: testInfo.outputPath('history-context.png') });
+  await page.keyboard.press('Escape');
+  await expect(historyTrigger).toBeFocused();
+
+  const analysisTrigger = page.getByRole('button', { name: '🤖 群聊分析' });
+  await analysisTrigger.click();
+  const analysis = page.locator('dialog.analysis-dialog');
+  await analysis.locator('.analysis-item').click();
+  await expect(analysis.locator('.analysis-detail-content h2')).toHaveText('结论');
+  await analysis.screenshot({ path: testInfo.outputPath('analysis-detail.png') });
+  await page.keyboard.press('Escape');
+  await expect(analysisTrigger).toBeFocused();
+  await expect(page.getByRole('textbox', { name: '输入消息' })).toHaveValue('保留的草稿');
+  await expect(page.getByRole('searchbox', { name: '搜索群聊' })).toHaveValue('第一');
+  expect(Math.abs(await page.locator('.messages').evaluate(element => element.scrollTop) - scrollTop)).toBeLessThanOrEqual(1);
+
+  await page.getByRole('button', { name: '进入沉浸阅读' }).click();
+  await expect(page.locator('.composer')).toBeHidden();
+  await page.getByRole('button', { name: '退出沉浸阅读' }).click();
+  await expect(page.getByRole('textbox', { name: '输入消息' })).toHaveValue('保留的草稿');
+  const geometry = await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
+    innerWidth, innerHeight,
+  }));
+  expect(geometry.width).toBeLessThanOrEqual(geometry.innerWidth);
+  expect(geometry.height).toBeLessThanOrEqual(geometry.innerHeight);
+  expect(sendBodies).toEqual([]);
+  expect(requests.some(value => value.startsWith('POST '))).toBe(false);
+  await page.screenshot({ path: testInfo.outputPath('chat-combined.png') });
+});
+}
+
+for (const operation of ['query', 'capture']) {
+test(`chat_acceptance_closing_history_cancels_pending_${operation}`, async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const history = page.locator('dialog.history-dialog');
+  const path = operation === 'query' ? '/chat/messages' : '/chat/since';
+  const aborted: string[] = [];
+  page.on('requestfailed', request => {
+    if (new URL(request.url()).pathname === path) aborted.push(request.url());
+  });
+  holdPredicate = url => url.pathname === path;
+  await history.getByRole('button', { name: operation === 'query' ? '🔍 查询' : '⬇️ 同步历史' }).click();
+  await expect.poll(() => held.length).toBe(1);
+  await history.getByRole('button', { name: '关闭聊天记录' }).click();
+  await expect(history).not.toHaveJSProperty('open', true);
+  try {
+    await expect.poll(() => aborted.length, { timeout: 2000 }).toBe(1);
+  } finally {
+    releaseHeld();
+  }
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  await expect(history.locator('.history-empty')).toHaveText('设置筛选条件后点击查询');
+  await expect(history.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
+});
+}
