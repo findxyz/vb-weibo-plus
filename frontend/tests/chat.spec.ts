@@ -5,6 +5,7 @@ import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
 import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../../src/main/resources/static/shared/date.js';
 import { compareMessages, type AnalysisView, type ChatGroup, type ChatMessage } from '../src/chat/api';
+import { trimMessageCache } from '../src/chat/message-cache';
 
 const BASE_TIME = Date.parse('2026-08-05T00:00:00Z');
 const PNG_BYTES = Buffer.from(
@@ -1774,6 +1775,108 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
   expect(metrics.historyGap).toBeGreaterThan(40);
   expect(metrics.lastButtonOffsetRight).toBeGreaterThanOrEqual(0);
   expect(metrics.lastButtonOffsetRight).toBeLessThanOrEqual(12);
+});
+
+test('chat_trims_message_and_height_caches_to_the_legacy_limit', () => {
+  const items = makeMessages(1, 20001, '压力消息');
+  const messages = new Map(items.map(item => [item.mid, item]));
+  const heights = new Map(items.map(item => [item.mid, 96]));
+  const retained = trimMessageCache(items, messages, heights);
+  expect(retained).toHaveLength(18000);
+  expect(retained[0].mid).toBe(2002);
+  expect(retained[retained.length - 1].mid).toBe(20001);
+  expect(messages.size).toBe(18000);
+  expect(heights.size).toBe(18000);
+  expect(messages.has(1)).toBe(false);
+  expect(heights.has(1)).toBe(false);
+});
+
+test('chat_does_not_trim_before_exceeding_the_legacy_limit', () => {
+  const items = makeMessages(1, 20000, '压力消息');
+  const messages = new Map(items.map(item => [item.mid, item]));
+  const heights = new Map([[1, 96]]);
+  expect(trimMessageCache(items, messages, heights)).toBe(items);
+  expect(messages.size).toBe(20000);
+  expect(heights.get(1)).toBe(96);
+});
+
+test('chat_trims_after_a_large_catch_up_and_rejects_late_older_messages', async ({ page }) => {
+  test.setTimeout(60000);
+  messagesByGid.set(1, makeMessages(1, 100, '压力消息'));
+  await openChat(page);
+  await expect(page.locator('.message').last()).toContainText('压力消息 100');
+  holdPredicate = url => url.pathname === '/chat/messages/cursor' && url.searchParams.has('beforeMid');
+  await page.locator('.messages').evaluate(element => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event('scroll'));
+  });
+  await expect.poll(() => held.length).toBe(1);
+  try {
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    messagesByGid.set(1, makeMessages(1, 5000, '压力消息'));
+    const firstCatchUp = page.waitForResponse(response => response.url().includes('afterMid=4950'));
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await firstCatchUp;
+    await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
+    await expect(page.locator('.message').last()).toContainText('压力消息 5000');
+    await expect.poll(() => atBottom(page)).toBe(true);
+    const anchor = await page.locator('.messages').evaluate(container => {
+      const top = container.getBoundingClientRect().top;
+      const element = [...container.querySelectorAll<HTMLElement>('[data-mid]')]
+        .find(item => item.getBoundingClientRect().bottom > top)!;
+      return { mid: element.dataset.mid!, top: element.getBoundingClientRect().top };
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    messagesByGid.set(1, makeMessages(1, 20101, '压力消息'));
+    const completed = page.waitForResponse(response => response.url().includes('afterMid=20100'));
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await completed;
+    await expect(page.getByRole('status').filter({ hasText: '收到 1 条新消息' })).toHaveText('收到 1 条新消息');
+    const anchorTop = await page.locator(`[data-mid="${anchor.mid}"]`).evaluate(element => element.getBoundingClientRect().top);
+    expect(Math.abs(anchorTop - anchor.top)).toBeLessThanOrEqual(1);
+    releaseHeld();
+    await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
+    await expect(page.locator('.message').last()).toContainText('压力消息 20101');
+    await page.locator('.messages').evaluate(element => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await expect(page.locator('.message').first()).toHaveAttribute('data-mid', '2101');
+    expect(await page.locator('.message').count()).toBeLessThanOrEqual(360);
+    expect(requests.filter(request => request.includes('beforeMid=')).length).toBe(1);
+  } finally {
+    releaseHeld();
+  }
+});
+
+test('chat_announces_new_arrivals_without_making_the_message_list_live', async ({ page }) => {
+  const items = makeMessages(1, 3, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect(page.locator('.message')).toHaveCount(3);
+  items.push({ ...items[0], mid: 999, createdAt: messageTime(999), text: '第一条新消息' });
+  const announcement = page.getByRole('status').filter({ hasText: '收到 1 条新消息' });
+  await expect(announcement).toHaveText('收到 1 条新消息');
+  await expect(announcement).toHaveAttribute('aria-live', 'polite');
+  await expect(page.locator('.messages')).not.toHaveAttribute('aria-live');
+  const repeated = announcement.evaluate(element => new Promise<string>(resolve => {
+    const finish = (value: string) => { observer.disconnect(); clearTimeout(timer); resolve(value); };
+    const observer = new MutationObserver(() => finish(element.textContent ?? ''));
+    observer.observe(element, { subtree: true, childList: true, characterData: true });
+    const timer = setTimeout(() => finish('没有新的通报'), 4000);
+  }));
+  items.push({ ...items[0], mid: 1000, createdAt: messageTime(1000), text: '第二条新消息' });
+  expect(await repeated).toBe('收到 1 条新消息');
+});
+
+test('chat_respects_reduced_motion_for_login_feedback', async ({ page }) => {
+  loginValid = false;
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openChat(page);
+  const state = page.locator('.login-expired .panel-state').first();
+  await expect(state).toBeVisible();
+  const duration = await state.evaluate(element => parseFloat(getComputedStyle(element).animationDuration));
+  expect(duration).toBeLessThan(0.001);
 });
 
 test('chat_business_401_opens_login_recovery', async ({ page }) => {

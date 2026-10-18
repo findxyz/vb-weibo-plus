@@ -1716,7 +1716,7 @@ h1 {
 }
 
 .dream-dialog {
-  /* 留出上下间距 32px、标题栏 38px 和边框 4px，游戏保持原始宽高比。 */
+  /* 留出上下间距 32 px、标题栏 38 px 和边框 4 px，游戏保持原始宽高比。 */
   width: min(560px, calc(100vw - 32px), calc((100vh - 74px) * 512 / 480 + 4px));
   max-width: none;
   height: fit-content;
@@ -1781,4 +1781,15 @@ h1 {
   height: auto;
   aspect-ratio: 512 / 480;
   border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

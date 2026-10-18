@@ -6,6 +6,7 @@ import {
 import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import MessageItem from './MessageItem';
 import ImageViewer from './ImageViewer';
+import { trimMessageCache } from './message-cache';
 
 // 窗口尺寸取自旧 sessions.js：DOM 只保留视口上下各约 180 条，视口外按估算高度占位。
 const WINDOW_CHUNK = 60;
@@ -47,6 +48,7 @@ export default function MessageList({
   const [errorText, setErrorText] = useState('');
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [newMessagesVisible, setNewMessagesVisible] = useState(false);
+  const [announcement, setAnnouncement] = useState({ serial: 0, text: '' });
   const [bottomRequest, setBottomRequest] = useState(0);
   const [attitudesEnabled, setAttitudesEnabled] = useState(() =>
     localStorage.getItem(STORAGE_KEYS.CHAT_ATTITUDES) === '1');
@@ -56,6 +58,7 @@ export default function MessageList({
   const bottomSpacerRef = useRef<HTMLDivElement>(null);
   const heightsRef = useRef(new Map<number, number>());
   const messagesRef = useRef(new Map<number, ChatMessage>());
+  const cacheGenerationRef = useRef(0);
   const beforeCursorRef = useRef<MessageCursor | null>(null);
   const hasMoreRef = useRef(false);
   const loadingEarlierRef = useRef(false);
@@ -325,9 +328,10 @@ export default function MessageList({
     const cursor = beforeCursorRef.current;
     if (!container || !controller || !cursor || loadingEarlierRef.current) return;
     loadingEarlierRef.current = true;
+    const generation = cacheGenerationRef.current;
     try {
       const page = await fetchEarlierMessages(gid, MESSAGE_PAGE_SIZE, cursor, controller.signal);
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || generation !== cacheGenerationRef.current) return;
       const items = [...page.items].sort(compareMessages);
       beforeCursorRef.current = items.length ? nextBeforeCursor(page) : null;
       hasMoreRef.current = items.length ? page.hasMore : false;
@@ -372,10 +376,30 @@ export default function MessageList({
   // 新消息只追加、不移动视口；到达即结束落底收尾，旧图片随后加载也不能把视口拉回底部。
   function appendFresh(items: ChatMessage[]) {
     if (!items.length) return;
+    const freshCount = items.filter(message => !messagesRef.current.has(message.mid)).length;
     settleRef.current = null;
     for (const message of items) messagesRef.current.set(message.mid, message);
     const merged = [...messagesRef.current.values()].sort(compareMessages);
-    setOrdered(merged);
+    const retained = trimMessageCache(merged, messagesRef.current, heightsRef.current);
+    if (retained !== merged) {
+      // 裁剪只删除页面缓存；作废旧区间翻页，避免迟到请求重新放回已丢弃消息。
+      cacheGenerationRef.current += 1;
+      beforeCursorRef.current = null;
+      hasMoreRef.current = false;
+      pendingCompensationRef.current = null;
+      pendingJumpRef.current = null;
+      const anchor = containerRef.current && captureAnchor(containerRef.current);
+      pendingAnchorRef.current = anchor && messagesRef.current.has(anchor.mid) ? anchor : null;
+      if (anchor && !pendingAnchorRef.current) pendingJumpRef.current = 0;
+      setWindowMids(current => {
+        if (current && messagesRef.current.has(current.end)) {
+          return { start: messagesRef.current.has(current.start) ? current.start : retained[0].mid, end: current.end };
+        }
+        return { start: retained[0].mid, end: retained[Math.min(WINDOW_CAP, retained.length) - 1].mid };
+      });
+    }
+    setOrdered(retained);
+    if (freshCount) setAnnouncement(previous => ({ serial: previous.serial + 1, text: `收到 ${freshCount} 条新消息` }));
     setNewMessagesVisible(true);
     void loadAttitudes(items);
   }
@@ -568,7 +592,9 @@ export default function MessageList({
       : ordered.slice(oldEnd + 1, newEnd + 1);
     const apply = direction === 'up'
       || bottomSpacerRef.current!.getBoundingClientRect().top < container.getBoundingClientRect().bottom;
-    pendingCompensationRef.current = {
+    const anchor = captureAnchor(container);
+    if (anchor) pendingAnchorRef.current = anchor;
+    pendingCompensationRef.current = anchor ? null : {
       mids: added.map(message => message.mid),
       apply,
       estimated: sumHeights(heightsRef.current, added),
@@ -578,6 +604,9 @@ export default function MessageList({
 
   return (
     <>
+      <span className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        <span key={announcement.serial}>{announcement.text}</span>
+      </span>
       <div className="messages" ref={containerRef}>
         <div className="list-spacer" ref={topSpacerRef} aria-hidden="true" />
         {status === 'loading' && <p className="messages-state" role="status">正在加载消息……</p>}
