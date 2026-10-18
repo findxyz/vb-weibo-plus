@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { URL_TEXT_RE, stripUrlTrailing } from '../../../src/main/resources/static/shared/linkify.js';
+import { URL_TEXT_RE, stripUrlTrailing } from '../shared/linkify.js';
 import { emojiSource } from './emoji';
 
 const EMOJI_PHRASE_RE = /\[[^\[\]]+\]/g;

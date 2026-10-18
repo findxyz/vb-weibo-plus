@@ -4,7 +4,7 @@ import {
   type AnalysisPage, type AnalysisView, type ChatGroup,
 } from './api';
 import { groupName } from './display';
-import { shanghaiToday } from '../../../src/main/resources/static/shared/date.js';
+import { shanghaiToday } from '../shared/date.js';
 
 const PAGE_SIZE = 20;
 const DEFAULT_PROMPT = '请总结今天群聊的主要讨论话题和参与者';

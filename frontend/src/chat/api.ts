@@ -1,5 +1,5 @@
 // chat 会话读取的接口层：路径与参数沿用旧页，排序口径全页只有 compareMessages 一处。
-import { toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
+import { toQueryDateTime, toQueryEndTime } from '../shared/date.js';
 
 export type ChatGroup = {
   gid: number;

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { epochToShanghaiDate, toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
+import { epochToShanghaiDate, toQueryDateTime, toQueryEndTime } from '../shared/date.js';
 
 export type Blogger = { uid: number; screenName: string; avatar?: string | null; verified?: boolean };
 export type PostImage = { pid: string; thumbnailUrl?: string | null; originalUrl?: string | null; thumbnailWidth?: number; thumbnailHeight?: number; originalWidth?: number; originalHeight?: number };

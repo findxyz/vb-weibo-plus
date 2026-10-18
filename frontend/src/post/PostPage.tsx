@@ -8,8 +8,7 @@ import PostFeed from './PostFeed';
 import DateTimeline from './DateTimeline';
 import PostSearch from './PostSearch';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
-import weiboLogo from './assets/weibo-logo.svg';
-import favicon from '../../../src/main/resources/static/favicon.svg';
+import weiboLogo from '../shared/assets/weibo-logo.svg';
 
 function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
   bloggers: Blogger[]; keyword: string; selectedUid: number | null; onSelect: (uid: number) => void;
@@ -49,7 +48,7 @@ export default function PostPage() {
 
   return (
     <div className="app">
-      <link rel="icon" type="image/svg+xml" href={favicon} />
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       <header className="titlebar">
         <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
         <h1>本地微博</h1>

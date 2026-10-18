@@ -3,7 +3,7 @@ import {
   compareMessages, fetchAttitudes, fetchEarlierMessages, fetchLatestMessages, fetchNewerMessages,
   HttpError, MESSAGE_PAGE_SIZE, nextAfterCursor, nextBeforeCursor, type Attitude, type ChatMessage, type MessageCursor,
 } from './api';
-import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
+import { STORAGE_KEYS } from '../shared/storage-keys.js';
 import MessageItem from './MessageItem';
 import ImageViewer from './ImageViewer';
 import { trimMessageCache } from './message-cache';

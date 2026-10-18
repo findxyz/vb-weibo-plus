@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation } from '@tanstack/react-query';
-import { calendarMonthsAgo, isDateRangeValid, localDateValue, shanghaiToday, toQueryDateTime, toQueryEndTime } from '../../../src/main/resources/static/shared/date.js';
+import { calendarMonthsAgo, isDateRangeValid, localDateValue, shanghaiToday, toQueryDateTime, toQueryEndTime } from '../shared/date.js';
 import { getJson, isUnauthorized, type Blogger } from './queries';
 
 export default function SyncHistory({ blogger, visit, onStart, onComplete, onUnauthorized }: {

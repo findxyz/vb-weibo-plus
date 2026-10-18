@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify';
-import { URL_TEXT_RE, stripUrlTrailing } from '../../../src/main/resources/static/shared/linkify.js';
+import { URL_TEXT_RE, stripUrlTrailing } from '../shared/linkify.js';
 
 export function sanitizedContent(content: string) {
   const doc = new DOMParser().parseFromString(DOMPurify.sanitize(content, { USE_PROFILES: { html: true } }), 'text/html');

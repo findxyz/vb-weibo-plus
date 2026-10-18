@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
+import { STORAGE_KEYS } from '../shared/storage-keys.js';
 import Avatar from './Avatar';
 import AnalysisDialog from './AnalysisDialog';
 import Composer from './Composer';
@@ -10,8 +10,7 @@ import HistoryDialog from './HistoryDialog';
 import MessageList from './MessageList';
 import { fetchGroups, fetchLoginStatus, HttpError, startQrLogin as requestQrLogin } from './api';
 import { groupMemberCount, groupName } from './display';
-import weiboLogo from './assets/weibo-logo.svg';
-import favicon from '../../../src/main/resources/static/favicon.svg';
+import weiboLogo from '../shared/assets/weibo-logo.svg';
 
 export default function ChatPage() {
   const [loginExpired, setLoginExpired] = useState(false);
@@ -225,7 +224,7 @@ export default function ChatPage() {
 
   return (
     <div className="app">
-      <link rel="icon" type="image/svg+xml" href={favicon} />
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       <header className="titlebar">
         <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
         <h1>{title}</h1>

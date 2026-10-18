@@ -2,8 +2,8 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
-import { STORAGE_KEYS } from '../../src/main/resources/static/shared/storage-keys.js';
-import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../../src/main/resources/static/shared/date.js';
+import { STORAGE_KEYS } from '../src/shared/storage-keys.js';
+import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../src/shared/date.js';
 import { compareMessages, type AnalysisView, type ChatGroup, type ChatMessage } from '../src/chat/api';
 import { trimMessageCache } from '../src/chat/message-cache';
 

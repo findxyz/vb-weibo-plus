@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { formatDate, isDateRangeValid, shanghaiToday } from '../../../src/main/resources/static/shared/date.js';
+import { formatDate, isDateRangeValid, shanghaiToday } from '../shared/date.js';
 import { isUnauthorized, usePostSearch, type Post, type SearchRequest } from './queries';
 
 function SearchSnippet({ post, keyword }: { post: Post; keyword: string }) {

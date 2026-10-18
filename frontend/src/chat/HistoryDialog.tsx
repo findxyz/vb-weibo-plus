@@ -4,7 +4,7 @@ import {
   queryHistoryMessages, syncHistory, type ChatGroup, type ChatMessage, type HistoryFilters,
   type HistoryPage, type MessageCursor,
 } from './api';
-import { calendarMonthsAgo, localDateValue, shanghaiToday, toQueryDateTime } from '../../../src/main/resources/static/shared/date.js';
+import { calendarMonthsAgo, localDateValue, shanghaiToday, toQueryDateTime } from '../shared/date.js';
 import ImageViewer from './ImageViewer';
 import MessageItem from './MessageItem';
 

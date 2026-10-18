@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { sanitizedContent } from './content';
-import { formatDate } from '../../../src/main/resources/static/shared/date.js';
+import { formatDate } from '../shared/date.js';
 import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import PostImages from './PostImages';
