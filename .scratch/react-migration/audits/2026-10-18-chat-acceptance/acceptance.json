@@ -1,0 +1,1559 @@
+[
+  {
+    "version": "legacy",
+    "viewport": {
+      "width": 900,
+      "height": 560
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 896,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 518
+      },
+      "composer": {
+        "x": 282,
+        "y": 404,
+        "width": 616,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [],
+    "resources": [
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/post-H9zpc-qp.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  },
+  {
+    "version": "react",
+    "viewport": {
+      "width": 900,
+      "height": 560
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 896,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 518
+      },
+      "composer": {
+        "x": 282,
+        "y": 404,
+        "width": 616,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [
+      "/chat/since",
+      "/chat/messages/send",
+      "/weibo/login/qr"
+    ],
+    "resources": [
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-Bri39ngy.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/marked.esm-BXVflPYz.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-Bri39ngy.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-H9zpc-qp.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  },
+  {
+    "version": "legacy",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 1276,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 758
+      },
+      "composer": {
+        "x": 282,
+        "y": 644,
+        "width": 996,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [],
+    "resources": [
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/post-H9zpc-qp.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  },
+  {
+    "version": "react",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 1276,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 758
+      },
+      "composer": {
+        "x": 282,
+        "y": 644,
+        "width": 996,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [
+      "/chat/since",
+      "/chat/messages/send",
+      "/weibo/login/qr"
+    ],
+    "resources": [
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-Bri39ngy.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/marked.esm-BXVflPYz.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-Bri39ngy.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-H9zpc-qp.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  },
+  {
+    "version": "legacy",
+    "viewport": {
+      "width": 1600,
+      "height": 900
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 1596,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 858
+      },
+      "composer": {
+        "x": 282,
+        "y": 744,
+        "width": 1316,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [],
+    "resources": [
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/post-H9zpc-qp.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  },
+  {
+    "version": "react",
+    "viewport": {
+      "width": 1600,
+      "height": 900
+    },
+    "geometry": {
+      "title": {
+        "x": 2,
+        "y": 2,
+        "width": 1596,
+        "height": 38
+      },
+      "sidebar": {
+        "x": 2,
+        "y": 40,
+        "width": 280,
+        "height": 858
+      },
+      "composer": {
+        "x": 282,
+        "y": 744,
+        "width": 1316,
+        "height": 154
+      },
+      "bubble": {
+        "radius": "4px",
+        "color": "rgb(240, 199, 138)"
+      },
+      "overflow": false
+    },
+    "writes": [
+      "/chat/since",
+      "/chat/messages/send",
+      "/weibo/login/qr"
+    ],
+    "resources": [
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-Bri39ngy.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/marked.esm-BXVflPYz.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/chat-BNGnf45L.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/chat-Bri39ngy.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/assets/post-D1qOtbzm.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/assets/post-H9zpc-qp.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/purify.es-DTNcC5ha.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-C4ZJcAjT.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/assets/favicon-CTrPd-zH.svg",
+        "status": 200,
+        "mime": "image/svg+xml"
+      },
+      {
+        "path": "/chat/chat.css",
+        "status": 200,
+        "mime": "text/css"
+      },
+      {
+        "path": "/chat/weibo-emoji.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/chat.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/message-view.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/composer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/analysis.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/history.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/groups.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/sessions.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/dream.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/attitudes.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/dom.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/chat/emoji-panel.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/announcer.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/storage-keys.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/linkify.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/fetch.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/highlight.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/date.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/popover.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      },
+      {
+        "path": "/shared/qr-login.js",
+        "status": 200,
+        "mime": "text/javascript"
+      }
+    ]
+  }
+]
