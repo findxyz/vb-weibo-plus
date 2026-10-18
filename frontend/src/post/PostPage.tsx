@@ -44,7 +44,6 @@ export default function PostPage() {
     if ([bloggers.error, calendar.error, posts.error].some(isUnauthorized)) login.expire();
   }, [bloggers.error, calendar.error, posts.error, login.expire]);
   const selectedBlogger = bloggers.data?.find(blogger => blogger.uid === selection.uid);
-  const formalChat = import.meta.env.DEV ? new URL('/chat/index.html', import.meta.env.VITE_API_PROXY_TARGET).href : '/chat/index.html';
 
   return (
     <div className="app">
@@ -52,7 +51,7 @@ export default function PostPage() {
       <header className="titlebar">
         <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
         <h1>本地微博</h1>
-        <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = formalChat; }} />
+        <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }} />
       </header>
       <main className="columns">
         <section className="bloggers-panel" aria-label="博主区域">

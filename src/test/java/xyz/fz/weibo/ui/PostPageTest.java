@@ -144,6 +144,7 @@ class PostPageTest {
         server.createContext("/shared/", PostPageTest::sendStaticResource);
         server.createContext("/weibo/login/status", exchange -> sendJson(exchange, "{\"valid\":true}"));
         server.createContext("/assets/", PostPageTest::sendStaticResource);
+        server.createContext("/favicon.svg", PostPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
         playwright = Playwright.create();
@@ -316,7 +317,7 @@ class PostPageTest {
             page.waitForLoadState();
             Assertions.assertThat(errors).isEmpty();
             assertThat(page.getByText("暂无群聊数据", new Page.GetByTextOptions().setExact(true))).isVisible();
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到本地微博").setExact(true)).press("Enter");
+            page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("切换到本地微博").setExact(true)).press("Enter");
             assertThat(page).hasURL(baseUrl + "/post/index.html");
             assertThat(page.locator(".post-content")).containsText("打包后的正文");
             Assertions.assertThat(errors).isEmpty();
@@ -654,7 +655,7 @@ class PostPageTest {
             assertThat(page.locator(".post-content a").last()).hasAttribute("href", "https://weibo.com/n/用户");
             Assertions.assertThat(page.evaluate("window.attack")).isNull();
             Assertions.assertThat(listQuery.get()).isEqualTo("page=1&size=9999&start=2026-08-05 00:00:00&end=2026-08-05 23:59:59");
-            page.navigate(baseUrl + "/preview/chat/index.html");
+            page.navigate(baseUrl + "/chat/index.html");
             assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("微博群聊 - 打包资源群")))
                     .isVisible();
             assertThat(page.locator(".message")).containsText("打包后的消息");

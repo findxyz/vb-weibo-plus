@@ -1,5 +1,4 @@
 ﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../src/shared/storage-keys.js';
@@ -133,7 +132,7 @@ async function openChat(page: Page, lastGid?: number) {
       localStorage.setItem(key, String(value));
     }, [STORAGE_KEYS.CHAT_LAST_GROUP, lastGid] as [string, number]);
   }
-  await page.goto(`${baseUrl}preview/chat/index.html`);
+  await page.goto(`${baseUrl}chat/index.html`);
 }
 
 async function atBottom(page: Page) {
@@ -178,16 +177,6 @@ test.beforeAll(async () => {
       response.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
       response.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">'
         + '<rect width="180" height="180" fill="#ffffff"/></svg>');
-      return;
-    }
-    if (path.startsWith('/chat/dream/')) {
-      if (path === '/chat/dream/101.html') {
-        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-        response.end(await readFile(new URL('../../src/main/resources/static/chat/dream/1176117365.html', import.meta.url)));
-        return;
-      }
-      response.writeHead(404);
-      response.end();
       return;
     }
     if (path === '/chat/analyses' && request.method === 'GET') {
@@ -391,6 +380,17 @@ test.afterEach(() => {
   expect(writeRequests).toEqual([]);
 });
 
+test('formal_chat_entry_refreshes_and_retires_the_preview_document', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '正式消息'));
+  const response = await page.goto(`${baseUrl}chat/index.html`);
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole('heading', { name: '微博群聊 - 第一群' })).toBeVisible();
+  await expect(page.locator('.messages')).toContainText('正式消息 3');
+  await page.reload();
+  await expect(page.locator('.messages')).toContainText('正式消息 3');
+  expect((await page.request.get(`${baseUrl}preview/chat/index.html`)).status()).toBe(404);
+});
+
 test('chat_selects_the_saved_group_and_lands_on_the_newest_messages', async ({ page }, testInfo) => {
   messagesByGid.set(1, makeMessages(1, 60, '群一'));
   messagesByGid.set(2, makeMessages(2, 60, '群二'));
@@ -550,7 +550,7 @@ test('chat_plays_video_in_place_without_navigation', async ({ page }) => {
   await expect(video).toHaveAttribute('src', '/chat/media?gid=1&mid=2&variant=video');
   await expect(video).toHaveAttribute('controls', '');
   await expect(page.locator('[data-mid="2"] button.video-preview')).toHaveCount(0);
-  expect(page.url()).toContain('/preview/chat/index.html');
+  expect(page.url()).toContain('/chat/index.html');
 });
 
 test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ page }) => {
@@ -1604,8 +1604,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 
 test(`chat_opens_the_dream_game_from_a_member_avatar_at_${viewport.width}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  messagesByGid.get(1)![0].senderId = 1176117365;
   await openChat(page);
-  await page.locator('[data-sender-id="101"]').first().hover();
+  await page.locator('[data-sender-id="1176117365"]').first().hover();
 
   const popover = page.locator('.dream-popover');
   await expect(popover).toBeVisible({ timeout: 6000 });
@@ -1615,7 +1616,7 @@ test(`chat_opens_the_dream_game_from_a_member_avatar_at_${viewport.width}`, asyn
 
   const dialog = page.locator('dialog.dream-dialog');
   await expect(dialog).toHaveJSProperty('open', true);
-  await expect(dialog.locator('iframe')).toHaveAttribute('src', /\/chat\/dream\/101\.html\?v=\d+/);
+  await expect(dialog.locator('iframe')).toHaveAttribute('src', /\/chat\/dream\/1176117365\.html\?v=\d+/);
   const geometry = await dialog.evaluate(element => {
     const frame = element.querySelector('iframe')!.getBoundingClientRect();
     const stage = element.querySelector('.dream-stage')!.getBoundingClientRect();
@@ -2015,8 +2016,9 @@ test('chat_analysis_abort_does_not_leave_a_false_failure', async ({ page }) => {
 
 test('chat_dream_can_rehover_after_an_interrupted_hover', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  messagesByGid.get(1)![0].senderId = 1176117365;
   await openChat(page);
-  const avatar = page.locator('[data-sender-id="101"]').first();
+  const avatar = page.locator('[data-sender-id="1176117365"]').first();
   await avatar.hover();
   await page.waitForTimeout(200);
   await page.mouse.move(20, 20);
@@ -2027,14 +2029,15 @@ test('chat_dream_can_rehover_after_an_interrupted_hover', async ({ page }) => {
 test('chat_scrolling_cancels_a_pending_dream_probe', async ({ page }) => {
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/chat/dream/101.html', async route => {
+  await page.route('**/chat/dream/1176117365.html', async route => {
     await gate;
     await route.fulfill({ status: 200, contentType: 'text/html', body: '<html>dream</html>' });
   });
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  messagesByGid.get(1)![0].senderId = 1176117365;
   await openChat(page);
-  const probe = page.waitForRequest(request => request.url().endsWith('/chat/dream/101.html'));
-  await page.locator('[data-sender-id="101"]').first().hover();
+  const probe = page.waitForRequest(request => request.url().endsWith('/chat/dream/1176117365.html'));
+  await page.locator('[data-sender-id="1176117365"]').first().hover();
   await probe;
   await page.locator('.messages').evaluate(element => element.dispatchEvent(new Event('scroll')));
   release();

@@ -5,7 +5,7 @@
 // - 与后端日期边界耦合的一切取值——post 页博文展示、搜索跳转、时间轴与弹窗
 //   默认日期、chat 页历史/分析的查询默认值——统一按 Asia/Shanghai（后端对
 //   start/end 参数与日历分组均按此时区解释，缺省按本地算会跨午夜错一天）。
-// - chat 气泡上的消息时间（message-view 的 formatTime）保持浏览器本地显示：
+// - chat 气泡上的消息时间保持浏览器本地显示：
 //   它只做展示、不与任何查询耦合，realtime 场景本地时间更符合直觉。
 export function pad(value) {
   return String(value).padStart(2, "0");

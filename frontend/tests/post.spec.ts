@@ -65,6 +65,11 @@ test.beforeAll(async () => {
     requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    if (path === '/chat/groups') {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end('[]');
+      return;
+    }
     if (path === '/weibo/login/status') {
       response.writeHead(loginStatus, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify(loginPayload));
@@ -204,13 +209,13 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
   });
 }
 
-test('acceptance_chat_control_matches_paper_skin_and_opens_formal_backend_with_mouse_and_keyboard', async ({ page }) => {
+test('acceptance_chat_control_matches_paper_skin_and_opens_formal_chat_with_mouse_and_keyboard', async ({ page }) => {
   const measure = () => page.locator('.window-control.toggle').evaluate(element => {
     const style = getComputedStyle(element);
     return { width: style.width, height: style.height, background: style.backgroundColor, border: style.border, radius: style.borderRadius, transform: style.transform, icon: getComputedStyle(element, '::before').backgroundImage };
   });
   const { legacy } = approvedGeometry['navigation'];
-  const destination = `${process.env.API_PROXY_TARGET}/chat/index.html`;
+  const destination = `${baseUrl}chat/index.html`;
   for (const action of ['click', 'Enter', 'Space']) {
     await page.goto(`${baseUrl}post/index.html`);
     const control = page.getByRole('button', { name: '切换到微博群聊', exact: true });
@@ -219,7 +224,7 @@ test('acceptance_chat_control_matches_paper_skin_and_opens_formal_backend_with_m
     if (action === 'click') await control.click();
     else { await control.focus(); await control.press(action); }
     await expect(page).toHaveURL(destination);
-    await expect(page.getByRole('heading', { name: '后端群聊页面' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '微博群聊', exact: true })).toBeVisible();
   }
 });
 
@@ -2658,7 +2663,7 @@ test('unloaded_reading_discards_old_list_response_without_polling', async ({ pag
   posts.items[0].content = '旧请求正文';
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('status')).toHaveText('正在加载博文……');
-  await page.goto(`${baseUrl}preview/chat/index.html`);
+  await page.goto(`${baseUrl}chat/index.html`);
   releaseResponse?.();
   holdResponse = false;
   posts.items[0].content = '新请求正文';
@@ -2758,7 +2763,7 @@ test('post_entry_refreshes_with_paper_skin', async ({ page }) => {
 test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ request }) => {
   for (const [path, mime] of [
     ['post/index.html', 'text/html'],
-    ['preview/chat/index.html', 'text/html'],
+    ['chat/index.html', 'text/html'],
     ['src/post/main.tsx', 'javascript'],
     ['src/chat/main.tsx', 'javascript'],
     ['src/post/post.css?direct', 'text/css'],
@@ -2768,7 +2773,7 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain(mime);
   }
-  for (const path of ['preview/post/index.html', 'post/bloggers.js', 'chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js', 'chat/groups-extra', 'chat/attitudes-extra', 'chat/since-extra', 'chat/analyses-extra', 'chat/messages-extra', 'chat/messages/cursor/extra', 'chat/messages/send-extra', 'chat/media-extra']) {
+  for (const path of ['preview/post/index.html', 'post/bloggers.js', 'preview/chat/index.html', 'post/image-extra', 'post/image/module.js', 'post/video-cover-extra', 'post/video-cover/module.js', 'chat/image-extra', 'chat/image/module.js', 'chat/groups-extra', 'chat/attitudes-extra', 'chat/since-extra', 'chat/analyses-extra', 'chat/messages-extra', 'chat/messages/cursor/extra', 'chat/messages/send-extra', 'chat/media-extra']) {
     expect((await request.get(`${baseUrl}${path}`)).status()).toBe(404);
   }
   const response = await request.get(`${baseUrl}post/bloggers?probe=1`);
@@ -2785,7 +2790,7 @@ test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ reques
   expect(avatar.headers()['content-type']).toBe('image/svg+xml');
   const chatGroups = await request.get(`${baseUrl}chat/groups?probe=1`);
   expect(chatGroups.status()).toBe(200);
-  expect(await chatGroups.json()).toEqual(bloggers);
+  expect(await chatGroups.json()).toEqual([]);
   const chatCursor = await request.get(`${baseUrl}chat/messages/cursor?gid=1&size=50&probe=1`);
   expect(chatCursor.status()).toBe(200);
   expect(await chatCursor.json()).toEqual(bloggers);

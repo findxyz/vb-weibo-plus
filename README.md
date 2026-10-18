@@ -23,9 +23,9 @@
 
 ```mermaid
 graph TB
-    subgraph Browser["浏览器前端（纯静态）"]
-        ChatUI["chat/index.html + chat.js<br/>群聊查看 · 发消息 · AI 分析"]
-        PostUI["post/index.html + post.js<br/>微博浏览 · 日历 · 博主管理"]
+    subgraph Browser["浏览器前端（React 静态产物）"]
+        ChatUI["chat/index.html + React<br/>群聊查看 · 发消息 · AI 分析"]
+        PostUI["post/index.html + React<br/>微博浏览 · 日历 · 博主管理"]
     end
 
     subgraph SpringBoot["Spring Boot :18080"]
@@ -107,9 +107,11 @@ npm ci
 npm run dev
 ```
 
-访问 [本地微博](http://127.0.0.1:5173/post/index.html) 或 [群聊入口预览](http://127.0.0.1:5173/preview/chat/index.html)。修改组件或样式后自动热更新。React post 已接管正式 `/post/index.html`，开发与发布使用相同入口；chat 预览只展示骨架，正式 `/chat/index.html` 仍为旧实现。post 的切页按钮在开发时跳到配置的后端 chat，在发布时使用同源路径。`/preview/post/index.html` 已移除。
+访问 [本地微博](http://127.0.0.1:5173/post/index.html) 或 [微博群聊](http://127.0.0.1:5173/chat/index.html)。修改组件或样式后自动热更新。两个正式入口均由 React 接管，开发与发布使用相同路径，切页按钮保持同源。两个 preview 入口均已移除。
 
-开发请求使用相对路径，Vite 将 `/post/bloggers`、`/post/calendar`、`/post/list`、`/post/image`、`/post/video-cover`、`/post/range`、`/chat/image` 及登录状态／扫码的精确 API 路径代理到 `http://127.0.0.1:18080`，HTML 和模块资源由 Vite 提供。后端使用其他端口时，可以设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
+开发请求使用相对路径，Vite 将 post 查询／媒体／采集、chat 群列表／消息／发送／表态／历史采集／分析，以及登录状态／扫码的精确 API 路径代理到 `http://127.0.0.1:18080`。两个 HTML、模块、图标和梦境页面由 Vite 提供。后端使用其他端口时，可设置 `API_PROXY_TARGET` 环境变量，或在 `frontend/.env.local` 中写入 `API_PROXY_TARGET=http://127.0.0.1:其他端口`。
+
+`frontend/src/post` 和 `frontend/src/chat` 维护各页组件与皮肤；`frontend/src/shared` 维护共用日期、链接化、存储键与品牌素材。`frontend/public` 保存根路径图标及保持原 URL 的梦境页面。页面不再从 Spring Boot 的旧静态源码目录导入文件，旧 DOM 实现已移除。运行 Vite 或浏览器测试期间不要同时执行 `npm ci` 或默认 Maven 构建，它们重装依赖时可能遇到 Windows 的文件占用；先停止 Vite，构建完成后再启动。
 
 post 支持博主过滤与日期导航、普通／纯转发正文、图片查看器、视频跳转、元信息、高级搜索及定位、扫码恢复、添加博主和按时段采集。每次点击博主会重新读取该范围日期并回到最新有效日；日列表加载期间拒绝日期切换，博主仍可切换；加载完成后再点同日会重新读取。列表沿用 `page=1`、`size=9999`，起止时间为所选日期的 `00:00:00` 与 `23:59:59`，由后端按 `Asia/Shanghai` 解释；页面总数显示后端 `total`。单博主的日期查询使用 uid，列表使用 uids。普通查询超时 15 秒，当日列表超时 30 秒，失败时保留后端消息；列表重试只重新读取当前博主的当日列表，不重载博主与日期。阅读不自动触发采集或定时 View Refresh，添加／历史采集仅在用户显式操作时提交。
 
@@ -136,11 +138,11 @@ mvn clean package
 
 Maven 在 `generate-resources` 阶段安装固定的 Node.js 24.15.0 和 npm 11.14.1，执行 `npm ci` 和 `npm run build`（包含 TypeScript 检查）。工具链位于 `target/frontend-toolchain`，依赖位于 `frontend/node_modules`，首次构建需要联网。无需预先在系统中安装 Node.js；开发时运行 Vite 仍使用自己的 Node.js。
 
-`process-resources` 将前端产物不经内容过滤复制到 `target/classes/static`，同时保留原资源，使 Java 浏览器测试读取与发布相同的构建文件。前端类型检查或构建失败会中止 Maven。使用 `clean` 清除旧发布产物，避免将旧 JAR 当成新构建结果。页面测试需要 Playwright Chromium，首次运行会下载浏览器；已有相应版本的缓存时，可设置 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`。
+`process-resources` 将前端产物不经内容过滤复制到 `target/classes/static`，使 Java 浏览器测试读取与发布相同的构建文件。前端类型检查或构建失败会中止 Maven。使用 `clean` 清除过渡期的旧静态资源，避免把旧脚本或旧 JAR 带入新包；需要保留的回退包请先复制到 target 之外。页面测试需要 Playwright Chromium，首次运行会下载浏览器；已有相应版本的缓存时，可设置 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`。
 
-最终 `target/weibo-plus.jar` 包含 React 正式 post、旧正式 chat 和 React chat 预览；`target/weibo-plus.7z` 包含该可执行 JAR 与 `run.bat`。发布后只需 JDK 21，无需 Vite 或 Node.js 进程；页面使用同源相对接口地址。启动 JAR 后访问 `http://localhost:18080/post/index.html` 或 `http://localhost:18080/chat/index.html`。chat 骨架仍在 `/preview/chat/index.html`，post preview 和旧 post 专属静态脚本已移除。
+最终 `target/weibo-plus.jar` 同时包含两个 React 正式页面、共用构建资源及梦境页面；`target/weibo-plus.7z` 包含该可执行 JAR 与 `run.bat`。发布后只需 JDK 21，无需 Vite 或 Node.js 进程；页面使用同源相对接口地址。启动 JAR 后访问 `http://localhost:18080/post/index.html` 或 `http://localhost:18080/chat/index.html`。两个 preview、旧 post／chat 和旧 shared 运行时均不再打包。
 
-只检查页面资源集成时，可运行 `mvn clean package -Dtest=PostPageTest,GroupChatPageTest`。PostPageTest 验证实际构建后的 React 正式页面。隔离生产冒烟应在唯一临时工作目录启动 JAR，直接指定 `spring.datasource.url=jdbc:sqlite:临时数据库绝对路径?busy_timeout=5000&journal_mode=WAL`，同时设置 `weibo.database-path` 为同一路径、`weibo.cookie-file` 为不存在的临时文件、`weibo.chat.auto-sync-gids=` 和 `server.address=127.0.0.1`，使用空闲端口。空群号不能关闭所有后台调度；缺少 Credential 时，外部采集在请求构造阶段被拒绝。查询使用临时数据，业务写操作应由本地替身拦截，不使用生产数据库或登录凭据。
+只检查页面资源集成时，可运行 `mvn clean package -Dtest=PostPageTest,GroupChatPageTest`。两个 PageTest 验证实际构建后的 React 正式页面。隔离生产冒烟应在唯一临时工作目录启动 JAR，直接指定 `spring.datasource.url=jdbc:sqlite:临时数据库绝对路径?busy_timeout=5000&journal_mode=WAL`，同时设置 `weibo.database-path` 为同一路径、`weibo.cookie-file` 为不存在的临时文件、`weibo.chat.auto-sync-gids=` 和 `server.address=127.0.0.1`，使用空闲端口。空群号不能关闭所有后台调度；缺少 Credential 时，外部采集在请求构造阶段被拒绝。查询使用临时数据，业务写操作应由本地替身拦截，不使用生产数据库或登录凭据。
 
 post 切换的回退基线为提交 `2cc6ef8` 和已验证的 `target/react-migration-release/ticket-17/weibo-plus.jar`，其 SHA-256 为 `932A7FF0E63847C1FFB39321DE3469801950CFFC7E3C822795AF3328CB288C58`。部署前保存原 JAR、配置与数据库备份；需要回退时停止新版，用原工作目录、相同配置和原端口启动该旧 JAR。此迁移没有数据库或配置格式变更，不需要清空数据库。重新构建旧源码时，应在独立检出中使用上述提交，避免覆盖正在工作的目录。迁移进度与逐票证据见 [.scratch/react-migration/PLAN.md](.scratch/react-migration/PLAN.md)。
 
