@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   compareMessages, fetchAttitudes, fetchEarlierMessages, fetchLatestMessages, fetchNewerMessages,
-  MESSAGE_PAGE_SIZE, nextAfterCursor, nextBeforeCursor, type Attitude, type ChatMessage, type MessageCursor,
+  HttpError, MESSAGE_PAGE_SIZE, nextAfterCursor, nextBeforeCursor, type Attitude, type ChatMessage, type MessageCursor,
 } from './api';
 import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import MessageItem from './MessageItem';
@@ -35,10 +35,11 @@ type Props = {
   admins: number[];
   refreshToken?: number;
   pollingEnabled?: boolean;
+  onAuthExpired: () => void;
 };
 
 export default function MessageList({
-  gid, admins, refreshToken = 0, pollingEnabled = true,
+  gid, admins, refreshToken = 0, pollingEnabled = true, onAuthExpired,
 }: Props) {
   const [ordered, setOrdered] = useState<ChatMessage[]>([]);
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
@@ -97,6 +98,7 @@ export default function MessageList({
       void loadAttitudes(items);
     }).catch(error => {
       if (controller.signal.aborted) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       setStatus('error');
       setErrorText(error instanceof Error ? error.message : '消息加载失败');
     }).finally(() => {
@@ -343,7 +345,10 @@ export default function MessageList({
       setWindowMids({ start: merged[start].mid, end: merged[end].mid });
       void loadAttitudes(items);
     } catch (error) {
-      if (!controller.signal.aborted) console.warn('加载更早消息失败：', error);
+      if (!controller.signal.aborted) {
+        if (error instanceof HttpError && error.status === 401) onAuthExpired();
+        else console.warn('加载更早消息失败：', error);
+      }
     } finally {
       loadingEarlierRef.current = false;
     }
@@ -399,7 +404,10 @@ export default function MessageList({
       if (controller.signal.aborted) return;
       applyAttitudes(result);
     } catch (error) {
-      if (!controller.signal.aborted) console.warn('获取表态失败：', error);
+      if (!controller.signal.aborted) {
+        if (error instanceof HttpError && error.status === 401) onAuthExpired();
+        else console.warn('获取表态失败：', error);
+      }
     }
   }
 
@@ -448,7 +456,10 @@ export default function MessageList({
       if (fresh.length) appendFresh(fresh);
       return true;
     } catch (error) {
-      if (!controller.signal.aborted) console.warn('刷新消息失败：', error);
+      if (!controller.signal.aborted) {
+        if (error instanceof HttpError && error.status === 401) onAuthExpired();
+        else console.warn('刷新消息失败：', error);
+      }
       return false;
     } finally {
       refreshingRef.current = false;

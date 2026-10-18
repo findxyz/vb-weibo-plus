@@ -14,9 +14,10 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 type Hint = { text: string; level: 'default' | 'sending' | 'error' };
 type Attachment = { kind: 'image' | 'video'; file: File; url: string };
 
-export default function Composer({ gid, onSent, onOpenHistory, onOpenAnalysis }: {
+export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, onOpenAnalysis }: {
   gid: number | null;
-  onSent: () => void;
+  onSent: (gid: number) => void;
+  onAuthExpired: () => void;
   onOpenHistory?: () => void;
   onOpenAnalysis?: () => void;
 }) {
@@ -101,8 +102,9 @@ export default function Composer({ gid, onSent, onOpenHistory, onOpenAnalysis }:
       setAttachment(null);
       resetInputs();
       defaultHint();
-      onSent();
+      onSent(gid);
     } catch (error) {
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       const message = error instanceof Error ? error.message : '';
       setHint({ text: message || (kind === 'image' ? HINT_IMAGE_FAILED : HINT_VIDEO_FAILED), level: 'error' });
     } finally {
@@ -125,8 +127,9 @@ export default function Composer({ gid, onSent, onOpenHistory, onOpenAnalysis }:
       await sendText(gid, content);
       setText('');
       defaultHint();
-      onSent();
+      onSent(gid);
     } catch (error) {
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       const message = error instanceof Error ? error.message : '';
       const hintText = error instanceof HttpError && error.status === 409
         ? message || HINT_CONFLICT

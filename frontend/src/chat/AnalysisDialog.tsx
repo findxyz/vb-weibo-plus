@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  fetchAnalyses, fetchAnalysis, streamAnalysis,
+  fetchAnalyses, fetchAnalysis, HttpError, streamAnalysis,
   type AnalysisPage, type AnalysisView, type ChatGroup,
 } from './api';
 import { groupName } from './display';
@@ -43,9 +43,10 @@ type Props = {
   group: ChatGroup | null;
   open: boolean;
   onClose: () => void;
+  onAuthExpired: () => void;
 };
 
-export default function AnalysisDialog({ gid, group, open, onClose }: Props) {
+export default function AnalysisDialog({ gid, group, open, onClose, onAuthExpired }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const versionRef = useRef(0);
@@ -118,11 +119,13 @@ export default function AnalysisDialog({ gid, group, open, onClose }: Props) {
     setFeedback('');
     try {
       const pageData = await fetchAnalyses(gid, nextPage, PAGE_SIZE, controller.signal);
-      if (version !== versionRef.current) return;
+      if (controller.signal.aborted || version !== versionRef.current) return;
       setList(pageData);
+      setFeedback('');
       if (!pageData.items.length) setFeedback('暂无历史分析记录。');
-    } catch {
-      if (version !== versionRef.current) return;
+    } catch (error) {
+      if (controller.signal.aborted || version !== versionRef.current) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       setList(null);
       setFeedback('查询历史分析失败，请稍后重试。');
     }
@@ -141,10 +144,11 @@ export default function AnalysisDialog({ gid, group, open, onClose }: Props) {
     try {
       await loadMarkdown();
       const view = await fetchAnalysis(id, controller.signal);
-      if (version !== versionRef.current) return;
+      if (controller.signal.aborted || version !== versionRef.current) return;
       setSelected(view);
-    } catch {
-      if (version !== versionRef.current) return;
+    } catch (error) {
+      if (controller.signal.aborted || version !== versionRef.current) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       setFeedback('加载分析详情失败。');
     } finally {
       if (version === versionRef.current) setDetailLoading(false);
@@ -197,9 +201,11 @@ export default function AnalysisDialog({ gid, group, open, onClose }: Props) {
       }
     } catch (error) {
       if (version !== versionRef.current) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       const message = error instanceof Error ? error.message : String(error);
       setFeedback(`分析失败：${friendlyError(message)}`);
     } finally {
+      if (timer) clearTimeout(timer);
       if (version === versionRef.current) setAnalyzing(false);
     }
   }

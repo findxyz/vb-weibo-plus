@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { STORAGE_KEYS } from '../../../src/main/resources/static/shared/storage-keys.js';
 import Avatar from './Avatar';
@@ -8,34 +8,54 @@ import DreamLauncher from './DreamLauncher';
 import GroupList from './GroupList';
 import HistoryDialog from './HistoryDialog';
 import MessageList from './MessageList';
-import { fetchGroups, fetchLoginStatus, startQrLogin as requestQrLogin } from './api';
+import { fetchGroups, fetchLoginStatus, HttpError, startQrLogin as requestQrLogin } from './api';
 import { groupMemberCount, groupName } from './display';
 
 export default function ChatPage() {
   const [loginExpired, setLoginExpired] = useState(false);
+  const loginVersionRef = useRef(0);
+  const groupFailuresRef = useRef(0);
+  const markLoginExpired = useCallback(() => {
+    loginVersionRef.current += 1;
+    setLoginExpired(true);
+  }, []);
   const groupsQuery = useQuery({
     queryKey: ['chat', 'groups'],
-    queryFn: ({ signal }) => fetchGroups(signal),
+    queryFn: async ({ signal }) => {
+      try {
+        const result = await fetchGroups(signal);
+        groupFailuresRef.current = 0;
+        return result;
+      } catch (error) {
+        if (!signal.aborted) {
+          groupFailuresRef.current = Math.min(groupFailuresRef.current + 1, 5);
+          if (error instanceof HttpError && error.status === 401) markLoginExpired();
+        }
+        throw error;
+      }
+    },
     staleTime: Infinity,
     refetchOnMount: false,
-    // 与消息轮询同节奏；页面隐藏或登录失效时暂停，回到页面时由 focus 立即刷新一次。
-    refetchInterval: loginExpired ? false : 1000,
+    // 失败按秒指数退避，封顶 30 秒；隐藏或登录失效时暂停，成功后恢复 1 秒。
+    refetchInterval: () => loginExpired ? false : Math.min(1000 * 2 ** groupFailuresRef.current, 30000),
     refetchIntervalInBackground: false,
   });
   const { refetch } = groupsQuery;
   const groups = groupsQuery.data ?? [];
 
   useEffect(() => {
-    const onFocus = () => { void refetch(); };
+    const onFocus = () => { if (!loginExpired) void refetch(); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [refetch]);
+  }, [refetch, loginExpired]);
 
   const [selectedGid, setSelectedGid] = useState<number | null>(() => {
     const saved = Number(localStorage.getItem(STORAGE_KEYS.CHAT_LAST_GROUP));
     return Number.isSafeInteger(saved) && saved > 0 ? saved : null;
   });
   const [reloadToken, setReloadToken] = useState(0);
+  const selectedGidRef = useRef(selectedGid);
+  useLayoutEffect(() => { selectedGidRef.current = selectedGid; }, [selectedGid]);
   const [refreshToken, setRefreshToken] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
@@ -62,9 +82,10 @@ export default function ChatPage() {
     const controller = new AbortController();
     statusControllerRef.current = controller;
     const check = async () => {
+      const version = loginVersionRef.current;
       try {
         const result = await fetchLoginStatus(controller.signal);
-        if (qrPendingRef.current) return;
+        if (controller.signal.aborted || qrPendingRef.current || version !== loginVersionRef.current) return;
         setLoginExpired(result.valid !== true);
       } catch {
         // 登录检测失败不打扰用户。
@@ -173,6 +194,7 @@ export default function ChatPage() {
     try {
       await requestQrLogin(controller.signal);
       succeeded = true;
+      loginVersionRef.current += 1;
       setLoginExpired(false);
       await refetch();
       setReloadToken(token => token + 1);
@@ -254,20 +276,23 @@ export default function ChatPage() {
                 admins={selectedGroup.admins ?? []}
                 refreshToken={refreshToken}
                 pollingEnabled={!loginExpired}
+                onAuthExpired={markLoginExpired}
               />
             ) : (
               <p className="messages-state">{groupsQuery.isPending ? '正在加载群聊……' : '暂无群聊。'}</p>
             )}
           </div>
-          <Composer gid={selectedGroup?.gid ?? null} onSent={() => setRefreshToken(value => value + 1)}
+          <Composer gid={selectedGroup?.gid ?? null} onSent={gid => {
+            if (gid === selectedGidRef.current) setRefreshToken(value => value + 1);
+          }} onAuthExpired={markLoginExpired}
             onOpenHistory={() => setHistoryOpen(true)}
             onOpenAnalysis={() => setAnalysisOpen(true)} />
         </section>
       </div>
       <HistoryDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={historyOpen}
-        onClose={() => setHistoryOpen(false)} />
+        onClose={() => setHistoryOpen(false)} onAuthExpired={markLoginExpired} />
       <AnalysisDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={analysisOpen}
-        onClose={() => setAnalysisOpen(false)} />
+        onClose={() => setAnalysisOpen(false)} onAuthExpired={markLoginExpired} />
       <DreamLauncher />
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  compareMessages, fetchEarlierMessages, fetchNewerMessages, nextAfterCursor, nextBeforeCursor,
+  compareMessages, fetchEarlierMessages, fetchNewerMessages, HttpError, nextAfterCursor, nextBeforeCursor,
   queryHistoryMessages, syncHistory, type ChatGroup, type ChatMessage, type HistoryFilters,
   type HistoryPage, type MessageCursor,
 } from './api';
@@ -55,9 +55,10 @@ type Props = {
   group: ChatGroup | null;
   open: boolean;
   onClose: () => void;
+  onAuthExpired: () => void;
 };
 
-export default function HistoryDialog({ gid, group, open, onClose }: Props) {
+export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [filters, setFilters] = useState<HistoryFilters>({ start: '', end: '', sender: '', keyword: '' });
   const [applied, setApplied] = useState<HistoryFilters | null>(null);
@@ -151,8 +152,9 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
       setResult(pageData);
       setStatus('idle');
       if (!pageData.items.length) setFeedback('没有符合条件的聊天记录');
-    } catch {
+    } catch (error) {
       if (version !== versionRef.current || controller.signal.aborted) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       setResult(null);
       setStatus('error');
       setFeedback('聊天记录查询失败，请稍后重试。');
@@ -182,8 +184,9 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
       await syncHistory(gid, toQueryDateTime(syncDate) ?? `${syncDate} 00:00:00`, controller.signal);
       if (version !== versionRef.current || controller.signal.aborted) return;
       setFeedback('已开始同步更早的历史消息，稍后请手动刷新查看。');
-    } catch {
+    } catch (error) {
       if (version !== versionRef.current || controller.signal.aborted) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       setFeedback('同步历史请求失败，请稍后重试。');
     } finally {
       setSyncing(false);
@@ -223,8 +226,9 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
         const element = messagesRef.current?.querySelector<HTMLElement>(`[data-mid="${target.mid}"]`);
         element?.scrollIntoView({ block: 'center' });
       });
-    } catch {
+    } catch (error) {
       if (version !== versionRef.current || controller.signal.aborted) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       setFeedback('消息上下文加载失败，请返回后重试。');
     }
   }
@@ -266,8 +270,9 @@ export default function HistoryDialog({ gid, group, open, onClose }: Props) {
         after: afterCursor,
       });
       setEdges(beforeCursor, afterCursor);
-    } catch {
-      if (version !== versionRef.current) return;
+    } catch (error) {
+      if (version !== versionRef.current || controller.signal.aborted) return;
+      if (error instanceof HttpError && error.status === 401) onAuthExpired();
       if (direction === 'before') setEarlierState('更早消息加载失败');
       else setNewerState('更新消息加载失败');
     } finally {

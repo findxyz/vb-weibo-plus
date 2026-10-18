@@ -1745,3 +1745,137 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
   expect(metrics.lastButtonOffsetRight).toBeGreaterThanOrEqual(0);
   expect(metrics.lastButtonOffsetRight).toBeLessThanOrEqual(12);
 });
+
+test('chat_business_401_opens_login_recovery', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  messagesStatus.set(1, 401);
+  loginValid = true;
+  await openChat(page);
+  await expect(page.locator('.messages-state')).toContainText('本地消息暂时不可用');
+  await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible({ timeout: 1500 });
+});
+
+test('chat_does_not_let_a_late_valid_status_hide_a_business_401', async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/weibo/login/status', async route => {
+    await gate;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"valid":true}' });
+  });
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  messagesStatus.set(1, 401);
+  await openChat(page);
+  await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
+  const response = page.waitForResponse(item => item.url().endsWith('/weibo/login/status'));
+  release();
+  await response;
+  await page.waitForTimeout(150);
+  await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
+});
+
+test('chat_opens_login_recovery_after_a_send_401', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  sendStatus = 401;
+  await openChat(page);
+  const input = page.getByRole('textbox', { name: '输入消息', exact: true });
+  await input.fill('本地替身消息');
+  await input.press('Enter');
+  await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
+  await expect(input).toHaveValue('本地替身消息');
+});
+
+test('chat_backs_off_group_failures_and_resets_after_recovery', async ({ page }) => {
+  await page.clock.install();
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await expect(page.locator('.messages')).toContainText('消息 3');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+  const reads = () => requests.filter(request => request === 'GET /chat/groups').length;
+  groupsStatus = 500;
+  const before = reads();
+  await page.clock.runFor(1000);
+  await expect.poll(reads).toBe(before + 1);
+  await page.waitForTimeout(50);
+  await page.clock.runFor(1000);
+  expect(reads()).toBe(before + 1);
+  await page.clock.runFor(1000);
+  await expect.poll(reads).toBe(before + 2);
+  await page.waitForTimeout(50);
+  await page.clock.runFor(3000);
+  expect(reads()).toBe(before + 2);
+  groupsStatus = 200;
+  await page.clock.runFor(1000);
+  await expect.poll(reads).toBe(before + 3);
+  await page.waitForTimeout(50);
+  await page.clock.runFor(1000);
+  await expect.poll(reads).toBe(before + 4);
+});
+
+test('chat_expired_login_does_not_refresh_groups_on_focus', async ({ page }) => {
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  loginValid = false;
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
+  const before = requests.filter(request => request === 'GET /chat/groups').length;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(250);
+  expect(requests.filter(request => request === 'GET /chat/groups').length).toBe(before);
+});
+
+test('chat_an_old_group_send_does_not_refresh_the_new_group', async ({ page }) => {
+  await page.clock.install();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/chat/messages/send', async route => {
+    await gate;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  messagesByGid.set(1, makeMessages(1, 3, '旧群'));
+  messagesByGid.set(2, makeMessages(2, 3, '新群'));
+  await openChat(page);
+  const sending = page.waitForRequest(request => request.url().endsWith('/chat/messages/send'));
+  await page.getByRole('textbox', { name: '输入消息', exact: true }).fill('本地替身消息');
+  await page.getByRole('textbox', { name: '输入消息', exact: true }).press('Enter');
+  await sending;
+  await page.locator('.group-row', { hasText: '第二群' }).click();
+  await expect(page.locator('.messages')).toContainText('新群 3');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+  const reads = () => requests.filter(request => request.includes('/chat/messages/cursor?gid=2')).length;
+  const before = reads();
+  const response = page.waitForResponse(item => item.url().endsWith('/chat/messages/send'));
+  release();
+  await response;
+  await expect(page.locator('.composer-hint')).toContainText('按下 Enter');
+  await page.waitForTimeout(200);
+  expect(reads()).toBe(before);
+});
+
+test('chat_analysis_abort_does_not_leave_a_false_failure', async ({ page }) => {
+  analysisItems = Array.from({ length: 25 }, (_, index) => ({
+    id: index + 1, date: '2026-10-18', promptPreview: `分析 ${index + 1}`,
+    messageCount: 10, createdAt: '2026-10-18 09:00',
+  }));
+  await page.route('**/chat/analyses?*', async route => {
+    if (new URL(route.request().url()).searchParams.get('page') === '2') {
+      await new Promise(resolve => setTimeout(resolve, 750));
+    }
+    await route.continue().catch(() => {});
+  });
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await expect(dialog.locator('.analysis-item')).toHaveCount(20);
+  const request = page.waitForRequest(item => item.url().includes('/chat/analyses?')
+    && new URL(item.url()).searchParams.get('page') === '2');
+  await dialog.getByRole('button', { name: '下一页 ➡️' }).click();
+  await request;
+  const response = page.waitForResponse(item => item.url().includes('/chat/analyses?')
+    && new URL(item.url()).searchParams.get('page') === '1');
+  await dialog.getByRole('button', { name: '⬅️ 上一页' }).click();
+  await response;
+  await expect(dialog.locator('.analysis-item')).toHaveCount(20);
+  await expect(dialog.locator('.analysis-feedback')).toHaveCount(0);
+});
