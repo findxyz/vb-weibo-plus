@@ -21,6 +21,56 @@
 
 浏览器中的 React 页面通过 HTTP／SSE 访问 Spring Boot（默认 `:18080`）；Spring Boot 负责微博 API、群聊 WebSocket、本地 SQLite、图片／视频代理及可选的 AI 分析。ffmpeg 可选，用于 HEIC 图片转码。
 
+### 整体分层
+
+```mermaid
+graph TB
+    subgraph Browser["浏览器前端（React 静态产物）"]
+        ChatUI["chat/index.html + React<br/>群聊查看 · 发消息 · AI 分析"]
+        PostUI["post/index.html + React<br/>微博浏览 · 日历 · 博主管理"]
+    end
+
+    subgraph SpringBoot["Spring Boot :18080"]
+        Controller["Controller 层<br/>8 个 REST 控制器"]
+        Service["Service 层<br/>ChatService · PostService<br/>AnalysisService · ImageProxyService"]
+        API["API 适配层<br/>8 个微博 HTTP 端点封装"]
+        Push["GroupPushApi<br/>Bayeux WebSocket"]
+        Client["Client 层<br/>WeiboHttpClient · AiClient"]
+        Repo["Repository 层<br/>5 个 JPA Repository"]
+        SyncTask["SyncTask<br/>CommandLineRunner + @Scheduled"]
+    end
+
+    subgraph Storage["本地存储"]
+        SQLite[("SQLite weibo.db<br/>5 张表 · WAL 模式")]
+        CookieFile[".weibo_cookie.txt<br/>登录态文件"]
+    end
+
+    subgraph External["外部服务"]
+        Weibo["微博 Web/API<br/>api.weibo.com · weibo.com/ajax · 图床 CDN"]
+        AiAPI["OpenAI 兼容 AI API<br/>可选"]
+        FFmpeg["ffmpeg / ffprobe<br/>HEIC 转码 · 视频封面 · 可选"]
+        Playwright["Playwright Chromium<br/>扫码登录"]
+    end
+
+    ChatUI -->|HTTP / SSE| Controller
+    PostUI -->|HTTP| Controller
+    Controller --> Service
+    Service --> API
+    Service -->|开启 / 关闭| Push
+    Service --> Repo
+    API --> Client
+    Client -->|带 Cookie HTTP| Weibo
+    Push -->|携带 Credential 的 WebSocket| Weibo
+    Push -->|原始 data 的 Spring 事件| SyncTask
+    Client -->|SSE / 同步| AiAPI
+    API --> Playwright
+    Service --> FFmpeg
+    Repo --> SQLite
+    SyncTask -->|定时拉取 / 维持连接| Service
+    Playwright -.->|写入 Cookie| CookieFile
+    CookieFile -.->|启动恢复| Client
+```
+
 ## 前置条件
 
 - **JDK 21**
