@@ -509,7 +509,7 @@ test('chat_explains_an_empty_group_without_loading_earlier_pages', async ({ page
   await openChat(page);
 
   await expect(page.locator('.message')).toHaveCount(0);
-  await expect(page.getByRole('status')).toHaveText('这个群还没有本地消息。');
+  await expect(page.locator('.messages').getByRole('status')).toHaveText('这个群还没有本地消息。');
   const polled = requests.filter(value => !value.includes('/weibo/login/status'));
   expect(polled.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=1&size=50']);
 });
@@ -1672,7 +1672,7 @@ test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async 
   holdPredicate = url => url.searchParams.get('gid') === '1';
   await openChat(page);
 
-  await expect(page.getByRole('status')).toHaveText('正在加载消息……');
+  await expect(page.locator('.messages').getByRole('status')).toHaveText('正在加载消息……');
   await page.locator('.group-row', { hasText: '第二群' }).click();
   await expect(page.locator('.message').last()).toContainText('新群 3');
   releaseHeld();
