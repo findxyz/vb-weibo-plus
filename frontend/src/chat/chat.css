@@ -139,6 +139,19 @@ a:focus-visible {
   box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
+.title-logo {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+
+.title-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 h1 {
   min-width: 0;
   margin: 0;
@@ -646,7 +659,8 @@ h1 {
   font-size: 20px;
 }
 
-.group-number {
+.group-number,
+.group-size {
   margin: 0;
   color: var(--muted);
   font-size: 13px;

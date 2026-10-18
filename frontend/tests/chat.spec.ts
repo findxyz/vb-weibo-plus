@@ -783,14 +783,14 @@ test('chat_refreshes_group_metadata_without_losing_selection', async ({ page }) 
   await openChat(page);
 
   await expect(page.locator('.group-row').first()).toContainText('成员A：早上好');
-  await expect(page.locator('.group-number')).toContainText('+ 3 条消息');
+  await expect(page.locator('.group-size')).toContainText('+ 3 条消息');
   await expect(page.locator('.current-message-count')).toHaveText('3');
   await expect(page.locator('.current-message-count')).not.toHaveClass(/size-flash/);
   const before = await page.locator('.messages').evaluate(element => element.scrollTop);
 
   groups[0] = makeGroup(1, '第一群', { latestSenderName: '成员B', latestMessage: '新内容', messageCount: 7 });
   await expect(page.locator('.group-row').first()).toContainText('成员B：新内容', { timeout: 4000 });
-  await expect(page.locator('.group-number')).toContainText('+ 7 条消息');
+  await expect(page.locator('.group-size')).toContainText('+ 7 条消息');
   await expect(page.locator('.current-message-count')).toHaveText('7');
   // 消息数变化时数字闪一次，与旧页 size-flash 一致。
   await expect(page.locator('.current-message-count')).toHaveClass(/size-flash/);
@@ -2134,3 +2134,22 @@ test(`chat_acceptance_closing_history_cancels_pending_${operation}`, async ({ pa
   await expect(history.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
 });
 }
+
+test('chat_acceptance_preserves_the_window_logo_and_favicon', async ({ page }) => {
+  await openChat(page);
+  await expect(page.locator('.title-logo img')).toBeVisible();
+  await expect.poll(() => page.locator('.title-logo img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator('head link[rel="icon"]')).toHaveAttribute('type', 'image/svg+xml');
+  const href = await page.locator('head link[rel="icon"]').getAttribute('href');
+  const response = await page.request.get(new URL(href!, page.url()).href);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()['content-type']).toContain('image/svg+xml');
+});
+
+test('chat_acceptance_shows_the_current_group_number_after_switching', async ({ page }) => {
+  await openChat(page);
+  await expect(page.locator('.group-number')).toContainText('群号：1');
+  await page.locator('.group-row').filter({ hasText: '第二群' }).click();
+  await expect(page.locator('.group-number')).toContainText('群号：2');
+  await expect(page.locator('.group-number')).not.toContainText('群号：1');
+});

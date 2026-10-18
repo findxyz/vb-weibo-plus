@@ -10,6 +10,8 @@ import HistoryDialog from './HistoryDialog';
 import MessageList from './MessageList';
 import { fetchGroups, fetchLoginStatus, HttpError, startQrLogin as requestQrLogin } from './api';
 import { groupMemberCount, groupName } from './display';
+import weiboLogo from './assets/weibo-logo.svg';
+import favicon from '../../../src/main/resources/static/favicon.svg';
 
 export default function ChatPage() {
   const [loginExpired, setLoginExpired] = useState(false);
@@ -223,7 +225,9 @@ export default function ChatPage() {
 
   return (
     <div className="app">
+      <link rel="icon" type="image/svg+xml" href={favicon} />
       <header className="titlebar">
+        <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
         <h1>{title}</h1>
         <div className="window-controls">
           <button type="button" className="window-control immersive" aria-pressed={immersive}
@@ -252,7 +256,8 @@ export default function ChatPage() {
                 <div className="group-title-line">
                   <h2>{groupName(selectedGroup)}</h2>
                 </div>
-                <p className="group-number">
+                <p className="group-number">群号：{selectedGroup.gid}</p>
+                <p className="group-size">
                   {memberMeta}
                   {messageCount != null && (
                     <>
