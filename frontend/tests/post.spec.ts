@@ -53,6 +53,32 @@ let releaseSearch: (() => void) | undefined;
 let loginPayload: unknown;
 let loginStatus = 200;
 
+test('calendar_grid_navigates_months_without_querying_and_only_reads_days_with_posts', async ({ page }) => {
+  calendar = { months: [
+    { month: '2026-10', count: 3, days: [{ date: '2026-10-18', count: 3 }] },
+    { month: '2024-02', count: 1, days: [{ date: '2024-02-29', count: 1 }] },
+  ] };
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('button', { name: '2026-10-18', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const reads = requests.filter(value => value.startsWith('GET /post/'));
+  await expect(page.getByRole('button', { name: '2026-10-01', exact: true })).toBeDisabled();
+  const firstDay = page.getByRole('button', { name: '2026-10-01', exact: true });
+  expect(await firstDay.evaluate(element => [...element.parentElement!.children].indexOf(element))).toBe(3);
+  await page.getByLabel('选择年份', { exact: true }).selectOption('2024');
+  await page.getByLabel('选择月份', { exact: true }).selectOption('02');
+  await expect(page.getByRole('button', { name: '2024-02-29', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '2024-02-30', exact: true })).toHaveCount(0);
+  expect(requests.filter(value => value.startsWith('GET /post/'))).toEqual(reads);
+  await page.getByRole('button', { name: '2024-02-29', exact: true }).click();
+  await expect.poll(() => requests.some(value => value.includes('start=2024-02-29'))).toBe(true);
+  await expect(page.getByRole('button', { name: '2024-02-29', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '下个月', exact: true }).click();
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('03');
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2026');
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('10');
+});
+
 function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
   return { pid, thumbnailWidth: 300, thumbnailHeight: 180, originalWidth: 1200, originalHeight: 720,
     thumbnailUrl: `/post/image?mblogId=local-1&pid=${pid}&variant=thumbnail`,
@@ -374,7 +400,7 @@ test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refre
   });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
-  await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '同步历史', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '第二位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
   const reading = requests.filter(value => value.startsWith('GET /post/list?'));

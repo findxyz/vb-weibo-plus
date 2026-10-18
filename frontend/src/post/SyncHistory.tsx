@@ -54,12 +54,12 @@ export default function SyncHistory({ blogger, visit, onStart, onComplete, onUna
     sync.mutate({ uid: blogger.uid, visit, start, end });
   }
   return <>
-    {blogger && <button type="button" className="search-open sync-history-open" aria-disabled={sync.isPending} onClick={() => {
-      if (pending.current) return;
+    <button type="button" className="search-open sync-history-open" disabled={!blogger} aria-disabled={!blogger || sync.isPending} title={!blogger ? '请先选择一位博主' : '同步历史微博'} onClick={() => {
+      if (!blogger || pending.current) return;
       const today = shanghaiToday();
       setStart(localDateValue(calendarMonthsAgo(new Date(`${today}T12:00:00`), 24)));
       setEnd(today); setValidation(''); setOpen(true);
-    }}>同步历史</button>}
+    }}>同步历史</button>
     {open && blogger && createPortal(<dialog ref={dialogRef} className="management-dialog" aria-labelledby="sync-history-title" onClose={() => setOpen(false)}>
       <div className="management-window">
         <header className="search-overlay-titlebar"><span className="add-blogger-title-icon" aria-hidden="true">↓</span><h2 id="sync-history-title">同步历史微博</h2><button type="button" aria-label="关闭同步历史微博" onClick={() => dialogRef.current!.close()} /></header>

@@ -5,7 +5,7 @@ import PostLogin from './PostLogin';
 import AddBlogger from './AddBlogger';
 import SyncHistory from './SyncHistory';
 import PostFeed from './PostFeed';
-import DateTimeline from './DateTimeline';
+import DateCalendar from './DateCalendar';
 import PostSearch from './PostSearch';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import weiboLogo from '../shared/assets/weibo-logo.svg';
@@ -75,7 +75,7 @@ export default function PostPage() {
             {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
             {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}
             {calendar.isSuccess && !date && <p className="panel-feedback" role="status">暂无有博文的日期。</p>}
-            {date && <DateTimeline key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
+            {date && <DateCalendar key={selection.visit} months={months} date={date} reveal={jump} onSelectDate={selectDate} />}
           </div>
         </section>
         <section className="feed" aria-label="博文区域">
