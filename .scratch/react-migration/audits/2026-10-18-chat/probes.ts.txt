@@ -1,0 +1,110 @@
+// Append these audit cases to a temporary copy of frontend/tests/chat.spec.ts.
+
+test('audit_business_401_opens_login_recovery', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  messagesStatus.set(1, 401);
+  loginValid = true;
+  await openChat(page);
+  await expect(page.locator('.messages-state')).toContainText('本地消息暂时不可用');
+  await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible({ timeout: 1500 });
+});
+
+test('audit_expired_login_does_not_refresh_groups_on_focus', async ({ page }) => {
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  loginValid = false;
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
+  const before = requests.filter(request => request === 'GET /chat/groups').length;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(250);
+  expect(requests.filter(request => request === 'GET /chat/groups').length).toBe(before);
+});
+
+test('audit_dream_can_rehover_after_an_interrupted_hover', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const avatar = page.locator('[data-sender-id="101"]').first();
+  await avatar.hover();
+  await page.waitForTimeout(200);
+  await page.mouse.move(20, 20);
+  await avatar.hover();
+  await expect(page.locator('.dream-popover')).toBeVisible({ timeout: 4000 });
+});
+
+test('audit_scrolling_cancels_a_pending_dream_probe', async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/chat/dream/101.html', async route => {
+    await gate;
+    await route.fulfill({ status: 200, contentType: 'text/html', body: '<html>dream</html>' });
+  });
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const probe = page.waitForRequest(request => request.url().endsWith('/chat/dream/101.html'));
+  await page.locator('[data-sender-id="101"]').first().hover();
+  await probe;
+  await page.locator('.messages').evaluate(element => element.dispatchEvent(new Event('scroll')));
+  const response = page.waitForResponse(item => item.url().endsWith('/chat/dream/101.html'));
+  release();
+  await response;
+  await page.waitForTimeout(150);
+  await expect(page.locator('.dream-popover')).toHaveCount(0);
+});
+
+test('audit_an_old_group_send_does_not_refresh_the_new_group', async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/chat/messages/send', async route => {
+    await gate;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  messagesByGid.set(1, makeMessages(1, 3, '旧群'));
+  messagesByGid.set(2, makeMessages(2, 3, '新群'));
+  await openChat(page);
+  const sending = page.waitForRequest(request => request.url().endsWith('/chat/messages/send'));
+  await page.getByRole('textbox', { name: '输入消息', exact: true }).fill('本地替身消息');
+  await page.getByRole('textbox', { name: '输入消息', exact: true }).press('Enter');
+  await sending;
+  await page.locator('.group-row', { hasText: '第二群' }).click();
+  await expect(page.locator('.messages')).toContainText('新群 3');
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  const reads = () => requests.filter(request => request.includes('/chat/messages/cursor?gid=2')).length;
+  const before = reads();
+  const response = page.waitForResponse(item => item.url().endsWith('/chat/messages/send'));
+  release();
+  await response;
+  await expect(page.locator('.composer-hint')).toContainText('按下 Enter');
+  await page.waitForTimeout(200);
+  expect(reads()).toBe(before);
+});
+
+test('audit_analysis_abort_does_not_leave_a_false_failure', async ({ page }) => {
+  analysisItems = Array.from({ length: 25 }, (_, index) => ({
+    id: index + 1, date: '2026-10-18', promptPreview: `分析 ${index + 1}`,
+    messageCount: 10, createdAt: '2026-10-18 09:00',
+  }));
+  await page.route('**/chat/analyses?*', async route => {
+    if (new URL(route.request().url()).searchParams.get('page') === '2') {
+      await new Promise(resolve => setTimeout(resolve, 750));
+    }
+    await route.continue().catch(() => {});
+  });
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await expect(dialog.locator('.analysis-item')).toHaveCount(20);
+  const request = page.waitForRequest(item => item.url().includes('/chat/analyses?')
+    && new URL(item.url()).searchParams.get('page') === '2');
+  await dialog.getByRole('button', { name: '下一页 ➡️' }).click();
+  await request;
+  const response = page.waitForResponse(item => item.url().includes('/chat/analyses?')
+    && new URL(item.url()).searchParams.get('page') === '1');
+  await dialog.getByRole('button', { name: '⬅️ 上一页' }).click();
+  await response;
+  await expect(dialog.locator('.analysis-item')).toHaveCount(20);
+  await expect(dialog.locator('.analysis-feedback')).toHaveCount(0);
+});

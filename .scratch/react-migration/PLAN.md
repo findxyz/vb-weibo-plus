@@ -2,6 +2,7 @@
 
 最近更新：2026-10-18。
 分支：`codex/react-migration`。
+整页审查：2026-10-18，在 `149d54a` 上确认主体功能已到任务 32；现有 chat 62 项测试通过，但新增 6 个边界场景复现 4 组缺陷，另有 3 组迁移遗漏，均尚未修复。详见[缺口审查与复现证据](audits/2026-10-18-chat/REVIEW.md)。正式切换须等待这些缺口处理及整页验收。
 当前进度：任务 01 至 18 已完成，post 迁移与正式入口切换完成。新构建的 /post/index.html 已由 React 接管，post preview 与旧 post 专属源码已移除。正式 chat 仍是旧版，React chat 在 preview 对照；阶段 4 任务 19 至 30 与 32 已完成，任务 31 的怪兽欢迎已按用户决定从两套页面移除。用户运行环境的部署另行进行。
 
 本次切换：2026-10-17，任务 18 实施于 45b0e55、a79b064、48f9154。最终 124 项 Chrome 回归、内容高度补充检查、类型／构建通过，干净 Maven verify 的 411 项测试通过。Spec 的两项 P3 及内容高度复核均已修正，Standards／Spec 无剩余发现。最终隔离 JAR 的三尺寸组合、正式 post／旧 chat 往返、刷新、图标与模块 MIME、旧资源 404 和 JAR 清单通过；所有业务 POST 使用本地替身。新包保存于 target/react-migration-release/ticket-18，切换前旧包与回退基线保存在 ticket-17 和提交 2cc6ef8。完整证据见 [任务 18](issues/18-post-formal-entry.md)。Windows worker 原生退出本次未出现，独立问题仍保留。
