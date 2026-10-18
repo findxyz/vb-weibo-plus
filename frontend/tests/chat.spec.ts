@@ -1,4 +1,4 @@
-﻿import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../src/shared/storage-keys.js';
@@ -1241,7 +1241,12 @@ test('chat_history_pagination_keeps_results_while_loading', async ({ page }) => 
 });
 
 test('chat_opens_history_context_and_pages_both_ways', async ({ page }) => {
-  messagesByGid.set(1, makeMessages(1, 120, '消息'));
+  const contextItems = makeMessages(1, 120, '消息');
+  for (let mid = 50; mid <= 59; mid += 1) {
+    contextItems[mid - 1].mediaType = 1;
+    contextItems[mid - 1].previewUrl = `/chat/media?gid=1&mid=${mid}&variant=preview`;
+  }
+  messagesByGid.set(1, contextItems);
   await openChat(page);
   await page.getByRole('button', { name: '📜 聊天记录' }).click();
   const dialog = page.locator('dialog.history-dialog');
@@ -1254,6 +1259,30 @@ test('chat_opens_history_context_and_pages_both_ways', async ({ page }) => {
 
   await expect(dialog.locator('.history-context')).toBeVisible();
   await expect(dialog.locator('[data-mid="60"]')).toHaveClass(/target-message/);
+  const targetLayout = () => dialog.evaluate(element => {
+    const container = element.querySelector('.history-messages') as HTMLElement;
+    const target = element.querySelector('[data-mid="60"]') as HTMLElement;
+    const cr = container.getBoundingClientRect();
+    const tr = target.getBoundingClientRect();
+    return {
+      scrollTop: container.scrollTop,
+      clientHeight: container.clientHeight,
+      relTop: tr.top - cr.top,
+      targetHeight: tr.height,
+    };
+  });
+  const centered = (layout: { relTop: number; targetHeight: number; clientHeight: number }) =>
+    Math.abs(layout.relTop + layout.targetHeight / 2 - layout.clientHeight / 2);
+
+  const initial = await targetLayout();
+  expect(initial.scrollTop).toBeGreaterThan(0);
+  expect(centered(initial)).toBeLessThan(80);
+
+  // 目标上方的图片加载会改变高度，等待后仍应保持居中。
+  await page.waitForTimeout(1200);
+  const settled = await targetLayout();
+  expect(centered(settled)).toBeLessThan(80);
+
   expect(requests.filter(value => value.includes('beforeMid=60')).length).toBe(1);
   expect(requests.filter(value => value.includes('afterMid=60')).length).toBe(1);
   await expect(dialog.locator('.history-edge-state').first()).toHaveText('向上滚动加载更早消息');

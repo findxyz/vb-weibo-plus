@@ -67,6 +67,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [feedback, setFeedback] = useState('');
   const [context, setContext] = useState<Context | null>(null);
+  const [contextReady, setContextReady] = useState(false);
   const [earlierState, setEarlierState] = useState('');
   const [newerState, setNewerState] = useState('');
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
   const controllerRef = useRef<AbortController | null>(null);
   const loadingMoreRef = useRef(false);
   const pendingAnchorRef = useRef<{ mid: number; top: number } | null>(null);
+  const centeredTargetRef = useRef<number | null>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
 
   function reset() {
@@ -95,6 +97,8 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     setStatus('idle');
     setFeedback('');
     setContext(null);
+    setContextReady(false);
+    centeredTargetRef.current = null;
     setEarlierState('');
     setNewerState('');
     setViewerUrl(null);
@@ -132,6 +136,44 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     const element = container?.querySelector<HTMLElement>(`[data-mid="${anchor.mid}"]`);
     if (container && element) container.scrollTop += element.getBoundingClientRect().top - anchor.top;
   }, [context]);
+
+  // 新目标加载完成后在提交后的布局阶段居中；等 React 提交 DOM 再量位置，
+  // 不能用 requestAnimationFrame，否则可能量到尚未渲染的列表。目标上方的
+  // 图片稍后加载会改变高度，因此在图片加载期间再校正几次。
+  useLayoutEffect(() => {
+    if (!context || !contextReady) return;
+    if (centeredTargetRef.current === context.targetMid) return;
+    const container = messagesRef.current;
+    const element = container?.querySelector<HTMLElement>(`[data-mid="${context.targetMid}"]`);
+    if (!container || !element) return;
+    centeredTargetRef.current = context.targetMid;
+    const center = () => {
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = element.getBoundingClientRect();
+      container.scrollTop += targetRect.top - containerRect.top
+        - (container.clientHeight - targetRect.height) / 2;
+    };
+    center();
+    let cancelled = false;
+    const onLoad = () => { if (!cancelled) center(); };
+    const pending = [...container.querySelectorAll<HTMLImageElement>('img')].filter(image =>
+      !image.complete && image.getBoundingClientRect().top < element.getBoundingClientRect().top);
+    for (const image of pending) {
+      image.addEventListener('load', onLoad);
+      image.addEventListener('error', onLoad);
+    }
+    const timer = window.setTimeout(() => {
+      if (!cancelled) center();
+    }, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      for (const image of pending) {
+        image.removeEventListener('load', onLoad);
+        image.removeEventListener('error', onLoad);
+      }
+    };
+  }, [context, contextReady]);
 
   function ensureController() {
     if (!controllerRef.current || controllerRef.current.signal.aborted) {
@@ -206,6 +248,8 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     if (gid == null) return;
     const controller = ensureController();
     const version = ++versionRef.current;
+    centeredTargetRef.current = null;
+    setContextReady(false);
     setContext({ messages: [target], targetMid: target.mid, before: null, after: null });
     setEarlierState('');
     setNewerState('');
@@ -226,10 +270,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
         after: afterCursor,
       });
       setEdges(beforeCursor, afterCursor);
-      requestAnimationFrame(() => {
-        const element = messagesRef.current?.querySelector<HTMLElement>(`[data-mid="${target.mid}"]`);
-        element?.scrollIntoView({ block: 'center' });
-      });
+      setContextReady(true);
     } catch (error) {
       if (version !== versionRef.current || controller.signal.aborted) return;
       if (error instanceof HttpError && error.status === 401) onAuthExpired();
@@ -300,6 +341,8 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     versionRef.current += 1;
     controllerRef.current?.abort();
     controllerRef.current = new AbortController();
+    centeredTargetRef.current = null;
+    setContextReady(false);
     setContext(null);
     setViewerUrl(null);
     setFeedback('');
