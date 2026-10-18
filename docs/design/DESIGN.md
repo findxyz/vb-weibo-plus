@@ -131,9 +131,8 @@ typography:
     lineHeight: 24px
   post-brand:
     fontFamily: '"Microsoft YaHei", sans-serif'
-    fontSize: 22px
-    fontWeight: 800
-    letterSpacing: "0.2px"
+    fontSize: 36px
+    fontWeight: 700
 rounded:
   sm: 3px
   md: 4px

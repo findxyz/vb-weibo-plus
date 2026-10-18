@@ -125,7 +125,7 @@ class GroupChatPageTest {
             page.navigate(baseUrl + "/chat/index.html");
             page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("切换到本地微博").setExact(true)).press("Enter");
             assertThat(page).hasURL(baseUrl + "/post/index.html");
-            assertThat(page.locator("h1")).hasText("本地微博");
+            assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("本地微博").setExact(true))).isVisible();
             page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到微博群聊").setExact(true)).press("Enter");
             assertThat(page).hasURL(baseUrl + "/chat/index.html");
             assertThat(page.locator(".messages")).containsText("打包后的消息");
