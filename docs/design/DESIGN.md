@@ -218,14 +218,14 @@ components:
     typography: "{typography.retweet-content}"
     rounded: "{rounded.post-control}"
   post-button:
-    backgroundColor: "{colors.post-button-top}"
+    backgroundColor: "{colors.post-surface-raised}"
     textColor: "{colors.post-text}"
     height: 32px
     rounded: "{rounded.post-control}"
   post-input:
     backgroundColor: "{colors.post-surface}"
     textColor: "{colors.post-text}"
-    height: 34px
+    height: 36px
     rounded: "{rounded.post-control}"
 
 ---
@@ -248,17 +248,19 @@ chat 继续使用 YAML 中原有拟物令牌。post 仅使用 post 前缀令牌�
 | --sky | post-sky | 星空图片下的背景底色 |
 | --surface | post-surface | 连续微博流、输入框、弹窗 |
 | --surface-alt | post-surface-alt | 右侧栏和转发区域 |
-| --surface-raised | post-surface-raised | 标题带、悬停与定位高亮 |
+| --surface-raised | post-surface-raised | 普通按钮、悬停与定位高亮 |
 | --text／--muted | post-text／post-muted | 正文与元信息 |
-| --link | post-link | 昵称、原文链接 |
+| --link | post-link | 正文链接、转发作者、选中博主左侧标记 |
 | --line／--border | post-line／post-border | 条目分隔与控件描边 |
-| --selected／--accent | post-selected／post-accent | 博主选中与日期选中 |
+| --selected／--accent | post-selected／post-accent | 博主与日期选中／保留强调色 |
 | --focus | post-focus | 键盘焦点环 |
 | --verified | post-verified | 认证标记 |
 | --danger／--mark | post-danger／post-mark | 错误提示与搜索命中 |
-| --button-top／--button-bottom | post-button-top／post-button-bottom | 紧凑蓝色按钮渐变 |
+| --button-top／--button-bottom | post-button-top／post-button-bottom | 历史按钮渐变令牌，当前控件使用纯色底 |
 
 post 的正文、链接与次要文字在深色底上保持清晰。禁用按钮使用 45% 不透明度，并设置原生 disabled；进行中的采集按钮沿用 aria-disabled 与提交防重。
+
+博主列表与正文作者使用 post-text，正文链接保留 post-link。侧栏使用稳定的 post-surface-alt，普通按钮使用 post-surface-raised，控件描边使用 post-line；只在选中项和主要提交按钮上加强调，减少长时间阅读时的视觉干扰。
 
 ## Typography
 
@@ -274,18 +276,18 @@ post 的正文、链接与次要文字在深色底上保持清晰。禁用按钮
 - post 最小窗口为 900×560，居中外框最大宽度为 1120px；默认两侧总留白为 64px，顶部留白 32px。
 - 顶部不再有品牌 banner；群聊切换入口与高级搜索同排在正文标题栏右侧，紧邻日期面板。
 - 主体为三栏：左侧 240px 博主管理、中间自适应微博流、右侧 260px 日期面板。窗口宽度不超过 1100px 时，外侧总留白改为 32px，左栏 220px、右栏 240px。
-- 三栏顶部对齐；正文面板标题高不小于 48px，正文独立滚动；左右栏各自独立滚动，博主列表占满左栏剩余高度。
-- 右栏为日期选择。日历星期一开头，日期格高 36px，空日期不可点，有内容日期显示圆点。
+- 三栏顶部对齐；面板标题高不小于 72px，阅读标题下方另排日期与条数，右侧操作按钮保持同排。正文独立滚动；左右栏各自独立滚动，博主列表占满左栏剩余高度。
+- 右栏为日期选择。日历星期一开头，日期格高 36px、间距 4px，不画网格线；空日期不可点，有内容日期显示圆点。选中日期使用 post-selected 底色与 post-border 内描边。
 - 年月下拉支持直接选择，前后月按钮在数据范围边缘禁用。导航月份不发请求；选择有效日期才读取当日内容。
 - 添加博主与同步历史并排，按钮最小高 32px；同步按钮常驻，选中单个博主后可用。
-- 博文头像为 48px 方形，博主列表头像为 40px 方形。条目左右间距 12px，正文容器内边距 18px，条目上下内边距 18px。
+- 博文头像为 48px 方形，博主列表头像为 40px 方形。头像与正文间距 12px，正文容器左内边距 24px、右内边距 16px，条目上下内边距 24px，正文块间距 12px。窄窗口正文容器回落到左 12px、右 8px。博主行最小高 64px，列表左右留白 8px。
 - 元信息移至内容之后，与“查看原文”同行；长来源允许截断，不增加社交操作。
 - chat 的标题栏 38px、侧栏 280px、工具栏 48px 与输入区 154px 保持不变。
 
 ## Elevation & Shapes
 
 - post 按钮、转发框和弹窗为 3px 圆角；头像为 1px 圆角；连续微博流为直角、无独立卡片投影。
-- 控件使用 1px 蓝色描边；三栏面板与标题栏不描边，仅靠背景色区分；头像为 2px 浅色描边；图片为 1px 浅色描边。
+- 控件使用 1px post-line 描边；三栏面板靠背景色区分，阅读标题底部使用细分隔线；头像为 2px post-line 描边，图片为 1px 浅色描边。选中博主以 post-selected 为底，左侧使用 3px post-link 内侧标记。
 - 弹窗投影为 0 12px 36px rgb(0 12 28 / 55%)，弹窗遮罩为 rgb(0 12 28 / 65%)。
 - 原图查看器遮罩为 rgb(0 12 28 / 90%)，图片保留 3px 浅色边框。
 - 焦点环为 3px solid var(--focus)，外扩 2px。
@@ -295,6 +297,7 @@ post 的正文、链接与次要文字在深色底上保持清晰。禁用按钮
 
 - 星空背景只用于页面外层；正文使用稳定深色底。
 - 文字操作按钮统一使用左侧 emoji 图标，图标只作装饰，按钮可访问名称保持纯文字；按钮内文字左对齐。
+- 群聊切换使用透明底与次要文字色，高级搜索保留实色底；弹窗提交按钮使用 post-selected，帮助区分操作层级。输入框高 36px，标签与输入框间距 8px，弹窗表单项间距 16px。
 - 弹窗标题栏只保留标题与关闭按钮；关闭按钮无底色，悬停才显示背景。弹窗操作按钮与外部按钮同为 32px 高、14px 字号。
 - 年月下拉保留原生 select 交互，关闭态用自定义文字层显示，避免原生控件在窄栏或高缩放下裁切中文。
 - 微博条目连续排列，以细线分隔；转发为深蓝内嵌面板。

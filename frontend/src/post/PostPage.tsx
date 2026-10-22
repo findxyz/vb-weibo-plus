@@ -72,9 +72,13 @@ export default function PostPage() {
         </aside>
         <section className="feed" aria-label="博文区域">
           <header className="feed-header">
-            <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
-            {date && <time className="reading-date" dateTime={date}>{date}</time>}
-            {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
+            <div className="feed-summary">
+              <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
+              <div className="feed-context">
+                {date && <time className="reading-date" dateTime={date}>{date}</time>}
+                {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
+              </div>
+            </div>
             <div className="feed-actions">
               <button type="button" className="search-open" onClick={() => setSearchOpen(true)}>高级搜索</button>
               <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }}>微博群聊</button>
