@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { epochToShanghaiDate, toQueryDateTime, toQueryEndTime } from '../shared/date.js';
 
@@ -78,19 +78,20 @@ export function useDefaultReading() {
   const months = validMonths(calendar.data);
   const date = selectedDate?.visit === selection.visit ? selectedDate.value : months[0]?.days[0]?.date;
   const jump = selectedDate?.visit === selection.visit ? selectedDate.jump : undefined;
-  const posts = useQuery({
-    queryKey: ['post', 'list', selection.uid, selection.visit, date, jump?.version], gcTime: 0, enabled: Boolean(date),
-    queryFn: ({ signal }) => {
-      const params = new URLSearchParams({ page: '1', size: '9999', start: `${date} 00:00:00`, end: `${date} 23:59:59` });
+  const posts = useInfiniteQuery<PostList, Error, InfiniteData<PostList, string>, readonly unknown[], string>({
+    queryKey: ['post', 'list', selection.uid, selection.visit, date, readingVersion.current], gcTime: 0, enabled: Boolean(date),
+    initialPageParam: date ?? '',
+    getNextPageParam: (_lastPage, _pages, lastDate) => months.flatMap(month => month.days).find(day => day.date < lastDate)?.date,
+    queryFn: ({ signal, pageParam }) => {
+      const params = new URLSearchParams({ page: '1', size: '9999', start: `${pageParam} 00:00:00`, end: `${pageParam} 23:59:59` });
       if (selection.uid !== null) params.set('uids', String(selection.uid));
       return getJson<PostList>(`/post/list?${params}`, signal, 30000);
     },
   });
   function selectDate(nextDate: string) {
-    if (posts.isFetching) return;
+    if (posts.isFetching && !posts.isFetchingNextPage) return;
     readingVersion.current++;
-    if (nextDate === date && !jump) void posts.refetch();
-    else setSelectedDate({ visit: selection.visit, value: nextDate });
+    setSelectedDate({ visit: selection.visit, value: nextDate });
   }
   function jumpToPost(post: Post) {
     readingVersion.current++;

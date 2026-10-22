@@ -1,6 +1,6 @@
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, chromium, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import type { Blogger, PostImage, PostList, Video } from '../src/post/queries';
 
@@ -238,6 +238,203 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1600, height: 900
     await page.screenshot({ path: testInfo.outputPath('starry-reading.png') });
   });
 }
+
+function prepareContinuousReading() {
+  calendar = { months: [
+    { month: '2026-08', count: 9, days: [{ date: '2026-08-05', count: 8 }, { date: '2026-08-03', count: 1 }] },
+    { month: '2026-07', count: 1, days: [{ date: '2026-07-31', count: 1 }] },
+  ] };
+  posts = { ...posts, total: 8, items: Array.from({ length: 8 }, (_, index) => ({ ...posts.items[0], mblogId: `latest-${index}`, content: `当天微博 ${index}\n${'阅读正文\n'.repeat(8)}` })) };
+  postsByDate['2026-08-03'] = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'earlier', content: '前一个有微博日期的正文', createdAt: Date.parse('2026-08-03T00:30:00Z') }] };
+  postsByDate['2026-07-31'] = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'oldest', content: '跨月最早正文', createdAt: Date.parse('2026-07-31T00:30:00Z') }] };
+}
+
+async function scrollReadingToBottom(page: Page) {
+  await page.locator('.posts').hover();
+  await page.mouse.wheel(0, 100000);
+}
+
+test('continuous_reading_appends_previous_available_day_without_replacing_reading_or_prefetching', async ({ page }, testInfo) => {
+  prepareContinuousReading();
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(8);
+  expect(requests.filter(value => value.startsWith('GET /post/list?'))).toHaveLength(1);
+  await page.getByRole('article').first().evaluate(element => element.setAttribute('data-retained', 'true'));
+  await scrollReadingToBottom(page);
+  await expect(page.getByRole('article')).toHaveCount(9);
+  await expect(page.getByRole('article').first()).toHaveAttribute('data-retained', 'true');
+  await expect(page.getByRole('article').last()).toContainText('前一个有微博日期的正文');
+  await expect(page.getByRole('heading', { name: '2026-08-03', exact: true })).toBeVisible();
+  expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await expect(page.locator('.reading-date')).toHaveText('2026-08-05');
+  await expect(page.getByLabel('博文总数')).toHaveText('共 9 条');
+  const query = new URL(requests.filter(value => value.startsWith('GET /post/list?')).at(-1)!.slice(4), 'http://fixture');
+  expect(Object.fromEntries(query.searchParams)).toEqual({ page: '1', size: '9999', start: '2026-08-03 00:00:00', end: '2026-08-03 23:59:59' });
+  await scrollReadingToBottom(page);
+  await expect(page.getByRole('article')).toHaveCount(10);
+  await expect(page.getByRole('article').last()).toContainText('跨月最早正文');
+  await expect(page.getByText('已读到最早的微博。', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '加载更早微博', exact: true })).toHaveCount(0);
+  const reads = [...requests];
+  await scrollReadingToBottom(page);
+  expect(requests).toEqual(reads);
+  await page.screenshot({ path: testInfo.outputPath('continuous-reading.png') });
+});
+
+test('continuous_reading_serializes_scroll_requests_and_keeps_loaded_cards_visible', async ({ page }) => {
+  prepareContinuousReading();
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(8);
+  holdResponse = true; holdPath = '/post/list';
+  await scrollReadingToBottom(page);
+  await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+  let position = 0;
+  try {
+    for (let index = 0; index < 3; index++) await page.mouse.wheel(0, 100000);
+    await expect(page.getByRole('article')).toHaveCount(8);
+    await expect(page.getByRole('status')).toHaveText('正在加载更早微博……');
+    expect(requests.filter(value => value.startsWith('GET /post/list?'))).toHaveLength(2);
+    position = await page.locator('.posts').evaluate(element => element.scrollTop);
+  } finally { holdResponse = false; releaseResponse?.(); }
+  await expect(page.getByRole('article')).toHaveCount(9);
+  expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBe(position);
+  expect(requests.filter(value => value.startsWith('GET /post/list?'))).toHaveLength(2);
+});
+
+for (const input of ['keyboard', 'scrollbar']) {
+  test(`continuous_reading_loads_after_scrolling_with_${input}`, async ({ page: defaultPage }) => {
+    const nativeBrowser = input === 'scrollbar' ? await chromium.launch({ channel: process.env.PREVIEW_BROWSER_CHANNEL, ignoreDefaultArgs: ['--hide-scrollbars'] }) : undefined;
+    const page = nativeBrowser ? await nativeBrowser.newPage({ viewport: { width: 1280, height: 800 } }) : defaultPage;
+    if (nativeBrowser) page.on('pageerror', error => pageErrors.push(error.message));
+    try {
+      prepareContinuousReading();
+      await page.goto(`${baseUrl}post/index.html`);
+      await expect(page.getByRole('article')).toHaveCount(8);
+      const feed = page.locator('.posts');
+      if (input === 'keyboard') { await feed.focus(); await page.keyboard.press('End'); }
+      else {
+        const bounds = (await feed.boundingBox())!;
+        const scrollbarWidth = bounds.width - await feed.evaluate(element => element.clientWidth);
+        await page.mouse.move(bounds.x + bounds.width - scrollbarWidth / 2, bounds.y + 40);
+        await page.mouse.down();
+        await page.mouse.move(bounds.x + bounds.width - scrollbarWidth / 2, bounds.y + bounds.height - 20, { steps: 10 });
+        await page.mouse.up();
+        expect(await feed.evaluate(element => element.scrollTop)).toBeGreaterThan(1000);
+      }
+      await expect(page.getByRole('article')).toHaveCount(9);
+    } finally { await nativeBrowser?.close(); }
+  });
+}
+
+test('continuous_reading_expired_login_preserves_loaded_content_and_allows_recovery', async ({ page }) => {
+  prepareContinuousReading();
+  await page.route('**/weibo/login/qr', async route => { listStatus = 200; await route.fulfill({ json: {} }); });
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(8);
+  listStatus = 401;
+  await scrollReadingToBottom(page);
+  await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
+  await expect(page.getByRole('article')).toHaveCount(8);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect(page.locator('.login-expired')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '加载更早微博', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '加载更早微博', exact: true }).click();
+  await expect(page.getByRole('article')).toHaveCount(9);
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
+test('continuous_reading_retains_content_on_failure_and_requires_explicit_retry', async ({ page }) => {
+  prepareContinuousReading();
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(8);
+  listStatus = 500;
+  await scrollReadingToBottom(page);
+  await expect(page.getByRole('alert')).toContainText('更早微博加载失败');
+  await expect(page.getByRole('article')).toHaveCount(8);
+  const reads = [...requests];
+  await scrollReadingToBottom(page);
+  expect(requests).toEqual(reads);
+  listStatus = 200;
+  await page.getByRole('button', { name: '重试加载更早微博', exact: true }).click();
+  await expect(page.getByRole('article')).toHaveCount(9);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(requests.filter(value => value.startsWith('GET /post/list?'))).toHaveLength(3);
+});
+
+for (const navigation of ['blogger', 'date']) {
+  test(`continuous_reading_${navigation}_navigation_cancels_pending_append_and_discards_late_response`, async ({ page }) => {
+    prepareContinuousReading();
+    await page.addInitScript(() => {
+      const original = window.fetch;
+      window.fetch = (input, init) => {
+        if (String(input).includes('start=2026-08-03')) init?.signal?.addEventListener('abort', () => Object.assign(window, { earlierAborted: true }));
+        return original(input, init);
+      };
+    });
+    calendarsByUid['2'] = { months: [{ month: '2026-06', count: 1, days: [{ date: '2026-06-01', count: 1 }] }] };
+    postsByUid['2'] = { ...posts, total: 1, items: [{ ...posts.items[0], mblogId: 'new-scope', content: '新博主正文' }] };
+    await page.goto(`${baseUrl}post/index.html`);
+    await expect(page.getByRole('article')).toHaveCount(8);
+    holdResponse = true; holdPath = '/post/list';
+    await scrollReadingToBottom(page);
+    await expect.poll(() => Boolean(releaseResponse)).toBe(true);
+    const releaseOld = releaseResponse!;
+    holdResponse = false;
+    await page.getByRole('button', { name: navigation === 'blogger' ? '第二位' : '2026-08-05', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => Boolean((window as Window & { earlierAborted?: boolean }).earlierAborted))).toBe(true);
+    releaseOld();
+    await expect(page.getByRole('article')).toHaveCount(navigation === 'blogger' ? 1 : 8);
+    await expect(page.getByText('前一个有微博日期的正文', { exact: true })).toHaveCount(0);
+    expect(await page.locator('.posts').evaluate(element => element.scrollTop)).toBe(0);
+    if (navigation === 'blogger') {
+      await expect(page.getByRole('article')).toContainText('新博主正文');
+      await page.getByRole('button', { name: '全部博主', exact: true }).click();
+      await expect(page.getByRole('article')).toHaveCount(8);
+    }
+  });
+}
+
+test('continuous_reading_short_days_support_wheel_keyboard_and_empty_day_continuation_in_scope', async ({ page }) => {
+  prepareContinuousReading();
+  posts = { ...posts, total: 1, items: [posts.items[0]] };
+  posts.items[0].content = '当天短微博';
+  postsByDate['2026-08-03'] = { ...posts, total: 0, items: [] };
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
+  await expect(page.locator('.feed-header h2')).toHaveText('第一位的微博');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await scrollReadingToBottom(page);
+  await expect(page.getByRole('heading', { name: '2026-08-03', exact: true })).toBeVisible();
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await page.getByRole('button', { name: '加载更早微博', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('article')).toHaveCount(2);
+  const queries = requests.filter(value => value.startsWith('GET /post/list?')).slice(-2);
+  expect(queries.every(value => value.includes('uids=1'))).toBe(true);
+  await expect(page.getByText('已读到最早的微博。', { exact: true })).toBeVisible();
+});
+
+test('continuous_reading_search_restarts_at_target_without_programmatic_scroll_appending_days', async ({ page }) => {
+  prepareContinuousReading();
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('article')).toHaveCount(8);
+  await scrollReadingToBottom(page);
+  await expect(page.getByRole('article')).toHaveCount(9);
+  searchPosts = { ...postsByDate['2026-08-03'], items: [{ ...postsByDate['2026-08-03'].items[0], createdAt: Date.parse('2026-08-03T00:30:00Z'), contentRaw: '定位前一个日期' }] };
+  await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+  await page.getByLabel('关键词', { exact: true }).fill('定位');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await page.locator('.search-result').click();
+  await expect(page.locator('.post-card.flash-highlight')).toContainText('前一个有微博日期的正文');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.locator('.reading-date')).toHaveText('2026-08-03');
+  expect(requests.filter(value => value.startsWith('GET /post/list?') && !value.includes('keyword='))).toHaveLength(3);
+  await scrollReadingToBottom(page);
+  await expect(page.getByRole('article')).toHaveCount(2);
+});
 
 test('acceptance_chat_control_opens_formal_chat_with_mouse_and_keyboard', async ({ page }, testInfo) => {
 

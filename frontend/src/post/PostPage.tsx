@@ -26,6 +26,17 @@ export default function PostPage() {
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion, refreshCalendar } = useDefaultReading();
+  const scrollIntent = useRef(false);
+  const readingKey = `${selection.visit}:${date}:${readingVersion.current}`;
+  useEffect(() => { scrollIntent.current = false; }, [readingKey]);
+  function loadEarlier(element: HTMLDivElement) {
+    if (!scrollIntent.current || searchOpen || element.querySelector('dialog[open]') || posts.isFetching || posts.isFetchNextPageError || !posts.hasNextPage
+      || element.scrollHeight - element.scrollTop - element.clientHeight > 32) return;
+    scrollIntent.current = false;
+    void posts.fetchNextPage({ cancelRefetch: false });
+  }
+  const loadedCount = posts.data?.pages.reduce((count, page) => count + page.items.length, 0) ?? 0;
+  const totalCount = posts.data?.pages.reduce((count, page) => count + page.total, 0) ?? 0;
   const login = usePostLogin();
   const [syncNotice, setSyncNotice] = useState<{ uid: number; visit: number }>();
   const scopeRef = useRef(selection);
@@ -76,7 +87,7 @@ export default function PostPage() {
               <h2>{selectedBlogger ? `${selectedBlogger.screenName}的微博` : '全部微博'}</h2>
               <div className="feed-context">
                 {date && <time className="reading-date" dateTime={date}>{date}</time>}
-                {posts.isSuccess && !posts.isFetching && <span className="feed-count" aria-label="博文总数">共 {posts.data.total} 条</span>}
+                {posts.data && <span className="feed-count" aria-label="博文总数">共 {totalCount} 条</span>}
               </div>
             </div>
             <div className="feed-actions">
@@ -84,10 +95,24 @@ export default function PostPage() {
               <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }}>微博群聊</button>
             </div>
           </header>
-          <div className="posts">
-            {posts.isFetching && <p role="status">正在加载博文……</p>}
-            {posts.isError && !isUnauthorized(posts.error) && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
-            {posts.isSuccess && !posts.isFetching && <PostFeed result={posts.data} targetPostId={jump?.mblogId} />}
+          <div className="posts" key={readingKey} tabIndex={0} aria-label="微博列表"
+            onScroll={event => loadEarlier(event.currentTarget)}
+            onPointerDown={event => { if (event.target === event.currentTarget) scrollIntent.current = true; }}
+            onWheel={event => { scrollIntent.current = event.deltaY > 0; loadEarlier(event.currentTarget); }}
+            onTouchMove={() => { scrollIntent.current = true; }}
+            onKeyDown={event => { scrollIntent.current = ['ArrowDown', 'PageDown', 'End', ' '].includes(event.key); if (scrollIntent.current) loadEarlier(event.currentTarget); }}>
+            {posts.isFetching && !posts.isFetchingNextPage && <p role="status">正在加载博文……</p>}
+            {posts.isError && !posts.isFetchNextPageError && !isUnauthorized(posts.error) && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
+            {posts.data?.pages.map((page, index) => <section className="post-day" aria-label={`${posts.data.pageParams[index]} 的微博`} key={posts.data.pageParams[index]}>
+              {index > 0 && <h3 className="post-day-heading"><time dateTime={posts.data.pageParams[index]}>{posts.data.pageParams[index]}</time></h3>}
+              <PostFeed result={page} targetPostId={index === 0 ? jump?.mblogId : undefined} />
+            </section>)}
+            {posts.data && <div className="reading-more">
+              {posts.isFetchingNextPage && <p role="status">正在加载更早微博……</p>}
+              {posts.isFetchNextPageError && !isUnauthorized(posts.error) && <p role="alert">更早微博加载失败。（{posts.error.message}）</p>}
+              {posts.hasNextPage ? <button type="button" className="search-open load-earlier" disabled={posts.isFetching} onClick={() => { scrollIntent.current = false; void posts.fetchNextPage({ cancelRefetch: false }); }}>{posts.isFetchNextPageError ? '重试加载更早微博' : '加载更早微博'}</button>
+                : <p>已读到最早的微博。</p>}
+            </div>}
           </div>
         </section>
         <aside className="reading-sidebar" aria-label="日期导航">
@@ -102,7 +127,7 @@ export default function PostPage() {
           </section>
         </aside>
       </main>
-      <div className="reading-announcement" aria-live="polite" aria-atomic="true">{posts.isSuccess && !posts.isFetching && posts.data.items.length > 0 ? `已加载 ${posts.data.items.length} 条微博` : ''}</div>
+      <div className="reading-announcement" aria-live="polite" aria-atomic="true">{posts.data && !posts.isFetching && loadedCount > 0 ? `已加载 ${loadedCount} 条微博` : ''}</div>
       {searchOpen && <PostSearch uid={selection.uid} scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'} onClose={() => setSearchOpen(false)} onSelectPost={jumpToPost} onUnauthorized={login.expire} />}
     </div>
   );
