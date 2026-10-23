@@ -24,13 +24,39 @@ export default function PostFeed({ result, targetPostId }: { result: PostList; t
   const [highlighted, setHighlighted] = useState(targetPostId);
   const targetRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (!targetRef.current) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const frame = requestAnimationFrame(() => {
-      targetRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
-      timer = setTimeout(() => setHighlighted(undefined), 1600);
+    const target = targetRef.current;
+    const day = target?.parentElement;
+    const pane = target?.closest('.posts');
+    if (!target || !day || !pane) return;
+    const pendingImages = new Set(Array.from(day.querySelectorAll('img')).filter(image => !image.complete
+      && (target.contains(image) || image.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    let frame = requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
     });
-    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
+    const timer = setTimeout(() => setHighlighted(undefined), 1600);
+    function mediaSettled(event: Event) {
+      if (!pendingImages.delete(event.target as HTMLImageElement)) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => target!.scrollIntoView({ behavior: 'instant', block: 'center' }));
+      if (!pendingImages.size) {
+        day!.removeEventListener('load', mediaSettled, true);
+        day!.removeEventListener('error', mediaSettled, true);
+      }
+    }
+    function stopCentering() {
+      cancelAnimationFrame(frame);
+      day!.removeEventListener('load', mediaSettled, true);
+      day!.removeEventListener('error', mediaSettled, true);
+      pane!.removeEventListener('wheel', stopCentering);
+      pane!.removeEventListener('pointerdown', stopCentering);
+      pane!.removeEventListener('keydown', stopCentering);
+    }
+    day.addEventListener('load', mediaSettled, true);
+    day.addEventListener('error', mediaSettled, true);
+    pane.addEventListener('wheel', stopCentering, { passive: true });
+    pane.addEventListener('pointerdown', stopCentering);
+    pane.addEventListener('keydown', stopCentering);
+    return () => { stopCentering(); clearTimeout(timer); };
   }, [targetPostId]);
   function openImages(images: string[], index: number) { setViewer({ images, index }); }
   return <>

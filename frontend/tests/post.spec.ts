@@ -1239,6 +1239,65 @@ test('search_location_switches_shanghai_day_reveals_month_and_centers_exact_card
   await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeHidden();
 });
 
+for (const scenario of ['image_load', 'image_error', 'video_load', 'long_post', 'user_wheel', 'user_keyboard']) {
+  test(`search_location_settles_delayed_media_${scenario}`, async ({ page }) => {
+    const target: PostList['items'][number] = { ...posts.items[0], mblogId: 'delayed-image', content: '遭拒后的目标完整正文',
+      pics: [imageFixture('delayed-center', scenario === 'image_error' ? {} : { thumbnailWidth: 0, thumbnailHeight: 0, originalWidth: 0, originalHeight: 0 })] };
+    if (scenario === 'video_load') {
+      target.pics = null;
+      target.video = { coverUrl: '/post/video-cover?mblogId=delayed-image', pageUrl: 'https://video.example.test/target' };
+    }
+    if (scenario === 'long_post') target.content += '\n长微博正文'.repeat(80);
+    searchPosts = { ...posts, total: 1, items: [target] };
+    let releaseImage: (() => Promise<void>) | undefined;
+    await page.route(url => url.searchParams.get('pid') === 'delayed-center' || url.pathname === '/post/video-cover', async route => {
+      await new Promise<void>(resolve => {
+        releaseImage = async () => {
+          releaseImage = undefined;
+          await route.fulfill(scenario === 'image_error' ? { status: 404 } : { contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180" />' });
+          resolve();
+        };
+      });
+    });
+    await page.goto(`${baseUrl}post/index.html`);
+    await expect(page.getByRole('article')).toHaveCount(1);
+    postsByDate['2026-08-05'] = { ...posts, total: 30, items: Array.from({ length: 30 }, (_, index) => index === 15 ? target : { ...posts.items[0], mblogId: `other-${index}` }) };
+    await page.getByRole('button', { name: '高级搜索', exact: true }).click();
+    await page.getByLabel('关键词', { exact: true }).fill('遭拒');
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    await page.locator('.search-result').click();
+    const card = page.getByRole('article').filter({ hasText: '遭拒后的目标完整正文' });
+    const centerOffset = () => card.evaluate(element => {
+      const card = element.getBoundingClientRect();
+      const pane = element.closest('.posts')!.getBoundingClientRect();
+      return Math.abs((card.top + card.bottom - pane.top - pane.bottom) / 2);
+    });
+    try {
+      await expect.poll(centerOffset).toBeLessThan(3);
+      await expect.poll(() => Boolean(releaseImage)).toBe(true);
+      const userScroll = scenario.startsWith('user_');
+      if (userScroll) {
+        const pane = page.locator('.posts');
+        if (scenario === 'user_wheel') {
+          await pane.hover();
+          await page.mouse.wheel(0, 600);
+        } else {
+          await pane.focus();
+          await page.keyboard.press('PageDown');
+        }
+        await expect.poll(centerOffset).toBeGreaterThan(200);
+      }
+      await releaseImage!();
+      if (scenario === 'image_error') await expect(card.locator('.post-pic')).toBeHidden();
+      else await expect.poll(() => card.locator('.post-pic img, .post-video img').evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      if (userScroll) expect(await centerOffset()).toBeGreaterThan(200);
+      else await expect.poll(centerOffset).toBeLessThan(3);
+      expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
+    } finally { await releaseImage?.(); }
+  });
+}
+
 test('search_location_keeps_scope_and_filter_reloads_same_day_with_enter_and_space', async ({ page }) => {
   const target = { ...posts.items[0], mblogId: 'same-day', content: '完整同日正文', blogger: bloggers[1] };
   postsByUid['2'] = { ...posts, total: 1, items: [target] };
