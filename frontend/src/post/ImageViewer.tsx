@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { useImageZoom } from '../shared/useImageZoom';
 
 function ViewerImage({ src }: { src: string }) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const zoom = useImageZoom();
   return <>
-    <img src={src} alt="微博原图" hidden={status !== 'loaded'} onLoad={() => setStatus('loaded')} onError={() => setStatus('error')} />
+    <img {...zoom} src={src} alt="微博原图" hidden={status !== 'loaded'} onLoad={() => setStatus('loaded')} onError={() => setStatus('error')} />
     <p id="image-viewer-state" role="status">{status === 'loading' ? '加载中…' : status === 'error' ? '图片加载失败' : ''}</p>
   </>;
 }

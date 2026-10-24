@@ -890,6 +890,7 @@ h1 {
 }
 
 .image-viewer {
+  overflow: hidden;
   width: 100vw;
   max-width: none;
   height: 100vh;

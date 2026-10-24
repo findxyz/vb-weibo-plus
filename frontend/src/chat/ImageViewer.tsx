@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { useImageZoom } from '../shared/useImageZoom';
 
 function ViewerImage({ url }: { url: string }) {
   const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  const zoom = useImageZoom();
   return (
     <>
       <img
+        {...zoom}
         src={url}
         alt="消息原图"
         hidden={state !== 'loaded'}

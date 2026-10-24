@@ -152,7 +152,7 @@ button { font: inherit; color: inherit; cursor: pointer; user-select: none; }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 [role="alert"] { color: var(--danger); }
 .reading-announcement { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.image-viewer { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; padding: 32px; border: 0; background: rgb(0 12 28 / 90%); }
+.image-viewer { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; padding: 32px; border: 0; overflow: hidden; background: rgb(0 12 28 / 90%); }
 .image-viewer[open] { display: flex; align-items: center; justify-content: center; }
 .image-viewer::backdrop { background: transparent; }
 .image-viewer img { width: auto; max-width: 100%; height: auto; max-height: 100%; display: block; object-fit: contain; cursor: pointer; border: 3px solid var(--text); box-shadow: 0 0 0 2px var(--surface); }

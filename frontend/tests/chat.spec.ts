@@ -581,6 +581,57 @@ test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ pa
   await expect(page.locator('article.message[data-mid="1"]')).toBeVisible();
 });
 
+for (const context of ['messages', 'history'] as const) {
+  test(`chat_image_viewer_zooms_and_drags_in_${context}`, async ({ page }) => {
+    const items = makeMessages(1, 1, '长图消息');
+    items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
+    items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
+    messagesByGid.set(1, items);
+    await page.route(/\/chat\/media\?.*variant=original/, route => route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="3600"><text x="30" y="80" font-size="48">群聊长图</text></svg>',
+    }));
+    await openChat(page);
+    const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+    if (context === 'history') {
+      await page.getByRole('button', { name: '📜 聊天记录' }).click();
+      await container.getByLabel('开始日期').fill('2026-08-05');
+      await container.getByLabel('结束日期').fill('2026-08-07');
+      await container.getByRole('button', { name: '🔍 查询' }).click();
+      await container.locator('.history-result').click();
+    }
+    const trigger = container.locator('[data-mid="1"] button.media-preview');
+    const viewer = container.locator('dialog.image-viewer');
+    await trigger.click();
+    const image = viewer.getByAltText('消息原图');
+    await expect(image).toBeVisible();
+    const initial = (await image.boundingBox())!;
+    const scrollTop = await page.locator('.messages').evaluate(element => element.scrollTop);
+    await image.hover();
+    await page.mouse.wheel(0, -400);
+    await expect.poll(async () => (await image.boundingBox())!.height).toBeGreaterThan(initial.height * 1.5);
+    const zoomed = (await image.boundingBox())!;
+    await page.mouse.down();
+    await page.mouse.move(720, 500, { steps: 5 });
+    await page.mouse.up();
+    await expect(viewer).toHaveJSProperty('open', true);
+    await expect.poll(async () => Math.round((await image.boundingBox())!.x - zoomed.x)).toBe(80);
+    await image.dblclick({ position: { x: zoomed.width / 2, y: zoomed.height / 2 } });
+    await expect.poll(() => image.boundingBox()).toEqual(initial);
+    await image.hover();
+    await page.mouse.wheel(0, -400);
+    await expect.poll(async () => (await image.boundingBox())!.height).toBeGreaterThan(initial.height);
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+    expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(scrollTop);
+    await trigger.click();
+    await expect.poll(() => image.boundingBox()).toEqual(initial);
+    await page.mouse.click(5, 5);
+    await expect(viewer).not.toHaveJSProperty('open', true);
+    if (context === 'history') await expect(container).toHaveJSProperty('open', true);
+  });
+}
+
 test('chat_shows_viewer_load_failure_and_can_reopen', async ({ page }) => {
   const items = makeMessages(1, 1, '消息');
   items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';

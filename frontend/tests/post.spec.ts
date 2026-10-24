@@ -2060,6 +2060,47 @@ test('video_component_hot_updates_keep_the_open_image_viewer_and_document', asyn
   await page.keyboard.press('Escape');
 });
 
+test('image_viewer_zooms_long_images_with_wheel_and_drags_without_closing', async ({ page }, testInfo) => {
+  posts.items[0].pics = [imageFixture('long'), imageFixture('next')];
+  await page.route(/\/post\/image\?.*pid=long.*variant=original/, route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="12000"><defs><pattern id="text" width="300" height="120" patternUnits="userSpaceOnUse"><rect width="300" height="120" fill="white"/><text x="30" y="80" font-size="48">长图文字</text></pattern></defs><rect width="1800" height="12000" fill="url(#text)"/></svg>',
+  }));
+  await page.goto(`${baseUrl}post/index.html`);
+  const trigger = page.getByRole('button', { name: '查看微博图片 1', exact: true });
+  await trigger.click();
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  const image = viewer.getByRole('img', { name: '微博原图' });
+  await expect(image).toBeVisible();
+  const initial = (await image.boundingBox())!;
+  const pointer = { x: initial.x + initial.width / 2, y: initial.y + initial.height / 4 };
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.mouse.wheel(0, -400);
+  await expect.poll(async () => (await image.boundingBox())!.height).toBeGreaterThan(initial.height * 1.5);
+  const zoomed = (await image.boundingBox())!;
+  expect((pointer.y - zoomed.y) / zoomed.height).toBeCloseTo(0.25, 2);
+  await page.mouse.down();
+  await page.mouse.move(pointer.x + 80, pointer.y + 100, { steps: 5 });
+  await page.mouse.up();
+  await expect(viewer).toBeVisible();
+  await expect.poll(async () => Math.round((await image.boundingBox())!.y - zoomed.y)).toBe(100);
+  await page.mouse.wheel(0, -100000);
+  await expect.poll(async () => (await image.boundingBox())!.height).toBeGreaterThanOrEqual(12000);
+  await page.screenshot({ path: testInfo.outputPath('viewer-zoomed.png') });
+  await page.mouse.wheel(0, 100000);
+  await expect.poll(() => image.boundingBox()).toEqual(initial);
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.mouse.wheel(0, -400);
+  await expect.poll(async () => (await image.boundingBox())!.height).toBeGreaterThan(initial.height);
+  await page.keyboard.press('ArrowRight');
+  await expect(viewer.locator('.viewer-counter')).toHaveText('2 / 2');
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => image.boundingBox()).toEqual(initial);
+  await page.keyboard.press('Escape');
+  await trigger.click();
+  await expect.poll(() => image.boundingBox()).toEqual(initial);
+});
+
 test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focus', async ({ page }) => {
   posts.items[0].pics = [imageFixture('single')];
   await page.goto(`${baseUrl}post/index.html`);
