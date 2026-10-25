@@ -39,7 +39,6 @@ export function useImageZoom() {
   return {
     ref,
     draggable: false,
-    title: '滚轮缩放，放大后拖动；双击还原。',
     style: {
       transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
       cursor: view.scale > 1 ? 'grab' : 'zoom-in',
