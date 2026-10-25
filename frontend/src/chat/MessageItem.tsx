@@ -35,7 +35,7 @@ function messageBody(message: ChatMessage, text: string, hideText: boolean) {
   const card = message.mediaType === WEIBO_CARD_TYPE
     ? message.urlObjects?.[0] as WeiboUrlObject | undefined
     : undefined;
-  if (card?.status) return <WeiboCard urlObject={card} />;
+  if (card?.status) return <WeiboCard urlObject={card} gid={message.gid} mid={message.mid} />;
   if (hideText) return null;
   return <div className="bubble"><MessageText text={text} /></div>;
 }

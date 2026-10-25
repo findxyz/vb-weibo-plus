@@ -125,6 +125,11 @@ public class ChatController {
                 gid, beforeCreatedAt, beforeMid, afterCreatedAt, afterMid, size);
     }
 
+    @GetMapping("/messages/weibo-text")
+    public Map<String, String> queryMessageWeiboText(@RequestParam long gid, @RequestParam long mid) {
+        return Map.of("text", chatService.queryMessageWeiboText(gid, mid));
+    }
+
     @GetMapping("/attitudes")
     public Map<Long, List<GroupMessagesResponse.Attitude>> queryAttitudes(
             @RequestParam long gid, @RequestParam String mids) {

@@ -78,6 +78,18 @@ class ChatControllerTest {
     private ImageProxyService imageProxyService;
 
     @Test
+    void shared_weibo_text_uses_the_group_message_reference_and_returns_business_json() throws Exception {
+        when(chatService.queryMessageWeiboText(1, 100)).thenReturn("完整正文。\n\n结尾。");
+
+        mockMvc.perform(get("/chat/messages/weibo-text").param("gid", "1").param("mid", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.text").value("完整正文。\n\n结尾。"))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.ok").doesNotExist());
+        verify(chatService).queryMessageWeiboText(1, 100);
+    }
+
+    @Test
     void sync_has_no_request_arguments_and_returns_the_full_local_group_list() throws Exception {
         when(chatService.syncGroups()).thenReturn(List.of(group(2), group(1)));
 

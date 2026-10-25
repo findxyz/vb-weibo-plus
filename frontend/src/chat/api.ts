@@ -144,6 +144,13 @@ export function fetchAttitudes(gid: number, mids: number[], signal: AbortSignal)
   return getJson<Record<string, Attitude[]>>(`/chat/attitudes?${query}`, signal);
 }
 
+export async function fetchMessageWeiboText(gid: number, mid: number, signal: AbortSignal) {
+  const query = new URLSearchParams({ gid: String(gid), mid: String(mid) });
+  const result = await getJson<{ text: string }>(`/chat/messages/weibo-text?${query}`,
+    AbortSignal.any([signal, AbortSignal.timeout(15000)]));
+  return result.text;
+}
+
 export async function fetchLoginStatus(signal: AbortSignal) {
   const response = await fetch('/weibo/login/status', { cache: 'no-store', signal });
   if (!response.ok) throw new HttpError(await readError(response), response.status);

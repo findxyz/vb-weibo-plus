@@ -18,6 +18,7 @@ import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.api.GroupPushApi;
+import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
@@ -71,6 +72,9 @@ class ChatServiceTest {
     @Mock
     private GroupPushApi pushApi;
 
+    @Mock
+    private LongTextApi longTextApi;
+
     private ChatService chatService;
 
     @BeforeEach
@@ -78,7 +82,7 @@ class ChatServiceTest {
         chatService = new ChatService(
                 groupListApi, groupMessagesApi, groupMediaApi,
                 messageMapper, groupRepository, messageRepository,
-                new HeicConverter("ffmpeg"), videoProbe, pushApi);
+                new HeicConverter("ffmpeg"), videoProbe, pushApi, longTextApi);
     }
 
     @Test
@@ -1102,6 +1106,74 @@ class ChatServiceTest {
         assertThatThrownBy(() -> chatService.sendVideo(1, file))
                 .isInstanceOf(MessageSentButSyncFailedException.class)
                 .hasMessageContaining("已发出");
+    }
+
+    @Test
+    void shared_weibo_text_loads_full_content_using_the_saved_post_id() {
+        stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true, "text", "前半段。"));
+        when(longTextApi.longText(new LongTextRequest("5357643507961089")))
+                .thenReturn(new LongTextResponse(new LongTextResponse.LongTextData(
+                        "HTML 正文", "完整正文。\n\n评论区可看论文全文。", false, null), 1));
+
+        assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("完整正文。\n\n评论区可看论文全文。");
+        verifyNoInteractions(groupMessagesApi);
+        verify(messageRepository, never()).insertAllIfAbsent(any());
+    }
+
+    @Test
+    void shared_weibo_text_converts_html_when_plain_text_is_missing() {
+        stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true));
+        when(longTextApi.longText(any())).thenReturn(new LongTextResponse(
+                new LongTextResponse.LongTextData("<b>第一段。</b><br>第二段。&amp;", null, false, null), 1));
+
+        assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("第一段。\n第二段。&");
+    }
+
+    @Test
+    void shared_weibo_text_rejects_failed_or_empty_long_text_instead_of_returning_a_preview() {
+        stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true, "text", "前半段。"));
+        when(longTextApi.longText(any())).thenReturn(null, new LongTextResponse(null, 0),
+                new LongTextResponse(null, 1), new LongTextResponse(
+                        new LongTextResponse.LongTextData("", "", false, null), 1));
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            assertThatThrownBy(() -> chatService.queryMessageWeiboText(1, 100))
+                    .isInstanceOf(WeiboException.class).hasMessage("微博全文暂不可用。");
+        }
+    }
+
+    @Test
+    void shared_weibo_text_rejects_another_group_before_calling_upstream() {
+        stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true));
+
+        assertThatThrownBy(() -> chatService.queryMessageWeiboText(2, 100))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(longTextApi);
+    }
+
+    @Test
+    void shared_weibo_text_returns_saved_short_posts_without_calling_upstream() {
+        stubSharedWeibo(Map.of("isLongText", false, "text", "完整短微博。"));
+
+        assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("完整短微博。");
+        verifyNoInteractions(longTextApi);
+    }
+
+    @Test
+    void shared_weibo_text_rejects_messages_without_a_saved_weibo_reference() {
+        stubSharedWeibo(Map.of("isLongText", true));
+
+        assertThatThrownBy(() -> chatService.queryMessageWeiboText(1, 100))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(longTextApi);
+    }
+
+    private void stubSharedWeibo(Map<String, Object> status) {
+        MessageEntity entity = messageEntity(100, 1_000);
+        MessageRecord message = new MessageRecord(100, 1, 321, "普通消息", 14, 9, "发送者", "", "分享微博",
+                "", "", "", List.of(Map.of("status", status)), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000);
+        when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
+        when(messageMapper.toMessageRecord(entity)).thenReturn(message);
     }
 
     private GroupEntity group(long gid, long updatedAt) {

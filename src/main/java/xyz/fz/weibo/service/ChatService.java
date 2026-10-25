@@ -10,10 +10,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.HtmlUtils;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.api.GroupPushApi;
+import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.client.DigestUtils;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
@@ -29,6 +31,7 @@ import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.entity.GroupEntity;
 import xyz.fz.weibo.entity.MessageEntity;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
+import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.request.GroupSendImageRequest;
@@ -58,6 +61,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReentrantLock;
@@ -84,13 +88,14 @@ public class ChatService {
     private final HeicConverter heicConverter;
     private final VideoProbe videoProbe;
     private final GroupPushApi pushApi;
+    private final LongTextApi longTextApi;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
 
     public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
                        GroupMediaApi groupMediaApi, MessageMapper messageMapper,
                        GroupRepository groupRepository, MessageRepository messageRepository,
                        HeicConverter heicConverter, VideoProbe videoProbe,
-                       GroupPushApi pushApi) {
+                       GroupPushApi pushApi, LongTextApi longTextApi) {
         this.groupListApi = groupListApi;
         this.groupMessagesApi = groupMessagesApi;
         this.groupMediaApi = groupMediaApi;
@@ -100,6 +105,7 @@ public class ChatService {
         this.heicConverter = heicConverter;
         this.videoProbe = videoProbe;
         this.pushApi = pushApi;
+        this.longTextApi = longTextApi;
     }
 
     public void openWebSocket() {
@@ -441,6 +447,36 @@ public class ChatService {
         }
         int inserted = messageRepository.insertAllIfAbsent(collected);
         return new PageCapture(inserted, ignored + (collected.size() - inserted), reached);
+    }
+
+    public String queryMessageWeiboText(long gid, long mid) {
+        validateGid(gid);
+        MessageRecord message = requireLocalMessage(gid, mid);
+        if (message.mediaType() != 14 || message.urlObjects().isEmpty()
+                || !(message.urlObjects().getFirst().get("status") instanceof Map<?, ?> status)) {
+            throw new InvalidRequestException("该消息不是微博分享。");
+        }
+        if (!Boolean.TRUE.equals(status.get("isLongText"))) {
+            return Objects.toString(status.get("text"), "");
+        }
+        String id = Objects.toString(status.get("idstr"), "");
+        if (id.isBlank()) {
+            throw new ResourceNotFoundException("本地微博分享缺少微博 ID。");
+        }
+        var response = longTextApi.longText(new LongTextRequest(id));
+        if (response == null || response.ok() != 1 || response.data() == null) {
+            throw new WeiboException("微博全文暂不可用。", -1);
+        }
+        String text = response.data().longTextContentRaw();
+        if (text == null || text.isBlank()) {
+            String html = response.data().longTextContent();
+            text = html == null ? "" : HtmlUtils.htmlUnescape(
+                    html.replaceAll("(?i)<br\\s*/?>", "\n").replaceAll("<[^>]+>", ""));
+        }
+        if (text.isBlank()) {
+            throw new WeiboException("微博全文暂不可用。", -1);
+        }
+        return text;
     }
 
     public MediaBinary queryMessageMedia(long gid, long mid, String variant) {

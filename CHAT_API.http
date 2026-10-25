@@ -30,6 +30,9 @@ GET {{host}}/chat/messages?gid=4761715839862414&page=2&size=100
 ### 使用游标查询群聊的最新一批本地消息
 GET {{host}}/chat/messages/cursor?gid=4761715839862414&size=100
 
+### 查询本地群消息分享的微博正文（长文按需从上游读取）
+GET {{host}}/chat/messages/weibo-text?gid=4761715839862414&mid=5357859137126491
+
 ### 向上查询：使用上一批响应中的复合游标继续查询更早消息
 # beforeCreatedAt 和 beforeMid 分别取上一批响应中的 nextBeforeCreatedAt 和 nextBeforeMid。
 # hasMore 为 false 时表示没有更早消息，此时两个下一游标均为 null。
