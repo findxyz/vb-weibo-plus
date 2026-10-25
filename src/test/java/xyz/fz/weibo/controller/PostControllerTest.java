@@ -53,20 +53,15 @@ class PostControllerTest {
     }
 
     @Test
-    void range_binds_required_shanghai_time_bounds_and_returns_counts() throws Exception {
-        when(postService.saveByRange(1, 1783652523000L, 1783656184000L))
-                .thenReturn(new SaveResult(3, 2, 1));
-
+    void range_submits_required_shanghai_time_bounds_without_response_body() throws Exception {
         mockMvc.perform(post("/post/range")
                         .param("uid", "1")
                         .param("start", "2026-07-10 11:02:03")
                         .param("end", "2026-07-10 12:03:04"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.fetchedCount").value(3))
-                .andExpect(jsonPath("$.insertedCount").value(2))
-                .andExpect(jsonPath("$.ignoredCount").value(1));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
-        verify(postService).saveByRange(1, 1783652523000L, 1783656184000L);
+        verify(postService).saveByRangeAsync(1, 1783652523000L, 1783656184000L);
     }
 
     @Test
@@ -85,10 +80,26 @@ class PostControllerTest {
                         .param("end", "2026-07-10 12:03:04"))
                 .andExpect(status().isBadRequest());
 
-        verify(postService, never()).saveByRange(
+        verify(postService, never()).saveByRangeAsync(
                 anyLong(),
                 anyLong(),
                 anyLong());
+    }
+
+    @Test
+    void range_rejects_invalid_uid_or_reversed_dates_before_submission() throws Exception {
+        mockMvc.perform(post("/post/range")
+                        .param("uid", "0")
+                        .param("start", "2026-07-10 11:02:03")
+                        .param("end", "2026-07-10 12:03:04"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/post/range")
+                        .param("uid", "1")
+                        .param("start", "2026-07-10 12:03:04")
+                        .param("end", "2026-07-10 11:02:03"))
+                .andExpect(status().isBadRequest());
+
+        verify(postService, never()).saveByRangeAsync(anyLong(), anyLong(), anyLong());
     }
 
     @Test

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
@@ -145,6 +146,11 @@ public class PostService {
             log.warn("博主 {} 增量同步失败：error = {}", uid, e.getMessage(), e);
             throw e;
         }
+    }
+
+    @Async
+    public void saveByRangeAsync(long uid, long startMillis, long endMillis) {
+        saveByRange(uid, startMillis, endMillis);
     }
 
     public SaveResult saveByRange(long uid, long startMillis, long endMillis) {

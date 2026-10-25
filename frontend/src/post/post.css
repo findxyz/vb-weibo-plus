@@ -47,7 +47,7 @@ body { color: var(--text); background: var(--sky) url('./assets/starry-sky.png')
 .feed-context { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 h2 { margin: 0; font: 700 19px/1.3 var(--serif); }
 .feed-header h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.feed-count, .reading-date, .bloggers-heading > span, .sync-notice { flex: none; color: var(--muted); font: 12px/1.4 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.feed-count, .reading-date, .bloggers-heading > span { flex: none; color: var(--muted); font: 12px/1.4 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .feed-actions { display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
 .posts { min-height: 0; overflow-y: auto; padding: 0 16px 0 24px; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 .posts:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
@@ -196,8 +196,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .management-dialog::backdrop { background: rgb(0 12 28 / 65%); }
 .management-window { display: grid; grid-template-rows: 40px minmax(0, 1fr); max-height: calc(80vh - 2px); }
 .management-status { min-height: 18px; margin: 0; color: var(--danger); font: 13px/1.3 var(--hand); }
-.sync-notice { margin-left: auto; }
 .global-tip { position: fixed; z-index: 50; top: 16px; right: 16px; max-width: 360px; padding: 8px 12px; border: 1px solid var(--danger); border-radius: var(--radius); color: var(--danger); background: var(--surface); box-shadow: var(--shadow-dialog); font: 13px/1.3 var(--hand); pointer-events: none; overflow-wrap: anywhere; }
+.global-tip[role="status"] { border-color: var(--border); color: var(--text); }
 .management-dialog .search-overlay-tip { overflow-wrap: anywhere; }
 .post-card.flash-highlight { animation: flash-card 1.6s ease-out; }
 @keyframes flash-card {

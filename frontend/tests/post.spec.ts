@@ -504,7 +504,7 @@ for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 
     await page.route('**/post/range?*', route => {
       mutationParams.push(['range', Object.fromEntries(new URL(route.request().url()).searchParams)]);
       calendarsByUid['1234'].months.unshift({ month: '2026-06', count: 1, days: [{ date: '2026-06-01', count: 1 }] });
-      return route.fulfill({ json: {} });
+      return route.fulfill({ status: 204 });
     });
     await page.goto(`${baseUrl}post/index.html`);
     await expect(page.locator('.post-content')).toContainText('第一行');
@@ -551,7 +551,7 @@ for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 
     await page.getByLabel('开始日期', { exact: true }).fill('2026-01-01');
     await page.getByLabel('结束日期', { exact: true }).fill('2026-06-30');
     await page.getByRole('button', { name: '开始同步', exact: true }).click();
-    await expect(page.locator('.sync-notice')).toHaveText('同步完成');
+    await expect(page.locator('.global-tip')).toHaveText('已提交后台同步，可继续浏览，稍后请手动刷新。');
     await expect(page.getByRole('button', { name: '2026-05-12', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.post-content')).toHaveText('新增博主本地正文');
     expect(requests.filter(value => value.startsWith('GET /post/list?') && !value.includes('keyword='))).toEqual(dayReads);
@@ -586,13 +586,13 @@ test('acceptance_minimum_media_preserves_square_tiles_single_image_and_failed_vi
   expect(await page.locator('.post-pics.one-image .post-pic').evaluate(element => element.getBoundingClientRect().right <= element.closest('.post-card')!.getBoundingClientRect().right)).toBe(true);
 });
 
-test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refreshing_calendar', async ({ page }) => {
+test('sync_history_submits_shanghai_snapshot_without_refreshing_or_polling', async ({ page }, testInfo) => {
   await page.clock.install({ time: new Date('2026-08-05T18:30:00Z') });
   const writes: URL[] = [];
   await page.route('**/post/range?*', route => {
     writes.push(new URL(route.request().url()));
     calendar = { months: [{ month: '2026-08', count: 4, days: [{ date: '2026-08-06', count: 1 }, { date: '2026-08-05', count: 3 }] }] };
-    return route.fulfill({ json: { inserted: 1 } });
+    return route.fulfill({ status: 204 });
   });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
@@ -600,6 +600,7 @@ test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refre
   await page.getByRole('button', { name: '第二位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
   const reading = requests.filter(value => value.startsWith('GET /post/list?'));
+  const calendarReads = requests.filter(value => value.startsWith('GET /post/calendar'));
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '同步历史微博', exact: true });
   await expect(dialog.getByLabel('开始日期')).toHaveValue('2024-08-06');
@@ -613,9 +614,15 @@ test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refre
   await dialog.getByLabel('结束日期').fill('2026-07-31');
   await dialog.getByRole('button', { name: '开始同步' }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.locator('.dates-heading')).toContainText('同步完成');
-  await expect(page.getByRole('button', { name: '2026-08-06', exact: true })).toBeVisible();
+  await expect(page.getByRole('status')).toHaveText('已提交后台同步，可继续浏览，稍后请手动刷新。');
+  await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveAttribute('aria-disabled', 'false');
+  await expect(page.locator('.dates-heading')).not.toContainText('同步完成');
+  await expect(page.getByRole('button', { name: '2026-08-06', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: testInfo.outputPath('history-submitted.png') });
+  await page.clock.runFor(610000);
+  await expect(page.locator('.global-tip')).toHaveCount(0);
+  expect(requests.filter(value => value.startsWith('GET /post/calendar'))).toEqual(calendarReads);
   expect(requests.filter(value => value.startsWith('GET /post/list?'))).toEqual(reading);
   expect(Object.fromEntries(writes[0].searchParams)).toEqual({ uid: '2', start: '2026-07-01 00:00:00', end: '2026-07-31 23:59:59' });
   expect(writeRequests).toHaveLength(1); writeRequests = [];
@@ -624,7 +631,7 @@ test('sync_history_validates_defaults_and_submits_shanghai_snapshot_before_refre
 test('sync_history_leap_defaults_order_same_day_cancel_and_reset', async ({ page }) => {
   await page.clock.install({ time: new Date('2024-02-28T18:00:00Z') });
   const calls: string[] = [];
-  await page.route('**/post/range?*', route => { calls.push(route.request().url()); return route.fulfill({ json: {} }); });
+  await page.route('**/post/range?*', route => { calls.push(route.request().url()); return route.fulfill({ status: 204 }); });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
@@ -658,7 +665,7 @@ test('sync_history_pending_request_keeps_snapshot_and_does_not_refresh_a_new_sco
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
   const calls: URL[] = [];
-  await page.route('**/post/range?*', async route => { calls.push(new URL(route.request().url())); await gate; await route.fulfill({ json: {} }); });
+  await page.route('**/post/range?*', async route => { calls.push(new URL(route.request().url())); await gate; await route.fulfill({ status: 204 }); });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
@@ -679,6 +686,7 @@ test('sync_history_pending_request_keeps_snapshot_and_does_not_refresh_a_new_sco
   const secondCalendar = requests.filter(value => value === 'GET /post/calendar?uid=2').length;
   finish();
   await expect(entry).toHaveAttribute('aria-disabled', 'false');
+  await expect(page.locator('.global-tip')).toHaveText('已提交后台同步，可继续浏览，稍后请手动刷新。');
   expect(requests.filter(value => value === 'GET /post/calendar?uid=2')).toHaveLength(secondCalendar);
   await expect(page.locator('.sync-notice')).toHaveCount(0);
   expect(Object.fromEntries(calls[0].searchParams)).toEqual({ uid: '1', start: '2026-01-01 00:00:00', end: '2026-01-02 23:59:59' });
@@ -698,7 +706,7 @@ for (const responseStatus of [500, 401]) {
       await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeVisible();
       await expect(page.locator('.global-tip')).toHaveCount(0);
     } else {
-      await expect(page.locator('.global-tip')).toHaveText('同步历史微博失败：本地采集失败');
+      await expect(page.locator('.global-tip')).toHaveText('提交历史微博同步失败：本地采集失败');
       await page.clock.runFor(6100);
       await expect(page.locator('.global-tip')).toHaveCount(0);
     }
@@ -707,39 +715,47 @@ for (const responseStatus of [500, 401]) {
   });
 }
 
-test('sync_history_calendar_failure_does_not_repeat_successful_post', async ({ page }) => {
-  await page.route('**/post/range?*', route => { calendarStatus = 500; return route.fulfill({ json: {} }); });
+test('sync_history_submission_does_not_read_calendar_or_repeat_post', async ({ page }) => {
+  await page.route('**/post/range?*', route => { calendarStatus = 500; return route.fulfill({ status: 204 }); });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
+  const reads = [...requests];
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
   await page.getByRole('button', { name: '开始同步' }).click();
-  await expect(page.getByRole('alert')).toContainText('日期加载失败');
+  await expect(page.locator('.global-tip')).toHaveText('已提交后台同步，可继续浏览，稍后请手动刷新。');
+  await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.locator('.sync-notice')).toHaveCount(0);
   await expect(page.locator('.post-content')).toContainText('第一行');
+  expect(requests).toEqual(reads);
   expect(writeRequests).toHaveLength(1); writeRequests = [];
 });
 
-test('sync_history_initially_empty_scope_uses_default_reading_when_data_arrives', async ({ page }) => {
+test('sync_history_empty_scope_shows_captured_data_only_after_manual_refresh', async ({ page }) => {
   calendarsByUid['1'] = { months: [] };
-  await page.route('**/post/range?*', route => { calendarsByUid['1'] = calendar; return route.fulfill({ json: {} }); });
+  await page.route('**/post/range?*', route => { calendarsByUid['1'] = calendar; return route.fulfill({ status: 204 }); });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('暂无有博文的日期');
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
   await page.getByRole('button', { name: '开始同步' }).click();
+  await expect(page.locator('.global-tip')).toHaveText('已提交后台同步，可继续浏览，稍后请手动刷新。');
+  await expect(page.locator('.dates-list')).toContainText('暂无有博文的日期');
+  await expect(page.locator('.post-content')).toHaveCount(0);
+  await page.reload();
+  await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
   await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect(writeRequests).toHaveLength(1); writeRequests = [];
 });
 
-test('sync_history_timeout_releases_operation_and_does_not_auto_retry', async ({ page }) => {
+test('sync_history_submission_timeout_releases_form_without_auto_retry', async ({ page }) => {
   await page.clock.install();
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
-  await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
+  await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ status: 204 }).catch(() => {}); });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
@@ -747,10 +763,17 @@ test('sync_history_timeout_releases_operation_and_does_not_auto_retry', async ({
   await page.getByRole('button', { name: '开始同步' }).click();
   const entry = page.getByRole('button', { name: '同步历史', exact: true });
   await expect(entry).toHaveAttribute('aria-disabled', 'true');
+  const reads = [...requests];
   await page.clock.runFor(16000);
-  await expect(page.locator('.global-tip')).toContainText('请求超时');
   await expect(entry).toHaveAttribute('aria-disabled', 'false');
+  await expect(page.locator('.global-tip')).toContainText('提交历史微博同步失败：请求超时');
+  await expect(page.locator('.sync-notice')).toHaveCount(0);
+  await page.clock.runFor(6100);
+  expect(requests).toEqual(reads);
   finish();
+  await expect(page.locator('.global-tip')).toHaveCount(0);
+  await entry.click();
+  await expect(page.getByRole('dialog', { name: '同步历史微博' })).toBeVisible();
   expect(writeRequests).toHaveLength(1); writeRequests = [];
 });
 
@@ -772,7 +795,7 @@ test('sync_history_dark_dialog_and_long_name_fit_minimum_window', async ({ page 
 test('sync_history_unmount_aborts_local_request_without_applying_late_result', async ({ page }) => {
   let finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
-  await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ json: {} }).catch(() => {}); });
+  await page.route('**/post/range?*', async route => { await gate; await route.fulfill({ status: 204 }).catch(() => {}); });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
   await page.getByRole('button', { name: '第一位', exact: true }).click();

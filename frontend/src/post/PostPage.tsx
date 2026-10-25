@@ -25,7 +25,7 @@ function BloggerList({ bloggers, keyword, selectedUid, onSelect }: {
 export default function PostPage() {
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion, refreshCalendar } = useDefaultReading();
+  const { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion } = useDefaultReading();
   const scrollIntent = useRef(false);
   const readingKey = `${selection.visit}:${date}:${readingVersion.current}`;
   useEffect(() => { scrollIntent.current = false; }, [readingKey]);
@@ -38,14 +38,6 @@ export default function PostPage() {
   const loadedCount = posts.data?.pages.reduce((count, page) => count + page.items.length, 0) ?? 0;
   const totalCount = posts.data?.pages.reduce((count, page) => count + page.total, 0) ?? 0;
   const login = usePostLogin();
-  const [syncNotice, setSyncNotice] = useState<{ uid: number; visit: number }>();
-  const scopeRef = useRef(selection);
-  scopeRef.current = selection;
-  async function historyCompleted(uid: number, visit: number) {
-    if (scopeRef.current.uid !== uid || scopeRef.current.visit !== visit) return;
-    const refreshed = await refreshCalendar();
-    if (scopeRef.current.uid === uid && scopeRef.current.visit === visit && refreshed.isSuccess) setSyncNotice({ uid, visit });
-  }
   async function bloggerAdded(uid: string, select: boolean) {
     const version = readingVersion.current;
     const refreshed = await bloggers.refetch();
@@ -66,7 +58,7 @@ export default function PostPage() {
             <div className="search-box"><input type="search" aria-label="搜索博主" placeholder="搜索博主" value={bloggerSearch} onChange={event => setBloggerSearch(event.target.value)} /></div>
             <div className="blogger-tools">
               <AddBlogger onAdded={bloggerAdded} onUnauthorized={login.expire} />
-              <SyncHistory blogger={selectedBlogger} visit={selection.visit} onStart={() => setSyncNotice(undefined)} onComplete={historyCompleted} onUnauthorized={login.expire} />
+              <SyncHistory blogger={selectedBlogger} onUnauthorized={login.expire} />
             </div>
             <div className="bloggers-list">
               <button className="blogger-row all-bloggers" aria-pressed={selection.uid === null} onClick={() => selectBlogger(null)}>
@@ -117,7 +109,7 @@ export default function PostPage() {
         </section>
         <aside className="reading-sidebar" aria-label="日期导航">
           <section className="dates-panel" aria-label="日期区域">
-            <header className="dates-heading"><h2>日期选择</h2>{syncNotice?.uid === selection.uid && syncNotice?.visit === selection.visit && <span className="sync-notice" role="status">同步完成</span>}</header>
+            <header className="dates-heading"><h2>日期选择</h2></header>
             <div className="dates-list">
               {calendar.isFetching && <p className="panel-feedback" role="status">正在加载日期……</p>}
               {calendar.isError && !isUnauthorized(calendar.error) && <p className="panel-feedback" role="alert">日期加载失败，请刷新页面重试。（{calendar.error.message}）</p>}

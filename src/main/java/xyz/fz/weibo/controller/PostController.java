@@ -39,13 +39,20 @@ public class PostController {
     }
 
     @PostMapping("/range")
-    public SaveResult saveByRange(
+    public ResponseEntity<Void> saveByRange(
             @RequestParam long uid,
             @RequestParam
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
             @RequestParam
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end) {
-        return postService.saveByRange(uid, toEpochMillis(start), toEpochMillis(end));
+        if (uid <= 0) {
+            throw new InvalidRequestException("uid 必须大于 0。");
+        }
+        if (start.isAfter(end)) {
+            throw new InvalidRequestException("start 不能晚于 end。");
+        }
+        postService.saveByRangeAsync(uid, toEpochMillis(start), toEpochMillis(end));
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/image")

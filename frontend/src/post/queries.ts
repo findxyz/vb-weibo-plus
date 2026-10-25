@@ -27,7 +27,7 @@ export async function getJson<T>(url: string, signal: AbortSignal, timeoutMs = 1
       } catch { /* Non-JSON errors retain the HTTP status. */ }
       throw new QueryError(message, response.status);
     }
-    return await response.json();
+    return response.status === 204 ? undefined as T : await response.json();
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
       throw new QueryError('请求超时，请稍后重试', 0);
@@ -102,9 +102,5 @@ export function useDefaultReading() {
     readingVersion.current++;
     setSelection(previous => ({ uid, visit: previous.visit + 1 }));
   }
-  function refreshCalendar() {
-    if (date) setSelectedDate(previous => previous?.visit === selection.visit ? previous : { visit: selection.visit, value: date });
-    return calendar.refetch();
-  }
-  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion, refreshCalendar };
+  return { bloggers, calendar, months, date, posts, selection, selectDate, selectBlogger, jump, jumpToPost, readingVersion };
 }
