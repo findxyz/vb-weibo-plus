@@ -27,6 +27,6 @@ export default function PostLogin({ pending, started, message, onStart }: { pend
     {!image && started && <div className="qr-loading">{pending ? retrying ? '二维码加载重试…' : '正在获取二维码…' : '暂无二维码'}</div>}
     {image && <img src={image} alt="扫码登录二维码" />}
     <span className="panel-state">{message}</span>
-    <button type="button" disabled={pending} onClick={onStart}>{pending ? '扫码中…' : '扫码登录'}</button>
+    <button type="button" aria-label={pending ? '扫码中…' : '扫码登录'} disabled={pending} onClick={onStart}>{pending ? '扫码中…' : '扫码登录'}</button>
   </div>;
 }

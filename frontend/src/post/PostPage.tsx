@@ -91,7 +91,7 @@ export default function PostPage() {
               </div>
             </div>
             <div className="feed-actions">
-              <button type="button" className="search-open" onClick={() => setSearchOpen(true)}>高级搜索</button>
+              <button type="button" className="search-open" aria-label="高级搜索" onClick={() => setSearchOpen(true)}>高级搜索</button>
               <button type="button" className="window-control toggle" aria-label="切换到微博群聊" title="切换到微博群聊" onClick={() => { window.location.href = '/chat/index.html'; }}>微博群聊</button>
             </div>
           </header>

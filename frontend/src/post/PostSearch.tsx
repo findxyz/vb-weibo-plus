@@ -56,7 +56,7 @@ export default function PostSearch({ uid, scopeLabel, onClose, onSelectPost, onU
           <label className="search-field">至<input type="date" value={end} onChange={event => setEnd(event.target.value)} /></label>
         </div>
         <p className="search-status" role={validation || search.isError ? 'alert' : 'status'}>{status}</p>
-        <div className="search-actions"><button type="submit" className="search-submit" disabled={search.isFetching}>搜索</button></div>
+        <div className="search-actions"><button type="submit" className="search-submit" aria-label="搜索" disabled={search.isFetching}>搜索</button></div>
         <div className="search-results" aria-live="polite">
           {search.isSuccess && search.data.items.length === 0 && <p className="search-empty">未找到匹配微博</p>}
           {search.isSuccess && search.data.items.map(post => <button type="button" className="search-result" key={post.mblogId} onClick={() => { dialogRef.current!.close(); onSelectPost(post); }}>

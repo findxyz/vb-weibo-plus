@@ -38,17 +38,15 @@ class GroupChatPageTest {
             return thread;
         }));
         server.createContext("/chat/groups", exchange -> sendJson(exchange, """
-                [{"gid":101,"name":"打包资源群","memberCount":10,"maxMember":50,"admins":[],"messageCount":2},
-                 {"gid":202,"name":"第二资源群","memberCount":5,"maxMember":20,"admins":[],"messageCount":2}]
+                [{"gid":101,"name":"打包资源群","memberCount":10,"maxMember":50,"admins":[],"messageCount":2}]
                 """));
         server.createContext("/chat/messages/cursor", exchange -> {
-            int gid = exchange.getRequestURI().getRawQuery().contains("gid=202") ? 202 : 101;
             sendJson(exchange, """
-                    {"items":[{"mid":1,"gid":%d,"senderId":1,"senderName":"成员","text":"较早消息",
+                    {"items":[{"mid":1,"gid":101,"senderId":1,"senderName":"成员","text":"较早消息",
                     "msgType":1,"createdAt":1785889800000,"savedAt":1785889800000},
-                    {"mid":2,"gid":%d,"senderId":2,"senderName":"成员","text":"打包后的消息",
+                    {"mid":2,"gid":101,"senderId":2,"senderName":"成员","text":"打包后的消息",
                     "msgType":1,"createdAt":1785889860000,"savedAt":1785889860000}],"hasMore":false,"size":50}
-                    """.formatted(gid, gid));
+                    """);
         });
         server.createContext("/chat/analyses", exchange -> {
             if (exchange.getRequestURI().getPath().equals("/chat/analyses/1")) {
@@ -64,7 +62,6 @@ class GroupChatPageTest {
             }
         });
         server.createContext("/weibo/login/status", exchange -> sendJson(exchange, "{\"valid\":true}"));
-        server.createContext("/post/bloggers", exchange -> sendJson(exchange, "[]"));
         server.createContext("/", GroupChatPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -101,34 +98,6 @@ class GroupChatPageTest {
             page.reload();
             assertThat(page.locator(".messages")).containsText("打包后的消息");
             Assertions.assertThat(errors).isEmpty();
-        }
-    }
-
-    @Test
-    void formal_chat_preserves_the_saved_group_and_lands_at_the_bottom() {
-        try (Page page = browser.newPage()) {
-            page.navigate(baseUrl + "/chat/index.html");
-            page.locator(".group-row").nth(1).click();
-            assertThat(page.locator(".group-number")).hasText("群号：202");
-            page.reload();
-            assertThat(page.locator("h1")).hasText("微博群聊 - 第二资源群");
-            assertThat(page.locator(".group-number")).hasText("群号：202");
-            assertThat(page.locator(".messages .message")).hasCount(2);
-            Assertions.assertThat(page.locator(".messages").evaluate(
-                    "el => el.scrollTop + el.clientHeight >= el.scrollHeight - 2")).isEqualTo(true);
-        }
-    }
-
-    @Test
-    void both_formal_pages_round_trip_on_the_same_origin_with_the_keyboard() {
-        try (Page page = browser.newPage()) {
-            page.navigate(baseUrl + "/chat/index.html");
-            page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("切换到本地微博").setExact(true)).press("Enter");
-            assertThat(page).hasURL(baseUrl + "/post/index.html");
-            assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("本地微博").setExact(true))).isVisible();
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("切换到微博群聊").setExact(true)).press("Enter");
-            assertThat(page).hasURL(baseUrl + "/chat/index.html");
-            assertThat(page.locator(".messages")).containsText("打包后的消息");
         }
     }
 

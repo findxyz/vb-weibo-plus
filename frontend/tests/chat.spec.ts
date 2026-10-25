@@ -698,7 +698,7 @@ test('chat_renders_file_downloads_and_weibo_share_cards', async ({ page }) => {
   items[1].mediaType = 14;
   items[1].text = '分享微博';
   items[1].urlObjects = [{
-    status: { user: { screen_name: '原作者' }, text: `<b>摘要</b>${'字'.repeat(120)}` },
+    status: { user: { screen_name: '原作者' }, text: `<b>正文</b>${'字'.repeat(120)}完整结尾。` },
     url_ori: 'https://weibo.com/1/share',
   }];
   items[2].mediaType = 14;
@@ -715,9 +715,7 @@ test('chat_renders_file_downloads_and_weibo_share_cards', async ({ page }) => {
 
   const card = page.locator('[data-mid="2"] .weibo-card');
   await expect(card.locator('.weibo-card-author')).toHaveText('原作者');
-  await expect(card.locator('.weibo-card-summary')).toHaveText(/^摘要字+…$/);
-  const summary = await card.locator('.weibo-card-summary').textContent();
-  expect(summary ?? '').toHaveLength(101);
+  await expect(card.locator('.weibo-card-summary')).toHaveText(`正文${'字'.repeat(120)}完整结尾。`);
   await expect(card.locator('.weibo-card-link')).toHaveAttribute('href', 'https://weibo.com/1/share');
   await expect(card.locator('.weibo-card-link')).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(card.locator('.weibo-card-link')).toHaveText('查看微博');

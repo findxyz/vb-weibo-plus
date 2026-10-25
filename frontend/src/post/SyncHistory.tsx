@@ -68,7 +68,7 @@ export default function SyncHistory({ blogger, visit, onStart, onComplete, onUna
           <label className="search-field">开始日期<input type="date" value={start} onChange={event => setStart(event.target.value)} /></label>
           <label className="search-field">结束日期<input type="date" value={end} onChange={event => setEnd(event.target.value)} /></label>
           <p className="management-status" role="alert">{validation}</p>
-          <div className="search-actions"><button type="submit" className="sync-submit">开始同步</button></div>
+          <div className="search-actions"><button type="submit" className="sync-submit" aria-label="开始同步">开始同步</button></div>
         </form>
       </div>
     </dialog>, document.body)}

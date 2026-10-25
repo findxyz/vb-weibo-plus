@@ -65,7 +65,7 @@ export default function AddBlogger({ onAdded, onUnauthorized }: { onAdded: (uid:
           <p className="search-overlay-tip">输入博主 UID 或主页链接，例如 https://weibo.com/u/1234567890，添加后会立即拉取最新一页微博。</p>
           <input ref={inputRef} type="text" aria-label="UID 或主页链接" placeholder="UID 或主页链接" autoComplete="off" value={value} onChange={event => setValue(event.target.value)} />
           <p className="management-status" role={validation || adding.isError ? 'alert' : 'status'}>{validation || (adding.isPending ? '正在添加并拉取微博…' : adding.isError ? `添加失败：${adding.error.message}` : '')}</p>
-          <div className="search-actions"><button type="submit" className="add-submit" disabled={adding.isPending}>添加</button></div>
+          <div className="search-actions"><button type="submit" className="add-submit" aria-label="添加" disabled={adding.isPending}>添加</button></div>
         </form>
       </div>
     </dialog>, document.body)}
