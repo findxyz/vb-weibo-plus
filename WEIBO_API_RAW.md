@@ -1000,3 +1000,21 @@ mediaprops 解码后：
 
 说明
 视频发送共 4 步：上传封面图、multimedia/init 初始化视频、up.video.weibocdn.com 分片上传视频、groupchat/send_message 发送。发送成功后，query_messages 返回的视频消息以 fids[0] 保存视频 fid，以 annotations.video_pic_fid 保存封面图 fid。
+
+## 微博点赞、取消点赞与状态查询
+
+2026-10-31 核对微博官方网页脚本，并以现有 Credential 实测只读详情接口。写接口契约来自官方脚本，未操作真实账号的点赞状态；一方来源与风控分支见 `docs/research/weibo-post-likes.md`。
+
+| 操作 | 方法 | 微博接口 | 参数 |
+| --- | --- | --- | --- |
+| 查询当前账号已赞状态 | GET | `https://weibo.com/ajax/statuses/show` | `id=<微博数字 ID>&locale=zh-CN` |
+| 点赞 | POST | `https://weibo.com/ajax/statuses/setLike` | 表单 `id=<微博数字 ID>` |
+| 取消点赞 | POST | `https://weibo.com/ajax/statuses/cancelLike` | 表单 `id=<微博数字 ID>` |
+
+详情响应的业务 JSON 根对象包含 `ok`、`idstr`、`attitudes_status`（0／1）与 `attitudes_count`。不能把缺失的本人状态当作未点赞，不能把采集快照计数当作当前计数。
+
+写请求先携带当前 Credential 访问 `https://weibo.com/`，提取本次响应的 `XSRF-TOKEN` 与 `WBPSESS`，连同 Credential 作为 Cookie 发送；将百分号解码后的 `XSRF-TOKEN` 放到 `X-XSRF-TOKEN` 请求头，并携带 `Origin: https://weibo.com`、`Referer: https://weibo.com/`、`X-Requested-With: XMLHttpRequest`。表单编码为 `application/x-www-form-urlencoded`，微博数字 ID 全程按十进制字符串发送。
+
+写响应必须同时满足 HTTP 200 与根对象 `ok > 0` 才视为接口确认成功；成功后另查详情获取当前状态与计数。写请求不自动重试，超时或结果不确定时通过只读详情查询核对。官方网页可能附加设备参数 `fp` 或要求安全验证；本地遇到错误码 20062／20067 时提示前往微博网页版验证。
+
+页面通过 `/post/like?mblogId=<本地短码>` 查询状态，通过 `POST /post/like` 的 `mblogId`、`liked` 参数指定目标状态；数字 ID 由 `PostService` 从本地记录解析，只操作外层微博，不修改采集快照。`/weibo/blog/like?id=<数字 ID>` 的 GET／POST 仅作接口测试入口，两者复用同一个微博 API 类。

@@ -5,6 +5,7 @@ import { getJson, isUnauthorized } from './queries';
 export function usePostLogin() {
   const client = useQueryClient();
   const [expired, setExpired] = useState(false);
+  const [likeSession, setLikeSession] = useState(0);
   const [message, setMessage] = useState('登录已失效');
   const controller = useRef<AbortController>(null);
   const pending = useRef(false);
@@ -20,7 +21,10 @@ export function usePostLogin() {
       await client.cancelQueries({ queryKey: ['post', 'login-status'] });
       return getJson('/weibo/login/qr', controller.current.signal, 360000, { method: 'POST' });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await client.cancelQueries({ queryKey: ['post', 'like'] });
+      client.removeQueries({ queryKey: ['post', 'like'] });
+      setLikeSession(previous => previous + 1);
       const recovery = ++version.current;
       setExpired(false);
       setMessage('登录已失效');
@@ -45,5 +49,6 @@ export function usePostLogin() {
     setMessage('登录已失效');
     qr.mutate();
   }
-  return { expired, expire, message, pending: qr.isPending, started: !qr.isIdle, start };
+  return { expired, expire, message, pending: qr.isPending, started: !qr.isIdle, start,
+    likeSession, likeEnabled: !expired && !qr.isPending && status.isSuccess && status.data?.valid === true };
 }

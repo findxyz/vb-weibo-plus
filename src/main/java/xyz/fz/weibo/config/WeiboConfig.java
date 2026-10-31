@@ -19,7 +19,7 @@ public class WeiboConfig {
 
     @Bean
     public CloseableHttpClient httpClient() {
-        return HttpClientBuilder.create().disableRedirectHandling().build();
+        return HttpClientBuilder.create().disableRedirectHandling().disableAutomaticRetries().build();
     }
 
     @Bean

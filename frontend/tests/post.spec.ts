@@ -88,9 +88,15 @@ function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImag
 
 test.beforeAll(async () => {
   backend = createHttpServer((request, response) => {
-    requests.push(`${request.method} ${request.url}`);
     const url = new URL(request.url!, 'http://fixture');
     const path = url.pathname;
+    // Like interactions are covered in post-likes.spec.ts; these assertions track local reading.
+    if (path !== '/post/like') requests.push(`${request.method} ${request.url}`);
+    if (path === '/post/like') {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ liked: false, count: 7 }));
+      return;
+    }
     if (path === '/chat/groups') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end('[]');

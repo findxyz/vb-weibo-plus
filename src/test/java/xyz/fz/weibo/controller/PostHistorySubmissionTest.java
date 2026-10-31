@@ -9,6 +9,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
@@ -31,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(PostController.class)
 @Import(PostService.class)
 @MockitoBean(types = {MyBlogApi.class, LongTextApi.class, DirectMediaApi.class,
-        PostMapper.class, BloggerRepository.class, PostRepository.class})
+        PostMapper.class, BloggerRepository.class, PostRepository.class, PostLikeApi.class})
 class PostHistorySubmissionTest {
 
     @Autowired

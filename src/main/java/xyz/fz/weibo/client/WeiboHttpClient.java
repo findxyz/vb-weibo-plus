@@ -15,6 +15,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
@@ -64,6 +65,23 @@ public class WeiboHttpClient {
     public ResponseEntity<String> postForm(String url, Map<String, String> params,
                                             Map<String, String> headers, boolean withCookie) {
         URI uri = buildUri(url, null);
+        return post0(uri, formEntity(params, headers, withCookie), String.class);
+    }
+
+    public ResponseEntity<String> postFormOnce(String url, Map<String, String> params,
+                                              Map<String, String> headers, boolean withCookie) {
+        URI uri = buildUri(url, null);
+        try {
+            return exchangeOnce(uri, HttpMethod.POST, formEntity(params, headers, withCookie), String.class);
+        } catch (RateLimitedResponseException e) {
+            throw new WeiboRateLimitException("微博接口限流，请稍后查询实际状态再重试。");
+        } catch (RestClientException e) {
+            throw new WeiboException("微博操作结果尚未确认，请查询实际状态后再重试。", -1, e);
+        }
+    }
+
+    private HttpEntity<?> formEntity(Map<String, String> params,
+                                     Map<String, String> headers, boolean withCookie) {
         HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
         httpHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -76,7 +94,7 @@ public class WeiboHttpClient {
                 form.add(entry.getKey(), value);
             }
         }
-        return post0(uri, new HttpEntity<>(form, httpHeaders), String.class);
+        return new HttpEntity<>(form, httpHeaders);
     }
 
     /**
@@ -140,17 +158,20 @@ public class WeiboHttpClient {
 
     private <T> ResponseEntity<T> exchangeAndCheck(URI uri, HttpMethod method,
                                                     HttpEntity<?> entity, Class<T> responseType) {
-        return request0(uri, entity.getHeaders(), () -> {
-            ResponseEntity<T> resp = restTemplate.exchange(uri, method, entity, responseType);
-            int statusCode = resp.getStatusCode().value();
-            log.debug("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
-            checkRateLimit(statusCode);
-            checkResponseStatus(statusCode, resp.getHeaders(), uri);
-            if (statusCode == 200 && responseType == String.class) {
-                checkCookieExpiredByBody((String) resp.getBody());
-            }
-            return resp;
-        });
+        return request0(uri, entity.getHeaders(), () -> exchangeOnce(uri, method, entity, responseType));
+    }
+
+    private <T> ResponseEntity<T> exchangeOnce(URI uri, HttpMethod method,
+                                               HttpEntity<?> entity, Class<T> responseType) {
+        ResponseEntity<T> resp = restTemplate.exchange(uri, method, entity, responseType);
+        int statusCode = resp.getStatusCode().value();
+        log.debug("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
+        checkRateLimit(statusCode);
+        checkResponseStatus(statusCode, resp.getHeaders(), uri);
+        if (statusCode == 200 && responseType == String.class) {
+            checkCookieExpiredByBody((String) resp.getBody());
+        }
+        return resp;
     }
 
     private <T> T request0(URI uri, HttpHeaders headers, Supplier<T> request) {

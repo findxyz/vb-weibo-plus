@@ -3,6 +3,7 @@ package xyz.fz.weibo.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +14,7 @@ import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.CalendarView;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PostQueryResult;
+import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.PostService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
@@ -73,6 +75,16 @@ public class PostController {
     @GetMapping("/bloggers")
     public List<BloggerRecord> queryBloggers() {
         return postService.queryBloggers();
+    }
+
+    @GetMapping("/like")
+    public ResponseEntity<PostLikeState> queryLike(@RequestParam String mblogId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(postService.queryLike(mblogId));
+    }
+
+    @PostMapping("/like")
+    public PostLikeState setLike(@RequestParam String mblogId, @RequestParam boolean liked) {
+        return postService.setLike(mblogId, liked);
     }
 
     @PostMapping("/bloggers")

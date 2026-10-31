@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,6 +20,7 @@ import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
 import xyz.fz.weibo.config.NoOpResponseErrorHandler;
+import xyz.fz.weibo.config.WeiboConfig;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -41,6 +41,22 @@ class WeiboHttpClientTest {
 
     private HttpServer server;
     private CloseableHttpClient httpClient;
+
+    @Test
+    void post_form_once_does_not_retry_at_transport_or_application_layer() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        server = startServer(exchange -> {
+            requests.incrementAndGet();
+            exchange.sendResponseHeaders(503, -1);
+            exchange.close();
+        });
+
+        ResponseEntity<String> response = createClient().postFormOnce(
+                mediaUrl(), Map.of("id", "5316949752945053"), Map.of(), false);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(503);
+        assertThat(requests.get()).isEqualTo(1);
+    }
 
     @AfterEach
     void tearDown() throws IOException {
@@ -237,10 +253,7 @@ class WeiboHttpClientTest {
     }
 
     private WeiboHttpClient createClient() {
-        httpClient = HttpClientBuilder.create()
-                .disableRedirectHandling()
-                .disableAutomaticRetries()
-                .build();
+        httpClient = new WeiboConfig().httpClient();
         RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
         restTemplate.setErrorHandler(new NoOpResponseErrorHandler());
         WeiboCookieHolder credentialHolder = new WeiboCookieHolder();

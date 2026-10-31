@@ -10,6 +10,15 @@ POST {{host}}/post/range?uid=1795308214&start=2026-07-10%2000:00:00&end=2026-07-
 ### 查询本地博主列表
 GET {{host}}/post/bloggers
 
+### 查询当前账号的点赞状态与当前计数（mblogId 来自本地列表，不修改采集快照）
+GET {{host}}/post/like?mblogId=R8070kHp4
+
+### 点赞外层微博（真实操作当前账号，成功后返回远端确认状态与计数）
+POST {{host}}/post/like?mblogId=R8070kHp4&liked=true
+
+### 取消外层微博的点赞
+POST {{host}}/post/like?mblogId=R8070kHp4&liked=false
+
 ### 查询全部本地微博：第 1 页
 GET {{host}}/post/list?page=1&size=100
 

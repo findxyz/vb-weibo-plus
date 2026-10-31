@@ -16,6 +16,10 @@ _Avoid_: mymblog, statuses
 The full content of a Blogger Blog entry whose isLongText is true, fetched separately by the post's numeric id.
 _Avoid_: longtextContent
 
+**Post Like**:
+The current Weibo account's like on a Blogger Blog entry, which can be removed from the same account. Liking a repost applies to the repost itself, independently of the original entry it contains.
+_Avoid_: local favorite, Group Message attitude
+
 **Group Message**:
 A message in a Weibo group chat identified by gid, paginated by max_mid (oldest-first). Types include text, image, video, link share, animated emoji.
 _Avoid_: query_messages

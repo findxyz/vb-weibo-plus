@@ -97,7 +97,8 @@ export default function PostPage() {
             {posts.isError && !posts.isFetchNextPageError && !isUnauthorized(posts.error) && <><p role="alert">博文加载失败。（{posts.error.message}）</p><button onClick={() => void posts.refetch()}>重试博文</button></>}
             {posts.data?.pages.map((page, index) => <section className="post-day" aria-label={`${posts.data.pageParams[index]} 的微博`} key={posts.data.pageParams[index]}>
               {index > 0 && <h3 className="post-day-heading"><time dateTime={posts.data.pageParams[index]}>{posts.data.pageParams[index]}</time></h3>}
-              <PostFeed result={page} targetPostId={index === 0 ? jump?.mblogId : undefined} />
+              <PostFeed result={page} targetPostId={index === 0 ? jump?.mblogId : undefined}
+                likeEnabled={login.likeEnabled} likeSession={login.likeSession} onUnauthorized={login.expire} />
             </section>)}
             {posts.data && <div className="reading-more">
               {posts.isFetchingNextPage && <p role="status">正在加载更早微博……</p>}

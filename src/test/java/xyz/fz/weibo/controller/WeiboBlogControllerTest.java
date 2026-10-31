@@ -7,6 +7,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostLikeApi;
+import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
@@ -24,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -45,6 +48,23 @@ class WeiboBlogControllerTest {
 
     @MockitoBean
     private SearchProfileApi searchProfileApi;
+
+    @MockitoBean
+    private PostLikeApi postLikeApi;
+
+    @Test
+    void like_test_endpoints_share_api_and_validate_numeric_id() throws Exception {
+        when(postLikeApi.query(5316949752945053L)).thenReturn(new PostLikeState(true, 7));
+        mockMvc.perform(get("/weibo/blog/like").param("id", "5316949752945053"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liked").value(true))
+                .andExpect(jsonPath("$.count").value(7));
+        mockMvc.perform(post("/weibo/blog/like").param("id", "5316949752945053").param("liked", "false"))
+                .andExpect(status().isNoContent());
+        verify(postLikeApi).setLike(5316949752945053L, false);
+        mockMvc.perform(get("/weibo/blog/like").param("id", "invalid"))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     void myblog_returns_200_with_json_fields() throws Exception {

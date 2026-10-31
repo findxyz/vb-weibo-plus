@@ -126,6 +126,12 @@ button:not(:disabled):not([aria-disabled="true"]):hover { filter: brightness(1.1
 .post-region::before { content: " · "; }
 .post-source::before { content: " · 来自 "; }
 .post-link { display: inline-flex; align-items: center; min-height: 32px; margin-left: auto; font: 14px/1 var(--hand-b); white-space: nowrap; }
+.post-action-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-left: auto; }
+.post-like { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.post-like-button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); background: var(--surface-alt); font: 14px/1 var(--hand); }
+.post-like-button[aria-pressed="true"] { color: var(--link); background: var(--selected); border-color: var(--border); }
+.post-like-count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.post-like-error { flex-basis: 100%; color: var(--danger); font-size: 12px; }
 .post-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 120px)); gap: 6px; margin-top: 4px; }
 .post-pic { position: relative; display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1; padding: 0; overflow: hidden; border: 1px solid var(--text); border-radius: 0; background: var(--surface-alt); }
 .post-pic img, .post-retweet-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }

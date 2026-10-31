@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
         '^/weibo/login/(?:status|qr|qr/image)(?:\\?.*)?$': {
           target: backendUrl,
         },
-        '^/post/(?:bloggers|calendar|list|image|video-cover|range)(?:\\?.*)?$': {
+        '^/post/(?:bloggers|calendar|list|like|image|video-cover|range)(?:\\?.*)?$': {
           target: backendUrl,
         },
         '^/chat/(?:groups|attitudes|since|analyses(?:/(?:stream|\\d+))?|messages(?:/(?:cursor|weibo-text|send|sendImage|sendVideo))?|media|image)(?:\\?.*)?$': {

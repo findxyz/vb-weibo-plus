@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageImpl;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
@@ -84,6 +85,9 @@ class PostServiceTest {
     @Mock
     private PostRepository postRepository;
 
+    @Mock
+    private PostLikeApi postLikeApi;
+
     private PostService postService;
 
     @BeforeEach
@@ -91,7 +95,7 @@ class PostServiceTest {
         MockitoAnnotations.openMocks(this);
         postService = new PostService(myBlogApi, searchProfileApi, longTextApi, directMediaApi,
                 postMapper,
-                bloggerRepository, postRepository);
+                bloggerRepository, postRepository, postLikeApi);
     }
 
     @Test

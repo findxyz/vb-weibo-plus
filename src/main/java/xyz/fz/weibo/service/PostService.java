@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
@@ -19,6 +20,7 @@ import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PicInfo;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.PostRecord;
+import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.domain.PostView;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.entity.BloggerEntity;
@@ -64,12 +66,14 @@ public class PostService {
     private final PostMapper postMapper;
     private final BloggerRepository bloggerRepository;
     private final PostRepository postRepository;
+    private final PostLikeApi postLikeApi;
     private final ReentrantLock saveByRangeLock = new ReentrantLock();
 
     public PostService(MyBlogApi myBlogApi, SearchProfileApi searchProfileApi,
                        LongTextApi longTextApi, DirectMediaApi directMediaApi,
                        PostMapper postMapper,
-                       BloggerRepository bloggerRepository, PostRepository postRepository) {
+                       BloggerRepository bloggerRepository, PostRepository postRepository,
+                       PostLikeApi postLikeApi) {
         this.myBlogApi = myBlogApi;
         this.searchProfileApi = searchProfileApi;
         this.longTextApi = longTextApi;
@@ -77,6 +81,17 @@ public class PostService {
         this.postMapper = postMapper;
         this.bloggerRepository = bloggerRepository;
         this.postRepository = postRepository;
+        this.postLikeApi = postLikeApi;
+    }
+
+    public PostLikeState queryLike(String mblogId) {
+        return postLikeApi.query(findPost(mblogId).postId());
+    }
+
+    public PostLikeState setLike(String mblogId, boolean liked) {
+        long postId = findPost(mblogId).postId();
+        postLikeApi.setLike(postId, liked);
+        return postLikeApi.query(postId);
     }
 
     public SaveResult saveIncremental(long uid) {

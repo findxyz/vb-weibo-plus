@@ -7,6 +7,7 @@ import PostImages from './PostImages';
 import ImageViewer from './ImageViewer';
 import PostVideo from './PostVideo';
 import { playableVideo } from './video';
+import PostLikeButton from './PostLikeButton';
 
 function PostContent({ content, className = 'post-content' }: { content: string; className?: string }) {
   try {
@@ -19,7 +20,9 @@ function PostContent({ content, className = 'post-content' }: { content: string;
   }
 }
 
-export default function PostFeed({ result, targetPostId }: { result: PostList; targetPostId?: string }) {
+export default function PostFeed({ result, targetPostId, likeEnabled, likeSession, onUnauthorized }: {
+  result: PostList; targetPostId?: string; likeEnabled: boolean; likeSession: number; onUnauthorized: () => void;
+}) {
   const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
   const [highlighted, setHighlighted] = useState(targetPostId);
   const targetRef = useRef<HTMLElement>(null);
@@ -87,7 +90,11 @@ export default function PostFeed({ result, targetPostId }: { result: PostList; t
               {post.region && <span className="post-region">{post.region}</span>}
               {post.source && <span className="post-source">{post.source}</span>}
             </div>
-            {postUrl && <a className="post-link" href={postUrl} target="_blank" rel="noopener">查看原文</a>}
+            <div className="post-action-links">
+              <PostLikeButton key={`${post.mblogId}:${likeSession}`} mblogId={post.mblogId}
+                enabled={likeEnabled} session={likeSession} onUnauthorized={onUnauthorized} />
+              {postUrl && <a className="post-link" href={postUrl} target="_blank" rel="noopener">查看原文</a>}
+            </div>
           </div>
         </div>
       </article>;

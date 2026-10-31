@@ -1,11 +1,15 @@
 package xyz.fz.weibo.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostLikeApi;
+import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
@@ -24,11 +28,25 @@ public class WeiboBlogController {
     private final MyBlogApi myBlogApi;
     private final LongTextApi longTextApi;
     private final SearchProfileApi searchProfileApi;
+    private final PostLikeApi postLikeApi;
 
-    public WeiboBlogController(MyBlogApi myBlogApi, LongTextApi longTextApi, SearchProfileApi searchProfileApi) {
+    public WeiboBlogController(MyBlogApi myBlogApi, LongTextApi longTextApi, SearchProfileApi searchProfileApi,
+                               PostLikeApi postLikeApi) {
         this.myBlogApi = myBlogApi;
         this.longTextApi = longTextApi;
         this.searchProfileApi = searchProfileApi;
+        this.postLikeApi = postLikeApi;
+    }
+
+    @GetMapping("/like")
+    public PostLikeState queryLike(@RequestParam long id) {
+        return postLikeApi.query(id);
+    }
+
+    @PostMapping("/like")
+    public ResponseEntity<Void> setLike(@RequestParam long id, @RequestParam boolean liked) {
+        postLikeApi.setLike(id, liked);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/mymblog")

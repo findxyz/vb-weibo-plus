@@ -16,6 +16,15 @@ GET {{host}}/weibo/blog/mymblog?uid=1795308214&page=2&sinceId=5312356647437845
 ### 长文补全（id 为 mymblog 响应中 isLongText=true 的微博数字 id）
 GET {{host}}/weibo/blog/longtext?id=5316949752945053
 
+### 点赞状态测试入口（id 为微博数字 ID，页面业务使用 /post/like）
+GET {{host}}/weibo/blog/like?id=5316949752945053
+
+### 点赞测试入口（真实操作当前账号，成功返回 204）
+POST {{host}}/weibo/blog/like?id=5316949752945053&liked=true
+
+### 取消点赞测试入口
+POST {{host}}/weibo/blog/like?id=5316949752945053&liked=false
+
 ### 博主微博时间范围拉取 - 第 1 页（startTime / endTime 为秒级时间戳）
 GET {{host}}/weibo/blog/searchProfile?uid=1795308214&page=1&startTime=1783622400&endTime=1783708799
 
