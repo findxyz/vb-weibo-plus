@@ -872,6 +872,19 @@ h1 {
   object-fit: contain;
 }
 
+.media-preview:not(.video-preview) {
+  width: fit-content;
+  max-width: min(320px, 70vw, 100%);
+  min-height: 0;
+  background: transparent;
+}
+
+.media-preview:not(.video-preview) img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+}
+
 .video-preview span {
   position: absolute;
   display: grid;
