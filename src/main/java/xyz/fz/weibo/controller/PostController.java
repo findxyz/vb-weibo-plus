@@ -83,8 +83,9 @@ public class PostController {
     }
 
     @PostMapping("/like")
-    public PostLikeState setLike(@RequestParam String mblogId, @RequestParam boolean liked) {
-        return postService.setLike(mblogId, liked);
+    public ResponseEntity<Void> setLike(@RequestParam String mblogId, @RequestParam boolean liked) {
+        postService.setLike(mblogId, liked);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/bloggers")

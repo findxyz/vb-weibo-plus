@@ -74,9 +74,9 @@ public class WeiboHttpClient {
         try {
             return exchangeOnce(uri, HttpMethod.POST, formEntity(params, headers, withCookie), String.class);
         } catch (RateLimitedResponseException e) {
-            throw new WeiboRateLimitException("微博接口限流，请稍后查询实际状态再重试。");
+            throw new WeiboRateLimitException("微博接口限流，请稍后重试。");
         } catch (RestClientException e) {
-            throw new WeiboException("微博操作结果尚未确认，请查询实际状态后再重试。", -1, e);
+            throw new WeiboException("微博请求超时或连接失败，请稍后重试。", -1, e);
         }
     }
 

@@ -38,6 +38,7 @@ test.beforeEach(async ({ page }) => {
       writes.push(route.request().postData() ?? '');
       liked = new URLSearchParams(route.request().postData() ?? '').get('liked') === 'true';
       count += liked ? 1 : -1;
+      return route.fulfill({ status: 204 });
     } else reads.push(new URL(route.request().url()).searchParams.get('mblogId')!);
     await route.fulfill({ json: { liked, count } });
   });
@@ -55,25 +56,24 @@ test('visible_outer_post_shows_remote_count_and_reuses_state_during_browsing', a
   expect(writes).toEqual([]);
 });
 
-test('like_waits_for_confirmation_disables_repeat_clicks_and_can_be_cancelled', async ({ page }) => {
+test('like_updates_immediately_ignores_write_response_state_and_can_be_cancelled', async ({ page }) => {
   let release: (() => Promise<void>) | undefined;
   await page.route(url => url.pathname === '/post/like', async route => {
     if (route.request().method() !== 'POST' || writes.length) return route.fallback();
     writes.push(route.request().postData()!);
     await new Promise<void>(resolve => { release = async () => {
-      liked = true;
-      count = 8;
       await route.fulfill({ json: { liked, count } });
       resolve();
     }; });
   });
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
-  await expect(page.getByRole('button', { name: '正在处理点赞' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: '正在处理点赞' })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByLabel('当前点赞数：7', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   expect(writes).toEqual(['mblogId=outer-repost&liked=true']);
   await release!();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '取消点赞', exact: true }).click();
@@ -81,6 +81,11 @@ test('like_waits_for_confirmation_disables_repeat_clicks_and_can_be_cancelled', 
   await expect(page.getByLabel('当前点赞数：7', { exact: true })).toBeVisible();
   expect(writes).toEqual(['mblogId=outer-repost&liked=true', 'mblogId=outer-repost&liked=false']);
   expect(reads).toEqual(['outer-repost']);
+  await expect(page.locator('.post-like-error')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('当前点赞数：6', { exact: true })).toBeVisible();
+  expect(reads).toEqual(['outer-repost', 'outer-repost']);
 });
 
 test('unknown_state_can_be_retried_without_sending_a_like', async ({ page }) => {
@@ -100,7 +105,7 @@ test('unknown_state_can_be_retried_without_sending_a_like', async ({ page }) => 
   expect(writes).toEqual([]);
 });
 
-test('failed_write_reconciles_state_and_displays_security_challenge', async ({ page }) => {
+test('failed_write_keeps_clicked_state_and_displays_security_challenge_without_querying', async ({ page }) => {
   await page.route(url => url.pathname === '/post/like', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
     writes.push(route.request().postData()!);
@@ -109,13 +114,13 @@ test('failed_write_reconciles_state_and_displays_security_challenge', async ({ p
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.locator('.post-like-error')).toContainText('微博要求安全验证');
-  await expect(page.getByRole('button', { name: '点赞', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByLabel('当前点赞数：7', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   expect(writes).toHaveLength(1);
-  expect(reads).toHaveLength(2);
+  expect(reads).toHaveLength(1);
 });
 
-test('timed_out_write_is_reconciled_without_resending', async ({ page }) => {
+test('timed_out_write_keeps_clicked_state_without_querying_or_resending', async ({ page }) => {
   await page.route(url => url.pathname === '/post/like', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
     writes.push(route.request().postData()!);
@@ -128,31 +133,27 @@ test('timed_out_write_is_reconciled_without_resending', async ({ page }) => {
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled({ timeout: 20000 });
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   expect(writes).toHaveLength(1);
-  expect(reads).toHaveLength(2);
+  expect(reads).toHaveLength(1);
+  await expect(page.locator('.post-like-error')).toContainText('请求超时');
 });
 
-test('unconfirmed_write_hides_old_state_until_manual_query_succeeds', async ({ page }) => {
+test('failed_write_keeps_clicked_state_until_next_actual_query', async ({ page }) => {
   await page.route(url => url.pathname === '/post/like', async route => {
     if (route.request().method() === 'POST') {
       writes.push(route.request().postData()!);
-      liked = true;
-      count = 8;
       return route.abort('failed');
-    }
-    if (writes.length && reads.length === 1) {
-      reads.push('outer-repost');
-      return route.fulfill({ status: 502, json: { msg: '查询失败' } });
     }
     return route.fallback();
   });
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
-  const retry = page.getByRole('button', { name: '重试查询点赞状态' });
-  await expect(retry).toBeEnabled();
-  await expect(page.locator('.post-like-count')).toHaveCount(0);
-  await expect(retry).not.toHaveAttribute('aria-pressed');
-  await retry.click();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
+  expect(reads).toEqual(['outer-repost']);
+  await page.reload();
+  await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('当前点赞数：7', { exact: true })).toBeVisible();
+  expect(reads).toEqual(['outer-repost', 'outer-repost']);
   expect(writes).toHaveLength(1);
 });
 
@@ -191,7 +192,7 @@ test('logging_in_again_discards_previous_account_like_cache', async ({ page }) =
   expect(reads).toHaveLength(2);
 });
 
-test('switching_reading_scope_keeps_inflight_like_locked_and_updates_shared_state', async ({ page }) => {
+test('switching_reading_scope_keeps_clicked_state_and_inflight_like_locked', async ({ page }) => {
   let release: (() => Promise<void>) | undefined;
   await page.route(url => url.pathname === '/post/like', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
@@ -205,10 +206,10 @@ test('switching_reading_scope_keeps_inflight_like_locked_and_updates_shared_stat
   });
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
-  await expect(page.getByRole('button', { name: '正在处理点赞' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
   try {
     await page.getByRole('button', { name: '测试博主', exact: true }).click();
-    await expect(page.getByRole('button', { name: '正在处理点赞' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
   } finally { await release!(); }
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
@@ -228,12 +229,12 @@ test('switching_reading_scope_preserves_the_security_challenge_feedback', async 
   });
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
-  await expect(page.getByRole('button', { name: '正在处理点赞' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '测试博主', exact: true }).click();
-  await expect(page.getByRole('button', { name: '正在处理点赞' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
   await release!();
   await expect(page.locator('.post-like-error')).toContainText('前往微博网页版完成验证');
-  await expect(page.getByRole('button', { name: '点赞', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect(writes).toHaveLength(1);
 });
 

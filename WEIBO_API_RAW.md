@@ -1015,6 +1015,6 @@ mediaprops 解码后：
 
 写请求先携带当前 Credential 访问 `https://weibo.com/`，提取本次响应的 `XSRF-TOKEN` 与 `WBPSESS`，连同 Credential 作为 Cookie 发送；将百分号解码后的 `XSRF-TOKEN` 放到 `X-XSRF-TOKEN` 请求头，并携带 `Origin: https://weibo.com`、`Referer: https://weibo.com/`、`X-Requested-With: XMLHttpRequest`。表单编码为 `application/x-www-form-urlencoded`，微博数字 ID 全程按十进制字符串发送。
 
-写响应必须同时满足 HTTP 200 与根对象 `ok > 0` 才视为接口确认成功；成功后另查详情获取当前状态与计数。写请求不自动重试，超时或结果不确定时通过只读详情查询核对。官方网页可能附加设备参数 `fp` 或要求安全验证；本地遇到错误码 20062／20067 时提示前往微博网页版验证。
+写响应必须同时满足 HTTP 200 与根对象 `ok > 0` 才视为接口请求成功。页面点击后立即切换显示状态并本地增减计数，不根据写响应回写状态，不自动回滚；写操作之后不追加详情查询，也不自动重发，实际状态由下一次独立查询获取。明确的请求错误仍显示提示。官方网页可能附加设备参数 `fp` 或要求安全验证；本地遇到错误码 20062／20067 时提示前往微博网页版验证。
 
-页面通过 `/post/like?mblogId=<本地短码>` 查询状态，通过 `POST /post/like` 的 `mblogId`、`liked` 参数指定目标状态；数字 ID 由 `PostService` 从本地记录解析，只操作外层微博，不修改采集快照。`/weibo/blog/like?id=<数字 ID>` 的 GET／POST 仅作接口测试入口，两者复用同一个微博 API 类。
+页面通过 `/post/like?mblogId=<本地短码>` 查询状态，通过 `POST /post/like` 的 `mblogId`、`liked` 参数指定目标状态，成功返回 HTTP 204；数字 ID 由 `PostService` 从本地记录解析，只操作外层微博，不修改采集快照。`/weibo/blog/like?id=<数字 ID>` 的 GET／POST 仅作接口测试入口，两者复用同一个微博 API 类。

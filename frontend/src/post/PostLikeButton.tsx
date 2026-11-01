@@ -24,36 +24,21 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
   const confirmed = state.isError ? undefined : state.data;
   const latest = useMutationState({
     filters: { mutationKey: queryKey, exact: true },
-    select: mutation => ({ status: mutation.state.status, error: mutation.state.error,
-      target: mutation.state.variables as boolean }),
+    select: mutation => ({ status: mutation.state.status, error: mutation.state.error }),
   }).at(-1);
-  const message = !processing && latest && confirmed?.liked !== latest.target
-    ? latest.error?.message || (latest.status === 'success' ? '微博尚未确认状态变更，请稍后重试。' : '') : '';
+  const message = !processing && latest?.status === 'error' ? latest.error?.message : '';
   const operation = useMutation({
     mutationKey: queryKey, retry: false,
-    mutationFn: async (target: boolean) => {
-      try {
-        const result = await getJson<LikeState>('/post/like', new AbortController().signal, 15000, {
-          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ mblogId, liked: String(target) }),
-        });
-        client.setQueryData(queryKey, result);
-        return result;
-      } catch (failure) {
-        if (!isUnauthorized(failure)) {
-          let checked: LikeState;
-          try {
-            checked = await client.fetchQuery({ queryKey, queryFn: load, staleTime: 0 });
-          } catch {
-            await client.invalidateQueries({ queryKey, exact: true, refetchType: mounted.current ? 'none' : 'active' });
-            throw new Error('操作结果尚未确认，请重试查询点赞状态。'
-              + (failure instanceof Error ? `（${failure.message}）` : ''));
-          }
-          if (checked.liked === target) return checked;
-        } else await client.invalidateQueries({ queryKey, exact: true, refetchType: mounted.current ? 'none' : 'active' });
-        throw failure;
-      }
+    onMutate: target => {
+      client.setQueryData<LikeState>(queryKey, current => {
+        if (!current || current.liked === target) return current;
+        return { liked: target, count: Math.max(0, current.count + (target ? 1 : -1)) };
+      });
     },
+    mutationFn: (target: boolean) => getJson<void>('/post/like', new AbortController().signal, 15000, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ mblogId, liked: String(target) }),
+    }),
     onError: error => {
       if (mounted.current && isUnauthorized(error)) onUnauthorized();
     },
@@ -79,9 +64,9 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
     operation.mutate(!confirmed.liked);
   }
 
-  const label = processing ? '处理中…' : state.isFetching ? '查询中…'
+  const label = state.isFetching ? '查询中…'
     : !confirmed ? '状态未知，重试' : confirmed.liked ? '已赞' : '点赞';
-  const name = processing ? '正在处理点赞' : state.isFetching ? '正在查询点赞状态'
+  const name = state.isFetching ? '正在查询点赞状态'
     : !confirmed ? '重试查询点赞状态' : confirmed.liked ? '取消点赞' : '点赞';
   return <div className="post-like">
     <button ref={buttonRef} type="button" className="post-like-button" aria-label={name}

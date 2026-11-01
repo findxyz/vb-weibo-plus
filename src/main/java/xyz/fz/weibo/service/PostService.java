@@ -88,10 +88,9 @@ public class PostService {
         return postLikeApi.query(findPost(mblogId).postId());
     }
 
-    public PostLikeState setLike(String mblogId, boolean liked) {
+    public void setLike(String mblogId, boolean liked) {
         long postId = findPost(mblogId).postId();
         postLikeApi.setLike(postId, liked);
-        return postLikeApi.query(postId);
     }
 
     public SaveResult saveIncremental(long uid) {

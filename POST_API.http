@@ -13,7 +13,7 @@ GET {{host}}/post/bloggers
 ### 查询当前账号的点赞状态与当前计数（mblogId 来自本地列表，不修改采集快照）
 GET {{host}}/post/like?mblogId=R8070kHp4
 
-### 点赞外层微博（真实操作当前账号，成功后返回远端确认状态与计数）
+### 点赞外层微博（真实操作当前账号，成功返回 204，不追加状态查询）
 POST {{host}}/post/like?mblogId=R8070kHp4&liked=true
 
 ### 取消外层微博的点赞

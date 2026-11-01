@@ -77,23 +77,19 @@ class PostLikeIntegrationTest {
     }
 
     @Test
-    void likes_outer_post_using_matching_xsrf_cookie_and_returns_confirmed_remote_state() throws Exception {
-        expectWrite("setLike", 1, 8);
+    void likes_outer_post_without_querying_remote_state_after_write() throws Exception {
+        expectWrite("setLike");
 
         mvc.perform(post("/post/like").param("mblogId", "local-repost").param("liked", "true"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.liked").value(true))
-                .andExpect(jsonPath("$.count").value(8));
+                .andExpect(status().isNoContent());
         upstream.verify();
     }
 
     @Test
-    void cancels_like_and_returns_current_count_instead_of_captured_count() throws Exception {
-        expectWrite("cancelLike", 0, 6);
+    void cancels_like_without_querying_remote_state_after_write() throws Exception {
+        expectWrite("cancelLike");
         mvc.perform(post("/post/like").param("mblogId", "local-repost").param("liked", "false"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.liked").value(false))
-                .andExpect(jsonPath("$.count").value(6));
+                .andExpect(status().isNoContent());
         upstream.verify();
     }
 
@@ -150,13 +146,13 @@ class PostLikeIntegrationTest {
     }
 
     @Test
-    void write_timeout_is_an_unconfirmed_result_and_is_not_retried() throws Exception {
+    void write_timeout_returns_request_error_without_retrying() throws Exception {
         expectBootstrap();
         upstream.expect(requestTo("https://weibo.com/ajax/statuses/setLike"))
                 .andRespond(withException(new SocketTimeoutException("timeout")));
         mvc.perform(post("/post/like").param("mblogId", "local-repost").param("liked", "true"))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.msg").value("微博操作结果尚未确认，请查询实际状态后再重试。"));
+                .andExpect(jsonPath("$.msg").value("微博请求超时或连接失败，请稍后重试。"));
         upstream.verify();
     }
 
@@ -169,7 +165,7 @@ class PostLikeIntegrationTest {
         upstream.verify();
     }
 
-    private void expectWrite(String endpoint, int liked, int count) {
+    private void expectWrite(String endpoint) {
         expectBootstrap();
         upstream.expect(requestTo("https://weibo.com/ajax/statuses/" + endpoint))
                 .andExpect(method(HttpMethod.POST))
@@ -179,9 +175,6 @@ class PostLikeIntegrationTest {
                 .andExpect(header(HttpHeaders.COOKIE, containsString("XSRF-TOKEN=xsrf%2Ftest+value")))
                 .andExpect(header(HttpHeaders.COOKIE, containsString("WBPSESS=web-session")))
                 .andRespond(withSuccess("{\"ok\":1}", MediaType.APPLICATION_JSON));
-        upstream.expect(requestTo("https://weibo.com/ajax/statuses/show?id=5316949752945053&locale=zh-CN"))
-                .andRespond(withSuccess("{\"ok\":1,\"idstr\":\"5316949752945053\",\"attitudes_status\":"
-                        + liked + ",\"attitudes_count\":" + count + "}", MediaType.APPLICATION_JSON));
     }
 
     private void expectBootstrap() {
