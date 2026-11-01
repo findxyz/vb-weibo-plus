@@ -51,28 +51,32 @@ public class WeiboHttpClient {
     public ResponseEntity<String> getForString(String url, Map<String, String> params,
                                                Map<String, String> headers, boolean withCookie) {
         URI uri = buildUri(url, params);
-        HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
-        return get0(uri, httpHeaders, String.class);
+        HttpEntity<?> entity = new HttpEntity<>(buildHeaders(headers, withCookie));
+        return withRateLimitRetry(uri, entity.getHeaders(),
+                () -> executeAndCheck(uri, HttpMethod.GET, entity, String.class));
     }
 
     public ResponseEntity<byte[]> getForBytes(String url, Map<String, String> params,
                                               Map<String, String> headers, boolean withCookie) {
         URI uri = buildUri(url, params);
-        HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
-        return get0(uri, httpHeaders, byte[].class);
+        HttpEntity<?> entity = new HttpEntity<>(buildHeaders(headers, withCookie));
+        return withRateLimitRetry(uri, entity.getHeaders(),
+                () -> executeAndCheck(uri, HttpMethod.GET, entity, byte[].class));
     }
 
     public ResponseEntity<String> postForm(String url, Map<String, String> params,
                                             Map<String, String> headers, boolean withCookie) {
         URI uri = buildUri(url, null);
-        return post0(uri, formEntity(params, headers, withCookie), String.class);
+        HttpEntity<?> entity = formEntity(params, headers, withCookie);
+        return withRateLimitRetry(uri, entity.getHeaders(),
+                () -> executeAndCheck(uri, HttpMethod.POST, entity, String.class));
     }
 
     public ResponseEntity<String> postFormOnce(String url, Map<String, String> params,
                                               Map<String, String> headers, boolean withCookie) {
         URI uri = buildUri(url, null);
         try {
-            return exchangeOnce(uri, HttpMethod.POST, formEntity(params, headers, withCookie), String.class);
+            return executeAndCheck(uri, HttpMethod.POST, formEntity(params, headers, withCookie), String.class);
         } catch (RateLimitedResponseException e) {
             throw new WeiboRateLimitException("微博接口限流，请稍后重试。");
         } catch (RestClientException e) {
@@ -109,7 +113,9 @@ public class WeiboHttpClient {
         URI uri = buildUri(url, queryParams);
         HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
         httpHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-        return post0(uri, new HttpEntity<>(body, httpHeaders), String.class);
+        HttpEntity<?> entity = new HttpEntity<>(body, httpHeaders);
+        return withRateLimitRetry(uri, httpHeaders,
+                () -> executeAndCheck(uri, HttpMethod.POST, entity, String.class));
     }
 
     /**
@@ -125,7 +131,9 @@ public class WeiboHttpClient {
         URI uri = buildUri(url, queryParams);
         HttpHeaders httpHeaders = buildHeaders(headers, withCookie);
         httpHeaders.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        return post0(uri, new HttpEntity<>(body, httpHeaders), String.class);
+        HttpEntity<?> entity = new HttpEntity<>(body, httpHeaders);
+        return withRateLimitRetry(uri, httpHeaders,
+                () -> executeAndCheck(uri, HttpMethod.POST, entity, String.class));
     }
 
     public <T> T getForStream(String url, Map<String, String> params,
@@ -133,7 +141,7 @@ public class WeiboHttpClient {
                               ResponseExtractor<T> responseExtractor) {
         URI uri = buildUri(url, params);
         HttpHeaders httpHeaders = buildHeaders(headers, withCredential);
-        return request0(uri, httpHeaders,
+        return withRateLimitRetry(uri, httpHeaders,
                 () -> restTemplate.execute(uri, HttpMethod.GET,
                         request -> request.getHeaders().putAll(httpHeaders),
                         response -> {
@@ -145,24 +153,9 @@ public class WeiboHttpClient {
                         }));
     }
 
-    /**
-     * 重试循环：attempt 从 1 到 MAX_RETRY+1，即 1 次初始加最多 3 次重试，合计 4 次请求。
-     */
-    private <T> ResponseEntity<T> get0(URI uri, HttpHeaders headers, Class<T> responseType) {
-        return exchangeAndCheck(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
-    }
-
-    private <T> ResponseEntity<T> post0(URI uri, HttpEntity<?> entity, Class<T> responseType) {
-        return exchangeAndCheck(uri, HttpMethod.POST, entity, responseType);
-    }
-
-    private <T> ResponseEntity<T> exchangeAndCheck(URI uri, HttpMethod method,
-                                                    HttpEntity<?> entity, Class<T> responseType) {
-        return request0(uri, entity.getHeaders(), () -> exchangeOnce(uri, method, entity, responseType));
-    }
-
-    private <T> ResponseEntity<T> exchangeOnce(URI uri, HttpMethod method,
-                                               HttpEntity<?> entity, Class<T> responseType) {
+    /** 发送一次请求并校验响应。 */
+    private <T> ResponseEntity<T> executeAndCheck(URI uri, HttpMethod method,
+                                                HttpEntity<?> entity, Class<T> responseType) {
         ResponseEntity<T> resp = restTemplate.exchange(uri, method, entity, responseType);
         int statusCode = resp.getStatusCode().value();
         log.debug("微博响应：{} status={} body={}", uri, statusCode, previewBody(resp.getBody()));
@@ -174,7 +167,10 @@ public class WeiboHttpClient {
         return resp;
     }
 
-    private <T> T request0(URI uri, HttpHeaders headers, Supplier<T> request) {
+    /**
+     * 重试循环：attempt 从 1 到 MAX_RETRY+1，即 1 次初始加最多 3 次重试，合计 4 次请求。
+     */
+    private <T> T withRateLimitRetry(URI uri, HttpHeaders headers, Supplier<T> request) {
         //noinspection ConstantValue
         for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
             try {

@@ -191,6 +191,27 @@ class WeiboHttpClientTest {
     }
 
     @Test
+    void post_form_retries_rate_limit_and_preserves_the_successful_response() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        server = startServer(exchange -> {
+            if (requests.incrementAndGet() == 1) {
+                exchange.sendResponseHeaders(429, -1);
+            } else {
+                exchange.sendResponseHeaders(200, 2);
+                exchange.getResponseBody().write("ok".getBytes());
+            }
+            exchange.close();
+        });
+
+        ResponseEntity<String> response = createClient().postForm(
+                mediaUrl(), Map.of("id", "123"), Map.of(), false);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo("ok");
+        assertThat(requests).hasValue(2);
+    }
+
+    @Test
     void post_form_maps_login_redirect_to_expired_credential() throws Exception {
         server = startServer(exchange -> {
             exchange.getResponseHeaders().set(HttpHeaders.LOCATION, "https://passport.weibo.com/login");
