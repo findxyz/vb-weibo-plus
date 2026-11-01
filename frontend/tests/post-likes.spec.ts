@@ -65,6 +65,18 @@ test('selecting_or_reselecting_a_blogger_reads_current_like_state_without_page_r
   expect(writes).toEqual([]);
 });
 
+test('selecting_the_same_date_reads_current_like_state_again', async ({ page }) => {
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
+  liked = true;
+  count = 45;
+  await page.getByRole('button', { name: '2026-10-31', exact: true }).click();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('当前点赞数：45', { exact: true })).toBeVisible();
+  expect(reads).toEqual(['outer-repost', 'outer-repost']);
+  expect(writes).toEqual([]);
+});
+
 test('like_updates_immediately_ignores_write_response_state_and_can_be_cancelled', async ({ page }) => {
   let release: (() => Promise<void>) | undefined;
   await page.route(url => url.pathname === '/post/like', async route => {
@@ -166,7 +178,7 @@ test('failed_write_keeps_clicked_state_until_next_actual_query', async ({ page }
   expect(writes).toHaveLength(1);
 });
 
-test('only_visible_posts_are_queried_and_scroll_back_reuses_state', async ({ page }) => {
+test('only_visible_posts_are_queried_and_scroll_back_reads_fresh_state', async ({ page }) => {
   posts.items = Array.from({ length: 12 }, (_, index) => ({ ...posts.items[0],
     mblogId: `post-${index}`, content: '正文<br>'.repeat(8), retweeted: null }));
   posts.total = 12;
@@ -176,8 +188,12 @@ test('only_visible_posts_are_queried_and_scroll_back_reuses_state', async ({ pag
   expect(reads).not.toContain('post-11');
   await page.getByRole('article').last().scrollIntoViewIfNeeded();
   await expect(page.locator('.post-like-button').last()).toHaveAttribute('aria-pressed', 'false');
+  liked = true;
+  count = 92;
   await page.getByRole('article').first().scrollIntoViewIfNeeded();
-  expect(reads.filter(id => id === 'post-0')).toHaveLength(1);
+  await expect(page.locator('.post-like-button').first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.post-like-count').first()).toHaveText('92');
+  expect(reads.filter(id => id === 'post-0')).toHaveLength(2);
   expect(reads.filter(id => id === 'post-11')).toHaveLength(1);
   expect(writes).toEqual([]);
 });

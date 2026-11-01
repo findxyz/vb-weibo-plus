@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { epochToShanghaiDate, toQueryDateTime, toQueryEndTime } from '../shared/date.js';
 
@@ -64,7 +64,6 @@ export function usePostSearch(uid: number | null, request: SearchRequest | null)
 // https://tanstack.com/query/latest/docs/framework/react/guides/dependent-queries
 // https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation
 export function useDefaultReading() {
-  const client = useQueryClient();
   const readingVersion = useRef(0);
   const [selection, setSelection] = useState<{ uid: number | null; visit: number }>({ uid: null, visit: 0 });
   const [selectedDate, setSelectedDate] = useState<{ visit: number; value: string; jump?: { mblogId: string; version: number } }>();
@@ -100,10 +99,6 @@ export function useDefaultReading() {
       jump: { mblogId: post.mblogId, version: (previous?.jump?.version ?? 0) + 1 } }));
   }
   function selectBlogger(uid: number | null) {
-    void client.invalidateQueries({
-      queryKey: ['post', 'like'], refetchType: 'none',
-      predicate: query => client.isMutating({ mutationKey: query.queryKey, exact: true }) === 0,
-    });
     readingVersion.current++;
     setSelection(previous => ({ uid, visit: previous.visit + 1 }));
   }
