@@ -44,15 +44,24 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('visible_outer_post_shows_remote_count_and_reuses_state_during_browsing', async ({ page }) => {
+test('selecting_or_reselecting_a_blogger_reads_current_like_state_without_page_reload', async ({ page }) => {
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
   await expect(page.getByLabel('当前点赞数：7', { exact: true })).toBeVisible();
   expect(reads).toEqual(['outer-repost']);
   await expect(page.locator('.post-retweet button')).toHaveCount(0);
+  liked = true;
+  count = 85;
+  await page.getByRole('button', { name: '测试博主', exact: true }).click();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('当前点赞数：85', { exact: true })).toBeVisible();
+  expect(reads).toEqual(['outer-repost', 'outer-repost']);
+  liked = false;
+  count = 84;
   await page.getByRole('button', { name: '测试博主', exact: true }).click();
   await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
-  expect(reads).toEqual(['outer-repost']);
+  await expect(page.getByLabel('当前点赞数：84', { exact: true })).toBeVisible();
+  expect(reads).toEqual(['outer-repost', 'outer-repost', 'outer-repost']);
   expect(writes).toEqual([]);
 });
 
