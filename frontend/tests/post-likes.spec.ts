@@ -238,6 +238,27 @@ test('switching_reading_scope_preserves_the_security_challenge_feedback', async 
   expect(writes).toHaveLength(1);
 });
 
+test('login_expiring_after_navigation_opens_recovery_without_querying_state', async ({ page }) => {
+  let release: (() => Promise<void>) | undefined;
+  await page.route(url => url.pathname === '/post/like', async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    writes.push(route.request().postData()!);
+    await new Promise<void>(resolve => { release = async () => {
+      await route.fulfill({ status: 401, json: { msg: '登录已失效' } });
+      resolve();
+    }; });
+  });
+  await page.goto(`${baseUrl}post/index.html`);
+  await page.getByRole('button', { name: '点赞', exact: true }).click();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '测试博主', exact: true }).click();
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
+  await release!();
+  await expect(page.getByRole('button', { name: '扫码登录' })).toBeVisible();
+  await expect(page.locator('.post-like-button')).toBeDisabled();
+  expect(reads).toEqual(['outer-repost']);
+});
+
 test('like_controls_fit_the_starry_layout_and_support_keyboard', async ({ page }, testInfo) => {
   await page.goto(`${baseUrl}post/index.html`);
   for (const width of [900, 1280, 1600]) {

@@ -8,7 +8,6 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
   mblogId: string; enabled: boolean; session: number; onUnauthorized: () => void;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const mounted = useRef(true);
   const [visible, setVisible] = useState(false);
   const client = useQueryClient();
   const queryKey = ['post', 'like', session, mblogId];
@@ -39,9 +38,6 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ mblogId, liked: String(target) }),
     }),
-    onError: error => {
-      if (mounted.current && isUnauthorized(error)) onUnauthorized();
-    },
   });
 
   useEffect(() => {
@@ -52,11 +48,9 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
     observer.observe(button.closest('.post-card')!);
     return () => observer.disconnect();
   }, []);
-  useEffect(() => { if (isUnauthorized(state.error)) onUnauthorized(); }, [state.error, onUnauthorized]);
   useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
+    if ([state.error, latest?.error].some(isUnauthorized)) onUnauthorized();
+  }, [state.error, latest?.error, onUnauthorized]);
 
   function click() {
     if (!enabled || state.isFetching || client.isMutating({ mutationKey: queryKey, exact: true })) return;
