@@ -216,6 +216,27 @@ test('switching_reading_scope_keeps_inflight_like_locked_and_updates_shared_stat
   expect(reads).toEqual(['outer-repost']);
 });
 
+test('switching_reading_scope_preserves_the_security_challenge_feedback', async ({ page }) => {
+  let release: (() => Promise<void>) | undefined;
+  await page.route(url => url.pathname === '/post/like', async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    writes.push(route.request().postData()!);
+    await new Promise<void>(resolve => { release = async () => {
+      await route.fulfill({ status: 502, json: { msg: '微博要求安全验证，请前往微博网页版完成验证后重试。' } });
+      resolve();
+    }; });
+  });
+  await page.goto(`${baseUrl}post/index.html`);
+  await page.getByRole('button', { name: '点赞', exact: true }).click();
+  await expect(page.getByRole('button', { name: '正在处理点赞' })).toBeDisabled();
+  await page.getByRole('button', { name: '测试博主', exact: true }).click();
+  await expect(page.getByRole('button', { name: '正在处理点赞' })).toBeDisabled();
+  await release!();
+  await expect(page.locator('.post-like-error')).toContainText('前往微博网页版完成验证');
+  await expect(page.getByRole('button', { name: '点赞', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  expect(writes).toHaveLength(1);
+});
+
 test('like_controls_fit_the_starry_layout_and_support_keyboard', async ({ page }, testInfo) => {
   await page.goto(`${baseUrl}post/index.html`);
   for (const width of [900, 1280, 1600]) {

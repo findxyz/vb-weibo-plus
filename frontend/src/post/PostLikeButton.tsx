@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getJson, isUnauthorized } from './queries';
 
 type LikeState = { liked: boolean; count: number };
@@ -10,7 +10,6 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
   const buttonRef = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
   const [visible, setVisible] = useState(false);
-  const [message, setMessage] = useState('');
   const client = useQueryClient();
   const queryKey = ['post', 'like', session, mblogId];
   const params = new URLSearchParams({ mblogId });
@@ -23,6 +22,13 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
     queryFn: load,
   });
   const confirmed = state.isError ? undefined : state.data;
+  const latest = useMutationState({
+    filters: { mutationKey: queryKey, exact: true },
+    select: mutation => ({ status: mutation.state.status, error: mutation.state.error,
+      target: mutation.state.variables as boolean }),
+  }).at(-1);
+  const message = !processing && latest && confirmed?.liked !== latest.target
+    ? latest.error?.message || (latest.status === 'success' ? '微博尚未确认状态变更，请稍后重试。' : '') : '';
   const operation = useMutation({
     mutationKey: queryKey, retry: false,
     mutationFn: async (target: boolean) => {
@@ -40,20 +46,16 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
             checked = await client.fetchQuery({ queryKey, queryFn: load, staleTime: 0 });
           } catch {
             await client.invalidateQueries({ queryKey, exact: true, refetchType: mounted.current ? 'none' : 'active' });
-            throw new Error('操作结果尚未确认，请重试查询点赞状态。');
+            throw new Error('操作结果尚未确认，请重试查询点赞状态。'
+              + (failure instanceof Error ? `（${failure.message}）` : ''));
           }
           if (checked.liked === target) return checked;
         } else await client.invalidateQueries({ queryKey, exact: true, refetchType: mounted.current ? 'none' : 'active' });
         throw failure;
       }
     },
-    onSuccess: (result, target) => {
-      if (mounted.current && result.liked !== target) setMessage('微博尚未确认状态变更，请稍后重试。');
-    },
     onError: error => {
-      if (!mounted.current) return;
-      if (isUnauthorized(error)) onUnauthorized();
-      else setMessage(error.message);
+      if (mounted.current && isUnauthorized(error)) onUnauthorized();
     },
   });
 
@@ -73,7 +75,6 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
 
   function click() {
     if (!enabled || state.isFetching || client.isMutating({ mutationKey: queryKey, exact: true })) return;
-    setMessage('');
     if (!confirmed) { void state.refetch(); return; }
     operation.mutate(!confirmed.liked);
   }
