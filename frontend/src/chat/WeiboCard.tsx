@@ -16,6 +16,7 @@ type WeiboStatus = {
   original_pic?: string | null;
   bmiddle_pic?: string | null;
   thumbnail_pic?: string | null;
+  retweeted_status?: WeiboStatus | null;
 };
 
 export type WeiboUrlObject = {
@@ -76,6 +77,11 @@ export default function WeiboCard({ urlObject, gid, mid, onOpenImage }: {
       {needsLongText && longText.isError && <div role="alert">
         微博全文加载失败，当前仅显示预览。
         <button type="button" onClick={() => { void longText.refetch(); }}>重试加载全文</button>
+      </div>}
+      {status.retweeted_status && <div className="weibo-card-retweet">
+        <WeiboContent status={status.retweeted_status}
+          text={(status.retweeted_status.text ?? '').replace(/<[^>]+>/g, '').trim()}
+          onOpenImage={onOpenImage} />
       </div>}
       {href && (
         <a className="weibo-card-link" href={href} target="_blank" rel="noopener noreferrer">查看微博</a>

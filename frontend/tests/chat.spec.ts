@@ -766,6 +766,67 @@ test('chat_shows_shared_weibo_avatar_and_all_pictures_with_original_viewer', asy
   expect(requests.filter(value => /weibo-text|\/weibo\/blog\//.test(value))).toEqual([]);
 });
 
+for (const context of ['messages', 'history'] as const) {
+  test(`chat_shows_retweeted_weibo_avatar_and_pictures_in_${context}`, async ({ page }) => {
+    const items = makeMessages(1, 1, '分享微博');
+    items[0].mediaType = 14;
+    items[0].urlObjects = [{ status: {
+      text: '转发时的评论。', user: { screen_name: '转发者' },
+      retweeted_status: {
+        text: '<b>原微博正文。</b>',
+        user: { screen_name: '原作者', avatar_hd: 'https://tvax1.sinaimg.cn/original-author.jpg' },
+        original_pic: 'http://wx3.sinaimg.cn/large/original-picture.gif',
+      },
+    } }];
+    messagesByGid.set(1, items);
+    await openChat(page);
+    const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+    if (context === 'history') {
+      await page.getByRole('button', { name: '📜 聊天记录' }).click();
+      await container.getByLabel('开始日期').fill('2026-08-05');
+      await container.getByLabel('结束日期').fill('2026-08-07');
+      await container.getByRole('button', { name: '🔍 查询' }).click();
+      await container.locator('.history-result').click();
+    }
+
+    const card = container.locator('[data-mid="1"] .weibo-card');
+    await expect(card.locator('.weibo-card-summary').first()).toHaveText('转发时的评论。');
+    await expect(card.locator('.weibo-card-avatar').first()).toHaveText('转');
+    const retweet = card.locator('.weibo-card-retweet');
+    await expect(retweet.locator('.weibo-card-author')).toHaveText('原作者');
+    await expect(retweet.locator('.weibo-card-avatar img')).toHaveAttribute('src',
+      '/chat/image?url=https%3A%2F%2Ftvax1.sinaimg.cn%2Foriginal-author.jpg');
+    await expect(retweet.locator('.weibo-card-summary')).toHaveText('原微博正文。');
+    await expect(retweet.locator('.weibo-card-summary b')).toHaveCount(0);
+    const picture = retweet.getByRole('button', { name: '查看微博图片 1', exact: true });
+    await expect(picture.locator('img')).toHaveAttribute('src',
+      '/chat/image?url=http%3A%2F%2Fwx3.sinaimg.cn%2Fbmiddle%2Foriginal-picture.gif');
+    await picture.click();
+    const viewer = container.locator('dialog.image-viewer');
+    await expect(viewer).toHaveJSProperty('open', true);
+    await expect(viewer.locator('img')).toHaveAttribute('src',
+      '/chat/image?url=http%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Foriginal-picture.gif');
+    await page.keyboard.press('Escape');
+    await expect(picture).toBeFocused();
+    if (context === 'history') await expect(container).toHaveJSProperty('open', true);
+  });
+}
+
+test('chat_keeps_deleted_retweeted_weibo_readable_without_author_or_pictures', async ({ page }) => {
+  const items = makeMessages(1, 1, '分享微博');
+  items[0].mediaType = 14;
+  items[0].urlObjects = [{ status: {
+    text: '转发评论。', user: { screen_name: '转发者' },
+    retweeted_status: { text: '抱歉，此微博已被删除。', user: null, pic_ids: null },
+  } }];
+  messagesByGid.set(1, items);
+  await openChat(page);
+
+  const retweet = page.locator('.weibo-card-retweet');
+  await expect(retweet).toHaveText('抱歉，此微博已被删除。');
+  await expect(retweet.locator('.weibo-card-avatar, img, button')).toHaveCount(0);
+});
+
 test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({ page }) => {
   const rawWeiboRequests: string[] = [];
   page.on('request', request => {

@@ -851,6 +851,14 @@ h1 {
   object-fit: cover;
 }
 
+.weibo-card-retweet {
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid var(--bubble-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
 .weibo-card .weibo-card-summary {
   margin-bottom: 6px;
   color: #555555;
