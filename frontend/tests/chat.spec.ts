@@ -731,6 +731,41 @@ test('chat_renders_file_downloads_and_weibo_share_cards', async ({ page }) => {
   await expect(page.locator('[data-mid="3"] .weibo-card-link')).toHaveCount(0);
 });
 
+test('chat_shows_shared_weibo_avatar_and_all_pictures_with_original_viewer', async ({ page }) => {
+  const items = makeMessages(1, 1, '分享微博');
+  items[0].mediaType = 14;
+  items[0].urlObjects = [{
+    status: {
+      idstr: '5357643507961089', text: '带有两张图片的微博。',
+      user: { screen_name: '配图作者', avatar_large: 'https://tvax1.sinaimg.cn/author.jpg' },
+      pic_ids: ['first-picture', 'second-picture'],
+      original_pic: 'http://wx2.sinaimg.cn/large/first-picture.gif',
+    },
+  }];
+  messagesByGid.set(1, items);
+  await openChat(page);
+
+  const card = page.locator('[data-mid="1"] .weibo-card');
+  const avatar = card.locator('.weibo-card-avatar img');
+  await expect(avatar).toHaveAttribute('src', '/chat/image?url=https%3A%2F%2Ftvax1.sinaimg.cn%2Fauthor.jpg');
+  await expect(avatar).toHaveJSProperty('naturalWidth', 48);
+  const pictures = card.getByRole('button', { name: /查看微博图片/ });
+  await expect(pictures).toHaveCount(2);
+  await expect(pictures.nth(1).locator('img')).toHaveAttribute('src',
+    '/chat/image?url=http%3A%2F%2Fwx2.sinaimg.cn%2Fbmiddle%2Fsecond-picture.jpg');
+  await expect(pictures.nth(1).locator('img')).toHaveJSProperty('naturalWidth', 48);
+  await expect(pictures.nth(1)).toHaveCSS('width', '120px');
+  await expect(pictures.nth(1)).toHaveCSS('height', '120px');
+  await pictures.nth(1).click();
+  const viewer = page.locator('.messages-shell dialog.image-viewer');
+  await expect(viewer).toHaveJSProperty('open', true);
+  await expect(viewer.locator('img')).toHaveAttribute('src',
+    '/chat/image?url=http%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fsecond-picture.jpg');
+  await page.keyboard.press('Escape');
+  await expect(pictures.nth(1)).toBeFocused();
+  expect(requests.filter(value => /weibo-text|\/weibo\/blog\//.test(value))).toEqual([]);
+});
+
 test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({ page }) => {
   const rawWeiboRequests: string[] = [];
   page.on('request', request => {

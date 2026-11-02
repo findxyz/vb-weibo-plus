@@ -23,7 +23,7 @@ const HIDDEN_CAPTIONS = new Set(['分享图片', '分享视频', '[动画表情]
 const SYSTEM_SENDER = '粉丝群';
 const WEIBO_CARD_TYPE = 14;
 
-function messageBody(message: ChatMessage, text: string, hideText: boolean) {
+function messageBody(message: ChatMessage, text: string, hideText: boolean, onOpenImage: (url: string) => void) {
   if (message.fileUrl) {
     return (
       <div className="bubble">
@@ -35,7 +35,7 @@ function messageBody(message: ChatMessage, text: string, hideText: boolean) {
   const card = message.mediaType === WEIBO_CARD_TYPE
     ? message.urlObjects?.[0] as WeiboUrlObject | undefined
     : undefined;
-  if (card?.status) return <WeiboCard urlObject={card} gid={message.gid} mid={message.mid} />;
+  if (card?.status) return <WeiboCard urlObject={card} gid={message.gid} mid={message.mid} onOpenImage={onOpenImage} />;
   if (hideText) return null;
   return <div className="bubble"><MessageText text={text} /></div>;
 }
@@ -95,7 +95,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         <div className="message-meta">
           {`${message.senderName?.trim() || '未知成员'} · ${timeFormatter.format(new Date(message.createdAt))}`}
         </div>
-        {messageBody(message, text, hideText)}
+        {messageBody(message, text, hideText, onOpenImage)}
         {hasImage && (
           <button type="button" className="media-preview" aria-label="查看原图"
             onClick={() => onOpenImage(message.originalUrl || message.previewUrl)}>
