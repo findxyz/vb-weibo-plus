@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import Avatar from './Avatar';
+import MessageText from './MessageText';
 import { fetchMessageWeiboText } from './api';
 
 type WeiboStatus = {
@@ -42,7 +43,7 @@ function WeiboContent({ status, text, onOpenImage }: {
       <Avatar className="weibo-card-avatar" name={author} avatar={avatar} />
       <div className="weibo-card-author">{author}</div>
     </div>}
-    {text && <div className="weibo-card-summary">{text}</div>}
+    {text && <div className="weibo-card-summary"><MessageText text={text} /></div>}
     {pictures.length > 0 && <div className="weibo-card-pictures">
       {pictures.map((url, index) => <button key={url} type="button" className="weibo-card-picture"
         aria-label={`查看微博图片 ${index + 1}`}

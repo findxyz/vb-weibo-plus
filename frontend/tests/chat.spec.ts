@@ -731,6 +731,64 @@ test('chat_renders_file_downloads_and_weibo_share_cards', async ({ page }) => {
   await expect(page.locator('[data-mid="3"] .weibo-card-link')).toHaveCount(0);
 });
 
+test('chat_renders_shared_and_retweeted_weibo_emoji_like_group_messages', async ({ page }) => {
+  const items = makeMessages(1, 2, '消息');
+  const text = '正文[嘻嘻][话筒][话筒][不存在] https://example.com/[话筒]';
+  items[0].text = text;
+  items[1].mediaType = 14;
+  items[1].urlObjects = [{ status: {
+    text: `<b>${text}</b>`, retweeted_status: { text },
+  } }];
+  messagesByGid.set(1, items);
+  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+  }));
+  await openChat(page);
+
+  for (const body of [page.locator('[data-mid="1"] .bubble'),
+    page.locator('[data-mid="2"] .weibo-card-summary').first(),
+    page.locator('.weibo-card-retweet .weibo-card-summary')]) {
+    const emojis = body.locator('img.emoji');
+    await expect(emojis).toHaveCount(3);
+    await expect(emojis.first()).toHaveAttribute('alt', '[嘻嘻]');
+    await expect(emojis.nth(1)).toHaveAttribute('alt', '[话筒]');
+    await expect(emojis.last()).toHaveAttribute('alt', '[话筒]');
+    await expect(emojis.last()).toHaveJSProperty('naturalWidth', 16);
+    await expect(body).toContainText('[不存在]');
+    await expect(body.locator('a')).toHaveAttribute('href', 'https://example.com/[话筒]');
+    await expect(body.locator('a img, b')).toHaveCount(0);
+  }
+});
+
+test('chat_renders_emoji_when_shared_weibo_full_text_replaces_preview', async ({ page }) => {
+  const items = makeMessages(1, 1, '分享微博');
+  items[0].mediaType = 14;
+  items[0].urlObjects = [{ status: { idstr: '5357643507961089', isLongText: true, text: '预览[嘻嘻]' } }];
+  messagesByGid.set(1, items);
+  let releaseResponse!: () => void;
+  const pendingResponse = new Promise<void>(resolve => { releaseResponse = resolve; });
+  await page.route('**/chat/messages/weibo-text?*', async route => {
+    await pendingResponse;
+    await route.fulfill({ json: { text: '完整正文[话筒][不存在]' } });
+  });
+  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+  }));
+  await openChat(page);
+
+  const body = page.locator('.weibo-card-summary');
+  try {
+    await expect(body.locator('img.emoji')).toHaveAttribute('alt', '[嘻嘻]');
+    releaseResponse();
+    await expect(body).toContainText('完整正文');
+    await expect(body).toContainText('[不存在]');
+    await expect(body.locator('img.emoji')).toHaveAttribute('alt', '[话筒]');
+    await expect(body.locator('img.emoji')).toHaveJSProperty('naturalWidth', 16);
+  } finally { releaseResponse(); }
+});
+
 test('chat_shows_shared_weibo_avatar_and_all_pictures_with_original_viewer', async ({ page }) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;
