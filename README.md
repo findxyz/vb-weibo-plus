@@ -118,6 +118,8 @@ mvn clean package
 
 产物为 `target/weibo-plus.jar` 和 `target/weibo-plus.7z`。首次构建会自动安装前端依赖；运行时只需 JDK 21。
 
+发布包仅保留 Windows x64 的 Playwright 驱动，扫码登录需在 Windows x64 上运行。
+
 ## 配置说明
 
 主要配置位于 `src/main/resources/application.yml`，部分配置支持环境变量覆盖：

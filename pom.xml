@@ -118,6 +118,28 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
                     <execution>
+                        <id>trim-playwright-driver</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <zip destfile="${project.build.directory}/playwright-windows/driver-bundle-${playwright.version}.jar">
+                                    <zipfileset src="${com.microsoft.playwright:driver-bundle:jar}"
+                                                includes="META-INF/**,com/**,driver/win32_x64/**"/>
+                                </zip>
+                                <!-- Spring Boot 要求内嵌依赖 JAR 不压缩，其他已有条目保留原压缩方式。 -->
+                                <zip destfile="${project.build.directory}/${project.build.finalName}.jar"
+                                     update="true" compress="false" keepcompression="true">
+                                    <zipfileset dir="${project.build.directory}/playwright-windows"
+                                                includes="driver-bundle-${playwright.version}.jar"
+                                                prefix="BOOT-INF/lib"/>
+                                </zip>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>pack-7z</id>
                         <phase>package</phase>
                         <goals>
