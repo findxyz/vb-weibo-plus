@@ -1696,6 +1696,48 @@ test('chat_opens_history_context_and_pages_both_ways', async ({ page }) => {
   await expect(dialog.locator('.history-pagination')).toContainText('第 1 / 1 页，共 1 条');
 });
 
+test('chat_history_stops_recentering_after_the_user_scrolls_away_from_the_target', async ({ page }) => {
+  const items = makeMessages(1, 120, '消息');
+  for (const mid of [58, 59]) {
+    items[mid - 1].mediaType = 1;
+    items[mid - 1].previewUrl = `/chat/media?gid=1&mid=${mid}&variant=preview`;
+  }
+  messagesByGid.set(1, items);
+  mediaHoldMids = new Set([58, 59]);
+  await openChat(page);
+  await page.getByRole('button', { name: '📜 聊天记录' }).click();
+  const history = page.locator('dialog.history-dialog');
+  await history.getByLabel('开始日期').fill('2026-08-05');
+  await history.getByLabel('结束日期').fill('2026-08-07');
+  await history.getByLabel('内容').fill('消息 60');
+  await history.getByRole('button', { name: '🔍 查询' }).click();
+  await history.locator('.history-result').click();
+  const messages = history.locator('.history-messages');
+  const distanceFromCenter = () => messages.evaluate(element => {
+    const target = element.querySelector('[data-mid="60"]')!;
+    const rect = target.getBoundingClientRect();
+    return rect.top + rect.height / 2 - element.getBoundingClientRect().top - element.clientHeight / 2;
+  });
+  try {
+    await expect.poll(() => heldMedia.size).toBe(2);
+    await expect.poll(async () => Math.abs(await distanceFromCenter())).toBeLessThan(5);
+    await messages.hover();
+    await page.mouse.wheel(0, -180);
+    await expect.poll(distanceFromCenter).toBeGreaterThan(100);
+    for (const mid of [58, 59]) {
+      releaseMedia(mid);
+      await expect.poll(() => messages.locator(`[data-mid="${mid}"] .media-preview img`).evaluate(image =>
+        (image as HTMLImageElement).naturalWidth)).toBe(320);
+      await expect.poll(distanceFromCenter).toBeGreaterThan(100);
+    }
+    await page.waitForTimeout(750);
+    expect(await distanceFromCenter()).toBeGreaterThan(100);
+  } finally {
+    releaseMedia(58);
+    releaseMedia(59);
+  }
+});
+
 test('chat_closes_history_from_the_titlebar_button', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   messagesByGid.set(2, makeMessages(2, 3, '消息'));

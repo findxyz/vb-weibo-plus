@@ -139,7 +139,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
 
   // 新目标加载完成后在提交后的布局阶段居中；等 React 提交 DOM 再量位置，
   // 不能用 requestAnimationFrame，否则可能量到尚未渲染的列表。目标上方的
-  // 图片稍后加载会改变高度，因此在图片加载期间再校正几次。
+  // 图片稍后加载会改变高度，因此在图片加载期间再校正几次，用户操作后停止校正。
   useLayoutEffect(() => {
     if (!context || !contextReady) return;
     if (centeredTargetRef.current === context.targetMid) return;
@@ -165,14 +165,18 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     const timer = window.setTimeout(() => {
       if (!cancelled) center();
     }, 700);
-    return () => {
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+    const stopCentering = () => {
       cancelled = true;
       window.clearTimeout(timer);
       for (const image of pending) {
         image.removeEventListener('load', onLoad);
         image.removeEventListener('error', onLoad);
       }
+      for (const name of events) container.removeEventListener(name, stopCentering);
     };
+    for (const name of events) container.addEventListener(name, stopCentering, { passive: true });
+    return stopCentering;
   }, [context, contextReady]);
 
   function ensureController() {
