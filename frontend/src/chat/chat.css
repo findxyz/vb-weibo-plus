@@ -478,7 +478,8 @@ h1 {
   border-bottom: 1px solid #9dbbd4;
 }
 
-.composer-tools button {
+.composer-tools button,
+.weibo-card-retry {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -865,6 +866,21 @@ h1 {
   font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
+}
+
+.weibo-card-retry {
+  margin: 4px 0 8px 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.weibo-card-retry:hover {
+  border-color: var(--border-strong);
+  background: linear-gradient(var(--surface), var(--accent-soft));
+}
+
+.weibo-card-retry:active {
+  background: linear-gradient(var(--tool-to), var(--surface));
 }
 
 .weibo-card .weibo-card-link {

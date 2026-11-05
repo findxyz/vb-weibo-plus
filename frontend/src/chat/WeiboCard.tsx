@@ -77,7 +77,7 @@ export default function WeiboCard({ urlObject, gid, mid, onOpenImage }: {
       {needsLongText && longText.isFetching && <div role="status">正在加载微博全文……</div>}
       {needsLongText && longText.isError && <div role="alert">
         微博全文加载失败，当前仅显示预览。
-        <button type="button" onClick={() => { void longText.refetch(); }}>重试加载全文</button>
+        <button type="button" className="weibo-card-retry" onClick={() => { void longText.refetch(); }}>重试加载全文</button>
       </div>}
       {status.retweeted_status && <div className="weibo-card-retweet">
         <WeiboContent status={status.retweeted_status}
