@@ -46,7 +46,7 @@ export default function MessageList({
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorText, setErrorText] = useState('');
-  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerImage, setViewerImage] = useState<{ url: string; previewUrl?: string } | null>(null);
   const [newMessagesVisible, setNewMessagesVisible] = useState(false);
   const [announcement, setAnnouncement] = useState({ serial: 0, text: '' });
   const [bottomRequest, setBottomRequest] = useState(0);
@@ -618,7 +618,7 @@ export default function MessageList({
         )}
         {status === 'ready' && ordered.slice(startIndex, endIndex + 1).map(message => (
           <MessageItem key={message.mid} message={message} isAdmin={adminIds.has(message.senderId)}
-            onOpenImage={setViewerUrl} />
+            onOpenImage={(url, previewUrl) => setViewerImage({ url, previewUrl })} />
         ))}
         <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
       </div>
@@ -642,7 +642,7 @@ export default function MessageList({
       </button>
       <button type="button" className="new-messages-button" hidden={!newMessagesVisible}
         onClick={() => { void jumpToLatest(); }}>有新消息</button>
-      <ImageViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+      <ImageViewer url={viewerImage?.url ?? null} previewUrl={viewerImage?.previewUrl} onClose={() => setViewerImage(null)} />
     </>
   );
 }

@@ -1,16 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
 import { useImageZoom } from '../shared/useImageZoom';
 
-function ViewerImage({ src }: { src: string }) {
+export type GalleryImage = { src: string; previewSrc: string };
+
+function ViewerImage({ src, previewSrc }: GalleryImage) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [showPreview, setShowPreview] = useState(false);
   const zoom = useImageZoom();
+  useEffect(() => {
+    if (status !== 'loading') return;
+    const timer = window.setTimeout(() => setShowPreview(true), 100);
+    return () => window.clearTimeout(timer);
+  }, [status]);
   return <>
-    <img {...zoom} src={src} alt="微博原图" hidden={status !== 'loaded'} onLoad={() => setStatus('loaded')} onError={() => setStatus('error')} />
-    <p id="image-viewer-state" role="status">{status === 'loading' ? '加载中…' : status === 'error' ? '图片加载失败' : ''}</p>
+    {status === 'loading' && showPreview && previewSrc !== src && (
+      <img src={previewSrc} alt="微博预览" onError={event => { event.currentTarget.hidden = true; }} />
+    )}
+    <img {...zoom} src={src} alt="微博原图" decoding="async" fetchPriority="high" hidden={status !== 'loaded'}
+      onLoad={async event => {
+        try {
+          await event.currentTarget.decode();
+          setStatus('loaded');
+        } catch {
+          setStatus('error');
+        }
+      }} onError={() => setStatus('error')} />
+    <p id="image-viewer-state" role="status">{status === 'error' ? '图片加载失败' : ''}</p>
   </>;
 }
 
-export default function ImageViewer({ images, initialIndex, onClose }: { images: string[]; initialIndex: number; onClose: () => void }) {
+export default function ImageViewer({ images, initialIndex, onClose }: { images: GalleryImage[]; initialIndex: number; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [index, setIndex] = useState(initialIndex);
   useEffect(() => {
@@ -29,7 +48,7 @@ export default function ImageViewer({ images, initialIndex, onClose }: { images:
     }}
     onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
     {/* Each index owns its load state; late events stay with the discarded image. */}
-    <ViewerImage key={index} src={images[index]} />
+    <ViewerImage key={index} {...images[index]} />
     {images.length > 1 && <>
       <button type="button" className="viewer-prev" aria-label="上一张" onClick={() => move(-1)}>‹</button>
       <button type="button" className="viewer-next" aria-label="下一张" onClick={() => move(1)}>›</button>

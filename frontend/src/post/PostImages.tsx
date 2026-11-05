@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { PostImage } from './queries';
+import type { GalleryImage } from './ImageViewer';
 
 function imageUrl(value?: string | null) {
   if (!value) return;
@@ -19,7 +20,7 @@ function ImageCell({ pic, src, retweeted, index, onOpen }: { pic: PostImage; src
   </button>;
 }
 
-export default function PostImages({ pics, retweeted = false, onOpen }: { pics: PostImage[]; retweeted?: boolean; onOpen: (images: string[], index: number) => void }) {
+export default function PostImages({ pics, retweeted = false, onOpen }: { pics: PostImage[]; retweeted?: boolean; onOpen: (images: GalleryImage[], index: number) => void }) {
   const images = pics.flatMap(pic => {
     const src = imageUrl(pic.thumbnailUrl) || imageUrl(pic.originalUrl);
     return src ? [{ pic, src, original: imageUrl(pic.originalUrl) || src }] : [];
@@ -27,6 +28,6 @@ export default function PostImages({ pics, retweeted = false, onOpen }: { pics: 
   if (!images.length) return null;
   return <div className={retweeted ? 'post-retweet-pics' : `post-pics${pics.length === 1 ? ' one-image' : ''}`}>{images.map(({ pic, src }, index) =>
     <ImageCell key={`${pic.pid}-${index}`} pic={pic} src={src} retweeted={retweeted} index={index}
-      onOpen={() => onOpen(images.map(image => image.original), index)} />)}
+      onOpen={() => onOpen(images.map(image => ({ src: image.original, previewSrc: image.src })), index)} />)}
   </div>;
 }

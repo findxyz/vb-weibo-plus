@@ -70,7 +70,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
   const [contextReady, setContextReady] = useState(false);
   const [earlierState, setEarlierState] = useState('');
   const [newerState, setNewerState] = useState('');
-  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerImage, setViewerImage] = useState<{ url: string; previewUrl?: string } | null>(null);
   const [syncDate, setSyncDate] = useState('');
   const [syncing, setSyncing] = useState(false);
   const versionRef = useRef(0);
@@ -101,7 +101,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     centeredTargetRef.current = null;
     setEarlierState('');
     setNewerState('');
-    setViewerUrl(null);
+    setViewerImage(null);
   }
 
   useEffect(() => {
@@ -191,7 +191,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     setApplied(nextFilters);
     setPage(nextPage);
     setContext(null);
-    setViewerUrl(null);
+    setViewerImage(null);
     try {
       const pageData = await queryHistoryMessages(gid, nextFilters, nextPage, SEARCH_PAGE_SIZE, controller.signal);
       if (version !== versionRef.current || controller.signal.aborted) return;
@@ -224,7 +224,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     setStatus('idle');
     setResult(null);
     setContext(null);
-    setViewerUrl(null);
+    setViewerImage(null);
     setFeedback('');
     try {
       await syncHistory(gid, toQueryDateTime(syncDate) ?? `${syncDate} 00:00:00`, controller.signal);
@@ -344,7 +344,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     centeredTargetRef.current = null;
     setContextReady(false);
     setContext(null);
-    setViewerUrl(null);
+    setViewerImage(null);
     setFeedback('');
   }
 
@@ -421,7 +421,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
                   <div className="history-messages" ref={messagesRef} onScroll={handleScroll}>
                     {context.messages.map(message => (
                       <MessageItem key={message.mid} message={message} isAdmin={admins.has(message.senderId)}
-                        highlighted={message.mid === context.targetMid} onOpenImage={setViewerUrl} />
+                        highlighted={message.mid === context.targetMid} onOpenImage={(url, previewUrl) => setViewerImage({ url, previewUrl })} />
                     ))}
                   </div>
                   <div className="history-edge-state" role="status">{newerState}</div>
@@ -432,7 +432,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
           </section>
         </div>
       </div>
-      <ImageViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+      <ImageViewer url={viewerImage?.url ?? null} previewUrl={viewerImage?.previewUrl} onClose={() => setViewerImage(null)} />
     </dialog>
   );
 }

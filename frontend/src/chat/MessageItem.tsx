@@ -43,7 +43,7 @@ function messageBody(message: ChatMessage, text: string, hideText: boolean, onOp
 type Props = {
   message: ChatMessage;
   isAdmin: boolean;
-  onOpenImage: (url: string) => void;
+  onOpenImage: (url: string, previewUrl?: string) => void;
   highlighted?: boolean;
 };
 
@@ -98,7 +98,7 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         {messageBody(message, text, hideText, onOpenImage)}
         {hasImage && (
           <button type="button" className="media-preview" aria-label="查看原图"
-            onClick={() => onOpenImage(message.originalUrl || message.previewUrl)}>
+            onClick={() => onOpenImage(message.originalUrl || message.previewUrl, message.previewUrl)}>
             <img src={message.previewUrl} alt="" loading="lazy" />
           </button>
         )}

@@ -137,7 +137,8 @@ test.beforeAll(async () => {
       const broken = pid === 'broken' || (pid === 'broken-original' && original);
       const send = () => {
         if (releaseOriginal === send) releaseOriginal = undefined;
-        response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml' });
+        response.writeHead(broken ? 404 : 200, { 'Content-Type': broken ? 'text/plain' : 'image/svg+xml',
+          ...(broken ? {} : { 'Cache-Control': 'max-age=86400, private' }) });
         response.end(broken ? 'Missing image' : '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#f9d27c"/></svg>');
       };
       if (original && pid === holdOriginalPid) releaseOriginal = send;
@@ -2130,6 +2131,69 @@ test('image_viewer_zooms_long_images_with_wheel_and_drags_without_closing', asyn
   await expect.poll(() => image.boundingBox()).toEqual(initial);
 });
 
+for (const retweeted of [false, true]) {
+  test(`image_viewer_keeps_preview_until_original_is_decoded_${retweeted ? 'retweeted' : 'own'}`, async ({ page }, testInfo) => {
+    const picture = imageFixture('slow');
+    if (retweeted) posts.items[0].retweeted = { screenName: '原作者', content: '原文', pics: [picture] };
+    else posts.items[0].pics = [picture];
+    holdOriginalPid = 'slow';
+    await page.addInitScript(() => {
+      const decode = HTMLImageElement.prototype.decode;
+      const control = window as Window & { releaseImageDecode?: () => void };
+      HTMLImageElement.prototype.decode = function () {
+        if (!this.src.includes('variant=original')) return decode.call(this);
+        return new Promise<void>(resolve => {
+          control.releaseImageDecode = () => { void decode.call(this).then(resolve); };
+        });
+      };
+    });
+    await page.goto(`${baseUrl}post/index.html`);
+    await page.getByRole('button', { name: `查看${retweeted ? '转发' : ''}微博图片 1`, exact: true }).click();
+    const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+    try {
+      await expect(viewer.getByAltText('微博预览')).toBeVisible();
+      await expect(viewer.getByAltText('微博预览')).toHaveAttribute('src', picture.thumbnailUrl!);
+      await expect(viewer.getByRole('status')).toHaveText('');
+      await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
+      releaseOriginal?.();
+      await expect.poll(() => viewer.getByAltText('微博原图').evaluate(image => (image as HTMLImageElement).complete)).toBe(true);
+      await expect(viewer.getByAltText('微博预览')).toBeVisible();
+      await expect(viewer.getByAltText('微博原图')).toBeHidden();
+      await page.screenshot({ path: testInfo.outputPath('viewer-preview.png') });
+      await page.evaluate(() => (window as Window & { releaseImageDecode?: () => void }).releaseImageDecode?.());
+      await expect(viewer.getByAltText('微博原图')).toBeVisible();
+      await expect(viewer.getByAltText('微博预览')).toHaveCount(0);
+      await page.screenshot({ path: testInfo.outputPath('viewer-original.png') });
+    } finally {
+      holdOriginalPid = undefined;
+      releaseOriginal?.();
+    }
+  });
+}
+
+test('image_viewer_reuses_cached_original_without_flashing_preview', async ({ page }) => {
+  const picture = imageFixture('cached');
+  posts.items[0].pics = [picture];
+  await page.goto(`${baseUrl}post/index.html`);
+  const trigger = page.getByRole('button', { name: '查看微博图片 1', exact: true });
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  await trigger.click();
+  await expect(viewer.getByAltText('微博原图')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => {
+    const observed = window as Window & { previewFlashed?: boolean };
+    observed.previewFlashed = false;
+    new MutationObserver(records => {
+      if (records.some(record => [...record.addedNodes].some(node =>
+        node instanceof HTMLImageElement && node.alt === '微博预览'))) observed.previewFlashed = true;
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  await trigger.click();
+  await expect(viewer.getByAltText('微博原图')).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { previewFlashed?: boolean }).previewFlashed)).toBe(false);
+  expect(requests.filter(request => request === `GET ${picture.originalUrl}`)).toHaveLength(1);
+});
+
 test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focus', async ({ page }) => {
   posts.items[0].pics = [imageFixture('single')];
   await page.goto(`${baseUrl}post/index.html`);
@@ -2200,7 +2264,7 @@ test('image_viewer_isolates_late_failure_and_can_navigate_or_close_after_an_erro
   await page.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
   const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
   try {
-    await expect(viewer.getByRole('status')).toHaveText('加载中…');
+    await expect(viewer.getByRole('status')).toHaveText('');
     await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
     await page.keyboard.press('ArrowRight');
     await expect(viewer.getByRole('img', { name: '微博原图' })).toBeVisible();
@@ -2208,7 +2272,7 @@ test('image_viewer_isolates_late_failure_and_can_navigate_or_close_after_an_erro
     await expect(viewer.getByRole('status')).toHaveText('');
     await expect(viewer.locator('img')).toHaveAttribute('src', imageFixture('fast').originalUrl!);
     await page.keyboard.press('ArrowLeft');
-    await expect(viewer.getByRole('status')).toHaveText('加载中…');
+    await expect(viewer.getByRole('status')).toHaveText('');
     await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
     releaseOriginal?.();
     await expect(viewer.getByRole('status')).toHaveText('图片加载失败');
@@ -2237,7 +2301,7 @@ test('image_viewer_closes_pending_loads_and_unmounts_without_leaving_a_modal', a
   const opener = page.getByRole('button', { name: '查看微博图片 1', exact: true });
   try {
     await opener.click();
-    await expect(viewer.getByRole('status')).toHaveText('加载中…');
+    await expect(viewer.getByRole('status')).toHaveText('');
     await expect.poll(() => Boolean(releaseOriginal)).toBe(true);
     await page.keyboard.press('Escape');
     await expect(viewer).toHaveCount(0);

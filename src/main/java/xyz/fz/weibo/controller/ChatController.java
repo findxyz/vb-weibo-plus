@@ -192,6 +192,7 @@ public class ChatController {
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(media.contentType());
         response.setContentLength(media.content().length);
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "max-age=86400, private");
         response.getOutputStream().write(media.content());
     }
 

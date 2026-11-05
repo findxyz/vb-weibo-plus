@@ -4,7 +4,7 @@ import { formatDate } from '../shared/date.js';
 import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import PostImages from './PostImages';
-import ImageViewer from './ImageViewer';
+import ImageViewer, { type GalleryImage } from './ImageViewer';
 import PostVideo from './PostVideo';
 import { playableVideo } from './video';
 import PostLikeButton from './PostLikeButton';
@@ -23,7 +23,7 @@ function PostContent({ content, className = 'post-content' }: { content: string;
 export default function PostFeed({ result, targetPostId, likeEnabled, likeSession, onUnauthorized }: {
   result: PostList; targetPostId?: string; likeEnabled: boolean; likeSession: number; onUnauthorized: () => void;
 }) {
-  const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
+  const [viewer, setViewer] = useState<{ images: GalleryImage[]; index: number } | null>(null);
   const [highlighted, setHighlighted] = useState(targetPostId);
   const targetRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function PostFeed({ result, targetPostId, likeEnabled, likeSessio
     pane.addEventListener('keydown', stopCentering);
     return () => { stopCentering(); clearTimeout(timer); };
   }, [targetPostId]);
-  function openImages(images: string[], index: number) { setViewer({ images, index }); }
+  function openImages(images: GalleryImage[], index: number) { setViewer({ images, index }); }
   return <>
     {result.items.length === 0 && <p role="status">该日无微博。</p>}
     {result.items.map(post => {

@@ -114,6 +114,7 @@ class PostControllerTest {
                         .param("url", "https://evil.example/arbitrary.png"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/png"))
+                .andExpect(header().string("Cache-Control", "max-age=86400, private"))
                 .andExpect(header().doesNotExist("Content-Disposition"))
                 .andExpect(header().doesNotExist("Set-Cookie"))
                 .andExpect(content().bytes(new byte[]{10, 20, 30}));

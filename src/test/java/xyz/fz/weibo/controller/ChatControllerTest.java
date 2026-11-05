@@ -334,6 +334,7 @@ class ChatControllerTest {
                         .param("variant", "preview"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/jpeg"))
+                .andExpect(header().string("Cache-Control", "max-age=86400, private"))
                 .andExpect(header().doesNotExist("Content-Disposition"))
                 .andExpect(header().doesNotExist("Set-Cookie"))
                 .andExpect(content().bytes(new byte[]{1, 2, 3}));

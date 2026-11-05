@@ -62,7 +62,11 @@ public class PostController {
             @RequestParam String mblogId,
             @RequestParam String pid,
             @RequestParam String variant) {
-        return mediaResponse(postService.queryPostImage(mblogId, pid, variant));
+        MediaBinary image = postService.queryPostImage(mblogId, pid, variant);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, private")
+                .header(HttpHeaders.CONTENT_TYPE, image.contentType())
+                .body(image.content());
     }
 
     @GetMapping("/video-cover")
