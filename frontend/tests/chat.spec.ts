@@ -756,6 +756,32 @@ test('chat_reuses_original_image_when_reopened_from_history', async ({ page }) =
   expect(requests.filter(request => request === `GET ${items[0].originalUrl}`)).toHaveLength(1);
 });
 
+for (const close of ['button', 'escape'] as const) {
+  test(`chat_stops_history_video_when_closed_by_${close}`, async ({ page }) => {
+    const items = makeMessages(1, 1, '视频消息');
+    items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
+    items[0].videoUrl = '/tests/fixtures/history-video.mp4';
+    messagesByGid.set(1, items);
+    await openChat(page);
+    await page.getByRole('button', { name: '📜 聊天记录' }).click();
+    const history = page.locator('dialog.history-dialog');
+    await history.getByLabel('开始日期').fill('2026-08-05');
+    await history.getByLabel('结束日期').fill('2026-08-07');
+    await history.getByRole('button', { name: '🔍 查询' }).click();
+    await history.locator('.history-result').click();
+    await history.getByRole('button', { name: '播放视频' }).click();
+    const video = await history.locator('video').evaluateHandle(element => element as HTMLVideoElement);
+    await video.evaluate(element => { element.loop = true; return element.play(); });
+    await expect.poll(() => video.evaluate(element => element.paused)).toBe(false);
+    if (close === 'button') await history.getByRole('button', { name: '关闭聊天记录' }).click();
+    else await page.keyboard.press('Escape');
+    await expect(history).not.toHaveJSProperty('open', true);
+    await expect.poll(() => video.evaluate(element => element.paused)).toBe(true);
+    await page.getByRole('button', { name: '📜 聊天记录' }).click();
+    await expect(history.locator('video')).toHaveCount(0);
+  });
+}
+
 test('chat_shows_viewer_load_failure_and_can_reopen', async ({ page }) => {
   const items = makeMessages(1, 1, '消息');
   items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';

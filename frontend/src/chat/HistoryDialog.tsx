@@ -120,6 +120,8 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     const handleClose = () => {
       versionRef.current += 1;
       controllerRef.current?.abort();
+      setContext(null);
+      setViewerImage(null);
       onClose();
     };
     dialog.addEventListener('close', handleClose);
