@@ -69,7 +69,7 @@ public class PostController {
                 .body(image.content());
     }
 
-    @GetMapping("/video-cover")
+    @GetMapping("/videoCover")
     public ResponseEntity<byte[]> queryPostVideoCover(
             @RequestParam String mblogId,
             @RequestParam(defaultValue = "false") boolean retweeted) {

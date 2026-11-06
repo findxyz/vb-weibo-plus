@@ -146,7 +146,7 @@ export function fetchAttitudes(gid: number, mids: number[], signal: AbortSignal)
 
 export async function fetchMessageWeiboText(gid: number, mid: number, signal: AbortSignal) {
   const query = new URLSearchParams({ gid: String(gid), mid: String(mid) });
-  const result = await getJson<{ text: string }>(`/chat/messages/weibo-text?${query}`,
+  const result = await getJson<{ text: string }>(`/chat/messages/weiboText?${query}`,
     AbortSignal.any([signal, AbortSignal.timeout(15000)]));
   return result.text;
 }

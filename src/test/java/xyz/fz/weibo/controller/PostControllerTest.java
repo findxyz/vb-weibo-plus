@@ -129,11 +129,11 @@ class PostControllerTest {
         when(postService.queryPostVideoCover("saved-mblog", true))
                 .thenReturn(new MediaBinary(new byte[]{2}, "image/webp"));
 
-        mockMvc.perform(get("/post/video-cover").param("mblogId", "saved-mblog"))
+        mockMvc.perform(get("/post/videoCover").param("mblogId", "saved-mblog"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/jpeg"))
                 .andExpect(content().bytes(new byte[]{1}));
-        mockMvc.perform(get("/post/video-cover")
+        mockMvc.perform(get("/post/videoCover")
                         .param("mblogId", "saved-mblog")
                         .param("retweeted", "true"))
                 .andExpect(status().isOk())
@@ -169,10 +169,10 @@ class PostControllerTest {
                         .param("variant", "thumbnail"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
-        mockMvc.perform(get("/post/video-cover").param("mblogId", "saved-mblog"))
+        mockMvc.perform(get("/post/videoCover").param("mblogId", "saved-mblog"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
-        mockMvc.perform(get("/post/video-cover")
+        mockMvc.perform(get("/post/videoCover")
                         .param("mblogId", "saved-mblog")
                         .param("retweeted", "true"))
                 .andExpect(status().isTooManyRequests())

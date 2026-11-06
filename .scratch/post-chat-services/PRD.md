@@ -205,7 +205,7 @@ Controller 的时间参数使用 `yyyy-MM-dd HH:mm:ss` 字符串，按 `Asia/Sha
 - `MessageRecord`：字段对应 messages 表，媒体为 `fid`/`videoCoverFid`/`mediaType`/`urlObjects`/`picInfos`。
 - `BloggerRecord`：博主查询元信息，包含 uid、昵称、头像、主页地址与认证状态，不暴露增量游标。
 - `GroupRecord`：群组查询元信息，包含 gid、名称、头像、成员信息、群主、管理员、简介与群类型，不暴露历史游标。群元信息不存在时返回仅含 gid、其他字段为默认值的空信息，不影响消息查询。
-- `PostView`：单条聚合微博查询项，复制 `PostRecord` 中需要展示的正文与元数据字段，并带该条微博对应的 `BloggerRecord blogger`；不直接嵌入 `PostRecord`。图片使用 `PostImageView(pid, thumbnailWidth, thumbnailHeight, originalWidth, originalHeight, thumbnailUrl, originalUrl)`，其中两个 URL 均为已正确编码查询参数的本地相对地址 `/post/image?...`；视频使用 `PostVideoView(coverUrl, pageUrl)`，coverUrl 为本地 `/post/video-cover?...`，pageUrl 为可跳转的微博文章页。转发原微博使用同样结构，其视频封面地址带 `retweeted=true`。不存在对应媒体时相关 URL 为空，不暴露上游媒体 URL。
+- `PostView`：单条聚合微博查询项，复制 `PostRecord` 中需要展示的正文与元数据字段，并带该条微博对应的 `BloggerRecord blogger`；不直接嵌入 `PostRecord`。图片使用 `PostImageView(pid, thumbnailWidth, thumbnailHeight, originalWidth, originalHeight, thumbnailUrl, originalUrl)`，其中两个 URL 均为已正确编码查询参数的本地相对地址 `/post/image?...`；视频使用 `PostVideoView(coverUrl, pageUrl)`，coverUrl 为本地 `/post/videoCover?...`，pageUrl 为可跳转的微博文章页。转发原微博使用同样结构，其视频封面地址带 `retweeted=true`。不存在对应媒体时相关 URL 为空，不暴露上游媒体 URL。
 - `MessageView`：单条群消息查询项，复制 `MessageRecord` 中需要展示的消息字段，保留 gid、mid、mediaType，并按媒体能力返回本地相对地址。图片消息同时返回 `/chat/media?...&variant=preview` 的 previewUrl 与 `variant=original` 的 originalUrl；有视频封面的消息只返回 previewUrl；其他消息两个 URL 均为空。不返回媒体 bytes、base64、上游 fid 或媒体 URL。
 - `PostQueryResult`：包含 `List<PostView> items`、`page`、`size`、`total`。
 - `MessageQueryResult`：包含顶层 `GroupRecord group`、`List<MessageView> items`、`page`、`size`、`total`。
@@ -314,7 +314,7 @@ PostController（`/post`）：
 - `GET /post/bloggers`：返回全部本地博主元信息，只读 SQLite，不分页，按 updated_at DESC、uid DESC 稳定排序。
 - `GET /post/list?uids=...&uids=...&start=...&end=...&page=...&size=...`：查询聚合微博。`uids` 为可重复的可选查询参数，由 Spring 直接绑定为 `List<Long>`；不传查询全部博主，不支持逗号拼接。start/end 可选，不传则不限制对应时间边界；page 默认 1，size 默认且最大为 100。
 - `GET /post/image?mblogId=...&pid=...&variant=thumbnail|original`：用本地微博主键 mblogId 与图片 pid 定位当前微博或转发原微博图片，按 variant 代理返回图片二进制，variant 必传。
-- `GET /post/video-cover?mblogId=...&retweeted=false`：代理返回当前微博或转发原微博的视频封面二进制，retweeted 可选且默认 false。
+- `GET /post/videoCover?mblogId=...&retweeted=false`：代理返回当前微博或转发原微博的视频封面二进制，retweeted 可选且默认 false。
 
 ChatController（`/chat`）：
 - `POST /chat/incremental?gid=...`：保存指定群的增量，参数使用查询参数传递。

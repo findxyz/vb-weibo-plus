@@ -244,7 +244,7 @@ public class PostMapper {
         if (video.coverUrl().isBlank()) {
             return new PostVideoView("", video.pageUrl());
         }
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/post/video-cover")
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/post/videoCover")
                 .queryParam("mblogId", "{mblogId}");
         if (retweeted) {
             builder.queryParam("retweeted", "true");

@@ -138,7 +138,7 @@ class PostMapperTest {
                         "/post/image?mblogId=current-id&pid=p1&variant=original");
             });
             assertThat(view.video().coverUrl()).isEqualTo(
-                    "/post/video-cover?mblogId=current-id");
+                    "/post/videoCover?mblogId=current-id");
             assertThat(view.video().pageUrl()).isEqualTo("https://video.weibo.com/show?fid=current");
             assertThat(view.retweeted().contentRaw()).isEqualTo("转发完整纯文本");
             assertThat(view.retweeted().pics()).singleElement().satisfies(image -> {
@@ -148,7 +148,7 @@ class PostMapperTest {
                         "/post/image?mblogId=current-id&pid=p2&variant=original");
             });
             assertThat(view.retweeted().video().coverUrl()).isEqualTo(
-                    "/post/video-cover?mblogId=current-id&retweeted=true");
+                    "/post/videoCover?mblogId=current-id&retweeted=true");
         });
     }
 
@@ -288,7 +288,7 @@ class PostMapperTest {
         assertThat(view.pics().getFirst().thumbnailUrl()).isEqualTo(
                 "/post/image?mblogId=m%20blog%26%3F&pid=p%201%26%3F&variant=thumbnail");
         assertThat(view.video().coverUrl()).isEqualTo(
-                "/post/video-cover?mblogId=m%20blog%26%3F");
+                "/post/videoCover?mblogId=m%20blog%26%3F");
     }
 
     private MblogResponse readPost() throws Exception {

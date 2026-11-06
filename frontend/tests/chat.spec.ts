@@ -165,7 +165,7 @@ test.beforeAll(async () => {
       sendJson(response, 200, { valid: loginValid });
       return;
     }
-    if (path === '/chat/messages/weibo-text') {
+    if (path === '/chat/messages/weiboText') {
       const send = () => sendJson(response, 200, { text: LONG_WEIBO_TEXT });
       if (holdPredicate?.(url)) { held.push({ url, send }); return; }
       send();
@@ -911,7 +911,7 @@ test('chat_renders_emoji_when_shared_weibo_full_text_replaces_preview', async ({
   messagesByGid.set(1, items);
   let releaseResponse!: () => void;
   const pendingResponse = new Promise<void>(resolve => { releaseResponse = resolve; });
-  await page.route('**/chat/messages/weibo-text?*', async route => {
+  await page.route('**/chat/messages/weiboText?*', async route => {
     await pendingResponse;
     await route.fulfill({ json: { text: '完整正文[话筒][不存在]' } });
   });
@@ -964,7 +964,7 @@ test('chat_shows_shared_weibo_avatar_and_all_pictures_with_original_viewer', asy
     '/chat/image?url=http%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fsecond-picture.jpg');
   await page.keyboard.press('Escape');
   await expect(pictures.nth(1)).toBeFocused();
-  expect(requests.filter(value => /weibo-text|\/weibo\/blog\//.test(value))).toEqual([]);
+  expect(requests.filter(value => /weiboText|\/weibo\/blog\//.test(value))).toEqual([]);
 });
 
 for (const context of ['messages', 'history'] as const) {
@@ -1085,7 +1085,7 @@ test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({
     }];
   }
   messagesByGid.set(1, items);
-  holdPredicate = url => url.pathname === '/chat/messages/weibo-text';
+  holdPredicate = url => url.pathname === '/chat/messages/weiboText';
   await openChat(page);
 
   await expect(page.locator('[data-mid="1"] .weibo-card-summary')).toHaveText('接口只返回了前半段。');
@@ -1095,8 +1095,8 @@ test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({
   await expect(page.locator('[data-mid="2"] .weibo-card-summary')).toHaveText(LONG_WEIBO_TEXT);
   await expect(page.locator('[data-mid="3"] .weibo-card-summary')).toHaveText('接口只返回了前半段。');
   expect(await page.locator('[data-mid="1"] .weibo-card-summary').textContent()).toBe(LONG_WEIBO_TEXT);
-  expect(requests.filter(value => value.includes('/chat/messages/weibo-text'))).toEqual([
-    'GET /chat/messages/weibo-text?gid=1&mid=1',
+  expect(requests.filter(value => value.includes('/chat/messages/weiboText'))).toEqual([
+    'GET /chat/messages/weiboText?gid=1&mid=1',
   ]);
   expect(rawWeiboRequests).toEqual([]);
 });
@@ -1107,7 +1107,7 @@ test('chat_renders_shared_weibo_full_text_as_literal_text', async ({ page }) => 
   items[0].urlObjects = [{ status: { idstr: '5357643507961089', isLongText: true, text: '前半段。' } }];
   messagesByGid.set(1, items);
   const text = '<img src=x onerror="window.weiboAttack=1"><script>window.weiboAttack=2</script>完整结尾。';
-  await page.route('**/chat/messages/weibo-text?*', route => route.fulfill({ json: { text } }));
+  await page.route('**/chat/messages/weiboText?*', route => route.fulfill({ json: { text } }));
   await openChat(page);
 
   const body = page.locator('.weibo-card-summary');
@@ -1122,7 +1122,7 @@ test('chat_marks_shared_long_weibo_as_preview_after_failure_and_retries_on_click
   items[0].urlObjects = [{ status: { idstr: '5357643507961089', isLongText: true, text: '接口只返回了前半段。' } }];
   messagesByGid.set(1, items);
   let attempts = 0;
-  await page.route('**/chat/messages/weibo-text?*', route => {
+  await page.route('**/chat/messages/weiboText?*', route => {
     attempts += 1;
     return route.fulfill(attempts === 1
       ? { status: 503, json: { msg: '微博全文暂不可用。' } }

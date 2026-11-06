@@ -81,7 +81,7 @@ class ChatControllerTest {
     void shared_weibo_text_uses_the_group_message_reference_and_returns_business_json() throws Exception {
         when(chatService.queryMessageWeiboText(1, 100)).thenReturn("完整正文。\n\n结尾。");
 
-        mockMvc.perform(get("/chat/messages/weibo-text").param("gid", "1").param("mid", "100"))
+        mockMvc.perform(get("/chat/messages/weiboText").param("gid", "1").param("mid", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.text").value("完整正文。\n\n结尾。"))
                 .andExpect(jsonPath("$.data").doesNotExist())

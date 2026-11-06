@@ -116,7 +116,7 @@
 - `GET /post/bloggers`（现有）
 - `GET /post/list`（现有，复用按日加载与搜索）
 - `GET /post/image`（现有，图片代理）
-- `GET /post/video-cover`（现有，视频封面代理）
+- `GET /post/videoCover`（现有，视频封面代理）
 - `GET /post/calendar`（新增）
 - `GET /weibo/login/status`（现有，登录态检测，全局共享不属于「微博原始测试接口」）
 - `POST /weibo/login/qr`（现有，扫码登录）
@@ -137,7 +137,7 @@
 ### seam 1：Playwright `PostPageTest`（UI 行为，最高 seam）
 
 - 位于 `src/test/java/xyz/fz/weibo/ui/PostPageTest.java`。
-- 仿 `GroupChatPageTest`：用 `com.sun.net.httpserver.HttpServer` 起一个 stub 后端，返回固定的 `/post/bloggers`、`/post/calendar`、`/post/list`、`/post/image`、`/post/video-cover`、`/weibo/login/status` JSON；用 Playwright headless chromium 打开 `baseUrl + "/post/index.html"` 驱动真实页面。
+- 仿 `GroupChatPageTest`：用 `com.sun.net.httpserver.HttpServer` 起一个 stub 后端，返回固定的 `/post/bloggers`、`/post/calendar`、`/post/list`、`/post/image`、`/post/videoCover`、`/weibo/login/status` JSON；用 Playwright headless chromium 打开 `baseUrl + "/post/index.html"` 驱动真实页面。
 - 覆盖：默认选中全部博主 + 最近一天、博主列表全部博主行、日期树展开/选日加载、高级搜索浮层关键词+片段+跳转高亮、多图灯箱翻页与键盘、新帖提示条插入与定时刷新、加载失败重试、登录失效提示。
 - `@Test` 方法用 snake_case（遵循 AGENTS.md）。
 

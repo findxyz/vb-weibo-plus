@@ -11,7 +11,7 @@ Add controlled Media Proxy access for images and video covers referenced by pers
 - [ ] PostMapper turns persisted media references into separate thumbnail and original dimensions plus correctly encoded local thumbnail, original, and video-cover URLs without exposing upstream URLs.
 - [ ] `GET /post/image` resolves a saved mblog identifier and image pid from either the current entry or its reposted entry and supports only thumbnail and original variants.
 - [ ] Original image references use the captured largest, original, then large fallback decision, while thumbnail requests use the captured thumbnail reference.
-- [ ] `GET /post/video-cover` supports the current entry and the optional reposted-entry selector, and the query view retains the stable upstream video page URL for navigation.
+- [ ] `GET /post/videoCover` supports the current entry and the optional reposted-entry selector, and the query view retains the stable upstream video page URL for navigation.
 - [ ] Media requests cannot supply an arbitrary upstream URL; a missing local entry or saved media reference returns 404, and an unsupported variant returns 400.
 - [ ] PostMapper converts successful upstream media responses into MediaBinary; PostService only selects the saved reference and orchestrates the download.
 - [ ] Successful responses contain image bytes and Content-Type only; other upstream headers are not forwarded, and a missing Content-Type becomes `application/octet-stream`.

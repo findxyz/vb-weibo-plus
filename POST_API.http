@@ -51,7 +51,7 @@ GET {{host}}/post/image?mblogId=R8070kHp4&pid=006DIRV7gy1ieyoskujmqj311d0omdvy&v
 GET {{host}}/post/image?mblogId=R6cPi4tfV&pid=006DIRV7gy1ieku1in004j31480u64qp&variant=original
 
 ### 微博视频封面（mblogId 来自 /post/list 响应）
-GET {{host}}/post/video-cover?mblogId=R6yVCj1kg
+GET {{host}}/post/videoCover?mblogId=R6yVCj1kg
 
 ### 转发微博视频封面
-GET {{host}}/post/video-cover?mblogId=R7Z6IgXO5&retweeted=true
+GET {{host}}/post/videoCover?mblogId=R7Z6IgXO5&retweeted=true
