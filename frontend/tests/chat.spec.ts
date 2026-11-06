@@ -1013,6 +1013,49 @@ for (const context of ['messages', 'history'] as const) {
   });
 }
 
+for (const context of ['messages', 'history'] as const) {
+  for (const retweeted of [false, true]) {
+    test(`chat_switches_shared_weibo_pictures_in_${context}_retweeted_${retweeted}`, async ({ page }, testInfo) => {
+      const items = makeMessages(1, 1, '分享微博');
+      items[0].mediaType = 14;
+      const status = { text: '多图微博', pic_ids: ['first-picture', 'second-picture'] };
+      items[0].urlObjects = [{ status: retweeted ? { text: '转发', retweeted_status: status } : status }];
+      messagesByGid.set(1, items);
+      await openChat(page);
+      const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+      if (context === 'history') {
+        await page.getByRole('button', { name: '📜 聊天记录' }).click();
+        await container.getByLabel('开始日期').fill('2026-08-05');
+        await container.getByLabel('结束日期').fill('2026-08-07');
+        await container.getByRole('button', { name: '🔍 查询' }).click();
+        await container.locator('.history-result').click();
+      }
+      const trigger = container.getByRole('button', { name: '查看微博图片 2', exact: true });
+      await trigger.click();
+      const viewer = container.locator('dialog.image-viewer');
+      const image = viewer.getByAltText('消息原图');
+      await expect(image).toHaveAttribute('src', /second-picture/);
+      await expect(viewer.locator('.viewer-counter')).toHaveText('2 / 2');
+      await viewer.getByRole('button', { name: '下一张', exact: true }).click();
+      await expect(image).toHaveAttribute('src', /first-picture/);
+      await expect(viewer.locator('.viewer-counter')).toHaveText('1 / 2');
+      await viewer.getByRole('button', { name: '上一张', exact: true }).click();
+      await expect(image).toHaveAttribute('src', /second-picture/);
+      await page.keyboard.press('ArrowLeft');
+      await expect(image).toHaveAttribute('src', /first-picture/);
+      await page.keyboard.press('ArrowRight');
+      await expect(image).toHaveAttribute('src', /second-picture/);
+      await expect(image).toBeVisible();
+      await viewer.screenshot({ path: testInfo.outputPath('weibo-gallery.png') });
+      await page.keyboard.press('Escape');
+      await expect(trigger).toBeFocused();
+      await container.getByRole('button', { name: '查看微博图片 1', exact: true }).click();
+      await expect(image).toHaveAttribute('src', /first-picture/);
+      await expect(viewer.locator('.viewer-counter')).toHaveText('1 / 2');
+    });
+  }
+}
+
 test('chat_keeps_deleted_retweeted_weibo_readable_without_author_or_pictures', async ({ page }) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;

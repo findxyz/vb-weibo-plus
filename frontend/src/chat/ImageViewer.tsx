@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useImageZoom } from '../shared/useImageZoom';
 
+export type GalleryImage = { url: string; previewUrl?: string };
+export type ImageSelection = { images: GalleryImage[]; index: number };
+
 function ViewerImage({ url, previewUrl }: { url: string; previewUrl?: string }) {
   const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
   const [showLoading, setShowLoading] = useState(false);
@@ -40,15 +43,20 @@ function ViewerImage({ url, previewUrl }: { url: string; previewUrl?: string }) 
 }
 
 // 全屏查看器：Escape、遮罩点击与关闭事件统一交回父组件，由父组件清空地址。
-export default function ImageViewer({ url, previewUrl, onClose }: { url: string | null; previewUrl?: string; onClose: () => void }) {
+export default function ImageViewer({ selection, onChange, onClose }: {
+  selection: ImageSelection | null;
+  onChange: (selection: ImageSelection) => void;
+  onClose: () => void;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const image = selection?.images[selection.index];
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (url && !dialog.open) dialog.showModal();
-    if (!url && dialog.open) dialog.close();
-  }, [url]);
+    if (selection && !dialog.open) dialog.showModal();
+    if (!selection && dialog.open) dialog.close();
+  }, [selection]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -58,16 +66,32 @@ export default function ImageViewer({ url, previewUrl, onClose }: { url: string 
     return () => dialog.removeEventListener('close', handleClose);
   }, [onClose]);
 
+  function move(offset: number) {
+    if (!selection) return;
+    onChange({ ...selection, index: (selection.index + offset + selection.images.length) % selection.images.length });
+  }
+
   return (
     <dialog
       ref={dialogRef}
       className="image-viewer"
       aria-label="查看原图"
+      onKeyDown={event => {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault();
+          move(event.key === 'ArrowLeft' ? -1 : 1);
+        }
+      }}
       onClick={event => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      {url && <ViewerImage key={url} url={url} previewUrl={previewUrl} />}
+      {image && <ViewerImage key={image.url} {...image} />}
+      {selection && selection.images.length > 1 && <>
+        <button type="button" className="viewer-prev" aria-label="上一张" onClick={() => move(-1)}>‹</button>
+        <button type="button" className="viewer-next" aria-label="下一张" onClick={() => move(1)}>›</button>
+        <span className="viewer-counter">{`${selection.index + 1} / ${selection.images.length}`}</span>
+      </>}
     </dialog>
   );
 }

@@ -5,7 +5,7 @@ import {
   type HistoryPage, type MessageCursor,
 } from './api';
 import { calendarMonthsAgo, localDateValue, shanghaiToday, toQueryDateTime } from '../shared/date.js';
-import ImageViewer from './ImageViewer';
+import ImageViewer, { type ImageSelection } from './ImageViewer';
 import MessageItem from './MessageItem';
 
 const SEARCH_PAGE_SIZE = 20;
@@ -70,7 +70,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
   const [contextReady, setContextReady] = useState(false);
   const [earlierState, setEarlierState] = useState('');
   const [newerState, setNewerState] = useState('');
-  const [viewerImage, setViewerImage] = useState<{ url: string; previewUrl?: string } | null>(null);
+  const [viewerImage, setViewerImage] = useState<ImageSelection | null>(null);
   const [syncDate, setSyncDate] = useState('');
   const [syncing, setSyncing] = useState(false);
   const versionRef = useRef(0);
@@ -427,7 +427,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
                   <div className="history-messages" ref={messagesRef} onScroll={handleScroll}>
                     {context.messages.map(message => (
                       <MessageItem key={message.mid} message={message} isAdmin={admins.has(message.senderId)}
-                        highlighted={message.mid === context.targetMid} onOpenImage={(url, previewUrl) => setViewerImage({ url, previewUrl })} />
+                        highlighted={message.mid === context.targetMid} onOpenImage={setViewerImage} />
                     ))}
                   </div>
                   <div className="history-edge-state" role="status">{newerState}</div>
@@ -438,7 +438,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
           </section>
         </div>
       </div>
-      <ImageViewer url={viewerImage?.url ?? null} previewUrl={viewerImage?.previewUrl} onClose={() => setViewerImage(null)} />
+      <ImageViewer selection={viewerImage} onChange={setViewerImage} onClose={() => setViewerImage(null)} />
     </dialog>
   );
 }

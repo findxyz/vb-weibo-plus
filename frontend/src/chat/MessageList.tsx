@@ -5,7 +5,7 @@ import {
 } from './api';
 import { STORAGE_KEYS } from '../shared/storage-keys.js';
 import MessageItem from './MessageItem';
-import ImageViewer from './ImageViewer';
+import ImageViewer, { type ImageSelection } from './ImageViewer';
 import { trimMessageCache } from './message-cache';
 
 // 窗口尺寸取自旧 sessions.js：DOM 只保留视口上下各约 180 条，视口外按估算高度占位。
@@ -46,7 +46,7 @@ export default function MessageList({
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorText, setErrorText] = useState('');
-  const [viewerImage, setViewerImage] = useState<{ url: string; previewUrl?: string } | null>(null);
+  const [viewerImage, setViewerImage] = useState<ImageSelection | null>(null);
   const [newMessagesVisible, setNewMessagesVisible] = useState(false);
   const [announcement, setAnnouncement] = useState({ serial: 0, text: '' });
   const [bottomRequest, setBottomRequest] = useState(0);
@@ -618,7 +618,7 @@ export default function MessageList({
         )}
         {status === 'ready' && ordered.slice(startIndex, endIndex + 1).map(message => (
           <MessageItem key={message.mid} message={message} isAdmin={adminIds.has(message.senderId)}
-            onOpenImage={(url, previewUrl) => setViewerImage({ url, previewUrl })} />
+            onOpenImage={setViewerImage} />
         ))}
         <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
       </div>
@@ -642,7 +642,7 @@ export default function MessageList({
       </button>
       <button type="button" className="new-messages-button" hidden={!newMessagesVisible}
         onClick={() => { void jumpToLatest(); }}>有新消息</button>
-      <ImageViewer url={viewerImage?.url ?? null} previewUrl={viewerImage?.previewUrl} onClose={() => setViewerImage(null)} />
+      <ImageViewer selection={viewerImage} onChange={setViewerImage} onClose={() => setViewerImage(null)} />
     </>
   );
 }

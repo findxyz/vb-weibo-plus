@@ -4,6 +4,7 @@ import MessageText from './MessageText';
 import WeiboCard, { type WeiboUrlObject } from './WeiboCard';
 import { emojiSource } from './emoji';
 import type { Attitude, ChatMessage } from './api';
+import type { ImageSelection } from './ImageViewer';
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
@@ -23,7 +24,7 @@ const HIDDEN_CAPTIONS = new Set(['分享图片', '分享视频', '[动画表情]
 const SYSTEM_SENDER = '粉丝群';
 const WEIBO_CARD_TYPE = 14;
 
-function messageBody(message: ChatMessage, text: string, hideText: boolean, onOpenImage: (url: string) => void) {
+function messageBody(message: ChatMessage, text: string, hideText: boolean, onOpenImage: (selection: ImageSelection) => void) {
   if (message.fileUrl) {
     return (
       <div className="bubble">
@@ -43,7 +44,7 @@ function messageBody(message: ChatMessage, text: string, hideText: boolean, onOp
 type Props = {
   message: ChatMessage;
   isAdmin: boolean;
-  onOpenImage: (url: string, previewUrl?: string) => void;
+  onOpenImage: (selection: ImageSelection) => void;
   highlighted?: boolean;
 };
 
@@ -98,7 +99,9 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         {messageBody(message, text, hideText, onOpenImage)}
         {hasImage && (
           <button type="button" className="media-preview" aria-label="查看原图"
-            onClick={() => onOpenImage(message.originalUrl || message.previewUrl, message.previewUrl)}>
+            onClick={() => onOpenImage({
+              images: [{ url: message.originalUrl || message.previewUrl, previewUrl: message.previewUrl }], index: 0,
+            })}>
             <img src={message.previewUrl} alt="" loading="lazy" />
           </button>
         )}

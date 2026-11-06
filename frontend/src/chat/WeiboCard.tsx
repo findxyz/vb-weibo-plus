@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import Avatar from './Avatar';
 import MessageText from './MessageText';
 import { fetchMessageWeiboText } from './api';
+import type { ImageSelection } from './ImageViewer';
 
 type WeiboStatus = {
   idstr?: string | null;
@@ -27,7 +28,7 @@ export type WeiboUrlObject = {
 };
 
 function WeiboContent({ status, text, onOpenImage }: {
-  status: WeiboStatus; text: string; onOpenImage: (url: string) => void;
+  status: WeiboStatus; text: string; onOpenImage: (selection: ImageSelection) => void;
 }) {
   const author = status.user?.screen_name?.trim() ?? '';
   const avatar = status.user?.avatar_hd || status.user?.avatar_large || status.user?.profile_image_url;
@@ -37,6 +38,10 @@ function WeiboContent({ status, text, onOpenImage }: {
     ? status.pic_ids.map(pid => `${base}/${encodeURIComponent(pid)}.jpg`)
     : firstPicture ? [firstPicture] : [];
   const proxyUrl = (url: string) => `/chat/image?${new URLSearchParams({ url })}`;
+  const images = pictures.map(url => ({
+    url: proxyUrl(url.replace(/\/(thumbnail|bmiddle)\//, '/large/')),
+    previewUrl: proxyUrl(url.replace(/\/(thumbnail|large)\//, '/bmiddle/')),
+  }));
 
   return <>
     {author && <div className="weibo-card-header">
@@ -45,17 +50,17 @@ function WeiboContent({ status, text, onOpenImage }: {
     </div>}
     {text && <div className="weibo-card-summary"><MessageText text={text} /></div>}
     {pictures.length > 0 && <div className="weibo-card-pictures">
-      {pictures.map((url, index) => <button key={url} type="button" className="weibo-card-picture"
+      {images.map((image, index) => <button key={image.url} type="button" className="weibo-card-picture"
         aria-label={`查看微博图片 ${index + 1}`}
-        onClick={() => onOpenImage(proxyUrl(url.replace(/\/(thumbnail|bmiddle)\//, '/large/')))}>
-        <img src={proxyUrl(url.replace(/\/(thumbnail|large)\//, '/bmiddle/'))} alt="" loading="lazy" />
+        onClick={() => onOpenImage({ images, index })}>
+        <img src={image.previewUrl} alt="" loading="lazy" />
       </button>)}
     </div>}
   </>;
 }
 
 export default function WeiboCard({ urlObject, gid, mid, onOpenImage }: {
-  urlObject: WeiboUrlObject; gid: number; mid: number; onOpenImage: (url: string) => void;
+  urlObject: WeiboUrlObject; gid: number; mid: number; onOpenImage: (selection: ImageSelection) => void;
 }) {
   const status = urlObject.status ?? {};
   const id = status.idstr ?? '';
