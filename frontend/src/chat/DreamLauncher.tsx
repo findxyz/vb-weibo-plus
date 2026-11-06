@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 const HOVER_OPEN_MS = 3000;
 
@@ -34,6 +34,16 @@ export default function DreamLauncher({ gid }: { gid: number | null }) {
 
   useEffect(hidePopover, [gid]);
 
+  useLayoutEffect(() => {
+    if (!entry || !popoverRef.current) return;
+    const avatar = entry.anchor.getBoundingClientRect();
+    const popover = popoverRef.current.getBoundingClientRect();
+    setPosition({
+      left: Math.max(8, Math.min(avatar.left + avatar.width / 2 - popover.width / 2, window.innerWidth - popover.width - 8)),
+      top: Math.max(8, avatar.top - popover.height - 8),
+    });
+  }, [entry]);
+
   useEffect(() => {
     const hoverable = (target: EventTarget | null) => {
       const element = target instanceof Element ? target.closest<HTMLElement>('[data-sender-id]') : null;
@@ -42,11 +52,6 @@ export default function DreamLauncher({ gid }: { gid: number | null }) {
       return Number.isSafeInteger(uid) && uid > 0 ? element : null;
     };
     const show = (avatar: HTMLElement, url: string) => {
-      const rect = avatar.getBoundingClientRect();
-      setPosition({
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 268)),
-        top: Math.max(8, rect.top - 92),
-      });
       anchorRef.current = avatar;
       openRef.current = true;
       setEntry({ url, anchor: avatar });

@@ -2105,6 +2105,11 @@ test(`chat_opens_the_dream_game_from_a_member_avatar_at_${viewport.width}`, asyn
   await expect(popover).toBeVisible({ timeout: 6000 });
   await expect(popover.getByRole('heading', { name: '盗梦空间' })).toBeVisible();
   await expect(popover).toContainText('是否进入盗梦空间？');
+  const avatarBounds = (await page.locator('[data-sender-id="1176117365"]').first().boundingBox())!;
+  const popoverBounds = (await popover.boundingBox())!;
+  expect(popoverBounds.y + popoverBounds.height).toBeLessThanOrEqual(avatarBounds.y);
+  expect(popoverBounds.x + popoverBounds.width / 2).toBeCloseTo(avatarBounds.x + avatarBounds.width / 2, 0);
+  await popover.screenshot({ path: testInfo.outputPath('dream-entry.png') });
   await popover.getByRole('button', { name: '🌀 进入盗梦空间' }).click();
 
   const dialog = page.locator('dialog.dream-dialog');
