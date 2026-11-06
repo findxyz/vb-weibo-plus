@@ -6,6 +6,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
@@ -497,6 +499,20 @@ class ChatServiceTest {
                 .toList();
         assertThat(savedMids).containsExactly(110L, 120L, 100L);
         verify(messageRepository).refreshGroupRange(1);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void backfill_logs_the_oldest_returned_message_at_the_time_boundary(CapturedOutput output) {
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
+                .thenReturn(messagePage(message(90, 321, 60_000), message(100, 321, 120_000)));
+        mapEveryMessageWithTime();
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(1);
+
+        chatService.saveBySince(1, 90_000, null);
+
+        assertThat(output.getOut())
+                .contains("群 1 历史同步：新增消息 1 条，忽略 1 条，最旧消息时间 1970-01-01 08:01:00");
     }
 
     @Test

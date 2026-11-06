@@ -297,7 +297,7 @@ public class ChatService {
                 }
                 PageCapture capture = capturePage(messages, gid, capturedAt,
                         message -> messageMapper.toMessageTimestamp(message) < sinceTime);
-                long oldestTime = messageMapper.toMessageTimestamp(messages.getLast());
+                long oldestTime = messageMapper.toMessageTimestamp(messages.getFirst());
                 log.info("群 {} 历史同步：新增消息 {} 条，忽略 {} 条，最旧消息时间 {}",
                         gid, capture.inserted(), capture.ignored(), formatTimestamp(oldestTime));
                 if (capture.reachedBoundary()) {
