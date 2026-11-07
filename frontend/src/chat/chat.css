@@ -1915,4 +1915,9 @@ h1 {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  .analysis-pending::before {
+    animation-duration: 0.8s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

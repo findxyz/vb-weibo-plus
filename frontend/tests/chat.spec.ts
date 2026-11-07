@@ -2035,6 +2035,55 @@ test('chat_streams_analysis_and_shows_done', async ({ page }) => {
   await expect(dialog.getByRole('button', { name: '🤖 分析' })).toBeEnabled();
 });
 
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+test(`chat_analysis_spinner_keeps_spinning_with_motion_${reducedMotion.replace('-', '_')}`, async ({ page }) => {
+  await page.emulateMedia({ reducedMotion });
+  analysisStreamDelay = 2000;
+  await openChat(page);
+  await page.addStyleTag({ content: `
+    .analysis-detail-content {
+      scroll-behavior: smooth;
+      animation: panel-blink 1.5s ease-in-out infinite;
+      transition: opacity 1s;
+    }
+    .analysis-detail-content::after {
+      content: '';
+      animation: panel-blink 1.5s ease-in-out infinite;
+    }
+  ` });
+  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+  const dialog = page.locator('dialog.analysis-dialog');
+  await dialog.getByRole('button', { name: '🤖 分析' }).click();
+
+  const pending = dialog.locator('.analysis-pending');
+  const animation = await pending.evaluate(element => {
+    const style = getComputedStyle(element, '::before');
+    return { name: style.animationName, duration: style.animationDuration, iterations: style.animationIterationCount };
+  });
+  expect(animation).toEqual({ name: 'analysis-spin', duration: '0.8s', iterations: 'infinite' });
+  const transform = await pending.evaluate(element => getComputedStyle(element, '::before').transform);
+  await expect.poll(() => pending.evaluate(element => getComputedStyle(element, '::before').transform))
+    .not.toBe(transform);
+
+  const styles = await dialog.locator('.analysis-detail-content').evaluate(element => {
+    const style = getComputedStyle(element);
+    const pseudo = getComputedStyle(element, '::after');
+    return {
+      scroll: style.scrollBehavior, duration: style.animationDuration,
+      iterations: style.animationIterationCount, transition: style.transitionDuration,
+      pseudoDuration: pseudo.animationDuration, pseudoIterations: pseudo.animationIterationCount,
+    };
+  });
+  expect(styles).toEqual(reducedMotion === 'reduce'
+    ? { scroll: 'auto', duration: '1e-05s', iterations: '1', transition: '1e-05s',
+      pseudoDuration: '1e-05s', pseudoIterations: '1' }
+    : { scroll: 'smooth', duration: '1.5s', iterations: 'infinite', transition: '1s',
+      pseudoDuration: '1.5s', pseudoIterations: 'infinite' });
+  await expect(dialog.locator('.analysis-detail-meta')).toContainText('12 条', { timeout: 5000 });
+  await expect(dialog.locator('.analysis-pending')).toHaveCount(0);
+});
+}
+
 test('chat_reports_analysis_stream_error', async ({ page }) => {
   analysisStreamError = '模型超时';
   await openChat(page);
