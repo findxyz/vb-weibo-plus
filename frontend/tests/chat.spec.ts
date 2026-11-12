@@ -1201,6 +1201,47 @@ test('chat_catches_up_after_returning_without_moving_the_viewport', async ({ pag
   expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
 });
 
+test('chat_preserves_the_last_read_message_after_a_large_return_catch_up', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 60, '消息'));
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  const lastRead = page.locator('[data-mid="60"]');
+  const before = await lastRead.evaluate(element => element.getBoundingClientRect().top);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  messagesByGid.set(1, makeMessages(1, 660, '消息'));
+  const completed = page.waitForResponse(response => response.url().includes('afterMid=610'));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await completed;
+  await expect(page.locator('.new-messages-button')).toBeVisible();
+  await page.waitForTimeout(300);
+  await expect(lastRead).toBeInViewport();
+  const after = await lastRead.evaluate(element => element.getBoundingClientRect().top);
+  expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
+});
+
+for (const initialCount of [3, 60]) {
+test(`chat_keeps_the_reading_position_while_unfocused_from_${initialCount}_messages`, async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, initialCount, '消息'));
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  const lastRead = page.locator(`[data-mid="${initialCount}"]`);
+  const before = await lastRead.evaluate(element => element.getBoundingClientRect().top);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  for (let batch = 1; batch <= 3; batch += 1) {
+    const count = initialCount + batch * 100;
+    messagesByGid.set(1, makeMessages(1, count, '消息'));
+    const completed = page.waitForResponse(response => response.url().includes('/chat/messages/cursor?'));
+    await completed;
+    await page.waitForTimeout(100);
+  }
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(300);
+  await expect(lastRead).toBeInViewport();
+  const after = await lastRead.evaluate(element => element.getBoundingClientRect().top);
+  expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
+});
+}
+
 test('chat_retries_a_failed_poll_and_recovers', async ({ page }) => {
   const items = makeMessages(1, 60, '消息');
   messagesByGid.set(1, items);
@@ -1922,6 +1963,48 @@ test('chat_scans_qr_and_reinitializes', async ({ page }) => {
   const cursorBefore = requests.filter(value => value.includes('/chat/messages/cursor')).length;
   await page.waitForTimeout(1500);
   expect(requests.filter(value => value.includes('/chat/messages/cursor')).length).toBeGreaterThan(cursorBefore);
+});
+
+test('chat_retries_unready_qr_images_quickly_and_stops_after_login', async ({ page }) => {
+  await page.clock.install();
+  loginValid = false;
+  qrHold = true;
+  let imageStatus = 204;
+  let imageRequests = 0;
+  await page.route('**/weibo/login/qr/image?*', route => {
+    imageRequests++;
+    return route.fulfill({ status: imageStatus, contentType: 'image/svg+xml',
+      body: imageStatus === 200 ? '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"/>' : '' });
+  });
+  await openChat(page);
+  const panel = page.locator('.login-expired');
+  await panel.getByRole('button', { name: '📱 扫码登录' }).click();
+  await expect.poll(() => held.length).toBe(1);
+  await page.clock.runFor(3100);
+  await expect.poll(() => imageRequests).toBe(1);
+  await expect(panel.locator('.qr-loading')).toHaveText('正在获取二维码…');
+  imageStatus = 500;
+  await page.clock.runFor(1100);
+  await expect.poll(() => imageRequests).toBe(2);
+  await expect(panel.locator('.qr-loading')).toHaveText('正在获取二维码…');
+  imageStatus = 200;
+  await page.clock.runFor(1100);
+  await expect(panel.getByAltText('扫码登录二维码')).toBeVisible();
+  const image = await panel.getByAltText('扫码登录二维码').getAttribute('src');
+  const loadedCount = imageRequests;
+  await page.clock.runFor(9000);
+  expect(imageRequests).toBe(loadedCount);
+  imageStatus = 500;
+  await page.clock.runFor(1100);
+  await expect.poll(() => imageRequests).toBeGreaterThan(loadedCount);
+  await expect(panel.getByAltText('扫码登录二维码')).toHaveAttribute('src', image!);
+  loginValid = true;
+  releaseHeld();
+  await expect(panel).toHaveCount(0);
+  const stoppedCount = imageRequests;
+  await page.clock.runFor(30000);
+  expect(imageRequests).toBe(stoppedCount);
+  expect(requests.filter(value => value === 'POST /weibo/login/qr')).toHaveLength(1);
 });
 
 test('chat_reports_qr_login_failure_and_restores_the_button', async ({ page }) => {

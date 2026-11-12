@@ -1123,7 +1123,7 @@ test('post_login_qr_polling_keeps_last_image_and_stops_on_success', async ({ pag
   const first = await page.getByAltText('扫码登录二维码').getAttribute('src');
   const firstCount = images.length;
   broken = true;
-  await page.clock.runFor(7000);
+  await page.clock.runFor(10100);
   await expect.poll(() => images.length).toBeGreaterThan(firstCount);
   await expect(page.getByAltText('扫码登录二维码')).toHaveAttribute('src', first!);
   await page.screenshot({ path: testInfo.outputPath('post-qr.png') });
@@ -1137,6 +1137,44 @@ test('post_login_qr_polling_keeps_last_image_and_stops_on_success', async ({ pag
   writeRequests = [];
 });
 
+test('post_login_retries_unready_qr_images_quickly', async ({ page }) => {
+  await page.clock.install();
+  loginPayload = { valid: false };
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  let attempts = 0;
+  await page.route('**/weibo/login/qr', async route => { attempts++; await gate; await route.fulfill({ json: {} }); });
+  let imageStatus = 204;
+  let imageRequests = 0;
+  await page.route('**/weibo/login/qr/image?*', route => {
+    imageRequests++;
+    return route.fulfill({ status: imageStatus, contentType: 'image/svg+xml',
+      body: imageStatus === 200 ? '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"/>' : '' });
+  });
+  await page.goto(`${baseUrl}post/index.html`);
+  await page.getByRole('button', { name: '扫码登录', exact: true }).click();
+  await expect.poll(() => attempts).toBe(1);
+  await page.clock.runFor(3100);
+  await expect.poll(() => imageRequests).toBe(1);
+  await expect(page.locator('.qr-loading')).toHaveText('正在获取二维码…');
+  imageStatus = 500;
+  await page.clock.runFor(1100);
+  await expect.poll(() => imageRequests).toBe(2);
+  await expect(page.locator('.qr-loading')).toHaveText('正在获取二维码…');
+  imageStatus = 200;
+  await page.clock.runFor(1100);
+  await expect(page.getByAltText('扫码登录二维码')).toBeVisible();
+  expect(attempts).toBe(1);
+  loginPayload = { valid: true };
+  finish();
+  await expect(page.locator('.login-expired')).toHaveCount(0);
+  const stoppedCount = imageRequests;
+  await page.clock.runFor(30000);
+  expect(imageRequests).toBe(stoppedCount);
+  expect(writeRequests).toHaveLength(1);
+  writeRequests = [];
+});
+
 test('post_login_qr_first_image_failure_timeout_and_explicit_retry', async ({ page }) => {
   await page.clock.install();
   loginPayload = { valid: false };
@@ -1144,17 +1182,21 @@ test('post_login_qr_first_image_failure_timeout_and_explicit_retry', async ({ pa
   const gate = new Promise<void>(resolve => { finish = resolve; });
   let attempts = 0;
   await page.route('**/weibo/login/qr', async route => { attempts++; if (attempts === 1) await gate; await route.fulfill({ status: 500, json: {} }).catch(() => {}); });
-  await page.route('**/weibo/login/qr/image?*', route => route.fulfill({ status: 204 }));
+  let imageRequests = 0;
+  await page.route('**/weibo/login/qr/image?*', route => { imageRequests++; return route.fulfill({ status: 204 }); });
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '扫码登录', exact: true }).click();
   await expect.poll(() => attempts).toBe(1);
   await page.clock.runFor(3100);
-  await expect(page.locator('.qr-loading')).toHaveText('二维码加载重试…');
+  await expect(page.locator('.qr-loading')).toHaveText('正在获取二维码…');
   await page.clock.runFor(358000);
   await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
   await expect(page.locator('.qr-loading')).toHaveText('暂无二维码');
   await expect(page.locator('.login-expired')).toContainText('扫码登录失败');
   expect(attempts).toBe(1);
+  const stoppedCount = imageRequests;
+  await page.clock.runFor(30000);
+  expect(imageRequests).toBe(stoppedCount);
   await page.getByRole('button', { name: '扫码登录', exact: true }).click();
   await expect.poll(() => attempts).toBe(2);
   await expect(page.getByRole('button', { name: '扫码登录', exact: true })).toBeEnabled();
@@ -1179,7 +1221,7 @@ test('post_login_unmount_stops_polling_and_late_status_cannot_hide_pending_qr', 
   await expect(page.getByRole('button', { name: '扫码中…', exact: true })).toBeDisabled();
   releaseStatus();
   await page.clock.runFor(3100);
-  await expect(page.locator('.qr-loading')).toHaveText('二维码加载重试…');
+  await expect(page.locator('.qr-loading')).toHaveText('正在获取二维码…');
   await expect(page.getByRole('button', { name: '扫码中…', exact: true })).toBeDisabled();
   await page.goto('about:blank');
   const count = images.length;

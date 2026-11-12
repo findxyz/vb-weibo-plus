@@ -72,8 +72,7 @@ export default function ChatPage() {
   const [qrError, setQrError] = useState('');
   const qrPendingRef = useRef(false);
   const qrImageRef = useRef<string | null>(null);
-  const firstTimerRef = useRef(0);
-  const imageTimerRef = useRef(0);
+  const qrTimerRef = useRef(0);
   const qrControllerRef = useRef<AbortController | null>(null);
   const statusControllerRef = useRef<AbortController | null>(null);
   const checkStatusRef = useRef<() => void>(() => {});
@@ -104,9 +103,9 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => () => {
+    qrPendingRef.current = false;
     qrControllerRef.current?.abort();
-    clearTimeout(firstTimerRef.current);
-    clearInterval(imageTimerRef.current);
+    clearTimeout(qrTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -151,10 +150,8 @@ export default function ChatPage() {
     ? selectedGroup.messageCount : null;
 
   function stopQrTimers(clearImage: boolean) {
-    clearTimeout(firstTimerRef.current);
-    clearInterval(imageTimerRef.current);
-    firstTimerRef.current = 0;
-    imageTimerRef.current = 0;
+    clearTimeout(qrTimerRef.current);
+    qrTimerRef.current = 0;
     if (clearImage) {
       qrImageRef.current = null;
       setQrImage(null);
@@ -165,16 +162,18 @@ export default function ChatPage() {
   }
 
   function refreshQrImage() {
+    const controller = qrControllerRef.current;
     const preload = new Image();
     preload.onload = () => {
-      if (!qrPendingRef.current) return;
+      if (!qrPendingRef.current || controller !== qrControllerRef.current) return;
       qrImageRef.current = preload.src;
       setQrImage(preload.src);
       setQrLoading('');
+      qrTimerRef.current = window.setTimeout(refreshQrImage, 10_000);
     };
     preload.onerror = () => {
-      if (!qrPendingRef.current || qrImageRef.current) return;
-      setQrLoading('二维码加载重试…');
+      if (!qrPendingRef.current || controller !== qrControllerRef.current) return;
+      qrTimerRef.current = window.setTimeout(refreshQrImage, qrImageRef.current ? 10_000 : 1000);
     };
     preload.src = `/weibo/login/qr/image?t=${Date.now()}`;
   }
@@ -187,8 +186,7 @@ export default function ChatPage() {
     setQrLoading('正在获取二维码…');
     qrImageRef.current = null;
     setQrImage(null);
-    firstTimerRef.current = window.setTimeout(refreshQrImage, 3000);
-    imageTimerRef.current = window.setInterval(refreshQrImage, 10_000);
+    qrTimerRef.current = window.setTimeout(refreshQrImage, 3000);
     const controller = new AbortController();
     qrControllerRef.current = controller;
     let succeeded = false;
