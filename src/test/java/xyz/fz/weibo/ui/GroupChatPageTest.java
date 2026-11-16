@@ -71,9 +71,15 @@ class GroupChatPageTest {
 
     @AfterAll
     static void stopBrowserAndServer() {
-        if (browser != null) browser.close();
-        if (playwright != null) playwright.close();
-        if (server != null) server.stop(0);
+        if (browser != null) {
+            browser.close();
+        }
+        if (playwright != null) {
+            playwright.close();
+        }
+        if (server != null) {
+            server.stop(0);
+        }
     }
 
     @Test
@@ -84,9 +90,15 @@ class GroupChatPageTest {
             page.onResponse(response -> {
                 if (response.url().contains("/assets/")) {
                     String mime = response.headers().getOrDefault("content-type", "");
-                    if (response.status() != 200) errors.add(response.url());
-                    if (response.url().endsWith(".js") && !mime.contains("javascript")) errors.add(mime);
-                    if (response.url().endsWith(".css") && !mime.startsWith("text/css")) errors.add(mime);
+                    if (response.status() != 200) {
+                        errors.add(response.url());
+                    }
+                    if (response.url().endsWith(".js") && !mime.contains("javascript")) {
+                        errors.add(mime);
+                    }
+                    if (response.url().endsWith(".css") && !mime.startsWith("text/css")) {
+                        errors.add(mime);
+                    }
                 }
             });
             Assertions.assertThat(page.navigate(baseUrl + "/chat/index.html").status()).isEqualTo(200);

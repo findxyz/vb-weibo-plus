@@ -9,10 +9,8 @@ import org.springframework.http.ResponseEntity;
 import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.client.exception.WeiboException;
-import xyz.fz.weibo.model.request.GroupMessagesRequest;
 import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.request.GroupSendImageRequest;
-import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;

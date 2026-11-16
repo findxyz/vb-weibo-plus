@@ -85,9 +85,15 @@ class PostPageTest {
 
     @AfterAll
     static void stopBrowserAndServer() {
-        if (browser != null) browser.close();
-        if (playwright != null) playwright.close();
-        if (server != null) server.stop(0);
+        if (browser != null) {
+            browser.close();
+        }
+        if (playwright != null) {
+            playwright.close();
+        }
+        if (server != null) {
+            server.stop(0);
+        }
     }
 
     private static void sendJson(HttpExchange exchange, String json) throws IOException {

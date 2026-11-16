@@ -7,6 +7,13 @@
         <module name="AvoidStarImport">
             <property name="allowStaticMemberImports" value="true"/>
         </module>
+        <module name="UnusedImports"/>
+        <module name="RedundantImport"/>
+        <module name="NeedBraces"/>
+        <module name="EqualsHashCode"/>
+        <module name="FallThrough"/>
+        <module name="ModifierOrder"/>
+        <module name="OneTopLevelClass"/>
         <module name="EmptyCatchBlock"/>
         <module name="MatchXpath">
             <property name="query" value="//DOT[IDENT[@text='out' or @text='err'] and (IDENT[@text='System'] or DOT/IDENT[@text='System'])] | //IDENT[(@text='out' or @text='err') and ancestor::COMPILATION_UNIT/STATIC_IMPORT/DOT[STAR and DOT/IDENT[@text='System']]]"/>
