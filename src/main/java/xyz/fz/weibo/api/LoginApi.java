@@ -33,7 +33,7 @@ public class LoginApi {
         this.holder = holder;
     }
 
-    @SuppressWarnings("PMD.UnusedAssignment")
+    @SuppressWarnings({"PMD.UnusedAssignment", "BusyWait"})
     public LoginResponse qrLogin() {
         try (Playwright pw = Playwright.create();
                 Browser browser =
