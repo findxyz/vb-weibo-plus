@@ -43,7 +43,7 @@ class PostLikeIntegrationTest {
     private MockMvc mvc;
 
     @BeforeEach
-    void setUp() {
+    void set_up() {
         final ObjectMapper mapper = new ObjectMapper();
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.setErrorHandler(new NoOpResponseErrorHandler());

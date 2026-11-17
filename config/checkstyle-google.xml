@@ -373,12 +373,21 @@
     </module>
     <module name="MissingOverrideOnRecordAccessor"/>
     <module name="GoogleMethodName"/>
+    <module name="MethodName">
+      <property name="id" value="TestMethodName"/>
+      <property name="format" value="^[a-z][a-z0-9]*(_[a-z0-9]+)*$"/>
+    </module>
     <module name="SuppressionXpathSingleFilter">
-      <property name="checks" value="MethodName"/>
+      <property name="id" value="TestMethodName"/>
       <property name="query" value="//METHOD_DEF[
-                                     ./MODIFIERS/ANNOTATION//IDENT[contains(@text, 'Test')]
+                                     not(./MODIFIERS/ANNOTATION//IDENT[
+                                       contains(@text, 'Test')
+                                       or @text='BeforeEach'
+                                       or @text='AfterEach'
+                                       or @text='BeforeAll'
+                                       or @text='AfterAll'
+                                     ])
                                    ]/IDENT"/>
-      <property name="message" value="'[a-z][a-z0-9][a-zA-Z0-9]*(?:_[a-z][a-z0-9][a-zA-Z0-9]*)*'"/>
     </module>
     <module name="EmptyCatchBlock">
       <property name="commentFormat" value="\S+"/>
@@ -406,7 +415,15 @@
     </module>
     <module name="SuppressionXpathSingleFilter">
       <property name="checks" value="GoogleMethodName"/>
-      <property name="query" value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test']]/IDENT"/>
+      <property name="query" value="//METHOD_DEF[
+                                     MODIFIERS/ANNOTATION/IDENT[
+                                       contains(@text, 'Test')
+                                       or @text='BeforeEach'
+                                       or @text='AfterEach'
+                                       or @text='BeforeAll'
+                                       or @text='AfterAll'
+                                     ]
+                                   ]/IDENT"/>
     </module>
   </module>
 </module>

@@ -77,7 +77,7 @@ class GroupMediaApiTest {
     }
 
     @Test
-    void initUpload_posts_form_urlencoded_to_fileplatform_init_with_send_headers() {
+    void init_upload_posts_form_urlencoded_to_fileplatform_init_with_send_headers() {
         GroupMediaApi api = new GroupMediaApi(client, objectMapper);
         GroupMediaUploadInitRequest request =
                 new GroupMediaUploadInitRequest(

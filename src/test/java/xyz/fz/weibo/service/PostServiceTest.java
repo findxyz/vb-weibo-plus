@@ -82,7 +82,7 @@ class PostServiceTest {
     private PostService postService;
 
     @BeforeEach
-    void setUp() {
+    void set_up() {
         MockitoAnnotations.openMocks(this);
         postService =
                 new PostService(
@@ -460,7 +460,7 @@ class PostServiceTest {
     }
 
     @Test
-    void saveByRange_skips_day_with_no_posts_and_continues_to_next_day() {
+    void save_by_range_skips_day_with_no_posts_and_continues_to_next_day() {
         MblogResponse post = post(100, "day2-post", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity postEntity = entity("day2-post", 100);

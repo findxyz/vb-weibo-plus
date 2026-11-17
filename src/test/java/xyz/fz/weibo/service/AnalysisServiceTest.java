@@ -45,7 +45,7 @@ class AnalysisServiceTest {
     private AnalysisService analysisService;
 
     @BeforeEach
-    void setUp() {
+    void set_up() {
         analysisService = new AnalysisService(messageRepository, analysisRepository, aiClient);
     }
 
@@ -144,7 +144,7 @@ class AnalysisServiceTest {
     }
 
     @Test
-    void analyzeStreaming_invokes_chat_stream_and_passes_deltas() {
+    void analyze_streaming_invokes_chat_stream_and_passes_deltas() {
         List<MessageEntity> messages = List.of(message(1L, "张三", "文本", "文本", 1_000L));
         when(messageRepository.findPage(
                         eq(GID),

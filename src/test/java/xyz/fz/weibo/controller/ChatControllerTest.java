@@ -805,7 +805,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void sendImage_binds_gid_and_file_and_returns_the_incremental_capture_result()
+    void send_image_binds_gid_and_file_and_returns_the_incremental_capture_result()
             throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
@@ -822,7 +822,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void sendImage_requires_gid_and_file() throws Exception {
+    void send_image_requires_gid_and_file() throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         mockMvc.perform(multipart("/chat/messages/sendImage").file(file))
@@ -832,7 +832,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void sendImage_maps_upstream_failure_to_bad_gateway() throws Exception {
+    void send_image_maps_upstream_failure_to_bad_gateway() throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
@@ -844,7 +844,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void sendImage_maps_sync_failure_to_conflict() throws Exception {
+    void send_image_maps_sync_failure_to_conflict() throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
@@ -858,7 +858,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void sendVideo_binds_gid_and_file_and_returns_the_incremental_capture_result()
+    void send_video_binds_gid_and_file_and_returns_the_incremental_capture_result()
             throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile("file", "test.mp4", "video/mp4", new byte[] {1, 2, 3});
@@ -875,7 +875,7 @@ class ChatControllerTest {
     }
 
     @Test
-    void sendVideo_requires_gid_and_file() throws Exception {
+    void send_video_requires_gid_and_file() throws Exception {
         MockMultipartFile file =
                 new MockMultipartFile("file", "test.mp4", "video/mp4", new byte[] {1, 2, 3});
         mockMvc.perform(multipart("/chat/messages/sendVideo").file(file))

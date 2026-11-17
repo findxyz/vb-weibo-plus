@@ -38,14 +38,14 @@ class GroupPushApiTest {
     private GroupPushApi client;
 
     @BeforeEach
-    void setUp() {
+    void set_up() {
         client = new GroupPushApi(cookieHolder, weiboHttpClient, eventPublisher, objectMapper);
         when(webSocket.sendText(anyString(), eq(true)))
                 .thenReturn(CompletableFuture.completedFuture(webSocket));
     }
 
     @AfterEach
-    void tearDown() {
+    void tear_down() {
         client.close();
     }
 

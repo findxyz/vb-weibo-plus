@@ -62,7 +62,7 @@ class WeiboHttpClientTest {
     }
 
     @AfterEach
-    void tearDown() throws IOException {
+    void tear_down() throws IOException {
         if (server != null) {
             server.stop(0);
         }

@@ -106,7 +106,7 @@ class ChatServiceTest {
     private ChatService chatService;
 
     @BeforeEach
-    void setUp() {
+    void set_up() {
         chatService =
                 new ChatService(
                         groupListApi,

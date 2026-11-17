@@ -38,7 +38,7 @@ class SyncTaskTest {
     private SyncTask syncTask;
 
     @BeforeEach
-    void setUp() {
+    void set_up() {
         syncTask = new SyncTask(chatService, postService, "4761715839862414");
     }
 

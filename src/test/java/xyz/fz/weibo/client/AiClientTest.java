@@ -28,7 +28,7 @@ class AiClientTest {
     private AiClient aiClient;
 
     @BeforeEach
-    void setUp() {
+    void set_up() {
         aiClient = new AiClient(aiRestTemplate(), new ObjectMapper());
         ReflectionTestUtils.setField(aiClient, "baseUrl", "http://localhost:0/v1/");
         ReflectionTestUtils.setField(aiClient, "apiKey", "test-key");
@@ -38,7 +38,7 @@ class AiClientTest {
     }
 
     @AfterEach
-    void tearDown() throws IOException {
+    void tear_down() throws IOException {
         if (server != null) {
             server.stop(0);
         }
@@ -136,7 +136,7 @@ class AiClientTest {
     }
 
     @Test
-    void chatStream_throws_when_base_url_not_configured() {
+    void chat_stream_throws_when_base_url_not_configured() {
         ReflectionTestUtils.setField(aiClient, "baseUrl", "");
 
         assertThatThrownBy(() -> aiClient.chatStream("分析一下", delta -> {}))
@@ -145,7 +145,7 @@ class AiClientTest {
     }
 
     @Test
-    void chatStream_throws_on_non_2xx_status() throws Exception {
+    void chat_stream_throws_on_non_2xx_status() throws Exception {
         startServer(
                 exchange -> {
                     byte[] body = "{\"error\":\"rate limited\"}".getBytes(StandardCharsets.UTF_8);
@@ -161,7 +161,7 @@ class AiClientTest {
     }
 
     @Test
-    void chatStream_assembles_deltas_and_stops_at_done() throws Exception {
+    void chat_stream_assembles_deltas_and_stops_at_done() throws Exception {
         String sse =
                 String.join(
                                 "\n",
@@ -191,7 +191,7 @@ class AiClientTest {
     }
 
     @Test
-    void chatStream_throws_when_content_empty() throws Exception {
+    void chat_stream_throws_when_content_empty() throws Exception {
         String sse = "data: {\"choices\":[{\"delta\":{\"content\":\"\"}}]}\ndata: [DONE]\n";
         startServer(
                 exchange -> {

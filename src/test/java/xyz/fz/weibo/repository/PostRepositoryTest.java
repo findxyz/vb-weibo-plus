@@ -51,7 +51,7 @@ class PostRepositoryTest {
     }
 
     @AfterAll
-    void deleteDatabase() throws Exception {
+    void delete_database() throws Exception {
         if (dataSource instanceof AutoCloseable closeable) {
             closeable.close();
         }

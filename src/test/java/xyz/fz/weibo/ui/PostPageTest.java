@@ -27,7 +27,7 @@ class PostPageTest {
 
     @BeforeAll
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
-    static void startBrowserAndServer() throws IOException {
+    static void start_browser_and_server() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(
                 "/post/bloggers",
@@ -111,7 +111,7 @@ class PostPageTest {
     }
 
     @AfterAll
-    static void stopBrowserAndServer() {
+    static void stop_browser_and_server() {
         if (browser != null) {
             browser.close();
         }
