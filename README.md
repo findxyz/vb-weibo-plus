@@ -121,7 +121,7 @@ mvn -Pquick clean test
 ## 构建和发布
 
 ```bash
-mvn -Pquick clean test && mvn clean package
+mvn clean package
 ```
 
 产物为 `target/weibo-plus.jar` 和 `target/weibo-plus.7z`。首次构建会自动安装前端依赖；运行时只需 JDK 21。
