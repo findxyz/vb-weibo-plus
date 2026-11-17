@@ -274,13 +274,13 @@
 
     <profiles>
         <profile>
-            <id>backend-check</id>
+            <id>quick</id>
             <properties>
                 <skip.installnodenpm>true</skip.installnodenpm>
                 <skip.npm>true</skip.npm>
             </properties>
             <build>
-                <directory>${project.basedir}/target/backend-check</directory>
+                <directory>${project.basedir}/target/quick</directory>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>

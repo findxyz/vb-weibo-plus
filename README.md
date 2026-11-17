@@ -1,4 +1,4 @@
-﻿# vb-weibo-plus
+# vb-weibo-plus
 
 本机单用户微博客户端。扫码登录后，服务会在后台将群聊消息和博主微博增量同步到本地 SQLite，并提供两个网页界面：
 
@@ -110,18 +110,18 @@ npm test
 
 测试默认使用 Playwright 自带的 Chromium；若已安装 Chrome，可设置 `PREVIEW_BROWSER_CHANNEL=chrome` 复用。
 
-## 后端检查
+## 后端快速自检
 
 ```bash
-mvn -Pbackend-check clean test
+mvn -Pquick clean test
 ```
 
-执行后端静态检查和测试，跳过前端构建及浏览器测试。检查产物位于 `target/backend-check`。
+快速执行后端静态检查和测试，跳过前端构建及浏览器测试。检查产物位于 `target/quick`。
 
 ## 构建和发布
 
 ```bash
-mvn -Pbackend-check clean test && mvn clean package
+mvn -Pquick clean test && mvn clean package
 ```
 
 产物为 `target/weibo-plus.jar` 和 `target/weibo-plus.7z`。首次构建会自动安装前端依赖；运行时只需 JDK 21。
