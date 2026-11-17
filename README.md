@@ -116,15 +116,7 @@ npm test
 mvn -Pbackend-check clean test
 ```
 
-此命令执行 Java lint、编译和全部后端测试，跳过前端工具链安装、依赖安装及构建，并在发布打包前结束。检查产物独立写入 `target/backend-check`，避免清理正在使用的发布包。该 profile 排除 `xyz.fz.weibo.ui` 包中依赖前端产物的浏览器测试，普通构建仍运行这些测试。只检查 Java 源码时可运行 `mvn validate`。
-
-- **Checkstyle**：绑定 `validate` 阶段，检查生产和测试 Java 源码。禁止普通星号导入（允许静态星号导入）、`System.out`、`System.err` 和 `printStackTrace()`；空 catch 必须有忽略原因注释。工具只检查注释存在，原因是否合理仍需人工审查。规则位于 [config/checkstyle.xml](config/checkstyle.xml)。
-- **补充源码检查**：禁止无用和冗余导入；控制语句必须带大括号；`equals()` 与 `hashCode()` 必须配套重写；检查未说明的 `switch` 分支贯穿；修饰符顺序遵循 Java 约定；每个文件只允许一个顶层类型。保留现有缩进、换行与测试命名约定。
-- **SpotBugs**：绑定 `process-classes` 阶段，以最高分析强度检查生产字节码，仅高优先级问题阻断构建，不分析测试字节码。后端检查报告位于 `target/backend-check/spotbugsXml.xml`，普通构建的报告位于 `target/spotbugsXml.xml`。
-
-这些门禁也默认参与 `mvn test` 和 `mvn package`。首期不启用全套格式规则，不建立历史违规基线。若确认存在误报，只能按具体类、方法和问题类型添加精确排除并注明理由，再通过 `pom.xml` 中的 `excludeFilterFile` 接入；不得整包屏蔽，也不要通过跳过检查解决违规。
-
-配置参考：[Checkstyle Maven 插件](https://maven.apache.org/plugins/maven-checkstyle-plugin/check-mojo.html)、[语法树规则](https://checkstyle.org/checks/coding/matchxpath.html)、[SpotBugs 构建门禁](https://spotbugs.github.io/spotbugs-maven-plugin/examples/violationChecking.html)及[误报过滤](https://spotbugs.readthedocs.io/en/stable/filter.html)。
+执行后端静态检查和测试，跳过前端构建及浏览器测试。检查产物位于 `target/backend-check`。
 
 ## 构建和发布
 

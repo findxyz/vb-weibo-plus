@@ -89,7 +89,8 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <configLocation>config/checkstyle.xml</configLocation>
+                    <configLocation>config/checkstyle-google.xml</configLocation>
+                    <propertyExpansion>org.checkstyle.google.severity=error</propertyExpansion>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>
                     <includeResources>false</includeResources>
                     <includeTestResources>false</includeTestResources>
@@ -213,6 +214,29 @@
             <build>
                 <directory>${project.basedir}/target/backend-check</directory>
                 <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-pmd-plugin</artifactId>
+                        <version>3.28.0</version>
+                        <configuration>
+                            <targetJdk>${java.version}</targetJdk>
+                            <includeTests>true</includeTests>
+                            <failOnViolation>true</failOnViolation>
+                            <skipPmdError>false</skipPmdError>
+                            <linkXRef>false</linkXRef>
+                            <rulesets>
+                                <ruleset>category/java/bestpractices.xml</ruleset>
+                            </rulesets>
+                            <printFailingErrors>true</printFailingErrors>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>pmd</id>
+                                <phase>process-test-classes</phase>
+                                <goals><goal>check</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
