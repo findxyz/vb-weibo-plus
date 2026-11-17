@@ -1,5 +1,16 @@
 package xyz.fz.weibo.service;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -11,16 +22,16 @@ import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
 import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
-import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.CalendarView;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PicInfo;
+import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.PostRecord;
-import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.domain.PostView;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.entity.BloggerEntity;
@@ -38,18 +49,6 @@ import xyz.fz.weibo.repository.PostRepository;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.PostMapper;
-
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Stream;
 
 @Service
 public class PostService {
@@ -69,11 +68,15 @@ public class PostService {
     private final PostLikeApi postLikeApi;
     private final ReentrantLock saveByRangeLock = new ReentrantLock();
 
-    public PostService(MyBlogApi myBlogApi, SearchProfileApi searchProfileApi,
-                       LongTextApi longTextApi, DirectMediaApi directMediaApi,
-                       PostMapper postMapper,
-                       BloggerRepository bloggerRepository, PostRepository postRepository,
-                       PostLikeApi postLikeApi) {
+    public PostService(
+            MyBlogApi myBlogApi,
+            SearchProfileApi searchProfileApi,
+            LongTextApi longTextApi,
+            DirectMediaApi directMediaApi,
+            PostMapper postMapper,
+            BloggerRepository bloggerRepository,
+            PostRepository postRepository,
+            PostLikeApi postLikeApi) {
         this.myBlogApi = myBlogApi;
         this.searchProfileApi = searchProfileApi;
         this.longTextApi = longTextApi;
@@ -115,7 +118,8 @@ public class PostService {
                 }
 
                 long capturedAt = System.currentTimeMillis();
-                BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
+                BloggerEntity blogger =
+                        postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
                 bloggerRepository.upsertMetadata(blogger);
 
                 boolean reachedBoundary = false;
@@ -151,13 +155,24 @@ public class PostService {
                 bloggerRepository.refreshLatestPostId(uid, currentLatestPostId);
             }
             if (inserted > 0) {
-                log.info("博主 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
-                        uid, fetched, inserted, ignored,
-                        formatTimestamp(oldestTime), formatTimestamp(newestTime));
+                if (log.isInfoEnabled()) {
+                    log.info(
+                            "博主 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                            uid,
+                            fetched,
+                            inserted,
+                            ignored,
+                            formatTimestamp(oldestTime),
+                            formatTimestamp(newestTime));
+                }
             }
             return new SaveResult(fetched, inserted, ignored);
         } catch (RuntimeException e) {
-            log.warn("博主 {} 增量同步失败：error = {}", uid, e.getMessage(), e);
+            log.atWarn()
+                    .setCause(e)
+                    .addArgument(uid)
+                    .addArgument(e::getMessage)
+                    .log("博主 {} 增量同步失败：error = {}");
             throw e;
         }
     }
@@ -186,20 +201,27 @@ public class PostService {
             long oldestTime = Long.MAX_VALUE;
             long newestTime = Long.MIN_VALUE;
             boolean firstRequest = true;
-            LocalDate firstDate = Instant.ofEpochMilli(startMillis)
-                    .atZone(REQUEST_TIME_ZONE).toLocalDate();
-            LocalDate lastDate = Instant.ofEpochMilli(endMillis)
-                    .atZone(REQUEST_TIME_ZONE).toLocalDate();
-            log.info("博主 {} 历史同步开始：范围 {} ~ {}",
-                    uid, firstDate, lastDate);
+            LocalDate firstDate =
+                    Instant.ofEpochMilli(startMillis).atZone(REQUEST_TIME_ZONE).toLocalDate();
+            LocalDate lastDate =
+                    Instant.ofEpochMilli(endMillis).atZone(REQUEST_TIME_ZONE).toLocalDate();
+            log.info("博主 {} 历史同步开始：范围 {} ~ {}", uid, firstDate, lastDate);
             try {
                 for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
-                    long dayStartMillis = date.equals(firstDate)
-                            ? startMillis
-                            : date.atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli();
-                    long dayEndMillis = date.equals(lastDate)
-                            ? endMillis
-                            : date.plusDays(1).atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli() - 1;
+                    long dayStartMillis =
+                            date.equals(firstDate)
+                                    ? startMillis
+                                    : date.atStartOfDay(REQUEST_TIME_ZONE)
+                                            .toInstant()
+                                            .toEpochMilli();
+                    long dayEndMillis =
+                            date.equals(lastDate)
+                                    ? endMillis
+                                    : date.plusDays(1)
+                                                    .atStartOfDay(REQUEST_TIME_ZONE)
+                                                    .toInstant()
+                                                    .toEpochMilli()
+                                            - 1;
                     int dayFetched = 0;
                     int dayInserted = 0;
                     int page = 1;
@@ -208,17 +230,21 @@ public class PostService {
                             sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
                         }
                         firstRequest = false;
-                        SearchProfileResponse response = searchProfileApi.searchProfile(
-                                new SearchProfileRequest(uid, page,
-                                        Math.floorDiv(dayStartMillis, 1000),
-                                        Math.floorDiv(dayEndMillis, 1000)));
+                        SearchProfileResponse response =
+                                searchProfileApi.searchProfile(
+                                        new SearchProfileRequest(
+                                                uid,
+                                                page,
+                                                Math.floorDiv(dayStartMillis, 1000),
+                                                Math.floorDiv(dayEndMillis, 1000)));
                         List<MblogResponse> posts = requirePosts(response);
                         if (posts.isEmpty()) {
                             break;
                         }
 
                         long capturedAt = System.currentTimeMillis();
-                        BloggerEntity blogger = postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
+                        BloggerEntity blogger =
+                                postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
                         bloggerRepository.upsertMetadata(blogger);
                         for (MblogResponse post : posts) {
                             fetched++;
@@ -235,20 +261,31 @@ public class PostService {
                         }
                         page++;
                     }
-                    log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条",
-                            uid, date, dayFetched, dayInserted);
+                    log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条", uid, date, dayFetched, dayInserted);
                 }
                 if (inserted > 0) {
-                    log.info("博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
-                            uid, fetched, inserted, ignored,
-                            formatTimestamp(oldestTime), formatTimestamp(newestTime));
+                    if (log.isInfoEnabled()) {
+                        log.info(
+                                "博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                                uid,
+                                fetched,
+                                inserted,
+                                ignored,
+                                formatTimestamp(oldestTime),
+                                formatTimestamp(newestTime));
+                    }
                 } else {
                     log.info("博主 {} 历史同步完成：拉取 {} 条，无新增。", uid, fetched);
                 }
                 return new SaveResult(fetched, inserted, ignored);
             } catch (RuntimeException e) {
-                log.warn("博主 {} 历史同步失败：范围 {} ~ {}，error = {}",
-                        uid, firstDate, lastDate, e.getMessage(), e);
+                log.atWarn()
+                        .setCause(e)
+                        .addArgument(uid)
+                        .addArgument(firstDate)
+                        .addArgument(lastDate)
+                        .addArgument(e::getMessage)
+                        .log("博主 {} 历史同步失败：范围 {} ~ {}，error = {}");
                 throw e;
             }
         } finally {
@@ -269,9 +306,10 @@ public class PostService {
         }
         // 首次添加复用增量同步：拉取最新一页微博，同时写入博主元数据
         saveIncremental(uid);
-        BloggerEntity blogger = bloggerRepository.findById(uid)
-                .orElseThrow(() -> new InvalidRequestException(
-                        "没有拉到该博主的微博，请确认 UID 是否正确。"));
+        BloggerEntity blogger =
+                bloggerRepository
+                        .findById(uid)
+                        .orElseThrow(() -> new InvalidRequestException("没有拉到该博主的微博，请确认 UID 是否正确。"));
         return postMapper.toBloggerRecord(blogger);
     }
 
@@ -286,18 +324,24 @@ public class PostService {
                     .add(new CalendarView.DayCount(date, daily.getCount()));
             monthTotals.merge(month, daily.getCount(), Long::sum);
         }
-        List<CalendarView.MonthGroup> months = byMonth.entrySet().stream()
-                .map(entry -> new CalendarView.MonthGroup(
-                        entry.getKey(), monthTotals.get(entry.getKey()), entry.getValue()))
-                .toList();
+        List<CalendarView.MonthGroup> months =
+                byMonth.entrySet().stream()
+                        .map(
+                                entry ->
+                                        new CalendarView.MonthGroup(
+                                                entry.getKey(),
+                                                monthTotals.get(entry.getKey()),
+                                                entry.getValue()))
+                        .toList();
         return new CalendarView(months);
     }
 
     public PostQueryResult queryPosts(
             List<Long> uids, Long start, Long end, String keyword, int page, int size) {
         validateQuery(start, end, page, size);
-        Page<PostEntity> result = postRepository.findPage(
-                uids, start, end, keyword, PostRepository.pageRequest(page, size));
+        Page<PostEntity> result =
+                postRepository.findPage(
+                        uids, start, end, keyword, PostRepository.pageRequest(page, size));
         List<BloggerEntity> bloggers = bloggerRepository.findAllOrdered();
         List<PostView> items = postMapper.toPostViews(result.getContent(), bloggers);
         return new PostQueryResult(items, page, size, result.getTotalElements());
@@ -308,16 +352,15 @@ public class PostService {
             throw new InvalidRequestException("variant 必须是 thumbnail 或 original。");
         }
         PostRecord post = findPost(mblogId);
-        Stream<PicInfo> retweetedPictures = post.retweeted() == null
-                ? Stream.empty()
-                : post.retweeted().pics().stream();
-        PicInfo picture = Stream.concat(post.pics().stream(), retweetedPictures)
-                .filter(pic -> pic.pid().equals(pid))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("本地微博图片不存在。"));
-        String reference = "thumbnail".equals(variant)
-                ? picture.thumbnail().url()
-                : picture.original().url();
+        Stream<PicInfo> retweetedPictures =
+                post.retweeted() == null ? Stream.empty() : post.retweeted().pics().stream();
+        PicInfo picture =
+                Stream.concat(post.pics().stream(), retweetedPictures)
+                        .filter(pic -> pic.pid().equals(pid))
+                        .findFirst()
+                        .orElseThrow(() -> new ResourceNotFoundException("本地微博图片不存在。"));
+        String reference =
+                "thumbnail".equals(variant) ? picture.thumbnail().url() : picture.original().url();
         requireMediaReference(reference);
         return downloadMedia(reference);
     }
@@ -362,8 +405,8 @@ public class PostService {
     private boolean capturePost(MblogResponse post, long capturedAt) {
         LongTextResponse currentLongText = fetchLongText(post);
         LongTextResponse retweetedLongText = fetchLongText(post.retweetedStatus());
-        PostEntity entity = postMapper.toPostEntity(
-                post, currentLongText, retweetedLongText, capturedAt);
+        PostEntity entity =
+                postMapper.toPostEntity(post, currentLongText, retweetedLongText, capturedAt);
         return postRepository.insertIfAbsent(entity);
     }
 
@@ -382,8 +425,10 @@ public class PostService {
     }
 
     private PostRecord findPost(String mblogId) {
-        return postMapper.toPostRecord(postRepository.findById(mblogId)
-                .orElseThrow(() -> new ResourceNotFoundException("本地微博不存在。")));
+        return postMapper.toPostRecord(
+                postRepository
+                        .findById(mblogId)
+                        .orElseThrow(() -> new ResourceNotFoundException("本地微博不存在。")));
     }
 
     private void requireMediaReference(String reference) {

@@ -1,5 +1,10 @@
 package xyz.fz.weibo.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -10,37 +15,30 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import xyz.fz.weibo.entity.GroupEntity;
 
-import javax.sql.DataSource;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
-@DataJpaTest(properties = {
-        "spring.test.database.replace=none",
-        "spring.jpa.hibernate.ddl-auto=none",
-        "spring.jpa.open-in-view=false",
-        "spring.sql.init.mode=always"
-})
+@DataJpaTest(
+        properties = {
+            "spring.test.database.replace=none",
+            "spring.jpa.hibernate.ddl-auto=none",
+            "spring.jpa.open-in-view=false",
+            "spring.sql.init.mode=always"
+        })
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GroupRepositoryTest {
 
     private static final Path DATABASE = createDatabase();
 
-    @Autowired
-    private GroupRepository groupRepository;
+    @Autowired private GroupRepository groupRepository;
 
-    @Autowired
-    private TestEntityManager entityManager;
+    @Autowired private TestEntityManager entityManager;
 
-    @Autowired
-    private DataSource dataSource;
+    @Autowired private DataSource dataSource;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE.toAbsolutePath());
         registry.add("spring.datasource.driver-class-name", () -> "org.sqlite.JDBC");
-        registry.add("spring.jpa.database-platform",
+        registry.add(
+                "spring.jpa.database-platform",
                 () -> "org.hibernate.community.dialect.SQLiteDialect");
     }
 
@@ -58,10 +56,8 @@ class GroupRepositoryTest {
     void upserts_metadata_while_preserving_creation_time_and_message_cursors() {
         groupRepository.upsertMetadata(group(1, "旧群名", 10, 20, 100, 100));
 
-        groupRepository.upsertMetadata(new GroupEntity(
-                1L, "新群名", "新头像", 20, 200, 19,
-                "[3,4]", "新简介", 4, 0, 0, 999, 300
-        ));
+        groupRepository.upsertMetadata(
+                new GroupEntity(1L, "新群名", "新头像", 20, 200, 19, "[3,4]", "新简介", 4, 0, 0, 999, 300));
         entityManager.flush();
         entityManager.clear();
 
@@ -108,10 +104,22 @@ class GroupRepositoryTest {
         assertThat(groupRepository.findMinMid(999)).isZero();
     }
 
-    private GroupEntity group(long gid, String name, long minMid, long maxMid,
-                              long createdAt, long updatedAt) {
-        return new GroupEntity(gid, name, "avatar-" + name, 10, 100, 9,
-                "[1,2]", "简介-" + name, 3, minMid, maxMid, createdAt, updatedAt);
+    private GroupEntity group(
+            long gid, String name, long minMid, long maxMid, long createdAt, long updatedAt) {
+        return new GroupEntity(
+                gid,
+                name,
+                "avatar-" + name,
+                10,
+                100,
+                9,
+                "[1,2]",
+                "简介-" + name,
+                3,
+                minMid,
+                maxMid,
+                createdAt,
+                updatedAt);
     }
 
     private static Path createDatabase() {

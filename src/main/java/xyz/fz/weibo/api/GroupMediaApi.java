@@ -2,6 +2,9 @@ package xyz.fz.weibo.api;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +23,6 @@ import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
 import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
 import xyz.fz.weibo.model.response.GroupVideoUploadInitResponse;
 
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 /**
  * 群聊媒体接口：msget 下载 + 图片上传（init/uploadx）+ 视频上传（封面/init/分片上传）。
  * <p>
@@ -36,10 +35,13 @@ import java.util.Map;
 public class GroupMediaApi {
 
     private static final String GROUP_MEDIA_URL = "https://upload.api.weibo.com/2/mss/msget";
-    private static final String INIT_UPLOAD_URL = "https://api.weibo.com/webim/fileplatform/init.json";
+    private static final String INIT_UPLOAD_URL =
+            "https://api.weibo.com/webim/fileplatform/init.json";
     private static final String UPLOAD_URL = "https://api.weibo.com/webim/uploadx.json";
-    private static final String VIDEO_INIT_URL = "https://api.weibo.com/webim/2/multimedia/init.json";
-    private static final String VIDEO_UPLOAD_URL = "https://up.video.weibocdn.com/2/multimedia/upload.json";
+    private static final String VIDEO_INIT_URL =
+            "https://api.weibo.com/webim/2/multimedia/init.json";
+    private static final String VIDEO_UPLOAD_URL =
+            "https://up.video.weibocdn.com/2/multimedia/upload.json";
 
     private final WeiboHttpClient client;
     private final ObjectMapper objectMapper;
@@ -50,11 +52,14 @@ public class GroupMediaApi {
     }
 
     public ResponseEntity<byte[]> download(GroupMediaRequest request) {
-        return client.getForBytes(GROUP_MEDIA_URL, request.toParams(), WeiboConstants.HEADERS_MSGET, true);
+        return client.getForBytes(
+                GROUP_MEDIA_URL, request.toParams(), WeiboConstants.HEADERS_MSGET, true);
     }
 
-    public <T> T stream(GroupMediaRequest request, HttpHeaders callerHeaders,
-                        ResponseExtractor<T> responseExtractor) {
+    public <T> T stream(
+            GroupMediaRequest request,
+            @SuppressWarnings("PMD.LooseCoupling") HttpHeaders callerHeaders,
+            ResponseExtractor<T> responseExtractor) {
         Map<String, String> headers = new LinkedHashMap<>(callerHeaders.toSingleValueMap());
         headers.putAll(WeiboConstants.HEADERS_MSGET);
         return client.getForStream(
@@ -65,8 +70,12 @@ public class GroupMediaApi {
      * 群聊发送图片第 1 步：初始化文件（fileplatform/init.json，form-urlencoded）。
      */
     public GroupMediaUploadInitResponse initUpload(GroupMediaUploadInitRequest request) {
-        ResponseEntity<String> resp = client.postForm(
-                INIT_UPLOAD_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
+        ResponseEntity<String> resp =
+                client.postForm(
+                        INIT_UPLOAD_URL,
+                        request.toParams(),
+                        WeiboConstants.HEADERS_WEBIM_SEND,
+                        true);
         return deserialize(resp.getBody(), GroupMediaUploadInitResponse.class);
     }
 
@@ -78,8 +87,8 @@ public class GroupMediaApi {
      * 最后一片响应 {@code {"fid":...}}。微博不回传 offset，由客户端按已上传字节累加 startloc。
      * chunkSizeKb <= 0 时退化为单次上传（兼容异常 init 响应）。
      */
-    public GroupMediaUploadResponse upload(byte[] bytes, String filename, String fileToken,
-                                           long gid, int chunkSizeKb) {
+    public GroupMediaUploadResponse upload(
+            byte[] bytes, String filename, String fileToken, long gid, int chunkSizeKb) {
         Map<String, String> queryParams = new LinkedHashMap<>();
         queryParams.put("source", WeiboConstants.SOURCE);
         queryParams.put("is_chunk", "1");
@@ -98,9 +107,11 @@ public class GroupMediaApi {
             body.add("filelength", "");
             body.add("filecheck", "");
             body.add("percent", "");
-            ResponseEntity<String> resp = client.postMultipart(
-                    UPLOAD_URL, queryParams, body, WeiboConstants.HEADERS_WEBIM_SEND, true);
-            GroupMediaUploadResponse chunkResponse = deserialize(resp.getBody(), GroupMediaUploadResponse.class);
+            ResponseEntity<String> resp =
+                    client.postMultipart(
+                            UPLOAD_URL, queryParams, body, WeiboConstants.HEADERS_WEBIM_SEND, true);
+            GroupMediaUploadResponse chunkResponse =
+                    deserialize(resp.getBody(), GroupMediaUploadResponse.class);
             if (chunkResponse.fid() > 0) {
                 fid = chunkResponse.fid();
                 break;
@@ -132,9 +143,11 @@ public class GroupMediaApi {
         queryParams.put("gid", String.valueOf(gid));
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("imageName", new ImageByteArrayResource(coverBytes, coverName));
-        ResponseEntity<String> resp = client.postMultipart(
-                UPLOAD_URL, queryParams, body, WeiboConstants.HEADERS_WEBIM_SEND, true);
-        GroupMediaUploadResponse coverResponse = deserialize(resp.getBody(), GroupMediaUploadResponse.class);
+        ResponseEntity<String> resp =
+                client.postMultipart(
+                        UPLOAD_URL, queryParams, body, WeiboConstants.HEADERS_WEBIM_SEND, true);
+        GroupMediaUploadResponse coverResponse =
+                deserialize(resp.getBody(), GroupMediaUploadResponse.class);
         if (coverResponse.fid() <= 0) {
             throw new WeiboException("视频封面上传失败：未拿到文件 id。", -1);
         }
@@ -148,8 +161,12 @@ public class GroupMediaApi {
      * 响应新增 auth（分片上传鉴权，用于 X-Up-Auth）与 mediaId。
      */
     public GroupVideoUploadInitResponse initVideoUpload(GroupVideoInitRequest request) {
-        ResponseEntity<String> resp = client.postForm(
-                VIDEO_INIT_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
+        ResponseEntity<String> resp =
+                client.postForm(
+                        VIDEO_INIT_URL,
+                        request.toParams(),
+                        WeiboConstants.HEADERS_WEBIM_SEND,
+                        true);
         return deserialize(resp.getBody(), GroupVideoUploadInitResponse.class);
     }
 
@@ -161,8 +178,14 @@ public class GroupMediaApi {
      * check 为整个文件的 MD5，sectioncheck 为当前分片的 MD5。最后一片响应 {@code {"fid":...}}。
      * chunkSizeKb <= 0 时退化为单次上传（兼容异常 init 响应）。
      */
-    public GroupMediaUploadResponse uploadVideo(byte[] bytes, String filename, String fileToken,
-                                                 String auth, long gid, int chunkSizeKb, String wholeMd5) {
+    public GroupMediaUploadResponse uploadVideo(
+            byte[] bytes,
+            String filename,
+            String fileToken,
+            String auth,
+            long gid,
+            int chunkSizeKb,
+            String wholeMd5) {
         Map<String, String> headers = new LinkedHashMap<>(WeiboConstants.HEADERS_VIDEO_UPLOAD);
         headers.put("X-Up-Auth", auth);
         int chunkSize = chunkSizeKb > 0 ? chunkSizeKb * 1024 : bytes.length;
@@ -183,9 +206,10 @@ public class GroupMediaApi {
             queryParams.put("selectId", String.valueOf(gid));
             queryParams.put("check", wholeMd5);
             queryParams.put("sectioncheck", DigestUtils.md5Hex(chunk));
-            ResponseEntity<String> resp = client.postOctetStream(
-                    VIDEO_UPLOAD_URL, queryParams, chunk, headers, true);
-            GroupMediaUploadResponse chunkResponse = deserialize(resp.getBody(), GroupMediaUploadResponse.class);
+            ResponseEntity<String> resp =
+                    client.postOctetStream(VIDEO_UPLOAD_URL, queryParams, chunk, headers, true);
+            GroupMediaUploadResponse chunkResponse =
+                    deserialize(resp.getBody(), GroupMediaUploadResponse.class);
             if (chunkResponse.fid() > 0) {
                 fid = chunkResponse.fid();
                 break;
@@ -197,7 +221,10 @@ public class GroupMediaApi {
         return new GroupMediaUploadResponse(fid);
     }
 
-    /** ByteArrayResource 子类，暴露 filename 让 RestTemplate 输出 Content-Disposition 的 filename。图片与封面图复用。 */
+    /**
+     * ByteArrayResource 子类，暴露 filename 让 RestTemplate 输出 Content-Disposition 的 filename。
+     * 图片与封面图复用。
+     */
     private static final class ImageByteArrayResource extends ByteArrayResource {
         private final String filename;
 

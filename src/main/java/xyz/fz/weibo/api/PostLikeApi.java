@@ -3,22 +3,21 @@ package xyz.fz.weibo.api;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.ResponseEntity;
+import java.net.HttpCookie;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriUtils;
 import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboCookieHolder;
 import xyz.fz.weibo.client.WeiboHttpClient;
-import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
-
-import java.net.HttpCookie;
-import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Component
 public class PostLikeApi {
@@ -29,7 +28,8 @@ public class PostLikeApi {
     private final WeiboCookieHolder credential;
     private final ObjectMapper objectMapper;
 
-    public PostLikeApi(WeiboHttpClient client, WeiboCookieHolder credential, ObjectMapper objectMapper) {
+    public PostLikeApi(
+            WeiboHttpClient client, WeiboCookieHolder credential, ObjectMapper objectMapper) {
         this.client = client;
         this.credential = credential;
         this.objectMapper = objectMapper;
@@ -40,14 +40,19 @@ public class PostLikeApi {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("id", Long.toString(id));
         params.put("locale", "zh-CN");
-        JsonNode body = requireSuccess(client.getForString(
-                STATUS_URL + "show", params, WeiboConstants.HEADERS_AJAX, true));
+        JsonNode body =
+                requireSuccess(
+                        client.getForString(
+                                STATUS_URL + "show", params, WeiboConstants.HEADERS_AJAX, true));
         JsonNode status = body.path("attitudes_status");
         JsonNode count = body.path("attitudes_count");
         if (!Long.toString(id).equals(body.path("idstr").asText())
-                || !status.isIntegralNumber() || !status.canConvertToInt()
+                || !status.isIntegralNumber()
+                || !status.canConvertToInt()
                 || (status.intValue() != 0 && status.intValue() != 1)
-                || !count.isIntegralNumber() || !count.canConvertToInt() || count.intValue() < 0) {
+                || !count.isIntegralNumber()
+                || !count.canConvertToInt()
+                || count.intValue() < 0) {
             throw new WeiboException("微博点赞状态不完整，请重试。", -1);
         }
         return new PostLikeState(status.intValue() == 1, count.intValue());
@@ -61,11 +66,12 @@ public class PostLikeApi {
         }
         Map<String, String> headers = new LinkedHashMap<>(WeiboConstants.HEADERS_AJAX);
         headers.put(HttpHeaders.COOKIE, current);
-        ResponseEntity<String> page = client.getForString("https://weibo.com/", null, headers, false);
+        ResponseEntity<String> page =
+                client.getForString("https://weibo.com/", null, headers, false);
         Map<String, String> cookies = new LinkedHashMap<>();
         for (String value : page.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE)) {
             for (HttpCookie cookie : HttpCookie.parse(value)) {
-                if (cookie.getName().equals("XSRF-TOKEN") || cookie.getName().equals("WBPSESS")) {
+                if ("XSRF-TOKEN".equals(cookie.getName()) || "WBPSESS".equals(cookie.getName())) {
                     cookies.put(cookie.getName(), cookie.getValue());
                 }
             }
@@ -74,12 +80,18 @@ public class PostLikeApi {
             throw new WeiboException("无法获取微博点赞验证信息，请重新登录后重试。", -1);
         }
         StringBuilder cookieHeader = new StringBuilder(current);
-        cookies.forEach((name, value) -> cookieHeader.append("; ").append(name).append('=').append(value));
+        cookies.forEach(
+                (name, value) -> cookieHeader.append("; ").append(name).append('=').append(value));
         headers.put(HttpHeaders.COOKIE, cookieHeader.toString());
         headers.put(HttpHeaders.ORIGIN, "https://weibo.com");
-        headers.put("X-XSRF-TOKEN", UriUtils.decode(cookies.get("XSRF-TOKEN"), StandardCharsets.UTF_8));
-        requireSuccess(client.postFormOnce(STATUS_URL + (liked ? "setLike" : "cancelLike"),
-                Map.of("id", Long.toString(id)), headers, false));
+        headers.put(
+                "X-XSRF-TOKEN", UriUtils.decode(cookies.get("XSRF-TOKEN"), StandardCharsets.UTF_8));
+        requireSuccess(
+                client.postFormOnce(
+                        STATUS_URL + (liked ? "setLike" : "cancelLike"),
+                        Map.of("id", Long.toString(id)),
+                        headers,
+                        false));
     }
 
     private void requireId(long id) {
@@ -90,8 +102,11 @@ public class PostLikeApi {
 
     private JsonNode requireSuccess(ResponseEntity<String> response) {
         try {
-            JsonNode body = response.getBody() == null ? null : objectMapper.readTree(response.getBody());
-            if (response.getStatusCode().value() != 200 || body == null || body.path("ok").asInt() <= 0) {
+            JsonNode body =
+                    response.getBody() == null ? null : objectMapper.readTree(response.getBody());
+            if (response.getStatusCode().value() != 200
+                    || body == null
+                    || body.path("ok").asInt() <= 0) {
                 int code = body == null ? -1 : body.path("error_code").asInt(-1);
                 if (code == 20062 || code == 20067) {
                     throw new WeiboException("微博要求安全验证，请前往微博网页版完成验证后重试。", code);

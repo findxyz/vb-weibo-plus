@@ -34,11 +34,17 @@ public class BloggerEntity {
     @Column(name = "updated_at")
     private long updatedAt;
 
-    protected BloggerEntity() {
-    }
+    protected BloggerEntity() {}
 
-    public BloggerEntity(Long uid, String screenName, String avatar, String profileUrl, int verified,
-                         long latestPostId, long createdAt, long updatedAt) {
+    public BloggerEntity(
+            Long uid,
+            String screenName,
+            String avatar,
+            String profileUrl,
+            int verified,
+            long latestPostId,
+            long createdAt,
+            long updatedAt) {
         this.uid = uid;
         this.screenName = screenName;
         this.avatar = avatar;

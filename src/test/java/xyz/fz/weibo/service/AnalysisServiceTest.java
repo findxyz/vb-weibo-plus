@@ -1,29 +1,5 @@
 package xyz.fz.weibo.service;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.data.domain.Pageable;
-import xyz.fz.weibo.client.AiClient;
-import xyz.fz.weibo.domain.AnalysisPageResult;
-import xyz.fz.weibo.domain.AnalysisView;
-import xyz.fz.weibo.entity.AnalysisEntity;
-import xyz.fz.weibo.entity.MessageEntity;
-import xyz.fz.weibo.repository.AnalysisRepository;
-import xyz.fz.weibo.repository.MessageRepository;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
-
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.function.Consumer;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,18 +9,38 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Consumer;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
+import xyz.fz.weibo.client.AiClient;
+import xyz.fz.weibo.domain.AnalysisPageResult;
+import xyz.fz.weibo.domain.AnalysisView;
+import xyz.fz.weibo.entity.AnalysisEntity;
+import xyz.fz.weibo.entity.MessageEntity;
+import xyz.fz.weibo.repository.AnalysisRepository;
+import xyz.fz.weibo.repository.MessageRepository;
+import xyz.fz.weibo.service.exception.InvalidRequestException;
+
 @ExtendWith(MockitoExtension.class)
 class AnalysisServiceTest {
 
     private static final long GID = 100L;
     private static final LocalDate DATE = LocalDate.of(2026, 8, 7);
 
-    @Mock
-    private MessageRepository messageRepository;
-    @Mock
-    private AnalysisRepository analysisRepository;
-    @Mock
-    private AiClient aiClient;
+    @Mock private MessageRepository messageRepository;
+    @Mock private AnalysisRepository analysisRepository;
+    @Mock private AiClient aiClient;
 
     private AnalysisService analysisService;
 
@@ -56,20 +52,31 @@ class AnalysisServiceTest {
     @Test
     void analyze_prepares_calls_ai_and_saves() {
         // 覆盖 buildMessageText 三分支：sender null、text blank 有 typeName、text blank 无 typeName
-        List<MessageEntity> messages = List.of(
-                message(1L, null, "[图片]", null, 1_000L),
-                message(2L, "张三", "[图片]", null, 2_000L),
-                message(3L, "李四", "文本消息", "文本", 3_000L)
-        );
-        when(messageRepository.findPage(eq(GID), anyLong(), anyLong(), any(), any(),
-                eq(MessageRepository.pageRequest(1, Integer.MAX_VALUE))))
-                .thenReturn(new PageImpl<>(messages, MessageRepository.pageRequest(1, Integer.MAX_VALUE), messages.size()));
+        List<MessageEntity> messages =
+                List.of(
+                        message(1L, null, "[图片]", null, 1_000L),
+                        message(2L, "张三", "[图片]", null, 2_000L),
+                        message(3L, "李四", "文本消息", "文本", 3_000L));
+        when(messageRepository.findPage(
+                        eq(GID),
+                        anyLong(),
+                        anyLong(),
+                        any(),
+                        any(),
+                        eq(MessageRepository.pageRequest(1, Integer.MAX_VALUE))))
+                .thenReturn(
+                        new PageImpl<>(
+                                messages,
+                                MessageRepository.pageRequest(1, Integer.MAX_VALUE),
+                                messages.size()));
         when(aiClient.chat(any())).thenReturn("分析结果");
-        when(analysisRepository.save(any())).thenAnswer(inv -> {
-            AnalysisEntity entity = inv.getArgument(0);
-            ReflectionTestUtils.setField(entity, "id", 99L);
-            return entity;
-        });
+        when(analysisRepository.save(any()))
+                .thenAnswer(
+                        inv -> {
+                            AnalysisEntity entity = inv.getArgument(0);
+                            ReflectionTestUtils.setField(entity, "id", 99L);
+                            return entity;
+                        });
 
         AnalysisView view = analysisService.analyze(GID, DATE, "分析一下");
 
@@ -121,9 +128,16 @@ class AnalysisServiceTest {
 
     @Test
     void analyze_throws_when_no_messages() {
-        when(messageRepository.findPage(eq(GID), anyLong(), anyLong(), any(), any(),
-                eq(MessageRepository.pageRequest(1, Integer.MAX_VALUE))))
-                .thenReturn(new PageImpl<>(List.of(), MessageRepository.pageRequest(1, Integer.MAX_VALUE), 0));
+        when(messageRepository.findPage(
+                        eq(GID),
+                        anyLong(),
+                        anyLong(),
+                        any(),
+                        any(),
+                        eq(MessageRepository.pageRequest(1, Integer.MAX_VALUE))))
+                .thenReturn(
+                        new PageImpl<>(
+                                List.of(), MessageRepository.pageRequest(1, Integer.MAX_VALUE), 0));
 
         assertThatThrownBy(() -> analysisService.analyze(GID, DATE, "分析一下"))
                 .isInstanceOf(InvalidRequestException.class)
@@ -133,21 +147,32 @@ class AnalysisServiceTest {
     @Test
     void analyzeStreaming_invokes_chat_stream_and_passes_deltas() {
         List<MessageEntity> messages = List.of(message(1L, "张三", "文本", "文本", 1_000L));
-        when(messageRepository.findPage(eq(GID), anyLong(), anyLong(), any(), any(),
-                eq(MessageRepository.pageRequest(1, Integer.MAX_VALUE))))
-                .thenReturn(new PageImpl<>(messages, MessageRepository.pageRequest(1, Integer.MAX_VALUE), 1));
+        when(messageRepository.findPage(
+                        eq(GID),
+                        anyLong(),
+                        anyLong(),
+                        any(),
+                        any(),
+                        eq(MessageRepository.pageRequest(1, Integer.MAX_VALUE))))
+                .thenReturn(
+                        new PageImpl<>(
+                                messages, MessageRepository.pageRequest(1, Integer.MAX_VALUE), 1));
         // 桩 chatStream：模拟 AI 逐段回调
-        when(aiClient.chatStream(any(), any())).thenAnswer(inv -> {
-            Consumer<String> consumer = inv.getArgument(1);
-            consumer.accept("第一");
-            consumer.accept("段");
-            return "第一段";
-        });
-        when(analysisRepository.save(any())).thenAnswer(inv -> {
-            AnalysisEntity entity = inv.getArgument(0);
-            ReflectionTestUtils.setField(entity, "id", 99L);
-            return entity;
-        });
+        when(aiClient.chatStream(any(), any()))
+                .thenAnswer(
+                        inv -> {
+                            Consumer<String> consumer = inv.getArgument(1);
+                            consumer.accept("第一");
+                            consumer.accept("段");
+                            return "第一段";
+                        });
+        when(analysisRepository.save(any()))
+                .thenAnswer(
+                        inv -> {
+                            AnalysisEntity entity = inv.getArgument(0);
+                            ReflectionTestUtils.setField(entity, "id", 99L);
+                            return entity;
+                        });
 
         List<String> deltas = new ArrayList<>();
         AnalysisView view = analysisService.analyzeStreaming(GID, DATE, "分析一下", deltas::add);
@@ -205,7 +230,8 @@ class AnalysisServiceTest {
         AnalysisEntity entity = new AnalysisEntity(GID, 0L, longPrompt, "结果", 1, 100L);
         ReflectionTestUtils.setField(entity, "id", 1L);
         when(analysisRepository.findPage(eq(GID), any()))
-                .thenReturn(new PageImpl<>(List.of(entity), AnalysisRepository.pageRequest(1, 20), 1));
+                .thenReturn(
+                        new PageImpl<>(List.of(entity), AnalysisRepository.pageRequest(1, 20), 1));
 
         AnalysisPageResult result = analysisService.list(GID, 1, 20);
 
@@ -234,8 +260,28 @@ class AnalysisServiceTest {
                 .hasMessageContaining("分析记录不存在");
     }
 
-    private MessageEntity message(long mid, String senderName, String text, String msgTypeName, long createdAt) {
-        return new MessageEntity(mid, GID, 0, msgTypeName, 0, 0, senderName, null, text,
-                null, null, null, null, null, null, null, null, null, createdAt, 0);
+    private MessageEntity message(
+            long mid, String senderName, String text, String msgTypeName, long createdAt) {
+        return new MessageEntity(
+                mid,
+                GID,
+                0,
+                msgTypeName,
+                0,
+                0,
+                senderName,
+                null,
+                text,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                createdAt,
+                0);
     }
 }

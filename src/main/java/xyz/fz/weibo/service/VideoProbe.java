@@ -3,17 +3,17 @@ package xyz.fz.weibo.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import xyz.fz.weibo.client.exception.WeiboException;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 从视频提取封面图（PNG）并探测属性（宽/高/时长），用于群聊发送视频。
@@ -31,8 +31,9 @@ public class VideoProbe {
     private final ObjectMapper objectMapper;
     private volatile boolean ffmpegAvailable;
 
-    public VideoProbe(@Value("${weibo.media.ffmpeg-path:ffmpeg}") String ffmpegPath,
-                      ObjectMapper objectMapper) {
+    public VideoProbe(
+            @Value("${weibo.media.ffmpeg-path:ffmpeg}") String ffmpegPath,
+            ObjectMapper objectMapper) {
         this.ffmpegPath = ffmpegPath;
         this.objectMapper = objectMapper;
     }
@@ -41,13 +42,13 @@ public class VideoProbe {
     void init() {
         ffmpegAvailable = probeFfmpeg();
         if (!ffmpegAvailable) {
-            log.warn("未检测到 ffmpeg（{}），无法发送视频。"
-                    + "请安装 ffmpeg 并加入 PATH，或配置环境变量 WEIBO_FFMPEG_PATH。", ffmpegPath);
+            log.warn(
+                    "未检测到 ffmpeg（{}），无法发送视频。" + "请安装 ffmpeg 并加入 PATH，或配置环境变量 WEIBO_FFMPEG_PATH。",
+                    ffmpegPath);
         }
     }
 
-    public record ProbeResult(byte[] coverPng, int width, int height, int duration) {
-    }
+    public record ProbeResult(byte[] coverPng, int width, int height, int duration) {}
 
     /**
      * 探测视频属性并提取封面图。ffmpeg 不可用或视频不合法时抛 WeiboException，不降级。
@@ -86,11 +87,11 @@ public class VideoProbe {
     }
 
     private int[] probeDimensions(Path input) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder(
-                ffprobeCommand(input, "stream=width,height"))
-                .redirectErrorStream(true)
-                .start();
-        String output = new String(process.getInputStream().readAllBytes());
+        Process process =
+                new ProcessBuilder(ffprobeCommand(input, "stream=width,height"))
+                        .redirectErrorStream(true)
+                        .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         if (!process.waitFor(30, TimeUnit.SECONDS)) {
             process.destroyForcibly();
             throw new WeiboException("视频属性探测超时。", -1);
@@ -100,14 +101,12 @@ public class VideoProbe {
         }
         try {
             JsonNode root = objectMapper.readTree(output);
-            JsonNode stream = root != null && root.has("streams") ? root.get("streams").get(0) : null;
+            JsonNode stream =
+                    root != null && root.has("streams") ? root.get("streams").get(0) : null;
             if (stream == null) {
                 throw new WeiboException("视频属性探测失败：无流信息。", -1);
             }
-            return new int[]{
-                    stream.path("width").asInt(0),
-                    stream.path("height").asInt(0)
-            };
+            return new int[] {stream.path("width").asInt(0), stream.path("height").asInt(0)};
         } catch (WeiboException e) {
             throw e;
         } catch (Exception e) {
@@ -116,11 +115,11 @@ public class VideoProbe {
     }
 
     private int probeDuration(Path input) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder(
-                ffprobeCommand(input, "format=duration"))
-                .redirectErrorStream(true)
-                .start();
-        String output = new String(process.getInputStream().readAllBytes());
+        Process process =
+                new ProcessBuilder(ffprobeCommand(input, "format=duration"))
+                        .redirectErrorStream(true)
+                        .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         if (!process.waitFor(30, TimeUnit.SECONDS)) {
             process.destroyForcibly();
             throw new WeiboException("视频时长探测超时。", -1);
@@ -143,13 +142,25 @@ public class VideoProbe {
     }
 
     private byte[] extractCover(Path input) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder(List.of(
-                ffmpegPath, "-hide_banner", "-loglevel", "error", "-y",
-                "-i", input.toString(),
-                "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png",
-                "-"))
-                .redirectErrorStream(false)
-                .start();
+        Process process =
+                new ProcessBuilder(
+                                List.of(
+                                        ffmpegPath,
+                                        "-hide_banner",
+                                        "-loglevel",
+                                        "error",
+                                        "-y",
+                                        "-i",
+                                        input.toString(),
+                                        "-frames:v",
+                                        "1",
+                                        "-f",
+                                        "image2pipe",
+                                        "-vcodec",
+                                        "png",
+                                        "-"))
+                        .redirectErrorStream(false)
+                        .start();
         byte[] cover = process.getInputStream().readAllBytes();
         if (!process.waitFor(30, TimeUnit.SECONDS)) {
             process.destroyForcibly();
@@ -164,10 +175,15 @@ public class VideoProbe {
     private List<String> ffprobeCommand(Path input, String entries) {
         String ffprobePath = resolveFfprobePath();
         return List.of(
-                ffprobePath, "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", entries,
-                "-of", "json",
+                ffprobePath,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                entries,
+                "-of",
+                "json",
                 input.toString());
     }
 
@@ -187,10 +203,11 @@ public class VideoProbe {
     @SuppressWarnings("DuplicatedCode")
     private boolean probeFfmpeg() {
         try {
-            Process process = new ProcessBuilder(ffmpegPath, "-version")
-                    .redirectErrorStream(true)
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .start();
+            Process process =
+                    new ProcessBuilder(ffmpegPath, "-version")
+                            .redirectErrorStream(true)
+                            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                            .start();
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 return false;

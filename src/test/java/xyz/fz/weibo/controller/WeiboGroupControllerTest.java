@@ -1,11 +1,22 @@
 package xyz.fz.weibo.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.GroupMediaApi;
@@ -20,43 +31,25 @@ import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
-import java.util.List;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 /**
  * 群聊接口 Controller 层测试：验证正常返回、字节流透传与异常映射。
  */
 @WebMvcTest(WeiboGroupController.class)
 class WeiboGroupControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Autowired private ObjectMapper objectMapper;
 
-    @MockitoBean
-    private GroupListApi groupListApi;
+    @MockitoBean private GroupListApi groupListApi;
 
-    @MockitoBean
-    private GroupMessagesApi groupMessagesApi;
+    @MockitoBean private GroupMessagesApi groupMessagesApi;
 
-    @MockitoBean
-    private GroupMediaApi groupMediaApi;
+    @MockitoBean private GroupMediaApi groupMediaApi;
 
     @Test
     void list_returns_200() throws Exception {
-        when(groupListApi.list())
-                .thenReturn(new GroupListResponse(0, List.of()));
+        when(groupListApi.list()).thenReturn(new GroupListResponse(0, List.of()));
 
         mockMvc.perform(get("/weibo/group/list"))
                 .andExpect(status().isOk())
@@ -66,8 +59,7 @@ class WeiboGroupControllerTest {
 
     @Test
     void list_returns_401_when_cookie_expired() throws Exception {
-        when(groupListApi.list())
-                .thenThrow(new WeiboCookieExpiredException("Cookie 失效"));
+        when(groupListApi.list()).thenThrow(new WeiboCookieExpiredException("Cookie 失效"));
 
         mockMvc.perform(get("/weibo/group/list"))
                 .andExpect(status().isUnauthorized())
@@ -87,26 +79,30 @@ class WeiboGroupControllerTest {
 
     @Test
     void messages_returns_sender_avatar() throws Exception {
-        GroupMessagesResponse response = objectMapper.readValue("""
-                {
-                  "result": true,
-                  "messages": [{
-                    "id": 100,
-                    "from_user": {
-                      "id": 9,
-                      "screen_name": "发送者",
-                      "avatar_large": "https://example.test/avatar.jpg"
-                    }
-                  }],
-                  "ts": 1700000000000
-                }
-                """, GroupMessagesResponse.class);
+        GroupMessagesResponse response =
+                objectMapper.readValue(
+                        """
+                        {
+                          "result": true,
+                          "messages": [{
+                            "id": 100,
+                            "from_user": {
+                              "id": 9,
+                              "screen_name": "发送者",
+                              "avatar_large": "https://example.test/avatar.jpg"
+                            }
+                          }],
+                          "ts": 1700000000000
+                        }
+                        """,
+                        GroupMessagesResponse.class);
         when(groupMessagesApi.messages(any(GroupMessagesRequest.class))).thenReturn(response);
 
         mockMvc.perform(get("/weibo/group/messages").param("id", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.messages[0].from_user.avatar_large")
-                        .value("https://example.test/avatar.jpg"));
+                .andExpect(
+                        jsonPath("$.messages[0].from_user.avatar_large")
+                                .value("https://example.test/avatar.jpg"));
     }
 
     @Test
@@ -122,11 +118,11 @@ class WeiboGroupControllerTest {
     @Test
     void send_returns_200_and_passes_through_the_weibo_response() throws Exception {
         when(groupMessagesApi.send(new GroupSendMessageRequest(101L, "hello")))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 101L, "hello", null, 1_000L, 1_000L));
+                .thenReturn(
+                        new GroupSendMessageResponse(
+                                true, 100L, 101L, "hello", null, 1_000L, 1_000L));
 
-        mockMvc.perform(post("/weibo/group/send")
-                        .param("id", "101")
-                        .param("content", "hello"))
+        mockMvc.perform(post("/weibo/group/send").param("id", "101").param("content", "hello"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result").value(true))
                 .andExpect(jsonPath("$.mid").value(100))
@@ -141,9 +137,7 @@ class WeiboGroupControllerTest {
         when(groupMessagesApi.send(any(GroupSendMessageRequest.class)))
                 .thenThrow(new WeiboCookieExpiredException("Cookie 失效"));
 
-        mockMvc.perform(post("/weibo/group/send")
-                        .param("id", "1")
-                        .param("content", "hello"))
+        mockMvc.perform(post("/weibo/group/send").param("id", "1").param("content", "hello"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
     }
@@ -151,22 +145,22 @@ class WeiboGroupControllerTest {
     @Test
     void media_returns_bytes_with_headers() throws Exception {
         when(groupMediaApi.download(any()))
-                .thenReturn(ResponseEntity.ok()
-                        .header("Content-Type", "image/jpeg")
-                        .header("Content-Disposition", "attachment; filename=\"a.jpg\"")
-                        .body(new byte[]{1, 2, 3}));
+                .thenReturn(
+                        ResponseEntity.ok()
+                                .header("Content-Type", "image/jpeg")
+                                .header("Content-Disposition", "attachment; filename=\"a.jpg\"")
+                                .body(new byte[] {1, 2, 3}));
 
         mockMvc.perform(get("/weibo/group/media").param("fid", "1"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/jpeg"))
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"a.jpg\""))
-                .andExpect(content().bytes(new byte[]{1, 2, 3}));
+                .andExpect(content().bytes(new byte[] {1, 2, 3}));
     }
 
     @Test
     void media_returns_500_on_error() throws Exception {
-        when(groupMediaApi.download(any()))
-                .thenThrow(new WeiboException("下载失败"));
+        when(groupMediaApi.download(any())).thenThrow(new WeiboException("下载失败"));
 
         mockMvc.perform(get("/weibo/group/media").param("fid", "1"))
                 .andExpect(status().isInternalServerError())
@@ -175,16 +169,14 @@ class WeiboGroupControllerTest {
 
     @Test
     void media_accepts_nonnumeric_string_fid() throws Exception {
-        when(groupMediaApi.download(any()))
-                .thenReturn(ResponseEntity.ok(new byte[]{1}));
+        when(groupMediaApi.download(any())).thenReturn(ResponseEntity.ok(new byte[] {1}));
 
-        mockMvc.perform(get("/weibo/group/media")
-                        .param("fid", "5302496155143676_file")
-                        .param("imageType", "origin"))
+        mockMvc.perform(
+                        get("/weibo/group/media")
+                                .param("fid", "5302496155143676_file")
+                                .param("imageType", "origin"))
                 .andExpect(status().isOk());
 
-        verify(groupMediaApi).download(
-                new GroupMediaRequest(
-                        "5302496155143676_file", "origin"));
+        verify(groupMediaApi).download(new GroupMediaRequest("5302496155143676_file", "origin"));
     }
 }

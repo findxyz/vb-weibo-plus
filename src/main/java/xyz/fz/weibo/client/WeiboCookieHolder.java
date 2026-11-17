@@ -1,13 +1,12 @@
 package xyz.fz.weibo.client;
 
 import jakarta.annotation.PostConstruct;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 /**
  * Cookie 内存缓存与持久化。
@@ -39,7 +38,10 @@ public class WeiboCookieHolder {
                 cookie = null;
             }
         } catch (Exception e) {
-            log.warn("读取 cookie 文件 {} 失败，登录态置空：{}", cookieFile, e.getMessage());
+            log.atWarn()
+                    .addArgument(cookieFile)
+                    .addArgument(e::getMessage)
+                    .log("读取 cookie 文件 {} 失败，登录态置空：{}");
             cookie = null;
         }
     }
@@ -53,7 +55,10 @@ public class WeiboCookieHolder {
         try {
             Files.writeString(Path.of(cookieFile), cookie == null ? "" : cookie);
         } catch (Exception e) {
-            log.warn("回写 cookie 文件 {} 失败，以内存值为准：{}", cookieFile, e.getMessage());
+            log.atWarn()
+                    .addArgument(cookieFile)
+                    .addArgument(e::getMessage)
+                    .log("回写 cookie 文件 {} 失败，以内存值为准：{}");
         }
     }
 }

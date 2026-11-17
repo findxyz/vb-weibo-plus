@@ -1,6 +1,13 @@
 package xyz.fz.weibo.service.mapper;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,22 +30,12 @@ import xyz.fz.weibo.model.response.MyBlogResponse;
 import xyz.fz.weibo.model.response.PageInfoResponse;
 import xyz.fz.weibo.model.response.PicInfoResponse;
 
-import java.io.InputStream;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 @SpringJUnitConfig(classes = {WeiboConfig.class, PostMapper.class})
 class PostMapperTest {
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Autowired private ObjectMapper objectMapper;
 
-    @Autowired
-    private PostMapper postMapper;
+    @Autowired private PostMapper postMapper;
 
     @Test
     void api_model_accepts_complete_blogger_blog_shape_and_string_long_text_id() throws Exception {
@@ -57,42 +54,57 @@ class PostMapperTest {
 
     @Test
     void api_model_normalizes_numeric_since_id_to_string() throws Exception {
-        MyBlogResponse response = objectMapper.readValue("""
-                {"data":{"since_id":88,"list":[],"total":0},"ok":1}
-                """, MyBlogResponse.class);
+        MyBlogResponse response =
+                objectMapper.readValue(
+                        """
+                        {"data":{"since_id":88,"list":[],"total":0},"ok":1}
+                        """,
+                        MyBlogResponse.class);
 
         assertThat(response.data().sinceId()).isEqualTo("88");
     }
 
     @Test
     @ResourceLock("default-locale")
-    void maps_complete_long_text_media_dates_and_source_through_configured_object_mapper() throws Exception {
+    void maps_complete_long_text_media_dates_and_source_through_configured_object_mapper()
+            throws Exception {
         Locale originalLocale = Locale.getDefault();
         Locale.setDefault(Locale.SIMPLIFIED_CHINESE);
         try {
             MblogResponse post = readPost();
-            PostEntity entity = postMapper.toPostEntity(post,
-                    longText("当前完整 HTML", "当前完整纯文本"),
-                    longText("转发完整 HTML", "转发完整纯文本"), 2000);
+            PostEntity entity =
+                    postMapper.toPostEntity(
+                            post,
+                            longText("当前完整 HTML", "当前完整纯文本"),
+                            longText("转发完整 HTML", "转发完整纯文本"),
+                            2000);
             PostRecord record = postMapper.toPostRecord(entity);
 
             assertThat(entity.getContent()).isEqualTo("当前完整 HTML");
             assertThat(entity.getContentRaw()).isEqualTo("当前完整纯文本");
             assertThat(entity.getSource()).isEqualTo("微博客户端");
             assertThat(entity.getCreatedAt()).isEqualTo(1783678735000L);
-            assertThat(record.pics()).singleElement().satisfies(pic -> {
-                assertThat(pic.pid()).isEqualTo("p1");
-                assertThat(pic.original().url()).isEqualTo("https://image/largest.jpg");
-                assertThat(pic.original().width()).isEqualTo(1200);
-            });
+            assertThat(record.pics())
+                    .singleElement()
+                    .satisfies(
+                            pic -> {
+                                assertThat(pic.pid()).isEqualTo("p1");
+                                assertThat(pic.original().url())
+                                        .isEqualTo("https://image/largest.jpg");
+                                assertThat(pic.original().width()).isEqualTo(1200);
+                            });
             assertThat(record.video().coverUrl()).isEqualTo("https://image/cover.jpg");
-            assertThat(record.video().pageUrl()).isEqualTo("https://video.weibo.com/show?fid=current");
+            assertThat(record.video().pageUrl())
+                    .isEqualTo("https://video.weibo.com/show?fid=current");
             assertThat(record.retweeted().content()).isEqualTo("转发完整 HTML");
             assertThat(record.retweeted().contentRaw()).isEqualTo("转发完整纯文本");
             assertThat(record.retweeted().createdAt()).isEqualTo(1783562400000L);
-            assertThat(record.retweeted().pics()).singleElement()
-                    .satisfies(pic -> assertThat(pic.original().url())
-                            .isEqualTo("https://image/retweeted-large.jpg"));
+            assertThat(record.retweeted().pics())
+                    .singleElement()
+                    .satisfies(
+                            pic ->
+                                    assertThat(pic.original().url())
+                                            .isEqualTo("https://image/retweeted-large.jpg"));
         } finally {
             Locale.setDefault(originalLocale);
         }
@@ -114,9 +126,12 @@ class PostMapperTest {
     void maps_blogger_and_local_query_view_to_controlled_media_urls() throws Exception {
         MblogResponse post = readPost();
         BloggerEntity blogger = postMapper.toBloggerEntity(post.user(), 2000);
-        PostEntity entity = postMapper.toPostEntity(post,
-                longText("当前完整 HTML", "当前完整纯文本"),
-                longText("转发完整 HTML", "转发完整纯文本"), 2000);
+        PostEntity entity =
+                postMapper.toPostEntity(
+                        post,
+                        longText("当前完整 HTML", "当前完整纯文本"),
+                        longText("转发完整 HTML", "转发完整纯文本"),
+                        2000);
 
         BloggerRecord bloggerRecord = postMapper.toBloggerRecord(blogger);
         List<PostView> views = postMapper.toPostViews(List.of(entity), List.of(blogger));
@@ -124,45 +139,87 @@ class PostMapperTest {
         assertThat(bloggerRecord.uid()).isEqualTo(1);
         assertThat(bloggerRecord.avatar()).isEqualTo("https://image/avatar.jpg");
         assertThat(bloggerRecord.verified()).isTrue();
-        assertThat(views).singleElement().satisfies(view -> {
-            assertThat(view.content()).isEqualTo("当前完整 HTML");
-            assertThat(view.postUrl()).isEqualTo("https://weibo.com/1/current-id");
-            assertThat(view.blogger()).isEqualTo(bloggerRecord);
-            assertThat(view.pics()).singleElement().satisfies(image -> {
-                assertThat(image.pid()).isEqualTo("p1");
-                assertThat(image.thumbnailWidth()).isEqualTo(80);
-                assertThat(image.originalWidth()).isEqualTo(1200);
-                assertThat(image.thumbnailUrl()).isEqualTo(
-                        "/post/image?mblogId=current-id&pid=p1&variant=thumbnail");
-                assertThat(image.originalUrl()).isEqualTo(
-                        "/post/image?mblogId=current-id&pid=p1&variant=original");
-            });
-            assertThat(view.video().coverUrl()).isEqualTo(
-                    "/post/videoCover?mblogId=current-id");
-            assertThat(view.video().pageUrl()).isEqualTo("https://video.weibo.com/show?fid=current");
-            assertThat(view.retweeted().contentRaw()).isEqualTo("转发完整纯文本");
-            assertThat(view.retweeted().pics()).singleElement().satisfies(image -> {
-                assertThat(image.thumbnailUrl()).isEqualTo(
-                        "/post/image?mblogId=current-id&pid=p2&variant=thumbnail");
-                assertThat(image.originalUrl()).isEqualTo(
-                        "/post/image?mblogId=current-id&pid=p2&variant=original");
-            });
-            assertThat(view.retweeted().video().coverUrl()).isEqualTo(
-                    "/post/videoCover?mblogId=current-id&retweeted=true");
-        });
+        assertThat(views)
+                .singleElement()
+                .satisfies(
+                        view -> {
+                            assertThat(view.content()).isEqualTo("当前完整 HTML");
+                            assertThat(view.postUrl()).isEqualTo("https://weibo.com/1/current-id");
+                            assertThat(view.blogger()).isEqualTo(bloggerRecord);
+                            assertThat(view.pics())
+                                    .singleElement()
+                                    .satisfies(
+                                            image -> {
+                                                assertThat(image.pid()).isEqualTo("p1");
+                                                assertThat(image.thumbnailWidth()).isEqualTo(80);
+                                                assertThat(image.originalWidth()).isEqualTo(1200);
+                                                assertThat(image.thumbnailUrl())
+                                                        .isEqualTo(
+                                                                "/post/image?mblogId=current-id"
+                                                                        + "&pid=p1"
+                                                                        + "&variant=thumbnail");
+                                                assertThat(image.originalUrl())
+                                                        .isEqualTo(
+                                                                "/post/image?mblogId=current-id"
+                                                                        + "&pid=p1"
+                                                                        + "&variant=original");
+                                            });
+                            assertThat(view.video().coverUrl())
+                                    .isEqualTo("/post/videoCover?mblogId=current-id");
+                            assertThat(view.video().pageUrl())
+                                    .isEqualTo("https://video.weibo.com/show?fid=current");
+                            assertThat(view.retweeted().contentRaw()).isEqualTo("转发完整纯文本");
+                            assertThat(view.retweeted().pics())
+                                    .singleElement()
+                                    .satisfies(
+                                            image -> {
+                                                assertThat(image.thumbnailUrl())
+                                                        .isEqualTo(
+                                                                "/post/image?mblogId=current-id"
+                                                                        + "&pid=p2"
+                                                                        + "&variant=thumbnail");
+                                                assertThat(image.originalUrl())
+                                                        .isEqualTo(
+                                                                "/post/image?mblogId=current-id"
+                                                                        + "&pid=p2"
+                                                                        + "&variant=original");
+                                            });
+                            assertThat(view.retweeted().video().coverUrl())
+                                    .isEqualTo(
+                                            "/post/videoCover?mblogId=current-id&retweeted=true");
+                        });
     }
 
     @Test
     void rejects_invalid_upstream_date() throws Exception {
         MblogResponse source = readPost();
-        MblogResponse invalid = new MblogResponse(source.id(), source.mblogId(), "not-a-date", source.text(),
-                source.textRaw(), source.source(), source.regionName(), source.isLongText(),
-                source.picNum(), source.repostsCount(), source.commentsCount(), source.attitudesCount(),
-                source.user(), source.picInfos(), source.pageInfo(), source.retweetedStatus(),
-                source.mixMediaInfo());
+        MblogResponse invalid =
+                new MblogResponse(
+                        source.id(),
+                        source.mblogId(),
+                        "not-a-date",
+                        source.text(),
+                        source.textRaw(),
+                        source.source(),
+                        source.regionName(),
+                        source.isLongText(),
+                        source.picNum(),
+                        source.repostsCount(),
+                        source.commentsCount(),
+                        source.attitudesCount(),
+                        source.user(),
+                        source.picInfos(),
+                        source.pageInfo(),
+                        source.retweetedStatus(),
+                        source.mixMediaInfo());
 
-        assertThatThrownBy(() -> postMapper.toPostEntity(invalid,
-                longText("全文", "纯文本"), longText("转发全文", "转发纯文本"), 2000))
+        assertThatThrownBy(
+                        () ->
+                                postMapper.toPostEntity(
+                                        invalid,
+                                        longText("全文", "纯文本"),
+                                        longText("转发全文", "转发纯文本"),
+                                        2000))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -171,16 +228,44 @@ class PostMapperTest {
         // 搜索接口返回的已删除原微博 created_at 可能为空字符串，
         // toPostEntity 经 toRetweetInfo 解析空串会抛 DateTimeParseException，中断整批历史同步
         MblogResponse source = readPost();
-        MblogResponse deleted = new MblogResponse(source.id(), source.mblogId(), "",
-                source.text(), source.textRaw(), source.source(), source.regionName(),
-                false, source.picNum(), source.repostsCount(), source.commentsCount(),
-                source.attitudesCount(), source.user(), source.picInfos(), source.pageInfo(),
-                null, null);
-        MblogResponse retweeting = new MblogResponse(source.id(), source.mblogId(),
-                source.createdAt(), source.text(), source.textRaw(), source.source(),
-                source.regionName(), false, source.picNum(), source.repostsCount(),
-                source.commentsCount(), source.attitudesCount(), source.user(),
-                source.picInfos(), source.pageInfo(), deleted, null);
+        MblogResponse deleted =
+                new MblogResponse(
+                        source.id(),
+                        source.mblogId(),
+                        "",
+                        source.text(),
+                        source.textRaw(),
+                        source.source(),
+                        source.regionName(),
+                        false,
+                        source.picNum(),
+                        source.repostsCount(),
+                        source.commentsCount(),
+                        source.attitudesCount(),
+                        source.user(),
+                        source.picInfos(),
+                        source.pageInfo(),
+                        null,
+                        null);
+        MblogResponse retweeting =
+                new MblogResponse(
+                        source.id(),
+                        source.mblogId(),
+                        source.createdAt(),
+                        source.text(),
+                        source.textRaw(),
+                        source.source(),
+                        source.regionName(),
+                        false,
+                        source.picNum(),
+                        source.repostsCount(),
+                        source.commentsCount(),
+                        source.attitudesCount(),
+                        source.user(),
+                        source.picInfos(),
+                        source.pageInfo(),
+                        deleted,
+                        null);
 
         PostEntity entity = postMapper.toPostEntity(retweeting, null, null, 2000);
         PostRecord record = postMapper.toPostRecord(entity);
@@ -190,13 +275,14 @@ class PostMapperTest {
 
     @Test
     void maps_only_media_bytes_and_content_type_with_binary_fallback() {
-        MediaBinary image = postMapper.toMediaBinary(ResponseEntity.ok()
-                .header("Content-Type", "image/png")
-                .header("Content-Disposition", "attachment; filename=secret.png")
-                .header("Set-Cookie", "secret=value")
-                .body(new byte[]{10, 20, 30}));
-        MediaBinary fallback = postMapper.toMediaBinary(
-                ResponseEntity.ok(new byte[]{40, 50}));
+        MediaBinary image =
+                postMapper.toMediaBinary(
+                        ResponseEntity.ok()
+                                .header("Content-Type", "image/png")
+                                .header("Content-Disposition", "attachment; filename=secret.png")
+                                .header("Set-Cookie", "secret=value")
+                                .body(new byte[] {10, 20, 30}));
+        MediaBinary fallback = postMapper.toMediaBinary(ResponseEntity.ok(new byte[] {40, 50}));
 
         assertThat(image.content()).containsExactly(10, 20, 30);
         assertThat(image.contentType()).isEqualTo("image/png");
@@ -206,52 +292,94 @@ class PostMapperTest {
 
     @SuppressWarnings("ExtractMethodRecommender")
     @Test
-    void chooses_captured_original_reference_by_largest_original_then_large_fallback() throws Exception {
+    void chooses_captured_original_reference_by_largest_original_then_large_fallback()
+            throws Exception {
         MblogResponse source = readPost();
         PicInfoResponse.ApiImage thumbnail = new PicInfoResponse.ApiImage("thumbnail", 1, 2);
         PicInfoResponse.ApiImage large = new PicInfoResponse.ApiImage("large", 3, 4);
         PicInfoResponse.ApiImage original = new PicInfoResponse.ApiImage("original", 5, 6);
         PicInfoResponse.ApiImage largest = new PicInfoResponse.ApiImage("largest", 7, 8);
-        MblogResponse post = new MblogResponse(source.id(), source.mblogId(), source.createdAt(),
-                source.text(), source.textRaw(), source.source(), source.regionName(), false,
-                3, source.repostsCount(), source.commentsCount(), source.attitudesCount(),
-                source.user(), Map.of(
-                        "largest", new PicInfoResponse(thumbnail, large, original, largest),
-                        "original", new PicInfoResponse(thumbnail, large, original, null),
-                        "large", new PicInfoResponse(thumbnail, large, null, null)),
-                source.pageInfo(), null, null);
+        MblogResponse post =
+                new MblogResponse(
+                        source.id(),
+                        source.mblogId(),
+                        source.createdAt(),
+                        source.text(),
+                        source.textRaw(),
+                        source.source(),
+                        source.regionName(),
+                        false,
+                        3,
+                        source.repostsCount(),
+                        source.commentsCount(),
+                        source.attitudesCount(),
+                        source.user(),
+                        Map.of(
+                                "largest", new PicInfoResponse(thumbnail, large, original, largest),
+                                "original", new PicInfoResponse(thumbnail, large, original, null),
+                                "large", new PicInfoResponse(thumbnail, large, null, null)),
+                        source.pageInfo(),
+                        null,
+                        null);
 
-        PostRecord record = postMapper.toPostRecord(
-                postMapper.toPostEntity(post, null, null, 2000));
+        PostRecord record =
+                postMapper.toPostRecord(postMapper.toPostEntity(post, null, null, 2000));
 
-        assertThat(record.pics()).anySatisfy(pic -> {
-            assertThat(pic.pid()).isEqualTo("largest");
-            assertThat(pic.original().url()).isEqualTo("largest");
-        }).anySatisfy(pic -> {
-            assertThat(pic.pid()).isEqualTo("original");
-            assertThat(pic.original().url()).isEqualTo("original");
-        }).anySatisfy(pic -> {
-            assertThat(pic.pid()).isEqualTo("large");
-            assertThat(pic.original().url()).isEqualTo("large");
-        });
+        assertThat(record.pics())
+                .anySatisfy(
+                        pic -> {
+                            assertThat(pic.pid()).isEqualTo("largest");
+                            assertThat(pic.original().url()).isEqualTo("largest");
+                        })
+                .anySatisfy(
+                        pic -> {
+                            assertThat(pic.pid()).isEqualTo("original");
+                            assertThat(pic.original().url()).isEqualTo("original");
+                        })
+                .anySatisfy(
+                        pic -> {
+                            assertThat(pic.pid()).isEqualTo("large");
+                            assertThat(pic.original().url()).isEqualTo("large");
+                        });
     }
 
     @Test
     void falls_back_to_mix_media_video_when_page_info_missing() throws Exception {
         // 混合发布（多视频、图文混合）的微博没有 page_info，视频在 mix_media_info.items 里
         MblogResponse source = readPost();
-        PageInfoResponse mixedVideo = new PageInfoResponse("https://image/mixed-cover.jpg", null,
-                new PageInfoResponse.ApiMediaInfo("https://video.weibo.com/show?fid=mixed", null));
-        MixMediaInfoResponse mixMediaInfo = new MixMediaInfoResponse(List.of(
-                new MixMediaInfoResponse.Item("image", null),
-                new MixMediaInfoResponse.Item("video", mixedVideo)));
-        MblogResponse post = new MblogResponse(source.id(), source.mblogId(), source.createdAt(),
-                source.text(), source.textRaw(), source.source(), source.regionName(), false,
-                0, source.repostsCount(), source.commentsCount(), source.attitudesCount(),
-                source.user(), null, null, null, mixMediaInfo);
+        PageInfoResponse mixedVideo =
+                new PageInfoResponse(
+                        "https://image/mixed-cover.jpg",
+                        null,
+                        new PageInfoResponse.ApiMediaInfo(
+                                "https://video.weibo.com/show?fid=mixed", null));
+        MixMediaInfoResponse mixMediaInfo =
+                new MixMediaInfoResponse(
+                        List.of(
+                                new MixMediaInfoResponse.Item("image", null),
+                                new MixMediaInfoResponse.Item("video", mixedVideo)));
+        MblogResponse post =
+                new MblogResponse(
+                        source.id(),
+                        source.mblogId(),
+                        source.createdAt(),
+                        source.text(),
+                        source.textRaw(),
+                        source.source(),
+                        source.regionName(),
+                        false,
+                        0,
+                        source.repostsCount(),
+                        source.commentsCount(),
+                        source.attitudesCount(),
+                        source.user(),
+                        null,
+                        null,
+                        null,
+                        mixMediaInfo);
 
-        PostRecord record = postMapper.toPostRecord(
-                postMapper.toPostEntity(post, null, null, 2000));
+        PostRecord record =
+                postMapper.toPostRecord(postMapper.toPostEntity(post, null, null, 2000));
 
         assertThat(record.video().coverUrl()).isEqualTo("https://image/mixed-cover.jpg");
         assertThat(record.video().pageUrl()).isEqualTo("https://video.weibo.com/show?fid=mixed");
@@ -260,35 +388,58 @@ class PostMapperTest {
     @Test
     void skips_posts_whose_blogger_metadata_is_missing_instead_of_throwing() {
         // posts.uid 没有匹配的 bloggers 行时，toPostViews 不应整体崩溃，而应跳过该条
-        PostEntity withBlogger = new PostEntity("m1", 100, 1, "", "", "", "",
-                "[]", "", "", "", 0, 0, 0, 100, 200);
-        PostEntity orphan = new PostEntity("m2", 101, 999, "", "", "", "",
-                "[]", "", "", "", 0, 0, 0, 100, 200);
+        PostEntity withBlogger =
+                new PostEntity("m1", 100, 1, "", "", "", "", "[]", "", "", "", 0, 0, 0, 100, 200);
+        PostEntity orphan =
+                new PostEntity("m2", 101, 999, "", "", "", "", "[]", "", "", "", 0, 0, 0, 100, 200);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 100, 200);
 
-        List<PostView> views = postMapper.toPostViews(List.of(withBlogger, orphan), List.of(blogger));
+        List<PostView> views =
+                postMapper.toPostViews(List.of(withBlogger, orphan), List.of(blogger));
 
-        assertThat(views).singleElement().satisfies(view -> {
-            assertThat(view.mblogId()).isEqualTo("m1");
-            assertThat(view.blogger().uid()).isEqualTo(1);
-        });
+        assertThat(views)
+                .singleElement()
+                .satisfies(
+                        view -> {
+                            assertThat(view.mblogId()).isEqualTo("m1");
+                            assertThat(view.blogger().uid()).isEqualTo(1);
+                        });
     }
 
     @Test
     void encodes_controlled_media_url_query_parameters() throws Exception {
-        String pictures = objectMapper.writeValueAsString(List.of(
-                new PicInfo("p 1&?", new MediaSize("thumbnail", 1, 2),
-                        new MediaSize("original", 3, 4))));
-        PostEntity entity = new PostEntity("m blog&?", 100, 1, "", "", "", "",
-                pictures, "cover", "video-page", "", 0, 0, 0, 100, 200);
+        String pictures =
+                objectMapper.writeValueAsString(
+                        List.of(
+                                new PicInfo(
+                                        "p 1&?",
+                                        new MediaSize("thumbnail", 1, 2),
+                                        new MediaSize("original", 3, 4))));
+        PostEntity entity =
+                new PostEntity(
+                        "m blog&?",
+                        100,
+                        1,
+                        "",
+                        "",
+                        "",
+                        "",
+                        pictures,
+                        "cover",
+                        "video-page",
+                        "",
+                        0,
+                        0,
+                        0,
+                        100,
+                        200);
         BloggerEntity blogger = new BloggerEntity(1L, "", "", "", 0, 0, 100, 200);
 
         PostView view = postMapper.toPostViews(List.of(entity), List.of(blogger)).getFirst();
 
-        assertThat(view.pics().getFirst().thumbnailUrl()).isEqualTo(
-                "/post/image?mblogId=m%20blog%26%3F&pid=p%201%26%3F&variant=thumbnail");
-        assertThat(view.video().coverUrl()).isEqualTo(
-                "/post/videoCover?mblogId=m%20blog%26%3F");
+        assertThat(view.pics().getFirst().thumbnailUrl())
+                .isEqualTo("/post/image?mblogId=m%20blog%26%3F&pid=p%201%26%3F&variant=thumbnail");
+        assertThat(view.video().coverUrl()).isEqualTo("/post/videoCover?mblogId=m%20blog%26%3F");
     }
 
     private MblogResponse readPost() throws Exception {
@@ -296,13 +447,14 @@ class PostMapperTest {
     }
 
     private MyBlogResponse readPage() throws Exception {
-        try (InputStream input = getClass().getResourceAsStream("/fixtures/blogger-blog-page.json")) {
+        try (InputStream input =
+                getClass().getResourceAsStream("/fixtures/blogger-blog-page.json")) {
             return objectMapper.readValue(input, MyBlogResponse.class);
         }
     }
 
     private LongTextResponse longText(String content, String contentRaw) {
-        return new LongTextResponse(new LongTextResponse.LongTextData(
-                content, contentRaw, false, null), 1);
+        return new LongTextResponse(
+                new LongTextResponse.LongTextData(content, contentRaw, false, null), 1);
     }
 }

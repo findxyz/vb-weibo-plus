@@ -1,5 +1,12 @@
 package xyz.fz.weibo.service;
 
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Locale;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -12,14 +19,6 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
-
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.UnknownHostException;
-import java.util.List;
-import java.util.Locale;
 
 @Service
 public class ImageProxyService {
@@ -34,17 +33,18 @@ public class ImageProxyService {
 
     public MediaBinary fetch(String url) {
         URI target = parseTarget(url);
+        @SuppressWarnings("PMD.LooseCoupling")
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.USER_AGENT, CURL_USER_AGENT);
         headers.setAccept(List.of(MediaType.ALL));
 
         ResponseEntity<byte[]> response;
         try {
-            response = restTemplate.exchange(
-                    target, HttpMethod.GET, new HttpEntity<Void>(headers), byte[].class);
+            response =
+                    restTemplate.exchange(
+                            target, HttpMethod.GET, new HttpEntity<Void>(headers), byte[].class);
         } catch (RestClientException e) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_GATEWAY, "图片获取失败。", e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "图片获取失败。", e);
         }
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new ResponseStatusException(
@@ -54,9 +54,11 @@ public class ImageProxyService {
 
         byte[] content = response.getBody() == null ? new byte[0] : response.getBody();
         MediaType contentType = response.getHeaders().getContentType();
-        return new MediaBinary(content, contentType == null
-                ? MediaType.APPLICATION_OCTET_STREAM_VALUE
-                : contentType.toString());
+        return new MediaBinary(
+                content,
+                contentType == null
+                        ? MediaType.APPLICATION_OCTET_STREAM_VALUE
+                        : contentType.toString());
     }
 
     private URI parseTarget(String url) {
@@ -68,13 +70,13 @@ public class ImageProxyService {
         try {
             target = new URI(url);
         } catch (URISyntaxException e) {
-            throw new InvalidRequestException("图片 URL 格式不正确。");
+            throw new InvalidRequestException("图片 URL 格式不正确。", e);
         }
 
         String scheme = target.getScheme();
         if (scheme == null
-                || !(scheme.toLowerCase(Locale.ROOT).equals("http")
-                || scheme.toLowerCase(Locale.ROOT).equals("https"))) {
+                || !("http".equals(scheme.toLowerCase(Locale.ROOT))
+                        || "https".equals(scheme.toLowerCase(Locale.ROOT)))) {
             throw new InvalidRequestException("图片 URL 仅支持 HTTP 或 HTTPS。");
         }
         if (target.getHost() == null || target.getUserInfo() != null) {
@@ -89,7 +91,7 @@ public class ImageProxyService {
         try {
             addresses = InetAddress.getAllByName(host);
         } catch (UnknownHostException e) {
-            throw new InvalidRequestException("图片地址无法解析。");
+            throw new InvalidRequestException("图片地址无法解析。", e);
         }
 
         for (InetAddress address : addresses) {
@@ -105,7 +107,6 @@ public class ImageProxyService {
     }
 
     private boolean isUniqueLocalIpv6(InetAddress address) {
-        return address instanceof Inet6Address
-                && (address.getAddress()[0] & 0xfe) == 0xfc;
+        return address instanceof Inet6Address && (address.getAddress()[0] & 0xfe) == 0xfc;
     }
 }

@@ -1,17 +1,15 @@
 package xyz.fz.weibo.client;
 
-import xyz.fz.weibo.client.exception.WeiboException;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import xyz.fz.weibo.client.exception.WeiboException;
 
 /**
  * MD5 摘要工具：群聊媒体上传（图片、视频封面与分片）统一使用。
  */
 public final class DigestUtils {
 
-    private DigestUtils() {
-    }
+    private DigestUtils() {}
 
     public static String md5Hex(byte[] bytes) {
         try {

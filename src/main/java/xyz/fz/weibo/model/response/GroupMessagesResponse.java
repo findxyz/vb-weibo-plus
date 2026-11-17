@@ -3,21 +3,15 @@ package xyz.fz.weibo.model.response;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
-
 import java.util.List;
 
 /**
  * 群聊消息响应。
  */
-public record GroupMessagesResponse(
-        boolean result,
-        List<Message> messages,
-        long ts
-) {
+public record GroupMessagesResponse(boolean result, List<Message> messages, long ts) {
 
     public record Message(
-            @JsonAlias("idstr")
-            Long id,
+            @JsonAlias("idstr") Long id,
             Long gid,
             int type,
             @JsonProperty("from_uid") Long fromUid,
@@ -36,24 +30,17 @@ public record GroupMessagesResponse(
             JsonNode data,
             @JsonProperty("recall_mids") JsonNode recallMids,
             @JsonProperty("recall_by") String recallBy,
-            @JsonProperty("attitude_info") AttitudeInfo attitudeInfo
-    ) {
-    }
+            @JsonProperty("attitude_info") AttitudeInfo attitudeInfo) {}
 
     /** 消息表态快照：attitudes 为该消息当前全部表态，非增量。 */
-    public record AttitudeInfo(@JsonProperty("attitudes") List<Attitude> attitudes) {
-    }
+    public record AttitudeInfo(@JsonProperty("attitudes") List<Attitude> attitudes) {}
 
-    public record Attitude(String name, int count, int selected) {
-    }
+    public record Attitude(String name, int count, int selected) {}
 
     public record Sender(
             Long id,
             @JsonProperty("screen_name") String screenName,
-            @JsonProperty("avatar_large") String avatarLarge
-    ) {
-    }
+            @JsonProperty("avatar_large") String avatarLarge) {}
 
-    public record Annotations(@JsonProperty("video_pic_fid") String videoPicFid) {
-    }
+    public record Annotations(@JsonProperty("video_pic_fid") String videoPicFid) {}
 }

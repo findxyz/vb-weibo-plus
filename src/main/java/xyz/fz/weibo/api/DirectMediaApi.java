@@ -1,11 +1,10 @@
 package xyz.fz.weibo.api;
 
+import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboHttpClient;
-
-import java.util.Map;
 
 /**
  * 图床 / 视频直链下载接口。

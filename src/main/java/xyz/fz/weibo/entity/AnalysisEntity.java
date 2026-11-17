@@ -34,10 +34,10 @@ public class AnalysisEntity {
     @Column(name = "created_at", nullable = false)
     private long createdAt;
 
-    protected AnalysisEntity() {
-    }
+    protected AnalysisEntity() {}
 
-    public AnalysisEntity(long gid, long date, String prompt, String result, int messageCount, long createdAt) {
+    public AnalysisEntity(
+            long gid, long date, String prompt, String result, int messageCount, long createdAt) {
         this.gid = gid;
         this.date = date;
         this.prompt = prompt;

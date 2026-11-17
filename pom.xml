@@ -225,7 +225,7 @@
                             <skipPmdError>false</skipPmdError>
                             <linkXRef>false</linkXRef>
                             <rulesets>
-                                <ruleset>category/java/bestpractices.xml</ruleset>
+                                <ruleset>config/pmd.xml</ruleset>
                             </rulesets>
                             <printFailingErrors>true</printFailingErrors>
                         </configuration>

@@ -1,5 +1,7 @@
 package xyz.fz.weibo.ui;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
@@ -7,11 +9,6 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -20,8 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
-
-import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 class GroupChatPageTest {
     private static HttpServer server;
@@ -30,38 +29,58 @@ class GroupChatPageTest {
     private static String baseUrl;
 
     @BeforeAll
+    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     static void startBrowserAndServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.setExecutor(Executors.newFixedThreadPool(4, runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setDaemon(true);
-            return thread;
-        }));
-        server.createContext("/chat/groups", exchange -> sendJson(exchange, """
-                [{"gid":101,"name":"打包资源群","memberCount":10,"maxMember":50,"admins":[],"messageCount":2}]
-                """));
-        server.createContext("/chat/messages/cursor", exchange -> {
-            sendJson(exchange, """
-                    {"items":[{"mid":1,"gid":101,"senderId":1,"senderName":"成员","text":"较早消息",
-                    "msgType":1,"createdAt":1785889800000,"savedAt":1785889800000},
-                    {"mid":2,"gid":101,"senderId":2,"senderName":"成员","text":"打包后的消息",
-                    "msgType":1,"createdAt":1785889860000,"savedAt":1785889860000}],"hasMore":false,"size":50}
-                    """);
-        });
-        server.createContext("/chat/analyses", exchange -> {
-            if (exchange.getRequestURI().getPath().equals("/chat/analyses/1")) {
-                sendJson(exchange, """
-                        {"id":1,"gid":101,"date":"2026-10-18","prompt":"打包分析",
-                        "result":"## 打包分析\\n\\n- 要点","messageCount":2,"createdAt":"2026-10-18 10:00"}
-                        """);
-            } else {
-                sendJson(exchange, """
-                        {"items":[{"id":1,"date":"2026-10-18","promptPreview":"打包分析",
-                        "messageCount":2,"createdAt":"2026-10-18 10:00"}],"page":1,"size":20,"total":1}
-                        """);
-            }
-        });
-        server.createContext("/weibo/login/status", exchange -> sendJson(exchange, "{\"valid\":true}"));
+        server.setExecutor(
+                Executors.newFixedThreadPool(
+                        4,
+                        runnable -> {
+                            Thread thread = new Thread(runnable);
+                            thread.setDaemon(true);
+                            return thread;
+                        }));
+        server.createContext(
+                "/chat/groups",
+                exchange ->
+                        sendJson(
+                                exchange,
+                                """
+                                [{"gid":101,"name":"打包资源群","memberCount":10,"maxMember":50,"admins":[],"messageCount":2}]
+                                """));
+        server.createContext(
+                "/chat/messages/cursor",
+                exchange -> {
+                    sendJson(
+                            exchange,
+                            """
+                            {"items":[{"mid":1,"gid":101,"senderId":1,"senderName":"成员","text":"较早消息",
+                            "msgType":1,"createdAt":1785889800000,"savedAt":1785889800000},
+                            {"mid":2,"gid":101,"senderId":2,"senderName":"成员","text":"打包后的消息",
+                            "msgType":1,"createdAt":1785889860000,"savedAt":1785889860000}],"hasMore":false,"size":50}
+                            """);
+                });
+        server.createContext(
+                "/chat/analyses",
+                exchange -> {
+                    if ("/chat/analyses/1".equals(exchange.getRequestURI().getPath())) {
+                        sendJson(
+                                exchange,
+                                """
+                                {"id":1,"gid":101,"date":"2026-10-18","prompt":"打包分析",
+                                "result":"## 打包分析\\n\\n- 要点","messageCount":2,"createdAt":"2026-10-18 10:00"}
+                                """);
+                    } else {
+                        sendJson(
+                                exchange,
+                                """
+                                {"items":[{"id":1,"date":"2026-10-18","promptPreview":"打包分析",
+                                "messageCount":2,"createdAt":"2026-10-18 10:00"}],"page":1,"size":20,"total":1}
+                                """);
+                    }
+                });
+        server.createContext(
+                "/weibo/login/status", exchange -> sendJson(exchange, "{\"valid\":true}"));
         server.createContext("/", GroupChatPageTest::sendStaticResource);
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -87,26 +106,29 @@ class GroupChatPageTest {
         try (Page page = browser.newPage()) {
             List<String> errors = new ArrayList<>();
             page.onPageError(errors::add);
-            page.onResponse(response -> {
-                if (response.url().contains("/assets/")) {
-                    String mime = response.headers().getOrDefault("content-type", "");
-                    if (response.status() != 200) {
-                        errors.add(response.url());
-                    }
-                    if (response.url().endsWith(".js") && !mime.contains("javascript")) {
-                        errors.add(mime);
-                    }
-                    if (response.url().endsWith(".css") && !mime.startsWith("text/css")) {
-                        errors.add(mime);
-                    }
-                }
-            });
-            Assertions.assertThat(page.navigate(baseUrl + "/chat/index.html").status()).isEqualTo(200);
+            page.onResponse(
+                    response -> {
+                        if (response.url().contains("/assets/")) {
+                            String mime = response.headers().getOrDefault("content-type", "");
+                            if (response.status() != 200) {
+                                errors.add(response.url());
+                            }
+                            if (response.url().endsWith(".js") && !mime.contains("javascript")) {
+                                errors.add(mime);
+                            }
+                            if (response.url().endsWith(".css") && !mime.startsWith("text/css")) {
+                                errors.add(mime);
+                            }
+                        }
+                    });
+            Assertions.assertThat(page.navigate(baseUrl + "/chat/index.html").status())
+                    .isEqualTo(200);
             assertThat(page.locator("h1")).hasText("微博群聊 - 打包资源群");
             assertThat(page.locator(".messages .message")).hasCount(2);
             assertThat(page.locator(".messages .message").first()).containsText("较早消息");
             assertThat(page.locator(".messages .message").last()).containsText("打包后的消息");
-            assertThat(page.locator("script[type='module']")).hasAttribute("src", Pattern.compile("/assets/.*\\.js"));
+            assertThat(page.locator("script[type='module']"))
+                    .hasAttribute("src", Pattern.compile("/assets/.*\\.js"));
             page.reload();
             assertThat(page.locator(".messages")).containsText("打包后的消息");
             Assertions.assertThat(errors).isEmpty();
@@ -116,10 +138,22 @@ class GroupChatPageTest {
     @Test
     void preview_and_legacy_runtime_resources_are_absent_from_the_classpath() {
         try (Page page = browser.newPage()) {
-            for (String path : List.of("/preview/chat/index.html", "/preview/post/index.html", "/chat/chat.js",
-                    "/chat/chat.css", "/chat/message-view.js", "/chat/weibo-emoji.js", "/chat/marked.min.js",
-                    "/shared/date.js", "/shared/linkify.js", "/shared/storage-keys.js", "/shared/dompurify.min.js")) {
-                Assertions.assertThat(page.request().get(baseUrl + path).status()).as(path).isEqualTo(404);
+            for (String path :
+                    List.of(
+                            "/preview/chat/index.html",
+                            "/preview/post/index.html",
+                            "/chat/chat.js",
+                            "/chat/chat.css",
+                            "/chat/message-view.js",
+                            "/chat/weibo-emoji.js",
+                            "/chat/marked.min.js",
+                            "/shared/date.js",
+                            "/shared/linkify.js",
+                            "/shared/storage-keys.js",
+                            "/shared/dompurify.min.js")) {
+                Assertions.assertThat(page.request().get(baseUrl + path).status())
+                        .as(path)
+                        .isEqualTo(404);
             }
         }
     }
@@ -130,7 +164,8 @@ class GroupChatPageTest {
             var icon = page.request().get(baseUrl + "/favicon.svg");
             Assertions.assertThat(icon.status()).isEqualTo(200);
             Assertions.assertThat(icon.headers().get("content-type")).contains("image/svg+xml");
-            Assertions.assertThat(page.request().get(baseUrl + "/favicon.ico").status()).isEqualTo(200);
+            Assertions.assertThat(page.request().get(baseUrl + "/favicon.ico").status())
+                    .isEqualTo(200);
             var dream = page.request().get(baseUrl + "/chat/dream/1176117365.html");
             Assertions.assertThat(dream.status()).isEqualTo(200);
             Assertions.assertThat(dream.text()).contains("<canvas");
@@ -153,7 +188,8 @@ class GroupChatPageTest {
     }
 
     private static void sendJson(HttpExchange exchange, String json) throws IOException {
-        sendBody(exchange, json.getBytes(StandardCharsets.UTF_8), "application/json; charset=UTF-8");
+        sendBody(
+                exchange, json.getBytes(StandardCharsets.UTF_8), "application/json; charset=UTF-8");
     }
 
     private static void sendStaticResource(HttpExchange exchange) throws IOException {
@@ -164,15 +200,22 @@ class GroupChatPageTest {
                 exchange.close();
                 return;
             }
-            String mime = path.endsWith(".js") ? "text/javascript; charset=UTF-8"
-                    : path.endsWith(".css") ? "text/css; charset=UTF-8"
-                    : path.endsWith(".svg") ? "image/svg+xml"
-                    : path.endsWith(".html") ? "text/html; charset=UTF-8" : "application/octet-stream";
+            String mime =
+                    path.endsWith(".js")
+                            ? "text/javascript; charset=UTF-8"
+                            : path.endsWith(".css")
+                                    ? "text/css; charset=UTF-8"
+                                    : path.endsWith(".svg")
+                                            ? "image/svg+xml"
+                                            : path.endsWith(".html")
+                                                    ? "text/html; charset=UTF-8"
+                                                    : "application/octet-stream";
             sendBody(exchange, input.readAllBytes(), mime);
         }
     }
 
-    private static void sendBody(HttpExchange exchange, byte[] body, String mime) throws IOException {
+    private static void sendBody(HttpExchange exchange, byte[] body, String mime)
+            throws IOException {
         exchange.getResponseHeaders().set("Content-Type", mime);
         exchange.sendResponseHeaders(200, body.length);
         exchange.getResponseBody().write(body);

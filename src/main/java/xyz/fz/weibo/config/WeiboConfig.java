@@ -19,12 +19,16 @@ public class WeiboConfig {
 
     @Bean
     public CloseableHttpClient httpClient() {
-        return HttpClientBuilder.create().disableRedirectHandling().disableAutomaticRetries().build();
+        return HttpClientBuilder.create()
+                .disableRedirectHandling()
+                .disableAutomaticRetries()
+                .build();
     }
 
     @Bean
     public RestTemplate restTemplate(CloseableHttpClient httpClient) {
-        RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
+        RestTemplate restTemplate =
+                new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
         restTemplate.setErrorHandler(new NoOpResponseErrorHandler());
         return restTemplate;
     }
@@ -32,19 +36,22 @@ public class WeiboConfig {
     @Bean
     public RestTemplate aiRestTemplate(
             @Value("${weibo.ai.timeout-seconds:120}") int timeoutSeconds) {
-        ConnectionConfig connectionConfig = ConnectionConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(10))
-                .build();
-        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+        ConnectionConfig connectionConfig =
+                ConnectionConfig.custom().setConnectTimeout(Timeout.ofSeconds(10)).build();
+        PoolingHttpClientConnectionManager connectionManager =
+                new PoolingHttpClientConnectionManager();
         connectionManager.setDefaultConnectionConfig(connectionConfig);
-        RequestConfig requestConfig = RequestConfig.custom()
-                .setResponseTimeout(Timeout.ofSeconds(timeoutSeconds))
-                .build();
-        CloseableHttpClient httpClient = HttpClientBuilder.create()
-                .setConnectionManager(connectionManager)
-                .setDefaultRequestConfig(requestConfig)
-                .build();
-        RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
+        RequestConfig requestConfig =
+                RequestConfig.custom()
+                        .setResponseTimeout(Timeout.ofSeconds(timeoutSeconds))
+                        .build();
+        CloseableHttpClient httpClient =
+                HttpClientBuilder.create()
+                        .setConnectionManager(connectionManager)
+                        .setDefaultRequestConfig(requestConfig)
+                        .build();
+        RestTemplate restTemplate =
+                new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
         restTemplate.setErrorHandler(new NoOpResponseErrorHandler());
         return restTemplate;
     }

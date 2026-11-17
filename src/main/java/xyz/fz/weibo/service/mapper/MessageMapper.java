@@ -5,6 +5,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -18,33 +22,34 @@ import xyz.fz.weibo.entity.MessageEntity;
 import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-
 @Component
 public class MessageMapper {
 
-    private static final TypeReference<List<Long>> ADMINS_TYPE = new TypeReference<>() {
-    };
-    private static final TypeReference<List<Map<String, Object>>> OBJECT_LIST_TYPE = new TypeReference<>() {
-    };
-    private static final TypeReference<Map<String, Object>> OBJECT_MAP_TYPE = new TypeReference<>() {
-    };
-    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
-    };
-    private static final Map<Integer, String> MESSAGE_TYPE_NAMES = Map.ofEntries(
-            Map.entry(100, "微博分享"), Map.entry(320, "邀请入群"),
-            Map.entry(321, "普通消息"), Map.entry(322, "新人入群"),
-            Map.entry(323, "退群"), Map.entry(324, "被踢出群"),
-            Map.entry(325, "群名修改"), Map.entry(327, "群主转让"),
-            Map.entry(331, "消息撤回"), Map.entry(332, "协议同步"),
-            Map.entry(333, "免打扰变更"), Map.entry(335, "群信息更新"),
-            Map.entry(337, "管理员变更"), Map.entry(421, "入群申请"),
-            Map.entry(429, "被移出群"), Map.entry(499, "群通知"),
-            Map.entry(9999, "态度更新")
-    );
+    private static final TypeReference<List<Long>> ADMINS_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<Map<String, Object>>> OBJECT_LIST_TYPE =
+            new TypeReference<>() {};
+    private static final TypeReference<Map<String, Object>> OBJECT_MAP_TYPE =
+            new TypeReference<>() {};
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {};
+    private static final Map<Integer, String> MESSAGE_TYPE_NAMES =
+            Map.ofEntries(
+                    Map.entry(100, "微博分享"),
+                    Map.entry(320, "邀请入群"),
+                    Map.entry(321, "普通消息"),
+                    Map.entry(322, "新人入群"),
+                    Map.entry(323, "退群"),
+                    Map.entry(324, "被踢出群"),
+                    Map.entry(325, "群名修改"),
+                    Map.entry(327, "群主转让"),
+                    Map.entry(331, "消息撤回"),
+                    Map.entry(332, "协议同步"),
+                    Map.entry(333, "免打扰变更"),
+                    Map.entry(335, "群信息更新"),
+                    Map.entry(337, "管理员变更"),
+                    Map.entry(421, "入群申请"),
+                    Map.entry(429, "被移出群"),
+                    Map.entry(499, "群通知"),
+                    Map.entry(9999, "态度更新"));
 
     private final ObjectMapper objectMapper;
 
@@ -52,7 +57,8 @@ public class MessageMapper {
         this.objectMapper = objectMapper;
     }
 
-    public List<GroupEntity> toGroupEntities(List<GroupListResponse.Contact> contacts, long capturedAt) {
+    public List<GroupEntity> toGroupEntities(
+            List<GroupListResponse.Contact> contacts, long capturedAt) {
         return contacts.stream()
                 .filter(Objects::nonNull)
                 .map(GroupListResponse.Contact::user)
@@ -64,16 +70,33 @@ public class MessageMapper {
 
     public GroupEntity toGroupEntity(GroupListResponse.GroupUser user, long capturedAt) {
         Objects.requireNonNull(user.id(), "Group gid is required");
-        return new GroupEntity(user.id(), emptyIfNull(user.name()), emptyIfNull(user.avatarLarge()),
-                user.memberCount(), user.maxMemberCount(), user.creator() == null ? 0 : user.creator(),
-                writeAdmins(user.admins()), emptyIfNull(user.summary()), user.groupType(),
-                0, 0, capturedAt, capturedAt);
+        return new GroupEntity(
+                user.id(),
+                emptyIfNull(user.name()),
+                emptyIfNull(user.avatarLarge()),
+                user.memberCount(),
+                user.maxMemberCount(),
+                user.creator() == null ? 0 : user.creator(),
+                writeAdmins(user.admins()),
+                emptyIfNull(user.summary()),
+                user.groupType(),
+                0,
+                0,
+                capturedAt,
+                capturedAt);
     }
 
     public GroupRecord toGroupRecord(GroupEntity entity) {
-        return new GroupRecord(entity.getGid(), entity.getName(), entity.getAvatar(),
-                entity.getMemberCount(), entity.getMaxMember(), entity.getOwnerId(),
-                readAdmins(entity.getAdminsJson()), entity.getSummary(), entity.getGroupType());
+        return new GroupRecord(
+                entity.getGid(),
+                entity.getName(),
+                entity.getAvatar(),
+                entity.getMemberCount(),
+                entity.getMaxMember(),
+                entity.getOwnerId(),
+                readAdmins(entity.getAdminsJson()),
+                entity.getSummary(),
+                entity.getGroupType());
     }
 
     public List<GroupRecord> toGroupRecords(List<GroupEntity> entities) {
@@ -84,8 +107,8 @@ public class MessageMapper {
         return new GroupRecord(gid, "", "", 0, 0, 0, List.of(), "", 0);
     }
 
-    public Optional<MessageEntity> toMessageEntity(GroupMessagesResponse.Message message,
-                                                    long defaultGid, long capturedAt) {
+    public Optional<MessageEntity> toMessageEntity(
+            GroupMessagesResponse.Message message, long defaultGid, long capturedAt) {
         Objects.requireNonNull(message, "Group Message is required");
         if (message.type() == 332 || message.type() == 9999) {
             return Optional.empty();
@@ -93,9 +116,10 @@ public class MessageMapper {
         Objects.requireNonNull(message.id(), "Group Message mid is required");
         long gid = message.gid() == null ? defaultGid : message.gid();
         GroupMessagesResponse.Sender sender = message.fromUser();
-        long senderId = sender != null && sender.id() != null
-                ? sender.id()
-                : message.fromUid() == null ? 0 : message.fromUid();
+        long senderId =
+                sender != null && sender.id() != null
+                        ? sender.id()
+                        : message.fromUid() == null ? 0 : message.fromUid();
         String senderName = sender == null ? "" : emptyIfNull(sender.screenName());
         String senderAvatar = sender == null ? "" : emptyIfNull(sender.avatarLarge());
         int senderAvatarQuery = senderAvatar.indexOf('?');
@@ -103,39 +127,65 @@ public class MessageMapper {
             senderAvatar = senderAvatar.substring(0, senderAvatarQuery);
         }
         String fid = firstFid(message);
-        String videoCoverFid = message.annotations() == null
-                ? ""
-                : emptyIfNull(message.annotations().videoPicFid());
+        String videoCoverFid =
+                message.annotations() == null
+                        ? ""
+                        : emptyIfNull(message.annotations().videoPicFid());
         JsonNode templateData = objectNodeOrDefault(message.templateData(), message.data());
         JsonNode recallMids = recallMids(message);
         String recallBy = recallBy(message, senderName);
         long createdAt = toMessageTimestamp(message);
-        return Optional.of(new MessageEntity(message.id(), gid, message.type(),
-                messageTypeName(message.type()), message.mediaType(), senderId, senderName,
-                senderAvatar, emptyIfNull(message.content()), fid, videoCoverFid,
-                emptyIfNull(message.mediaOrigUrl()), writeJson(arrayNode(message.urlObjects())),
-                writeJson(arrayNode(message.picInfos())), emptyIfNull(message.template()),
-                writeJson(templateData), writeJson(recallMids), recallBy, createdAt, capturedAt));
+        return Optional.of(
+                new MessageEntity(
+                        message.id(),
+                        gid,
+                        message.type(),
+                        messageTypeName(message.type()),
+                        message.mediaType(),
+                        senderId,
+                        senderName,
+                        senderAvatar,
+                        emptyIfNull(message.content()),
+                        fid,
+                        videoCoverFid,
+                        emptyIfNull(message.mediaOrigUrl()),
+                        writeJson(arrayNode(message.urlObjects())),
+                        writeJson(arrayNode(message.picInfos())),
+                        emptyIfNull(message.template()),
+                        writeJson(templateData),
+                        writeJson(recallMids),
+                        recallBy,
+                        createdAt,
+                        capturedAt));
     }
 
     public long toMessageTimestamp(GroupMessagesResponse.Message message) {
         Objects.requireNonNull(message, "Group Message is required");
-        return message.time() < 1_000_000_000_000L
-                ? message.time() * 1_000L
-                : message.time();
+        return message.time() < 1_000_000_000_000L ? message.time() * 1_000L : message.time();
     }
 
     public MessageRecord toMessageRecord(MessageEntity entity) {
-        return new MessageRecord(entity.getMid(), entity.getGid(), entity.getMsgType(),
-                entity.getMsgTypeName(), entity.getMediaType(), entity.getSenderId(),
-                entity.getSenderName(), entity.getSenderAvatar(), entity.getText(), entity.getFid(),
-                entity.getVideoCoverFid(), entity.getMediaOrigUrl(),
+        return new MessageRecord(
+                entity.getMid(),
+                entity.getGid(),
+                entity.getMsgType(),
+                entity.getMsgTypeName(),
+                entity.getMediaType(),
+                entity.getSenderId(),
+                entity.getSenderName(),
+                entity.getSenderAvatar(),
+                entity.getText(),
+                entity.getFid(),
+                entity.getVideoCoverFid(),
+                entity.getMediaOrigUrl(),
                 readJson(entity.getUrlObjectsJson(), OBJECT_LIST_TYPE, List.of()),
                 readJson(entity.getPicInfosJson(), OBJECT_LIST_TYPE, List.of()),
                 entity.getTemplate(),
                 readJson(entity.getTemplateDataJson(), OBJECT_MAP_TYPE, Map.of()),
                 readJson(entity.getRecallMidsJson(), STRING_LIST_TYPE, List.of()),
-                entity.getRecallBy(), entity.getCreatedAt(), entity.getSavedAt());
+                entity.getRecallBy(),
+                entity.getCreatedAt(),
+                entity.getSavedAt());
     }
 
     public List<MessageView> toMessageViews(List<MessageEntity> entities) {
@@ -151,8 +201,9 @@ public class MessageMapper {
     }
 
     public MediaBinary toMediaBinary(ResponseEntity<byte[]> response) {
-        byte[] content = Objects.requireNonNull(
-                response.getBody(), "Group Message media response body is required");
+        byte[] content =
+                Objects.requireNonNull(
+                        response.getBody(), "Group Message media response body is required");
         String contentType = response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
         if (contentType == null || contentType.isBlank()) {
             contentType = "application/octet-stream";
@@ -184,11 +235,28 @@ public class MessageMapper {
                 originalUrl = stickerUrl;
             }
         }
-        return new MessageView(record.mid(), record.gid(), record.msgType(), record.msgTypeName(),
-                record.mediaType(), record.senderId(), record.senderName(), record.senderAvatar(), record.text(),
-                record.urlObjects(), record.picInfos(), record.template(), record.templateData(),
-                record.recallMids(), record.recallBy(), record.createdAt(), record.savedAt(),
-                previewUrl, originalUrl, videoUrl, fileUrl);
+        return new MessageView(
+                record.mid(),
+                record.gid(),
+                record.msgType(),
+                record.msgTypeName(),
+                record.mediaType(),
+                record.senderId(),
+                record.senderName(),
+                record.senderAvatar(),
+                record.text(),
+                record.urlObjects(),
+                record.picInfos(),
+                record.template(),
+                record.templateData(),
+                record.recallMids(),
+                record.recallBy(),
+                record.createdAt(),
+                record.savedAt(),
+                previewUrl,
+                originalUrl,
+                videoUrl,
+                fileUrl);
     }
 
     private String firstPicOriginalUrl(List<Map<String, Object>> picInfos) {

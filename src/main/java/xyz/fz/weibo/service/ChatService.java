@@ -1,13 +1,28 @@
 package xyz.fz.weibo.service;
 
+import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.HtmlUtils;
@@ -30,42 +45,26 @@ import xyz.fz.weibo.domain.MessageView;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.entity.GroupEntity;
 import xyz.fz.weibo.entity.MessageEntity;
-import xyz.fz.weibo.model.request.GroupMessagesRequest;
-import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.GroupMediaRequest;
-import xyz.fz.weibo.model.request.GroupSendMessageRequest;
-import xyz.fz.weibo.model.request.GroupSendImageRequest;
-import xyz.fz.weibo.model.request.GroupSendVideoRequest;
 import xyz.fz.weibo.model.request.GroupMediaUploadInitRequest;
+import xyz.fz.weibo.model.request.GroupMessagesRequest;
+import xyz.fz.weibo.model.request.GroupSendImageRequest;
+import xyz.fz.weibo.model.request.GroupSendMessageRequest;
+import xyz.fz.weibo.model.request.GroupSendVideoRequest;
 import xyz.fz.weibo.model.request.GroupVideoInitRequest;
+import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
-import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
 import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
+import xyz.fz.weibo.model.response.GroupMessagesResponse;
+import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 import xyz.fz.weibo.model.response.GroupVideoUploadInitResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
-import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
-
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Predicate;
 
 @Service
 public class ChatService {
@@ -76,6 +75,7 @@ public class ChatService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final long MAX_IMAGE_SIZE = 20L * 1024 * 1024;
     private static final long MAX_VIDEO_SIZE = 100L * 1024 * 1024;
+
     /** 实时表态最多向回翻的时间线页数，防止老消息把上游请求拖到失控。 */
     private static final int MAX_ATTITUDE_PAGES = 10;
 
@@ -91,11 +91,17 @@ public class ChatService {
     private final LongTextApi longTextApi;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
 
-    public ChatService(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi,
-                       GroupMediaApi groupMediaApi, MessageMapper messageMapper,
-                       GroupRepository groupRepository, MessageRepository messageRepository,
-                       HeicConverter heicConverter, VideoProbe videoProbe,
-                       GroupPushApi pushApi, LongTextApi longTextApi) {
+    public ChatService(
+            GroupListApi groupListApi,
+            GroupMessagesApi groupMessagesApi,
+            GroupMediaApi groupMediaApi,
+            MessageMapper messageMapper,
+            GroupRepository groupRepository,
+            MessageRepository messageRepository,
+            HeicConverter heicConverter,
+            VideoProbe videoProbe,
+            GroupPushApi pushApi,
+            LongTextApi longTextApi) {
         this.groupListApi = groupListApi;
         this.groupMessagesApi = groupMessagesApi;
         this.groupMediaApi = groupMediaApi;
@@ -121,11 +127,11 @@ public class ChatService {
         if (response == null || response.contacts() == null) {
             throw new WeiboException("群列表响应缺少 contacts。", -1);
         }
-        List<GroupEntity> groups = messageMapper.toGroupEntities(
-                response.contacts(), System.currentTimeMillis());
+        List<GroupEntity> groups =
+                messageMapper.toGroupEntities(response.contacts(), System.currentTimeMillis());
         groups.forEach(groupRepository::upsertMetadata);
         List<GroupRecord> result = queryGroups();
-        log.info("群列表同步完成：共 {} 个群。", result.size());
+        log.atInfo().addArgument(result::size).log("群列表同步完成：共 {} 个群。");
         return result;
     }
 
@@ -135,11 +141,12 @@ public class ChatService {
 
     public List<GroupListView> queryGroupList() {
         List<GroupEntity> groups = groupRepository.findAllOrdered();
-        List<Long> latestMids = groups.stream()
-                .map(GroupEntity::getMaxMid)
-                .filter(mid -> mid > 0)
-                .distinct()
-                .toList();
+        List<Long> latestMids =
+                groups.stream()
+                        .map(GroupEntity::getMaxMid)
+                        .filter(mid -> mid > 0)
+                        .distinct()
+                        .toList();
         Map<Long, MessageRecord> latestMessages = new HashMap<>();
         if (!latestMids.isEmpty()) {
             messageRepository.findAllById(latestMids).stream()
@@ -149,12 +156,17 @@ public class ChatService {
         List<Long> gids = groups.stream().map(GroupEntity::getGid).toList();
         Map<Long, Long> messageCounts = new HashMap<>();
         if (!gids.isEmpty()) {
-            messageRepository.countByGids(gids).forEach(
-                    item -> messageCounts.put(item.getGid(), item.getCnt()));
+            messageRepository
+                    .countByGids(gids)
+                    .forEach(item -> messageCounts.put(item.getGid(), item.getCnt()));
         }
         return groups.stream()
-                .map(group -> toGroupListView(group, latestMessages.get(group.getMaxMid()),
-                        messageCounts.getOrDefault(group.getGid(), 0L)))
+                .map(
+                        group ->
+                                toGroupListView(
+                                        group,
+                                        latestMessages.get(group.getMaxMid()),
+                                        messageCounts.getOrDefault(group.getGid(), 0L)))
                 .toList();
     }
 
@@ -170,8 +182,9 @@ public class ChatService {
         long oldestTime = Long.MAX_VALUE;
         long newestTime = Long.MIN_VALUE;
         while (true) {
-            List<GroupMessagesResponse.Message> messages = requireMessages(
-                    groupMessagesApi.messages(new GroupMessagesRequest(gid, beforeMid)));
+            List<GroupMessagesResponse.Message> messages =
+                    requireMessages(
+                            groupMessagesApi.messages(new GroupMessagesRequest(gid, beforeMid)));
             if (messages.isEmpty()) {
                 break;
             }
@@ -181,8 +194,12 @@ public class ChatService {
                 oldestTime = Math.min(oldestTime, messageTime);
                 newestTime = Math.max(newestTime, messageTime);
             }
-            PageCapture capture = capturePage(messages, gid, capturedAt,
-                    message -> boundaryMid > 0 && requireMid(message) <= boundaryMid);
+            PageCapture capture =
+                    capturePage(
+                            messages,
+                            gid,
+                            capturedAt,
+                            message -> boundaryMid > 0 && requireMid(message) <= boundaryMid);
             inserted += capture.inserted();
             ignored += capture.ignored();
             if (boundaryMid == 0 || capture.reachedBoundary()) {
@@ -192,52 +209,75 @@ public class ChatService {
         }
         messageRepository.refreshGroupRange(gid);
         if (inserted > 0) {
-            log.info("群 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
-                    gid, fetched, inserted, ignored,
-                    formatTimestamp(oldestTime), formatTimestamp(newestTime));
+            if (log.isInfoEnabled()) {
+                log.info(
+                        "群 {} 增量同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                        gid,
+                        fetched,
+                        inserted,
+                        ignored,
+                        formatTimestamp(oldestTime),
+                        formatTimestamp(newestTime));
+            }
         }
         return new SaveResult(fetched, inserted, ignored);
     }
 
-    public MessageQueryResult queryMessages(long gid, Long start, Long end,
-                                            String senderName, String keyword,
-                                            int page, int size) {
+    public MessageQueryResult queryMessages(
+            long gid, Long start, Long end, String senderName, String keyword, int page, int size) {
         validateGid(gid);
         validateQuery(start, end, page, size);
-        Page<MessageEntity> result = messageRepository.findPage(
-                gid, start, end, senderName, keyword, MessageRepository.pageRequest(page, size));
-        GroupRecord group = groupRepository.findById(gid)
-                .map(messageMapper::toGroupRecord)
-                .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
+        Page<MessageEntity> result =
+                messageRepository.findPage(
+                        gid,
+                        start,
+                        end,
+                        senderName,
+                        keyword,
+                        MessageRepository.pageRequest(page, size));
+        GroupRecord group =
+                groupRepository
+                        .findById(gid)
+                        .map(messageMapper::toGroupRecord)
+                        .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
         List<MessageView> items = messageMapper.toMessageViews(result.getContent());
         return new MessageQueryResult(group, items, page, size, result.getTotalElements());
     }
 
     public MessageCursorResult queryMessagesByCursor(
-            long gid, Long beforeCreatedAt, Long beforeMid,
-            Long afterCreatedAt, Long afterMid, int size) {
+            long gid,
+            Long beforeCreatedAt,
+            Long beforeMid,
+            Long afterCreatedAt,
+            Long afterMid,
+            int size) {
         validateGid(gid);
         validateCursorQuery(beforeCreatedAt, beforeMid, afterCreatedAt, afterMid, size);
         boolean loadingAfter = afterCreatedAt != null;
-        List<MessageEntity> result = loadingAfter
-                ? messageRepository.findAfterCursorPage(
-                        gid, afterCreatedAt, afterMid, PageRequest.of(0, size + 1))
-                : messageRepository.findCursorPage(
-                        gid, beforeCreatedAt, beforeMid, PageRequest.of(0, size + 1));
+        List<MessageEntity> result =
+                loadingAfter
+                        ? messageRepository.findAfterCursorPage(
+                                gid, afterCreatedAt, afterMid, PageRequest.of(0, size + 1))
+                        : messageRepository.findCursorPage(
+                                gid, beforeCreatedAt, beforeMid, PageRequest.of(0, size + 1));
         boolean hasMore = result.size() > size;
-        List<MessageEntity> page = new ArrayList<>(
-                result.subList(0, Math.min(size, result.size())));
+        List<MessageEntity> page =
+                new ArrayList<>(result.subList(0, Math.min(size, result.size())));
         if (loadingAfter) {
             Collections.reverse(page);
         }
-        GroupRecord group = groupRepository.findById(gid)
-                .map(messageMapper::toGroupRecord)
-                .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
+        GroupRecord group =
+                groupRepository
+                        .findById(gid)
+                        .map(messageMapper::toGroupRecord)
+                        .orElseGet(() -> messageMapper.toEmptyGroupRecord(gid));
         List<MessageView> items = messageMapper.toMessageViews(page);
-        MessageEntity next = hasMore
-                ? (loadingAfter ? page.getFirst() : page.getLast())
-                : null;
-        return new MessageCursorResult(group, items, size, hasMore,
+        MessageEntity next = hasMore ? (loadingAfter ? page.getFirst() : page.getLast()) : null;
+        return new MessageCursorResult(
+                group,
+                items,
+                size,
+                hasMore,
                 !loadingAfter && next != null ? next.getCreatedAt() : null,
                 !loadingAfter && next != null ? next.getMid() : null,
                 loadingAfter && next != null ? next.getCreatedAt() : null,
@@ -250,7 +290,8 @@ public class ChatService {
      * 撤空时返回空列表，供前端清除旧缓存；上限内没翻到的消息不出现在结果里，
      * 前端据此保留已有缓存。
      */
-    public Map<Long, List<GroupMessagesResponse.Attitude>> queryAttitudes(long gid, List<Long> mids) {
+    public Map<Long, List<GroupMessagesResponse.Attitude>> queryAttitudes(
+            long gid, List<Long> mids) {
         validateGid(gid);
         Set<Long> wanted = new HashSet<>(mids);
         wanted.remove(null);
@@ -260,16 +301,19 @@ public class ChatService {
         Map<Long, List<GroupMessagesResponse.Attitude>> result = new HashMap<>();
         long cursor = Collections.max(wanted) + 1;
         for (int page = 0; page < MAX_ATTITUDE_PAGES && !wanted.isEmpty(); page++) {
-            List<GroupMessagesResponse.Message> messages = requireMessages(
-                    groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
+            List<GroupMessagesResponse.Message> messages =
+                    requireMessages(
+                            groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
             if (messages.isEmpty()) {
                 break;
             }
             for (GroupMessagesResponse.Message message : messages) {
                 long mid = requireMid(message);
                 if (wanted.remove(mid)) {
-                    List<GroupMessagesResponse.Attitude> attitudes = message.attitudeInfo() == null
-                            ? List.of() : message.attitudeInfo().attitudes();
+                    List<GroupMessagesResponse.Attitude> attitudes =
+                            message.attitudeInfo() == null
+                                    ? List.of()
+                                    : message.attitudeInfo().attitudes();
                     result.put(mid, attitudes == null ? List.of() : attitudes);
                 }
             }
@@ -290,16 +334,27 @@ public class ChatService {
             groupRepository.ensurePlaceholderExists(gid, capturedAt);
             Long cursor = beforeMid != null ? beforeMid : startCursor(gid);
             while (true) {
-                List<GroupMessagesResponse.Message> messages = requireMessages(
-                        groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
+                List<GroupMessagesResponse.Message> messages =
+                        requireMessages(
+                                groupMessagesApi.messages(new GroupMessagesRequest(gid, cursor)));
                 if (messages.isEmpty()) {
                     break;
                 }
-                PageCapture capture = capturePage(messages, gid, capturedAt,
-                        message -> messageMapper.toMessageTimestamp(message) < sinceTime);
+                PageCapture capture =
+                        capturePage(
+                                messages,
+                                gid,
+                                capturedAt,
+                                message -> messageMapper.toMessageTimestamp(message) < sinceTime);
                 long oldestTime = messageMapper.toMessageTimestamp(messages.getFirst());
-                log.info("群 {} 历史同步：新增消息 {} 条，忽略 {} 条，最旧消息时间 {}",
-                        gid, capture.inserted(), capture.ignored(), formatTimestamp(oldestTime));
+                if (log.isInfoEnabled()) {
+                    log.info(
+                            "群 {} 历史同步：新增消息 {} 条，忽略 {} 条，最旧消息时间 {}",
+                            gid,
+                            capture.inserted(),
+                            capture.ignored(),
+                            formatTimestamp(oldestTime));
+                }
                 if (capture.reachedBoundary()) {
                     break;
                 }
@@ -328,8 +383,8 @@ public class ChatService {
         if (content == null || content.isBlank()) {
             throw new InvalidRequestException("消息内容不能为空。");
         }
-        GroupSendMessageResponse response = groupMessagesApi.send(
-                new GroupSendMessageRequest(gid, content));
+        GroupSendMessageResponse response =
+                groupMessagesApi.send(new GroupSendMessageRequest(gid, content));
         if (!response.result()) {
             throw new WeiboException("消息发送失败：result != true。", -1);
         }
@@ -359,12 +414,16 @@ public class ChatService {
             if (filename == null || filename.isBlank()) {
                 filename = "image.png";
             }
-            GroupMediaUploadInitResponse initResponse = groupMediaApi.initUpload(
-                    new GroupMediaUploadInitRequest(gid, bytes.length, filename, md5, "dm_attachment_pic"));
-            GroupMediaUploadResponse uploadResponse = groupMediaApi.upload(
-                    bytes, filename, initResponse.fileToken(), gid, initResponse.length());
-            GroupSendMessageResponse response = groupMessagesApi.sendImage(
-                    new GroupSendImageRequest(gid, uploadResponse.fid()));
+            GroupMediaUploadInitResponse initResponse =
+                    groupMediaApi.initUpload(
+                            new GroupMediaUploadInitRequest(
+                                    gid, bytes.length, filename, md5, "dm_attachment_pic"));
+            GroupMediaUploadResponse uploadResponse =
+                    groupMediaApi.upload(
+                            bytes, filename, initResponse.fileToken(), gid, initResponse.length());
+            GroupSendMessageResponse response =
+                    groupMessagesApi.sendImage(
+                            new GroupSendImageRequest(gid, uploadResponse.fid()));
             if (!response.result()) {
                 throw new WeiboException("图片消息发送失败：result != true。", -1);
             }
@@ -400,16 +459,31 @@ public class ChatService {
                 filename = "video.mp4";
             }
             VideoProbe.ProbeResult probeResult = videoProbe.probe(bytes);
-            GroupMediaUploadResponse coverResponse = groupMediaApi.uploadCover(
-                    probeResult.coverPng(), "cover.png", gid);
-            GroupVideoUploadInitResponse initResponse = groupMediaApi.initVideoUpload(
-                    new GroupVideoInitRequest(gid, bytes.length, filename, md5,
-                            probeResult.width(), probeResult.height(), probeResult.duration()));
-            GroupMediaUploadResponse uploadResponse = groupMediaApi.uploadVideo(
-                    bytes, filename, initResponse.fileToken(), initResponse.auth(),
-                    gid, initResponse.length(), md5);
-            GroupSendMessageResponse response = groupMessagesApi.sendVideo(
-                    new GroupSendVideoRequest(gid, uploadResponse.fid(), coverResponse.fid()));
+            GroupMediaUploadResponse coverResponse =
+                    groupMediaApi.uploadCover(probeResult.coverPng(), "cover.png", gid);
+            GroupVideoUploadInitResponse initResponse =
+                    groupMediaApi.initVideoUpload(
+                            new GroupVideoInitRequest(
+                                    gid,
+                                    bytes.length,
+                                    filename,
+                                    md5,
+                                    probeResult.width(),
+                                    probeResult.height(),
+                                    probeResult.duration()));
+            GroupMediaUploadResponse uploadResponse =
+                    groupMediaApi.uploadVideo(
+                            bytes,
+                            filename,
+                            initResponse.fileToken(),
+                            initResponse.auth(),
+                            gid,
+                            initResponse.length(),
+                            md5);
+            GroupSendMessageResponse response =
+                    groupMessagesApi.sendVideo(
+                            new GroupSendVideoRequest(
+                                    gid, uploadResponse.fid(), coverResponse.fid()));
             if (!response.result()) {
                 throw new WeiboException("视频消息发送失败：result != true。", -1);
             }
@@ -425,9 +499,11 @@ public class ChatService {
         }
     }
 
-    private PageCapture capturePage(List<GroupMessagesResponse.Message> messages,
-                                    long gid, long capturedAt,
-                                    Predicate<GroupMessagesResponse.Message> reachedBoundary) {
+    private PageCapture capturePage(
+            List<GroupMessagesResponse.Message> messages,
+            long gid,
+            long capturedAt,
+            Predicate<GroupMessagesResponse.Message> reachedBoundary) {
         List<MessageEntity> collected = new ArrayList<>();
         int ignored = 0;
         boolean reached = false;
@@ -452,7 +528,8 @@ public class ChatService {
     public String queryMessageWeiboText(long gid, long mid) {
         validateGid(gid);
         MessageRecord message = requireLocalMessage(gid, mid);
-        if (message.mediaType() != 14 || message.urlObjects().isEmpty()
+        if (message.mediaType() != 14
+                || message.urlObjects().isEmpty()
                 || !(message.urlObjects().getFirst().get("status") instanceof Map<?, ?> status)) {
             throw new InvalidRequestException("该消息不是微博分享。");
         }
@@ -470,8 +547,12 @@ public class ChatService {
         String text = response.data().longTextContentRaw();
         if (text == null || text.isBlank()) {
             String html = response.data().longTextContent();
-            text = html == null ? "" : HtmlUtils.htmlUnescape(
-                    html.replaceAll("(?i)<br\\s*/?>", "\n").replaceAll("<[^>]+>", ""));
+            text =
+                    html == null
+                            ? ""
+                            : HtmlUtils.htmlUnescape(
+                                    html.replaceAll("(?i)<br\\s*/?>", "\n")
+                                            .replaceAll("<[^>]+>", ""));
         }
         if (text.isBlank()) {
             throw new WeiboException("微博全文暂不可用。", -1);
@@ -505,8 +586,8 @@ public class ChatService {
         if (message.mediaType() != 5) {
             throw new InvalidRequestException("该消息不是文件消息。");
         }
-        GroupMediaRequest request = new GroupMediaRequest(
-                requireMediaReference(message.fid()), null);
+        GroupMediaRequest request =
+                new GroupMediaRequest(requireMediaReference(message.fid()), null);
         try {
             var response = groupMediaApi.download(request);
             if (response == null || !response.getStatusCode().is2xxSuccessful()) {
@@ -524,23 +605,30 @@ public class ChatService {
         return streamMessageVideo(gid, mid, new HttpHeaders(), responseExtractor);
     }
 
-    public <T> T streamMessageVideo(long gid, long mid, HttpHeaders requestHeaders,
-                                    ResponseExtractor<T> responseExtractor) {
+    public <T> T streamMessageVideo(
+            long gid,
+            long mid,
+            @SuppressWarnings("PMD.LooseCoupling") HttpHeaders requestHeaders,
+            ResponseExtractor<T> responseExtractor) {
         validateGid(gid);
         MessageRecord message = requireLocalMessage(gid, mid);
         if (!messageMapper.isVideo(message)) {
             throw new InvalidRequestException("该消息不是视频消息。");
         }
-        GroupMediaRequest request = new GroupMediaRequest(
-                requireMediaReference(message.fid()), null);
+        GroupMediaRequest request =
+                new GroupMediaRequest(requireMediaReference(message.fid()), null);
         try {
-            return groupMediaApi.stream(request, requestHeaders, response -> {
-                if (!response.getStatusCode().is2xxSuccessful()
-                        && response.getStatusCode() != HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE) {
-                    throw new WeiboException("群消息媒体下载失败。", -1);
-                }
-                return responseExtractor.extractData(response);
-            });
+            return groupMediaApi.stream(
+                    request,
+                    requestHeaders,
+                    response -> {
+                        if (!response.getStatusCode().is2xxSuccessful()
+                                && response.getStatusCode()
+                                        != HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE) {
+                            throw new WeiboException("群消息媒体下载失败。", -1);
+                        }
+                        return responseExtractor.extractData(response);
+                    });
         } catch (WeiboCookieExpiredException | WeiboRateLimitException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -568,24 +656,38 @@ public class ChatService {
     }
 
     private MessageRecord requireLocalMessage(long gid, long mid) {
-        MessageRecord message = messageMapper.toMessageRecord(messageRepository.findById(mid)
-                .orElseThrow(() -> new ResourceNotFoundException("本地群消息不存在。")));
+        MessageRecord message =
+                messageMapper.toMessageRecord(
+                        messageRepository
+                                .findById(mid)
+                                .orElseThrow(() -> new ResourceNotFoundException("本地群消息不存在。")));
         if (message.gid() != gid) {
             throw new ResourceNotFoundException("本地群消息不存在。");
         }
         return message;
     }
 
-    private GroupListView toGroupListView(GroupEntity entity, MessageRecord latestMessage, long messageCount) {
+    private GroupListView toGroupListView(
+            GroupEntity entity, MessageRecord latestMessage, long messageCount) {
         GroupRecord group = messageMapper.toGroupRecord(entity);
         String senderName = latestMessage == null ? "" : latestMessage.senderName();
         String message = latestMessage == null ? "" : latestMessage.text();
         if (latestMessage != null && (message == null || message.isBlank())) {
             message = "[" + latestMessage.msgTypeName() + "]";
         }
-        return new GroupListView(group.gid(), group.name(), group.avatar(), group.memberCount(),
-                group.maxMember(), group.ownerId(), group.admins(), group.summary(), group.groupType(),
-                senderName == null ? "" : senderName, message, messageCount);
+        return new GroupListView(
+                group.gid(),
+                group.name(),
+                group.avatar(),
+                group.memberCount(),
+                group.maxMember(),
+                group.ownerId(),
+                group.admins(),
+                group.summary(),
+                group.groupType(),
+                senderName == null ? "" : senderName,
+                message,
+                messageCount);
     }
 
     private String requireMediaReference(String reference) {
@@ -631,15 +733,13 @@ public class ChatService {
         }
     }
 
-    private void validateCursorQuery(Long beforeCreatedAt, Long beforeMid,
-                                     Long afterCreatedAt, Long afterMid, int size) {
+    private void validateCursorQuery(
+            Long beforeCreatedAt, Long beforeMid, Long afterCreatedAt, Long afterMid, int size) {
         if ((beforeCreatedAt == null) != (beforeMid == null)) {
-            throw new InvalidRequestException(
-                    "beforeCreatedAt 和 beforeMid 必须同时提供或同时省略。");
+            throw new InvalidRequestException("beforeCreatedAt 和 beforeMid 必须同时提供或同时省略。");
         }
         if ((afterCreatedAt == null) != (afterMid == null)) {
-            throw new InvalidRequestException(
-                    "afterCreatedAt 和 afterMid 必须同时提供或同时省略。");
+            throw new InvalidRequestException("afterCreatedAt 和 afterMid 必须同时提供或同时省略。");
         }
         if (beforeCreatedAt != null && afterCreatedAt != null) {
             throw new InvalidRequestException("before 游标和 after 游标不能同时提供。");
@@ -649,8 +749,7 @@ public class ChatService {
         }
     }
 
-    private record PageCapture(int inserted, int ignored, boolean reachedBoundary) {
-    }
+    private record PageCapture(int inserted, int ignored, boolean reachedBoundary) {}
 
     private static void sleep(long millis) {
         try {

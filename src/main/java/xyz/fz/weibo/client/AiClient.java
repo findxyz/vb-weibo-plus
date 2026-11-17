@@ -1,17 +1,6 @@
 package xyz.fz.weibo.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
-import xyz.fz.weibo.client.exception.WeiboException;
-
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -24,6 +13,16 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+import xyz.fz.weibo.client.exception.WeiboException;
 
 /**
  * OpenAI 兼容格式的 AI 调用客户端。
@@ -33,9 +32,8 @@ public class AiClient {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
-    private final HttpClient streamHttpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
+    private final HttpClient streamHttpClient =
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     @Value("${weibo.ai.base-url:}")
     private String baseUrl;
@@ -52,7 +50,8 @@ public class AiClient {
     @Value("${weibo.ai.timeout-seconds:120}")
     private int timeoutSeconds;
 
-    public AiClient(@Qualifier("aiRestTemplate") RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public AiClient(
+            @Qualifier("aiRestTemplate") RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
     }
@@ -68,33 +67,46 @@ public class AiClient {
         try {
             String requestBody = chatRequestBody(false, userPrompt);
 
+            @SuppressWarnings("PMD.LooseCoupling")
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             if (apiKey != null && !apiKey.isBlank()) {
                 headers.setBearerAuth(apiKey);
             }
 
-            ResponseEntity<String> responseEntity = restTemplate.exchange(
-                    chatUrl(), HttpMethod.POST,
-                    new HttpEntity<>(requestBody, headers), String.class);
+            ResponseEntity<String> responseEntity =
+                    restTemplate.exchange(
+                            chatUrl(),
+                            HttpMethod.POST,
+                            new HttpEntity<>(requestBody, headers),
+                            String.class);
 
             if (!responseEntity.getStatusCode().is2xxSuccessful()) {
                 String body = responseEntity.getBody();
-                throw new WeiboException("AI 返回错误状态码 " + responseEntity.getStatusCode() + "：" + (body != null ? body.substring(0, Math.min(body.length(), 500)) : "空"));
+                throw new WeiboException(
+                        "AI 返回错误状态码 "
+                                + responseEntity.getStatusCode()
+                                + "："
+                                + (body != null
+                                        ? body.substring(0, Math.min(body.length(), 500))
+                                        : "空"));
             }
 
             String response = responseEntity.getBody();
             if (response == null || response.isBlank()) {
                 throw new WeiboException("AI 返回空响应");
             }
-            String content = objectMapper.readTree(response)
-                    .path("choices")
-                    .path(0)
-                    .path("message")
-                    .path("content")
-                    .asText();
+            String content =
+                    objectMapper
+                            .readTree(response)
+                            .path("choices")
+                            .path(0)
+                            .path("message")
+                            .path("content")
+                            .asText();
             if (content == null || content.isBlank()) {
-                throw new WeiboException("AI 返回内容为空：" + response.substring(0, Math.min(response.length(), 500)));
+                throw new WeiboException(
+                        "AI 返回内容为空：" + response.substring(0, Math.min(response.length(), 500)));
             }
             return content;
         } catch (WeiboException e) {
@@ -114,27 +126,34 @@ public class AiClient {
     public String chatStream(String userPrompt, Consumer<String> deltaConsumer) {
         assertConfigured();
         try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(chatUrl()))
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
-                    .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
-                    .POST(HttpRequest.BodyPublishers.ofString(chatRequestBody(true, userPrompt)));
+            HttpRequest.Builder builder =
+                    HttpRequest.newBuilder()
+                            .uri(URI.create(chatUrl()))
+                            .timeout(Duration.ofSeconds(timeoutSeconds))
+                            .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                            .POST(
+                                    HttpRequest.BodyPublishers.ofString(
+                                            chatRequestBody(true, userPrompt)));
             if (apiKey != null && !apiKey.isBlank()) {
                 builder.header("Authorization", "Bearer " + apiKey);
             }
 
-            HttpResponse<InputStream> response = streamHttpClient.send(
-                    builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response =
+                    streamHttpClient.send(
+                            builder.build(), HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream body = response.body()) {
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
                     String text = new String(body.readAllBytes(), StandardCharsets.UTF_8);
-                    throw new WeiboException("AI 返回错误状态码 " + response.statusCode()
-                            + "：" + text.substring(0, Math.min(text.length(), 500)));
+                    throw new WeiboException(
+                            "AI 返回错误状态码 "
+                                    + response.statusCode()
+                                    + "："
+                                    + text.substring(0, Math.min(text.length(), 500)));
                 }
 
                 StringBuilder full = new StringBuilder();
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(body, StandardCharsets.UTF_8))) {
+                try (BufferedReader reader =
+                        new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         if (!line.startsWith("data:")) {
@@ -147,12 +166,14 @@ public class AiClient {
                         if ("[DONE]".equals(payload)) {
                             break;
                         }
-                        String delta = objectMapper.readTree(payload)
-                                .path("choices")
-                                .path(0)
-                                .path("delta")
-                                .path("content")
-                                .asText("");
+                        String delta =
+                                objectMapper
+                                        .readTree(payload)
+                                        .path("choices")
+                                        .path(0)
+                                        .path("delta")
+                                        .path("content")
+                                        .asText("");
                         if (!delta.isEmpty()) {
                             full.append(delta);
                             deltaConsumer.accept(delta);
@@ -173,22 +194,25 @@ public class AiClient {
 
     private void assertConfigured() {
         if (baseUrl == null || baseUrl.isBlank()) {
-            throw new WeiboException("AI 未配置，请在 application.yml 中设置 weibo.ai.base-url 和 weibo.ai.api-key");
+            throw new WeiboException(
+                    "AI 未配置，请在 application.yml 中设置 weibo.ai.base-url 和 weibo.ai.api-key");
         }
     }
 
     private String chatUrl() {
-        return baseUrl.endsWith("/") ? baseUrl + "v1/chat/completions" : baseUrl + "/v1/chat/completions";
+        return baseUrl.endsWith("/")
+                ? baseUrl + "v1/chat/completions"
+                : baseUrl + "/v1/chat/completions";
     }
 
     private String chatRequestBody(boolean stream, String userPrompt) throws Exception {
-        return objectMapper.writeValueAsString(Map.of(
-                "model", model,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userPrompt)
-                ),
-                "stream", stream
-        ));
+        return objectMapper.writeValueAsString(
+                Map.of(
+                        "model", model,
+                        "messages",
+                                List.of(
+                                        Map.of("role", "system", "content", systemPrompt),
+                                        Map.of("role", "user", "content", userPrompt)),
+                        "stream", stream));
     }
 }

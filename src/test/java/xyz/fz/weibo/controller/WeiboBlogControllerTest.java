@@ -1,5 +1,15 @@
 package xyz.fz.weibo.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -8,28 +18,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
 import xyz.fz.weibo.api.PostLikeApi;
-import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
+import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
-
-import java.util.List;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * 微博内容接口 Controller 层测试：验证正常返回与异常映射。
@@ -37,20 +36,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(WeiboBlogController.class)
 class WeiboBlogControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @MockitoBean
-    private MyBlogApi myBlogApi;
+    @MockitoBean private MyBlogApi myBlogApi;
 
-    @MockitoBean
-    private LongTextApi longTextApi;
+    @MockitoBean private LongTextApi longTextApi;
 
-    @MockitoBean
-    private SearchProfileApi searchProfileApi;
+    @MockitoBean private SearchProfileApi searchProfileApi;
 
-    @MockitoBean
-    private PostLikeApi postLikeApi;
+    @MockitoBean private PostLikeApi postLikeApi;
 
     @Test
     void like_test_endpoints_share_api_and_validate_numeric_id() throws Exception {
@@ -59,7 +53,10 @@ class WeiboBlogControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.liked").value(true))
                 .andExpect(jsonPath("$.count").value(7));
-        mockMvc.perform(post("/weibo/blog/like").param("id", "5316949752945053").param("liked", "false"))
+        mockMvc.perform(
+                        post("/weibo/blog/like")
+                                .param("id", "5316949752945053")
+                                .param("liked", "false"))
                 .andExpect(status().isNoContent());
         verify(postLikeApi).setLike(5316949752945053L, false);
         mockMvc.perform(get("/weibo/blog/like").param("id", "invalid"))
@@ -69,8 +66,10 @@ class WeiboBlogControllerTest {
     @Test
     void myblog_returns_200_with_json_fields() throws Exception {
         when(myBlogApi.myBlog(any(MyBlogRequest.class)))
-                .thenReturn(new MyBlogResponse(
-                        new MyBlogResponse.MyBlogData("5320159715927430kp2", List.of(), 0), 1));
+                .thenReturn(
+                        new MyBlogResponse(
+                                new MyBlogResponse.MyBlogData("5320159715927430kp2", List.of(), 0),
+                                1));
 
         mockMvc.perform(get("/weibo/blog/mymblog").param("uid", "1").param("page", "1"))
                 .andExpect(status().isOk())
@@ -124,8 +123,7 @@ class WeiboBlogControllerTest {
 
     @Test
     void myblog_returns_500_when_internal_error() throws Exception {
-        when(myBlogApi.myBlog(any(MyBlogRequest.class)))
-                .thenThrow(new WeiboException("内部错误"));
+        when(myBlogApi.myBlog(any(MyBlogRequest.class))).thenThrow(new WeiboException("内部错误"));
 
         mockMvc.perform(get("/weibo/blog/mymblog").param("uid", "1").param("page", "1"))
                 .andExpect(status().isInternalServerError())
@@ -136,9 +134,9 @@ class WeiboBlogControllerTest {
     @Test
     void longtext_returns_200() throws Exception {
         when(longTextApi.longText(any()))
-                .thenReturn(new LongTextResponse(
-                        new LongTextResponse.LongTextData(
-                                "正文内容", "原文", false, null), 1));
+                .thenReturn(
+                        new LongTextResponse(
+                                new LongTextResponse.LongTextData("正文内容", "原文", false, null), 1));
 
         mockMvc.perform(get("/weibo/blog/longtext").param("id", "R5bs4vcVf"))
                 .andExpect(status().isOk())
@@ -151,15 +149,16 @@ class WeiboBlogControllerTest {
     @Test
     void search_profile_returns_200() throws Exception {
         when(searchProfileApi.searchProfile(any()))
-                .thenReturn(new SearchProfileResponse(
-                        new SearchProfileResponse.SearchProfileData(
-                                List.of(), 0, ""), 1));
+                .thenReturn(
+                        new SearchProfileResponse(
+                                new SearchProfileResponse.SearchProfileData(List.of(), 0, ""), 1));
 
-        mockMvc.perform(get("/weibo/blog/searchProfile")
-                        .param("uid", "1")
-                        .param("page", "1")
-                        .param("startTime", "1000")
-                        .param("endTime", "2000"))
+        mockMvc.perform(
+                        get("/weibo/blog/searchProfile")
+                                .param("uid", "1")
+                                .param("page", "1")
+                                .param("startTime", "1000")
+                                .param("endTime", "2000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(1))
                 .andExpect(content().contentTypeCompatibleWith("application/json"));

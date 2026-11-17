@@ -3,14 +3,6 @@ package xyz.fz.weibo.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Component;
-import xyz.fz.weibo.client.WeiboConstants;
-import xyz.fz.weibo.client.WeiboCookieHolder;
-import xyz.fz.weibo.client.WeiboHttpClient;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
@@ -20,13 +12,20 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Component;
+import xyz.fz.weibo.client.WeiboConstants;
+import xyz.fz.weibo.client.WeiboCookieHolder;
+import xyz.fz.weibo.client.WeiboHttpClient;
 
 @Component
 public class GroupPushApi {
@@ -40,7 +39,8 @@ public class GroupPushApi {
     private final WeiboHttpClient weiboHttpClient;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newBuilder().sslContext(socketSslContext()).build();
+    private final HttpClient httpClient =
+            HttpClient.newBuilder().sslContext(socketSslContext()).build();
     private final AtomicBoolean connecting = new AtomicBoolean();
     private final AtomicLong requestId = new AtomicLong();
 
@@ -49,8 +49,11 @@ public class GroupPushApi {
     private volatile String clientId;
     private volatile long lastFrameAt;
 
-    public GroupPushApi(WeiboCookieHolder cookieHolder, WeiboHttpClient weiboHttpClient,
-                           ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
+    public GroupPushApi(
+            WeiboCookieHolder cookieHolder,
+            WeiboHttpClient weiboHttpClient,
+            ApplicationEventPublisher eventPublisher,
+            ObjectMapper objectMapper) {
         this.cookieHolder = cookieHolder;
         this.weiboHttpClient = weiboHttpClient;
         this.eventPublisher = eventPublisher;
@@ -60,20 +63,25 @@ public class GroupPushApi {
     private static SSLContext socketSslContext() {
         try {
             SSLContext context = SSLContext.getInstance("TLS");
-            context.init(null, new TrustManager[]{new X509TrustManager() {
-                @Override
-                public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                }
+            context.init(
+                    null,
+                    new TrustManager[] {
+                        new X509TrustManager() {
+                            @Override
+                            public void checkClientTrusted(
+                                    X509Certificate[] chain, String authType) {}
 
-                @Override
-                public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                }
+                            @Override
+                            public void checkServerTrusted(
+                                    X509Certificate[] chain, String authType) {}
 
-                @Override
-                public X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[0];
-                }
-            }}, null);
+                            @Override
+                            public X509Certificate[] getAcceptedIssuers() {
+                                return new X509Certificate[0];
+                            }
+                        }
+                    },
+                    null);
             return context;
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("微博 WebSocket TLS 初始化失败", e);
@@ -86,18 +94,28 @@ public class GroupPushApi {
             closeCurrent();
             return;
         }
-        if (socket != null && (!credential.equals(socketCredential)
-                || System.currentTimeMillis() - lastFrameAt > STALE_AFTER_MS)) {
+        if (socket != null
+                && (!credential.equals(socketCredential)
+                        || System.currentTimeMillis() - lastFrameAt > STALE_AFTER_MS)) {
             closeCurrent();
         }
         if (socket != null || !connecting.compareAndSet(false, true)) {
             return;
         }
         try {
-            JsonNode profile = objectMapper.readTree(weiboHttpClient.getForString(
-                    PROFILE_URL,
-                    Map.of("source", WeiboConstants.SOURCE, "t", Long.toString(System.currentTimeMillis())),
-                    WeiboConstants.HEADERS_WEBIM, true).getBody());
+            JsonNode profile =
+                    objectMapper.readTree(
+                            weiboHttpClient
+                                    .getForString(
+                                            PROFILE_URL,
+                                            Map.of(
+                                                    "source",
+                                                    WeiboConstants.SOURCE,
+                                                    "t",
+                                                    Long.toString(System.currentTimeMillis())),
+                                            WeiboConstants.HEADERS_WEBIM,
+                                            true)
+                                    .getBody());
             if (!profile.path("websocket_gray").asBoolean()) {
                 connecting.set(false);
                 return;
@@ -106,21 +124,25 @@ public class GroupPushApi {
             if (uid <= 0) {
                 throw new IllegalStateException("微博账号 UID 缺失");
             }
-            httpClient.newWebSocketBuilder()
+            httpClient
+                    .newWebSocketBuilder()
                     .connectTimeout(Duration.ofSeconds(10))
                     .header("Origin", "https://api.weibo.com")
                     .header("User-Agent", WeiboConstants.USER_AGENT)
                     .header("Cookie", credential)
                     .buildAsync(SOCKET_URL, new PushListener(uid, credential))
-                    .whenComplete((ignored, error) -> {
-                        connecting.set(false);
-                        if (error != null) {
-                            log.warn("微博 WebSocket 连接失败：{}", error.getMessage());
-                        }
-                    });
+                    .whenComplete(
+                            (ignored, error) -> {
+                                connecting.set(false);
+                                if (error != null) {
+                                    log.atWarn()
+                                            .addArgument(error::getMessage)
+                                            .log("微博 WebSocket 连接失败：{}");
+                                }
+                            });
         } catch (Exception e) {
             connecting.set(false);
-            log.warn("微博 WebSocket 初始化失败：{}", e.getMessage());
+            log.atWarn().addArgument(e::getMessage).log("微博 WebSocket 初始化失败：{}");
         }
     }
 
@@ -142,7 +164,8 @@ public class GroupPushApi {
     }
 
     private Map<String, Object> frame(String channel) {
-        return new HashMap<>(Map.of("id", Long.toString(requestId.incrementAndGet()), "channel", channel));
+        return new HashMap<>(
+                Map.of("id", Long.toString(requestId.incrementAndGet()), "channel", channel));
     }
 
     private void sendConnect(WebSocket webSocket, boolean first) {
@@ -169,7 +192,8 @@ public class GroupPushApi {
 
         private final long uid;
         private final String credential;
-        private final StringBuilder incoming = new StringBuilder();
+        @SuppressWarnings("PMD.AvoidStringBufferField")
+        private StringBuilder incoming = new StringBuilder();
 
         PushListener(long uid, String credential) {
             this.uid = uid;
@@ -184,7 +208,9 @@ public class GroupPushApi {
             Map<String, Object> handshake = frame("/meta/handshake");
             handshake.put("version", "1.0");
             handshake.put("minimumVersion", "1.0");
-            handshake.put("supportedConnectionTypes", List.of("websocket", "long-polling", "callback-polling"));
+            handshake.put(
+                    "supportedConnectionTypes",
+                    List.of("websocket", "long-polling", "callback-polling"));
             handshake.put("advice", Map.of("timeout", 60_000, "interval", 0));
             send(webSocket, handshake);
             webSocket.request(1);
@@ -200,9 +226,9 @@ public class GroupPushApi {
                         handleMessage(webSocket, message);
                     }
                 } catch (Exception e) {
-                    log.warn("微博 WebSocket 消息解析失败：{}", e.getMessage());
+                    log.atWarn().addArgument(e::getMessage).log("微博 WebSocket 消息解析失败：{}");
                 } finally {
-                    incoming.setLength(0);
+                    incoming = new StringBuilder();
                 }
             }
             webSocket.request(1);
@@ -254,7 +280,7 @@ public class GroupPushApi {
             if (socket == webSocket) {
                 socket = null;
             }
-            log.warn("微博 WebSocket 连接中断：{}", error.getMessage());
+            log.atWarn().addArgument(error::getMessage).log("微博 WebSocket 连接中断：{}");
         }
     }
 }

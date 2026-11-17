@@ -1,5 +1,12 @@
 package xyz.fz.weibo.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.ResultSet;
+import java.util.List;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -13,42 +20,32 @@ import org.springframework.test.context.DynamicPropertySource;
 import xyz.fz.weibo.entity.GroupEntity;
 import xyz.fz.weibo.entity.MessageEntity;
 
-import javax.sql.DataSource;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.sql.ResultSet;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
-@DataJpaTest(properties = {
-        "spring.test.database.replace=none",
-        "spring.jpa.hibernate.ddl-auto=none",
-        "spring.jpa.open-in-view=false",
-        "spring.sql.init.mode=always"
-})
+@DataJpaTest(
+        properties = {
+            "spring.test.database.replace=none",
+            "spring.jpa.hibernate.ddl-auto=none",
+            "spring.jpa.open-in-view=false",
+            "spring.sql.init.mode=always"
+        })
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MessageRepositoryTest {
 
     private static final Path DATABASE = createDatabase();
 
-    @Autowired
-    private MessageRepository messageRepository;
+    @Autowired private MessageRepository messageRepository;
 
-    @Autowired
-    private GroupRepository groupRepository;
+    @Autowired private GroupRepository groupRepository;
 
-    @Autowired
-    private TestEntityManager entityManager;
+    @Autowired private TestEntityManager entityManager;
 
-    @Autowired
-    private DataSource dataSource;
+    @Autowired private DataSource dataSource;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE.toAbsolutePath());
         registry.add("spring.datasource.driver-class-name", () -> "org.sqlite.JDBC");
-        registry.add("spring.jpa.database-platform",
+        registry.add(
+                "spring.jpa.database-platform",
                 () -> "org.hibernate.community.dialect.SQLiteDialect");
     }
 
@@ -101,12 +98,12 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(103, 1, 3_000, "晚", ""));
         messageRepository.insertIfAbsent(message(200, 2, 2_000, "其他群", ""));
 
-        Page<MessageEntity> page = messageRepository.findPage(
-                1, 1_000L, 2_000L, null, null, MessageRepository.pageRequest(1, 2));
+        Page<MessageEntity> page =
+                messageRepository.findPage(
+                        1, 1_000L, 2_000L, null, null, MessageRepository.pageRequest(1, 2));
 
         assertThat(page.getTotalElements()).isEqualTo(3);
-        assertThat(page.getContent()).extracting(MessageEntity::getMid)
-                .containsExactly(102L, 101L);
+        assertThat(page.getContent()).extracting(MessageEntity::getMid).containsExactly(102L, 101L);
     }
 
     @Test
@@ -116,11 +113,11 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(102, 1, 3_000, "较新", ""));
         messageRepository.insertIfAbsent(message(103, 1, 4_000, "最新", ""));
 
-        List<MessageEntity> first = messageRepository.findCursorPage(
-                1, null, null, PageRequest.of(0, 2));
+        List<MessageEntity> first =
+                messageRepository.findCursorPage(1, null, null, PageRequest.of(0, 2));
         messageRepository.insertIfAbsent(message(104, 1, 5_000, "新增", ""));
-        List<MessageEntity> second = messageRepository.findCursorPage(
-                1, 3_000L, 102L, PageRequest.of(0, 2));
+        List<MessageEntity> second =
+                messageRepository.findCursorPage(1, 3_000L, 102L, PageRequest.of(0, 2));
 
         assertThat(first).extracting(MessageEntity::getMid).containsExactly(103L, 102L);
         assertThat(second).extracting(MessageEntity::getMid).containsExactly(101L, 100L);
@@ -133,11 +130,11 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(102, 1, 2_000, "同一时刻的较新消息", ""));
         messageRepository.insertIfAbsent(message(103, 1, 4_000, "更新", ""));
 
-        List<MessageEntity> first = messageRepository.findAfterCursorPage(
-                1, 2_000L, 101L, PageRequest.of(0, 2));
+        List<MessageEntity> first =
+                messageRepository.findAfterCursorPage(1, 2_000L, 101L, PageRequest.of(0, 2));
         messageRepository.insertIfAbsent(message(104, 1, 5_000, "新增", ""));
-        List<MessageEntity> second = messageRepository.findAfterCursorPage(
-                1, 2_000L, 101L, PageRequest.of(0, 2));
+        List<MessageEntity> second =
+                messageRepository.findAfterCursorPage(1, 2_000L, 101L, PageRequest.of(0, 2));
 
         assertThat(first).extracting(MessageEntity::getMid).containsExactly(102L, 103L);
         assertThat(second).extracting(MessageEntity::getMid).containsExactly(102L, 103L);
@@ -149,12 +146,12 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(101, 1, 2_000, "同名前缀", "", "甲乙"));
         messageRepository.insertIfAbsent(message(102, 1, 3_000, "甲的新消息", "", "甲"));
 
-        Page<MessageEntity> page = messageRepository.findPage(
-                1, null, null, "甲", null, MessageRepository.pageRequest(1, 100));
+        Page<MessageEntity> page =
+                messageRepository.findPage(
+                        1, null, null, "甲", null, MessageRepository.pageRequest(1, 100));
 
         assertThat(page.getTotalElements()).isEqualTo(2);
-        assertThat(page.getContent()).extracting(MessageEntity::getMid)
-                .containsExactly(102L, 100L);
+        assertThat(page.getContent()).extracting(MessageEntity::getMid).containsExactly(102L, 100L);
     }
 
     @Test
@@ -167,12 +164,12 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(105, 1, 3_000, "时间外命中", "", "甲"));
         messageRepository.insertIfAbsent(message(200, 2, 2_000, "其他群命中", "", "甲"));
 
-        Page<MessageEntity> page = messageRepository.findPage(
-                1, 1_000L, 2_000L, "甲", "命中", MessageRepository.pageRequest(1, 2));
+        Page<MessageEntity> page =
+                messageRepository.findPage(
+                        1, 1_000L, 2_000L, "甲", "命中", MessageRepository.pageRequest(1, 2));
 
         assertThat(page.getTotalElements()).isEqualTo(3);
-        assertThat(page.getContent()).extracting(MessageEntity::getMid)
-                .containsExactly(102L, 101L);
+        assertThat(page.getContent()).extracting(MessageEntity::getMid).containsExactly(102L, 101L);
     }
 
     @Test
@@ -183,15 +180,42 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(103, 1, 1_000, "编号 acb", ""));
         messageRepository.insertIfAbsent(message(104, 1, 1_000, "路径 C:\\temp", ""));
 
-        assertThat(messageRepository.findPage(
-                1, null, null, null, "%", MessageRepository.pageRequest(1, 100))
-                .getContent()).extracting(MessageEntity::getMid).containsExactly(100L);
-        assertThat(messageRepository.findPage(
-                1, null, null, null, "_", MessageRepository.pageRequest(1, 100))
-                .getContent()).extracting(MessageEntity::getMid).containsExactly(102L);
-        assertThat(messageRepository.findPage(
-                1, null, null, null, "\\", MessageRepository.pageRequest(1, 100))
-                .getContent()).extracting(MessageEntity::getMid).containsExactly(104L);
+        assertThat(
+                        messageRepository
+                                .findPage(
+                                        1,
+                                        null,
+                                        null,
+                                        null,
+                                        "%",
+                                        MessageRepository.pageRequest(1, 100))
+                                .getContent())
+                .extracting(MessageEntity::getMid)
+                .containsExactly(100L);
+        assertThat(
+                        messageRepository
+                                .findPage(
+                                        1,
+                                        null,
+                                        null,
+                                        null,
+                                        "_",
+                                        MessageRepository.pageRequest(1, 100))
+                                .getContent())
+                .extracting(MessageEntity::getMid)
+                .containsExactly(102L);
+        assertThat(
+                        messageRepository
+                                .findPage(
+                                        1,
+                                        null,
+                                        null,
+                                        null,
+                                        "\\",
+                                        MessageRepository.pageRequest(1, 100))
+                                .getContent())
+                .extracting(MessageEntity::getMid)
+                .containsExactly(104L);
     }
 
     @Test
@@ -199,23 +223,50 @@ class MessageRepositoryTest {
         messageRepository.insertIfAbsent(message(100, 1, 1_000, "早", ""));
         messageRepository.insertIfAbsent(message(101, 1, 2_000, "晚", ""));
 
-        assertThat(messageRepository.findPage(
-                1, 2_000L, null, null, null, MessageRepository.pageRequest(1, 100))
-                .getContent()).extracting(MessageEntity::getMid).containsExactly(101L);
-        assertThat(messageRepository.findPage(
-                1, null, 1_000L, null, null, MessageRepository.pageRequest(1, 100))
-                .getContent()).extracting(MessageEntity::getMid).containsExactly(100L);
-        assertThat(messageRepository.findPage(
-                1, null, null, "  ", "\t", MessageRepository.pageRequest(1, 100))
-                .getContent()).extracting(MessageEntity::getMid).containsExactly(101L, 100L);
+        assertThat(
+                        messageRepository
+                                .findPage(
+                                        1,
+                                        2_000L,
+                                        null,
+                                        null,
+                                        null,
+                                        MessageRepository.pageRequest(1, 100))
+                                .getContent())
+                .extracting(MessageEntity::getMid)
+                .containsExactly(101L);
+        assertThat(
+                        messageRepository
+                                .findPage(
+                                        1,
+                                        null,
+                                        1_000L,
+                                        null,
+                                        null,
+                                        MessageRepository.pageRequest(1, 100))
+                                .getContent())
+                .extracting(MessageEntity::getMid)
+                .containsExactly(100L);
+        assertThat(
+                        messageRepository
+                                .findPage(
+                                        1,
+                                        null,
+                                        null,
+                                        "  ",
+                                        "\t",
+                                        MessageRepository.pageRequest(1, 100))
+                                .getContent())
+                .extracting(MessageEntity::getMid)
+                .containsExactly(101L, 100L);
     }
 
     @Test
     void schema_provides_the_agreed_group_time_index() throws Exception {
         boolean found = false;
         try (var connection = dataSource.getConnection();
-             var statement = connection.createStatement();
-             ResultSet result = statement.executeQuery("pragma index_list('messages')")) {
+                var statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("pragma index_list('messages')")) {
             while (result.next()) {
                 found |= "idx_msg_gid_ctime".equals(result.getString("name"));
             }
@@ -227,8 +278,8 @@ class MessageRepositoryTest {
     void schema_provides_covering_index_for_keyword_count_and_sort() throws Exception {
         boolean found = false;
         try (var connection = dataSource.getConnection();
-             var statement = connection.createStatement();
-             ResultSet result = statement.executeQuery("pragma index_list('messages')")) {
+                var statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("pragma index_list('messages')")) {
             while (result.next()) {
                 found |= "idx_msg_gid_ctime_cover".equals(result.getString("name"));
             }
@@ -240,11 +291,29 @@ class MessageRepositoryTest {
         return message(mid, gid, createdAt, text, fid, "发送者");
     }
 
-    private MessageEntity message(long mid, long gid, long createdAt, String text, String fid,
-                                  String senderName) {
-        return new MessageEntity(mid, gid, 321, "普通消息", fid.isEmpty() ? 0 : 1,
-                9, senderName, "", text, fid, "", "", "[]", "[]", "", "{}", "[]", "",
-                createdAt, 500);
+    private MessageEntity message(
+            long mid, long gid, long createdAt, String text, String fid, String senderName) {
+        return new MessageEntity(
+                mid,
+                gid,
+                321,
+                "普通消息",
+                fid.isEmpty() ? 0 : 1,
+                9,
+                senderName,
+                "",
+                text,
+                fid,
+                "",
+                "",
+                "[]",
+                "[]",
+                "",
+                "{}",
+                "[]",
+                "",
+                createdAt,
+                500);
     }
 
     private static Path createDatabase() {

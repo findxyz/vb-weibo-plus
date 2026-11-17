@@ -16,7 +16,8 @@ import xyz.fz.weibo.model.response.GroupListResponse;
 @Component
 public class GroupListApi {
 
-    private static final String GROUP_LIST_URL = "https://api.weibo.com/webim/2/direct_messages/contacts.json";
+    private static final String GROUP_LIST_URL =
+            "https://api.weibo.com/webim/2/direct_messages/contacts.json";
 
     private final WeiboHttpClient client;
     private final ObjectMapper objectMapper;
@@ -27,8 +28,12 @@ public class GroupListApi {
     }
 
     public GroupListResponse list() {
-        ResponseEntity<String> resp = client.getForString(
-                GROUP_LIST_URL, new GroupListRequest().toParams(), WeiboConstants.HEADERS_WEBIM, true);
+        ResponseEntity<String> resp =
+                client.getForString(
+                        GROUP_LIST_URL,
+                        new GroupListRequest().toParams(),
+                        WeiboConstants.HEADERS_WEBIM,
+                        true);
         try {
             return objectMapper.readValue(resp.getBody(), GroupListResponse.class);
         } catch (JsonProcessingException e) {

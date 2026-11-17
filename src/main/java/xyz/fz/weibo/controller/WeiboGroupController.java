@@ -27,7 +27,10 @@ public class WeiboGroupController {
     private final GroupMessagesApi groupMessagesApi;
     private final GroupMediaApi groupMediaApi;
 
-    public WeiboGroupController(GroupListApi groupListApi, GroupMessagesApi groupMessagesApi, GroupMediaApi groupMediaApi) {
+    public WeiboGroupController(
+            GroupListApi groupListApi,
+            GroupMessagesApi groupMessagesApi,
+            GroupMediaApi groupMediaApi) {
         this.groupListApi = groupListApi;
         this.groupMessagesApi = groupMessagesApi;
         this.groupMediaApi = groupMediaApi;
@@ -39,8 +42,8 @@ public class WeiboGroupController {
     }
 
     @GetMapping("/messages")
-    public GroupMessagesResponse messages(@RequestParam Long id,
-                                           @RequestParam(required = false) Long maxMid) {
+    public GroupMessagesResponse messages(
+            @RequestParam Long id, @RequestParam(required = false) Long maxMid) {
         return groupMessagesApi.messages(new GroupMessagesRequest(id, maxMid));
     }
 
@@ -50,8 +53,8 @@ public class WeiboGroupController {
     }
 
     @GetMapping("/media")
-    public ResponseEntity<byte[]> media(@RequestParam String fid,
-                                        @RequestParam(required = false) String imageType) {
+    public ResponseEntity<byte[]> media(
+            @RequestParam String fid, @RequestParam(required = false) String imageType) {
         return groupMediaApi.download(new GroupMediaRequest(fid, imageType));
     }
 }

@@ -3,6 +3,15 @@ package xyz.fz.weibo.service.mapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -27,23 +36,12 @@ import xyz.fz.weibo.model.response.PageInfoResponse;
 import xyz.fz.weibo.model.response.PicInfoResponse;
 import xyz.fz.weibo.model.response.UserResponse;
 
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-
 @Component
 public class PostMapper {
 
     private static final DateTimeFormatter CREATED_AT_FORMAT =
             DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss Z yyyy", Locale.ENGLISH);
-    private static final TypeReference<List<PicInfo>> PICS_TYPE = new TypeReference<>() {
-    };
+    private static final TypeReference<List<PicInfo>> PICS_TYPE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
@@ -55,13 +53,22 @@ public class PostMapper {
         Objects.requireNonNull(user, "Blogger metadata is required");
         Objects.requireNonNull(user.id(), "Blogger uid is required");
         String avatar = firstNonBlank(user.avatarLarge(), user.profileImageUrl());
-        return new BloggerEntity(user.id(), emptyIfNull(user.screenName()), avatar,
+        return new BloggerEntity(
+                user.id(),
+                emptyIfNull(user.screenName()),
+                avatar,
                 emptyIfNull(user.profileUrl()),
-                user.verified() ? 1 : 0, 0, capturedAt, capturedAt);
+                user.verified() ? 1 : 0,
+                0,
+                capturedAt,
+                capturedAt);
     }
 
-    public PostEntity toPostEntity(MblogResponse post, LongTextResponse longText,
-                                   LongTextResponse retweetedLongText, long capturedAt) {
+    public PostEntity toPostEntity(
+            MblogResponse post,
+            LongTextResponse longText,
+            LongTextResponse retweetedLongText,
+            long capturedAt) {
         Objects.requireNonNull(post, "Blogger Blog entry is required");
         Objects.requireNonNull(post.id(), "Blogger Blog post id is required");
         Objects.requireNonNull(post.mblogId(), "Blogger Blog mblog id is required");
@@ -71,17 +78,32 @@ public class PostMapper {
         List<PicInfo> pics = toPics(post.picInfos());
         VideoInfo video = toVideo(post);
         RetweetInfo retweeted = toRetweetInfo(post.retweetedStatus(), retweetedLongText);
-        return new PostEntity(post.mblogId(), post.id(), post.user().id(),
-                content(post, longText, false), content(post, longText, true),
-                stripHtml(post.source()), emptyIfNull(post.regionName()), write(pics),
-                video.coverUrl(), video.pageUrl(), retweeted == null ? "" : write(retweeted),
-                post.repostsCount(), post.commentsCount(), post.attitudesCount(),
-                parseCreatedAt(post.createdAt()), capturedAt);
+        return new PostEntity(
+                post.mblogId(),
+                post.id(),
+                post.user().id(),
+                content(post, longText, false),
+                content(post, longText, true),
+                stripHtml(post.source()),
+                emptyIfNull(post.regionName()),
+                write(pics),
+                video.coverUrl(),
+                video.pageUrl(),
+                retweeted == null ? "" : write(retweeted),
+                post.repostsCount(),
+                post.commentsCount(),
+                post.attitudesCount(),
+                parseCreatedAt(post.createdAt()),
+                capturedAt);
     }
 
     public BloggerRecord toBloggerRecord(BloggerEntity entity) {
-        return new BloggerRecord(entity.getUid(), entity.getScreenName(), entity.getAvatar(),
-                entity.getProfileUrl(), entity.getVerified() != 0);
+        return new BloggerRecord(
+                entity.getUid(),
+                entity.getScreenName(),
+                entity.getAvatar(),
+                entity.getProfileUrl(),
+                entity.getVerified() != 0);
     }
 
     public List<BloggerRecord> toBloggerRecords(List<BloggerEntity> entities) {
@@ -89,13 +111,23 @@ public class PostMapper {
     }
 
     public PostRecord toPostRecord(PostEntity entity) {
-        return new PostRecord(entity.getMblogId(), entity.getPostId(), entity.getUid(),
-                entity.getContent(), entity.getContentRaw(), entity.getSource(), entity.getRegion(),
+        return new PostRecord(
+                entity.getMblogId(),
+                entity.getPostId(),
+                entity.getUid(),
+                entity.getContent(),
+                entity.getContentRaw(),
+                entity.getSource(),
+                entity.getRegion(),
                 readPics(entity.getPicsJson()),
-                new VideoInfo(emptyIfNull(entity.getVideoCoverUrl()),
+                new VideoInfo(
+                        emptyIfNull(entity.getVideoCoverUrl()),
                         emptyIfNull(entity.getVideoPageUrl())),
-                readRetweet(entity.getRetweetedJson()), entity.getRepostsCount(),
-                entity.getCommentsCount(), entity.getAttitudesCount(), entity.getCreatedAt(),
+                readRetweet(entity.getRetweetedJson()),
+                entity.getRepostsCount(),
+                entity.getCommentsCount(),
+                entity.getAttitudesCount(),
+                entity.getCreatedAt(),
                 entity.getSavedAt());
     }
 
@@ -119,7 +151,8 @@ public class PostMapper {
     }
 
     public MediaBinary toMediaBinary(ResponseEntity<byte[]> response) {
-        byte[] content = Objects.requireNonNull(response.getBody(), "Media response body is required");
+        byte[] content =
+                Objects.requireNonNull(response.getBody(), "Media response body is required");
         String contentType = response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
         if (contentType == null || contentType.isBlank()) {
             contentType = "application/octet-stream";
@@ -128,13 +161,24 @@ public class PostMapper {
     }
 
     private PostView toPostView(PostRecord post, BloggerRecord blogger) {
-        return new PostView(post.mblogId(), post.postId(), post.uid(),
-                "https://weibo.com/" + post.uid() + "/" + post.mblogId(), post.content(),
-                post.contentRaw(), post.source(), post.region(),
+        return new PostView(
+                post.mblogId(),
+                post.postId(),
+                post.uid(),
+                "https://weibo.com/" + post.uid() + "/" + post.mblogId(),
+                post.content(),
+                post.contentRaw(),
+                post.source(),
+                post.region(),
                 toImageViews(post.mblogId(), post.pics()),
                 toVideoView(post.mblogId(), post.video(), false),
-                toRetweetView(post.mblogId(), post.retweeted()), post.repostsCount(),
-                post.commentsCount(), post.attitudesCount(), post.createdAt(), post.savedAt(), blogger);
+                toRetweetView(post.mblogId(), post.retweeted()),
+                post.repostsCount(),
+                post.commentsCount(),
+                post.attitudesCount(),
+                post.createdAt(),
+                post.savedAt(),
+                blogger);
     }
 
     private RetweetInfo toRetweetInfo(MblogResponse post, LongTextResponse longText) {
@@ -152,19 +196,25 @@ public class PostMapper {
                 content(post, longText, true),
                 user == null || user.id() == null ? 0 : user.id(),
                 user == null ? "" : emptyIfNull(user.screenName()),
-                post.createdAt() == null || post.createdAt().isBlank() ? 0 : parseCreatedAt(post.createdAt()),
-                toPics(post.picInfos()), video.coverUrl(), video.pageUrl());
+                post.createdAt() == null || post.createdAt().isBlank()
+                        ? 0
+                        : parseCreatedAt(post.createdAt()),
+                toPics(post.picInfos()),
+                video.coverUrl(),
+                video.pageUrl());
     }
 
     private String content(MblogResponse post, LongTextResponse longText, boolean raw) {
         // 非长文，或长文数据缺失（如微博返回非 JSON 已容错为无长文）时，
         // 回退到微博列表里的短文本，保证正文不丢。
-        if (!post.isLongText() || longText == null || longText.ok() != 1 || longText.data() == null) {
+        if (!post.isLongText()
+                || longText == null
+                || longText.ok() != 1
+                || longText.data() == null) {
             return emptyIfNull(raw ? post.textRaw() : post.text());
         }
-        return emptyIfNull(raw
-                ? longText.data().longTextContentRaw()
-                : longText.data().longTextContent());
+        return emptyIfNull(
+                raw ? longText.data().longTextContentRaw() : longText.data().longTextContent());
     }
 
     private List<PicInfo> toPics(Map<String, PicInfoResponse> source) {
@@ -172,9 +222,13 @@ public class PostMapper {
             return List.of();
         }
         List<PicInfo> result = new ArrayList<>(source.size());
-        source.forEach((pid, info) -> result.add(new PicInfo(pid,
-                toMediaSize(info == null ? null : info.thumbnail()),
-                toMediaSize(originalImage(info)))));
+        source.forEach(
+                (pid, info) ->
+                        result.add(
+                                new PicInfo(
+                                        pid,
+                                        toMediaSize(info == null ? null : info.thumbnail()),
+                                        toMediaSize(originalImage(info)))));
         return List.copyOf(result);
     }
 
@@ -226,17 +280,31 @@ public class PostMapper {
         if (pageInfo == null) {
             return new VideoInfo("", "");
         }
-        String pageUrl = pageInfo.mediaInfo() == null
-                ? ""
-                : emptyIfNull(pageInfo.mediaInfo().h5Url());
+        String pageUrl =
+                pageInfo.mediaInfo() == null ? "" : emptyIfNull(pageInfo.mediaInfo().h5Url());
         return new VideoInfo(emptyIfNull(pageInfo.pagePic()), pageUrl);
     }
 
     private List<PostImageView> toImageViews(String mblogId, List<PicInfo> pics) {
-        return pics.stream().map(pic -> new PostImageView(pic.pid(), pic.thumbnail().width(),
-                pic.thumbnail().height(), pic.original().width(), pic.original().height(),
-                imageUrl(pic.thumbnail().url(), mblogId, pic.pid(), "thumbnail"),
-                imageUrl(pic.original().url(), mblogId, pic.pid(), "original")))
+        return pics.stream()
+                .map(
+                        pic ->
+                                new PostImageView(
+                                        pic.pid(),
+                                        pic.thumbnail().width(),
+                                        pic.thumbnail().height(),
+                                        pic.original().width(),
+                                        pic.original().height(),
+                                        imageUrl(
+                                                pic.thumbnail().url(),
+                                                mblogId,
+                                                pic.pid(),
+                                                "thumbnail"),
+                                        imageUrl(
+                                                pic.original().url(),
+                                                mblogId,
+                                                pic.pid(),
+                                                "original")))
                 .toList();
     }
 
@@ -244,8 +312,9 @@ public class PostMapper {
         if (video.coverUrl().isBlank()) {
             return new PostVideoView("", video.pageUrl());
         }
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/post/videoCover")
-                .queryParam("mblogId", "{mblogId}");
+        UriComponentsBuilder builder =
+                UriComponentsBuilder.fromPath("/post/videoCover")
+                        .queryParam("mblogId", "{mblogId}");
         if (retweeted) {
             builder.queryParam("retweeted", "true");
         }
@@ -257,11 +326,19 @@ public class PostMapper {
         if (retweeted == null) {
             return null;
         }
-        return new RetweetView(retweeted.postId(), retweeted.mblogId(), retweeted.content(),
-                retweeted.contentRaw(), retweeted.uid(), retweeted.screenName(), retweeted.createdAt(),
+        return new RetweetView(
+                retweeted.postId(),
+                retweeted.mblogId(),
+                retweeted.content(),
+                retweeted.contentRaw(),
+                retweeted.uid(),
+                retweeted.screenName(),
+                retweeted.createdAt(),
                 toImageViews(mblogId, retweeted.pics()),
-                toVideoView(mblogId,
-                        new VideoInfo(retweeted.videoCoverUrl(), retweeted.videoPageUrl()), true));
+                toVideoView(
+                        mblogId,
+                        new VideoInfo(retweeted.videoCoverUrl(), retweeted.videoPageUrl()),
+                        true));
     }
 
     private String imageUrl(String reference, String mblogId, String pid, String variant) {

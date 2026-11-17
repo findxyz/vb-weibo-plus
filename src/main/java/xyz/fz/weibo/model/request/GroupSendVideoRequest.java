@@ -1,9 +1,8 @@
 package xyz.fz.weibo.model.request;
 
-import xyz.fz.weibo.client.WeiboConstants;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
+import xyz.fz.weibo.client.WeiboConstants;
 
 /**
  * 群聊发送视频消息请求参数（send_message.json）。

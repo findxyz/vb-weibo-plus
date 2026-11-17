@@ -8,8 +8,8 @@ import xyz.fz.weibo.client.WeiboConstants;
 import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.GroupMessagesRequest;
-import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.request.GroupSendImageRequest;
+import xyz.fz.weibo.model.request.GroupSendMessageRequest;
 import xyz.fz.weibo.model.request.GroupSendVideoRequest;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
@@ -20,8 +20,10 @@ import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 @Component
 public class GroupMessagesApi {
 
-    private static final String GROUP_MESSAGES_URL = "https://api.weibo.com/webim/groupchat/query_messages.json";
-    private static final String SEND_MESSAGE_URL = "https://api.weibo.com/webim/groupchat/send_message.json";
+    private static final String GROUP_MESSAGES_URL =
+            "https://api.weibo.com/webim/groupchat/query_messages.json";
+    private static final String SEND_MESSAGE_URL =
+            "https://api.weibo.com/webim/groupchat/send_message.json";
 
     private final WeiboHttpClient client;
     private final ObjectMapper objectMapper;
@@ -32,8 +34,9 @@ public class GroupMessagesApi {
     }
 
     public GroupMessagesResponse messages(GroupMessagesRequest request) {
-        ResponseEntity<String> resp = client.getForString(
-                GROUP_MESSAGES_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM, true);
+        ResponseEntity<String> resp =
+                client.getForString(
+                        GROUP_MESSAGES_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM, true);
         try {
             return objectMapper.readValue(resp.getBody(), GroupMessagesResponse.class);
         } catch (JsonProcessingException e) {
@@ -42,8 +45,12 @@ public class GroupMessagesApi {
     }
 
     public GroupSendMessageResponse send(GroupSendMessageRequest request) {
-        ResponseEntity<String> resp = client.postForm(
-                SEND_MESSAGE_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
+        ResponseEntity<String> resp =
+                client.postForm(
+                        SEND_MESSAGE_URL,
+                        request.toParams(),
+                        WeiboConstants.HEADERS_WEBIM_SEND,
+                        true);
         try {
             return objectMapper.readValue(resp.getBody(), GroupSendMessageResponse.class);
         } catch (JsonProcessingException e) {
@@ -55,8 +62,12 @@ public class GroupMessagesApi {
      * 群聊发送图片消息：复用 send_message.json，带 fids/media_type=1/annotations。
      */
     public GroupSendMessageResponse sendImage(GroupSendImageRequest request) {
-        ResponseEntity<String> resp = client.postForm(
-                SEND_MESSAGE_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
+        ResponseEntity<String> resp =
+                client.postForm(
+                        SEND_MESSAGE_URL,
+                        request.toParams(),
+                        WeiboConstants.HEADERS_WEBIM_SEND,
+                        true);
         try {
             return objectMapper.readValue(resp.getBody(), GroupSendMessageResponse.class);
         } catch (JsonProcessingException e) {
@@ -68,8 +79,12 @@ public class GroupMessagesApi {
      * 群聊发送视频消息：复用 send_message.json，带 fids/media_type=10/annotations（含 video_pic_fid）。
      */
     public GroupSendMessageResponse sendVideo(GroupSendVideoRequest request) {
-        ResponseEntity<String> resp = client.postForm(
-                SEND_MESSAGE_URL, request.toParams(), WeiboConstants.HEADERS_WEBIM_SEND, true);
+        ResponseEntity<String> resp =
+                client.postForm(
+                        SEND_MESSAGE_URL,
+                        request.toParams(),
+                        WeiboConstants.HEADERS_WEBIM_SEND,
+                        true);
         try {
             return objectMapper.readValue(resp.getBody(), GroupSendMessageResponse.class);
         } catch (JsonProcessingException e) {

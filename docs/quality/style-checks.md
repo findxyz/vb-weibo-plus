@@ -24,8 +24,14 @@ mvn -Pbackend-check checkstyle:checkstyle pmd:pmd
 
 ## PMD
 
-使用 Maven PMD 插件 3.28.0（内置 PMD 7.17.0），直接引用官方完整分类 `category/java/bestpractices.xml`，不筛选、不排除其中规则，不启用其他分类。源码按 Java 21 解析。
+使用 Maven PMD 插件 3.28.0（内置 PMD 7.17.0），引用官方分类 `category/java/bestpractices.xml`，仅排除 `UnitTestContainsTooManyAsserts`，允许同一测试验证多个结果，不启用其他分类。源码按 Java 21 解析。
 
-完整分类包含测试断言、异常处理、资源管理、字符集、未使用代码等检查。扫描告警需要结合框架和业务语义复核，当前历史违规尚未批量整改。
+`config/pmd.xml` 配置断言识别参数，识别 MockMvc 的 `andExpect`、`andExpectAll` 和 Mockito 验证方法。需要使用 Spring `HttpHeaders` 的具体声明通过局部 `@SuppressWarnings("PMD.LooseCoupling")` 处理，不设置全局类型例外。
+
+WebSocket 的接收缓冲区需要跨分片保存数据，字段局部抑制 `AvoidStringBufferField`；完整消息无论解析成功或失败，都会在 `finally` 中更换缓冲区，让旧数组可以回收。
+
+`LoginApi.qrLogin` 中供截图请求读取的登录状态赋值，以及浏览器测试启动方法中的回环地址，使用方法级、指定规则的抑制。Checkstyle 接受空 catch 中已有的非空中文说明，不要求补写英文注释。
+
+完整分类包含测试断言、异常处理、资源管理、字符集、未使用代码等检查。扫描告警需要结合框架和业务语义复核。
 
 参考：[Google Java Style](https://google.github.io/styleguide/javaguide.html)、[Checkstyle 14.4.0 Google 配置](https://github.com/checkstyle/checkstyle/blob/checkstyle-14.4.0/src/main/resources/google_checks.xml)、[PMD 7.17.0 Best Practices](https://docs.pmd-code.org/pmd-doc-7.17.0/pmd_rules_java_bestpractices.html)。

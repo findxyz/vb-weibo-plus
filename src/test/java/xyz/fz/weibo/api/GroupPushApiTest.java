@@ -1,7 +1,17 @@
 package xyz.fz.weibo.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.http.WebSocket;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,31 +23,16 @@ import org.springframework.context.ApplicationEventPublisher;
 import xyz.fz.weibo.client.WeiboCookieHolder;
 import xyz.fz.weibo.client.WeiboHttpClient;
 
-import java.net.http.WebSocket;
-import java.util.concurrent.CompletableFuture;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 @ExtendWith(MockitoExtension.class)
 class GroupPushApiTest {
 
-    @Mock
-    private WeiboCookieHolder cookieHolder;
+    @Mock private WeiboCookieHolder cookieHolder;
 
-    @Mock
-    private WeiboHttpClient weiboHttpClient;
+    @Mock private WeiboHttpClient weiboHttpClient;
 
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
-    @Mock
-    private WebSocket webSocket;
+    @Mock private WebSocket webSocket;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private GroupPushApi client;
@@ -58,8 +53,10 @@ class GroupPushApiTest {
     void handshake_subscribes_to_account_channel() throws Exception {
         var listener = client.new PushListener(123, "credential");
         listener.onOpen(webSocket);
-        listener.onText(webSocket,
-                "[{\"channel\":\"/meta/handshake\",\"successful\":true,\"clientId\":\"abc\"}]", true);
+        listener.onText(
+                webSocket,
+                "[{\"channel\":\"/meta/handshake\",\"successful\":true,\"clientId\":\"abc\"}]",
+                true);
 
         ArgumentCaptor<String> sent = ArgumentCaptor.forClass(String.class);
         verify(webSocket, times(3)).sendText(sent.capture(), eq(true));
@@ -78,8 +75,10 @@ class GroupPushApiTest {
         var listener = client.new PushListener(123, "credential");
         listener.onOpen(webSocket);
 
-        listener.onText(webSocket,
-                "[{\"channel\":\"/im/123\",\"data\":{\"type\":\"presence\",\"info\":{\"id\":2}}}]", true);
+        listener.onText(
+                webSocket,
+                "[{\"channel\":\"/im/123\",\"data\":{\"type\":\"presence\",\"info\":{\"id\":2}}}]",
+                true);
 
         ArgumentCaptor<GroupPushEvent> event = ArgumentCaptor.forClass(GroupPushEvent.class);
         verify(eventPublisher).publishEvent(event.capture());
@@ -91,10 +90,15 @@ class GroupPushApiTest {
     void subscription_does_not_publish_business_event() {
         var listener = client.new PushListener(123, "credential");
         listener.onOpen(webSocket);
-        listener.onText(webSocket,
-                "[{\"channel\":\"/meta/handshake\",\"successful\":true,\"clientId\":\"abc\"}]", true);
-        listener.onText(webSocket,
-                "[{\"channel\":\"/meta/subscribe\",\"successful\":true,\"subscription\":\"/im/123\"}]", true);
+        listener.onText(
+                webSocket,
+                "[{\"channel\":\"/meta/handshake\",\"successful\":true,\"clientId\":\"abc\"}]",
+                true);
+        listener.onText(
+                webSocket,
+                "[{\"channel\":\"/meta/subscribe\",\"successful\":true,"
+                        + "\"subscription\":\"/im/123\"}]",
+                true);
 
         verify(eventPublisher, times(0)).publishEvent(any());
     }

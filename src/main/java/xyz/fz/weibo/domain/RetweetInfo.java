@@ -1,7 +1,6 @@
 package xyz.fz.weibo.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
 
 public record RetweetInfo(
@@ -14,6 +13,4 @@ public record RetweetInfo(
         @JsonProperty("created_at") long createdAt,
         List<PicInfo> pics,
         @JsonProperty("video_cover_url") String videoCoverUrl,
-        @JsonProperty("video_page_url") String videoPageUrl
-) {
-}
+        @JsonProperty("video_page_url") String videoPageUrl) {}

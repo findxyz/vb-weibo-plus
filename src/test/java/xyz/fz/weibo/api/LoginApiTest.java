@@ -1,21 +1,20 @@
 package xyz.fz.weibo.api;
 
-import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.Locator;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.options.Cookie;
-import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
-import xyz.fz.weibo.client.WeiboCookieHolder;
-
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.Cookie;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+import xyz.fz.weibo.client.WeiboCookieHolder;
 
 class LoginApiTest {
 
@@ -74,7 +73,7 @@ class LoginApiTest {
         Page page = mock(Page.class);
         startLogin(page, List.of());
         Locator locator = imageLocator(page, true);
-        byte[] expected = new byte[]{1, 2, 3};
+        byte[] expected = new byte[] {1, 2, 3};
         when(locator.screenshot()).thenReturn(expected);
 
         assertThat(loginApi.captureQrImage()).isEqualTo(expected);
@@ -87,7 +86,7 @@ class LoginApiTest {
         Page page = mock(Page.class);
         startLogin(page, List.of(weiboCookie("SSOLoginState", "t")));
         Locator locator = imageLocator(page, true);
-        byte[] expected = new byte[]{9, 8, 7};
+        byte[] expected = new byte[] {9, 8, 7};
         when(locator.screenshot()).thenReturn(expected);
 
         assertThat(loginApi.captureQrImage()).isEqualTo(expected);

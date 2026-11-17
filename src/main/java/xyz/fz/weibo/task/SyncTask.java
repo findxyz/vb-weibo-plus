@@ -1,5 +1,8 @@
 package xyz.fz.weibo.task;
 
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,10 +16,6 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.PostService;
 
-import java.util.Arrays;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 @Component
 public class SyncTask implements CommandLineRunner {
 
@@ -26,8 +25,10 @@ public class SyncTask implements CommandLineRunner {
     private final PostService postService;
     private final Set<Long> autoSyncGids;
 
-    public SyncTask(ChatService chatService, PostService postService,
-                    @Value("${weibo.chat.auto-sync-gids:}") String autoSyncGids) {
+    public SyncTask(
+            ChatService chatService,
+            PostService postService,
+            @Value("${weibo.chat.auto-sync-gids:}") String autoSyncGids) {
         this.chatService = chatService;
         this.postService = postService;
         this.autoSyncGids = parseGids(autoSyncGids);
@@ -54,14 +55,16 @@ public class SyncTask implements CommandLineRunner {
         if (autoSyncGids.isEmpty()) {
             return;
         }
-        runSafely("群消息增量同步", () -> {
-            for (var group : chatService.queryGroups()) {
-                if (!autoSyncGids.contains(group.gid())) {
-                    continue;
-                }
-                chatService.saveIncremental(group.gid());
-            }
-        });
+        runSafely(
+                "群消息增量同步",
+                () -> {
+                    for (var group : chatService.queryGroups()) {
+                        if (!autoSyncGids.contains(group.gid())) {
+                            continue;
+                        }
+                        chatService.saveIncremental(group.gid());
+                    }
+                });
     }
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 5_000)
@@ -81,24 +84,25 @@ public class SyncTask implements CommandLineRunner {
         if (!autoSyncGids.contains(gid)) {
             return;
         }
-        runSafely("群消息推送后补拉：gid = " + gid,
-                () -> chatService.saveIncremental(gid));
+        runSafely("群消息推送后补拉：gid = " + gid, () -> chatService.saveIncremental(gid));
     }
 
     @Scheduled(fixedDelay = 600_000, initialDelay = 5_000)
     public void syncBloggerBlogs() {
-        runSafely("博主微博增量同步", () -> {
-            for (var blogger : postService.queryBloggers()) {
-                postService.saveIncremental(blogger.uid());
-            }
-        });
+        runSafely(
+                "博主微博增量同步",
+                () -> {
+                    for (var blogger : postService.queryBloggers()) {
+                        postService.saveIncremental(blogger.uid());
+                    }
+                });
     }
 
     private void runSafely(String taskName, Runnable task) {
         try {
             task.run();
         } catch (WeiboException e) {
-            log.warn("{}失败：{}", taskName, e.getMessage());
+            log.atWarn().addArgument(taskName).addArgument(e::getMessage).log("{}失败：{}");
         }
     }
 }

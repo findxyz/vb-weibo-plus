@@ -70,14 +70,29 @@ public class MessageEntity {
     @Column(name = "saved_at", nullable = false)
     private long savedAt;
 
-    protected MessageEntity() {
-    }
+    protected MessageEntity() {}
 
-    public MessageEntity(Long mid, long gid, int msgType, String msgTypeName, int mediaType,
-                         long senderId, String senderName, String senderAvatar, String text, String fid,
-                         String videoCoverFid, String mediaOrigUrl, String urlObjectsJson,
-                         String picInfosJson, String template, String templateDataJson,
-                         String recallMidsJson, String recallBy, long createdAt, long savedAt) {
+    public MessageEntity(
+            Long mid,
+            long gid,
+            int msgType,
+            String msgTypeName,
+            int mediaType,
+            long senderId,
+            String senderName,
+            String senderAvatar,
+            String text,
+            String fid,
+            String videoCoverFid,
+            String mediaOrigUrl,
+            String urlObjectsJson,
+            String picInfosJson,
+            String template,
+            String templateDataJson,
+            String recallMidsJson,
+            String recallBy,
+            long createdAt,
+            long savedAt) {
         this.mid = mid;
         this.gid = gid;
         this.msgType = msgType;

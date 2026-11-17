@@ -1,5 +1,30 @@
 package xyz.fz.weibo.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,60 +81,44 @@ import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
 
-    @Mock
-    private GroupListApi groupListApi;
+    @Mock private GroupListApi groupListApi;
 
-    @Mock
-    private GroupMessagesApi groupMessagesApi;
+    @Mock private GroupMessagesApi groupMessagesApi;
 
-    @Mock
-    private GroupMediaApi groupMediaApi;
+    @Mock private GroupMediaApi groupMediaApi;
 
-    @Mock
-    private MessageMapper messageMapper;
+    @Mock private MessageMapper messageMapper;
 
-    @Mock
-    private GroupRepository groupRepository;
+    @Mock private GroupRepository groupRepository;
 
-    @Mock
-    private MessageRepository messageRepository;
+    @Mock private MessageRepository messageRepository;
 
-    @Mock
-    private VideoProbe videoProbe;
+    @Mock private VideoProbe videoProbe;
 
-    @Mock
-    private GroupPushApi pushApi;
+    @Mock private GroupPushApi pushApi;
 
-    @Mock
-    private LongTextApi longTextApi;
+    @Mock private LongTextApi longTextApi;
 
     private ChatService chatService;
 
     @BeforeEach
     void setUp() {
-        chatService = new ChatService(
-                groupListApi, groupMessagesApi, groupMediaApi,
-                messageMapper, groupRepository, messageRepository,
-                new HeicConverter("ffmpeg"), videoProbe, pushApi, longTextApi);
+        chatService =
+                new ChatService(
+                        groupListApi,
+                        groupMessagesApi,
+                        groupMediaApi,
+                        messageMapper,
+                        groupRepository,
+                        messageRepository,
+                        new HeicConverter("ffmpeg"),
+                        videoProbe,
+                        pushApi,
+                        longTextApi);
     }
 
     @Test
@@ -123,17 +132,16 @@ class ChatServiceTest {
 
     @Test
     void syncs_every_returned_group_and_returns_the_full_ordered_local_list() {
-        List<GroupListResponse.Contact> contacts = List.of(
-                new GroupListResponse.Contact(null),
-                new GroupListResponse.Contact(null)
-        );
+        List<GroupListResponse.Contact> contacts =
+                List.of(new GroupListResponse.Contact(null), new GroupListResponse.Contact(null));
         GroupListResponse response = new GroupListResponse(2, contacts);
         GroupEntity first = group(1, 100);
         GroupEntity second = group(2, 100);
         List<GroupEntity> localGroups = List.of(second, first);
         List<GroupRecord> records = List.of(record(2), record(1));
         when(groupListApi.list()).thenReturn(response);
-        when(messageMapper.toGroupEntities(eq(contacts), anyLong())).thenReturn(List.of(first, second));
+        when(messageMapper.toGroupEntities(eq(contacts), anyLong()))
+                .thenReturn(List.of(first, second));
         when(groupRepository.findAllOrdered()).thenReturn(localGroups);
         when(messageMapper.toGroupRecords(localGroups)).thenReturn(records);
 
@@ -159,8 +167,8 @@ class ChatServiceTest {
 
     @Test
     void group_list_includes_the_message_at_each_groups_latest_mid() {
-        GroupEntity group = new GroupEntity(1L, "群", "", 0, 500, 10, "[]", "", 1,
-                50, 100, 1_000, 1_000);
+        GroupEntity group =
+                new GroupEntity(1L, "群", "", 0, 500, 10, "[]", "", 1, 50, 100, 1_000, 1_000);
         GroupRecord record = record(1);
         MessageEntity message = messageEntity(100, 2_000);
         MessageRecord messageRecord = messageRecord(100, 0, "", "");
@@ -172,9 +180,10 @@ class ChatServiceTest {
 
         List<GroupListView> result = chatService.queryGroupList();
 
-        assertThat(result).containsExactly(new GroupListView(
-                1, "群", "", 1, 500, 10, List.of(), "", 1,
-                "发送者", "消息", 7));
+        assertThat(result)
+                .containsExactly(
+                        new GroupListView(
+                                1, "群", "", 1, 500, 10, List.of(), "", 1, "发送者", "消息", 7));
         verifyNoInteractions(groupListApi);
     }
 
@@ -199,8 +208,9 @@ class ChatServiceTest {
         MessageEntity duplicateEntity = messageEntity(101, 1_001);
         when(groupRepository.findMaxMid(1)).thenReturn(0L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenReturn(new GroupMessagesResponse(
-                        true, List.of(inserted, duplicate, filtered), 1_100));
+                .thenReturn(
+                        new GroupMessagesResponse(
+                                true, List.of(inserted, duplicate, filtered), 1_100));
         when(messageMapper.toMessageEntity(eq(inserted), eq(1L), anyLong()))
                 .thenReturn(Optional.of(insertedEntity));
         when(messageMapper.toMessageEntity(eq(duplicate), eq(1L), anyLong()))
@@ -225,10 +235,8 @@ class ChatServiceTest {
                 .thenReturn(new GroupMessagesResponse(false, null, 1_100))
                 .thenReturn(new GroupMessagesResponse(true, null, 1_100));
 
-        assertThatThrownBy(() -> chatService.saveIncremental(1))
-                .isInstanceOf(WeiboException.class);
-        assertThatThrownBy(() -> chatService.saveIncremental(1))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.saveIncremental(1)).isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.saveIncremental(1)).isInstanceOf(WeiboException.class);
 
         verify(messageRepository, never()).refreshGroupRange(1);
         verifyNoInteractions(messageMapper);
@@ -243,8 +251,8 @@ class ChatServiceTest {
 
     @Test
     void maps_found_messages_to_their_snapshot_even_when_the_attitudes_were_withdrawn() {
-        GroupMessagesResponse.Message liked = messageWithAttitudes(300, 1_000,
-                new GroupMessagesResponse.Attitude("good", 5, 1));
+        GroupMessagesResponse.Message liked =
+                messageWithAttitudes(300, 1_000, new GroupMessagesResponse.Attitude("good", 5, 1));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 301L)))
                 .thenReturn(messagePage(message(200, 321, 900), liked));
 
@@ -259,17 +267,16 @@ class ChatServiceTest {
 
     @Test
     void walks_backward_until_every_requested_mid_is_collected() {
-        GroupMessagesResponse.Message newer = messageWithAttitudes(300, 1_000,
-                new GroupMessagesResponse.Attitude("good", 5, 1));
-        GroupMessagesResponse.Message older = messageWithAttitudes(100, 500,
-                new GroupMessagesResponse.Attitude("干杯", 3, 0));
+        GroupMessagesResponse.Message newer =
+                messageWithAttitudes(300, 1_000, new GroupMessagesResponse.Attitude("good", 5, 1));
+        GroupMessagesResponse.Message older =
+                messageWithAttitudes(100, 500, new GroupMessagesResponse.Attitude("干杯", 3, 0));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 301L)))
                 .thenReturn(messagePage(newer));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 300L)))
                 .thenReturn(messagePage(older));
 
-        assertThat(chatService.queryAttitudes(1, List.of(100L, 300L)))
-                .containsOnlyKeys(100L, 300L);
+        assertThat(chatService.queryAttitudes(1, List.of(100L, 300L))).containsOnlyKeys(100L, 300L);
 
         verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 301L));
         verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 300L));
@@ -278,8 +285,7 @@ class ChatServiceTest {
 
     @Test
     void stops_after_the_page_cap_when_requested_mids_stay_out_of_reach() {
-        when(groupMessagesApi.messages(any()))
-                .thenReturn(messagePage(message(900, 321, 1_000)));
+        when(groupMessagesApi.messages(any())).thenReturn(messagePage(message(900, 321, 1_000)));
 
         assertThat(chatService.queryAttitudes(1, List.of(100L))).isEmpty();
 
@@ -293,14 +299,14 @@ class ChatServiceTest {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageView view = view(100);
         when(messageRepository.findPage(
-                1, 500L, 1_500L, "发送者", "消息", MessageRepository.pageRequest(1, 100)))
-                .thenReturn(new PageImpl<>(List.of(entity), MessageRepository.pageRequest(1, 100), 1));
+                        1, 500L, 1_500L, "发送者", "消息", MessageRepository.pageRequest(1, 100)))
+                .thenReturn(
+                        new PageImpl<>(List.of(entity), MessageRepository.pageRequest(1, 100), 1));
         when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
         when(messageMapper.toGroupRecord(group)).thenReturn(groupRecord);
         when(messageMapper.toMessageViews(List.of(entity))).thenReturn(List.of(view));
 
-        MessageQueryResult result = chatService.queryMessages(
-                1, 500L, 1_500L, "发送者", "消息", 1, 100);
+        MessageQueryResult result = chatService.queryMessages(1, 500L, 1_500L, "发送者", "消息", 1, 100);
 
         assertThat(result.group()).isEqualTo(groupRecord);
         assertThat(result.items()).containsExactly(view);
@@ -312,7 +318,7 @@ class ChatServiceTest {
     void query_messages_returns_gid_only_metadata_and_validates_bounds_and_pagination() {
         GroupRecord placeholder = new GroupRecord(1, "", "", 0, 0, 0, List.of(), "", 0);
         when(messageRepository.findPage(
-                1, null, null, null, null, MessageRepository.pageRequest(1, 100)))
+                        1, null, null, null, null, MessageRepository.pageRequest(1, 100)))
                 .thenReturn(new PageImpl<>(List.of(), MessageRepository.pageRequest(1, 100), 0));
         when(groupRepository.findById(1L)).thenReturn(Optional.empty());
         when(messageMapper.toEmptyGroupRecord(1)).thenReturn(placeholder);
@@ -320,14 +326,11 @@ class ChatServiceTest {
 
         assertThat(chatService.queryMessages(1, null, null, null, null, 1, 100).group())
                 .isEqualTo(placeholder);
-        assertThatThrownBy(() -> chatService.queryMessages(
-                1, 2_000L, 1_000L, null, null, 1, 100))
+        assertThatThrownBy(() -> chatService.queryMessages(1, 2_000L, 1_000L, null, null, 1, 100))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessages(
-                1, null, null, null, null, 0, 100))
+        assertThatThrownBy(() -> chatService.queryMessages(1, null, null, null, null, 0, 100))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessages(
-                1, null, null, null, null, 1, 101))
+        assertThatThrownBy(() -> chatService.queryMessages(1, null, null, null, null, 1, 101))
                 .isInstanceOf(InvalidRequestException.class);
 
         verifyNoInteractions(groupMessagesApi, groupMediaApi);
@@ -341,15 +344,14 @@ class ChatServiceTest {
         MessageEntity next = messageEntity(102, 3_000);
         MessageEntity lookahead = messageEntity(101, 2_000);
         List<MessageView> views = List.of(view(103), view(102));
-        when(messageRepository.findCursorPage(
-                1, null, null, PageRequest.of(0, 3)))
+        when(messageRepository.findCursorPage(1, null, null, PageRequest.of(0, 3)))
                 .thenReturn(List.of(newest, next, lookahead));
         when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
         when(messageMapper.toGroupRecord(group)).thenReturn(groupRecord);
         when(messageMapper.toMessageViews(List.of(newest, next))).thenReturn(views);
 
-        MessageCursorResult result = chatService.queryMessagesByCursor(
-                1, null, null, null, null, 2);
+        MessageCursorResult result =
+                chatService.queryMessagesByCursor(1, null, null, null, null, 2);
 
         assertThat(result.group()).isEqualTo(groupRecord);
         assertThat(result.items()).containsExactlyElementsOf(views);
@@ -368,15 +370,14 @@ class ChatServiceTest {
         MessageEntity newer = messageEntity(103, 4_000);
         MessageEntity lookahead = messageEntity(104, 5_000);
         List<MessageView> views = List.of(view(103), view(102));
-        when(messageRepository.findAfterCursorPage(
-                1, 2_000L, 101L, PageRequest.of(0, 3)))
+        when(messageRepository.findAfterCursorPage(1, 2_000L, 101L, PageRequest.of(0, 3)))
                 .thenReturn(List.of(nearest, newer, lookahead));
         when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
         when(messageMapper.toGroupRecord(group)).thenReturn(groupRecord);
         when(messageMapper.toMessageViews(List.of(newer, nearest))).thenReturn(views);
 
-        MessageCursorResult result = chatService.queryMessagesByCursor(
-                1, null, null, 2_000L, 101L, 2);
+        MessageCursorResult result =
+                chatService.queryMessagesByCursor(1, null, null, 2_000L, 101L, 2);
 
         assertThat(result.group()).isEqualTo(groupRecord);
         assertThat(result.items()).containsExactlyElementsOf(views);
@@ -389,23 +390,18 @@ class ChatServiceTest {
 
     @Test
     void cursor_query_requires_a_complete_cursor_and_valid_size() {
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
-                1, 1_000L, null, null, null, 50))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, 1_000L, null, null, null, 50))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
-                1, null, 100L, null, null, 50))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, 100L, null, null, 50))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
-                1, null, null, 1_000L, null, 50))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, null, 1_000L, null, 50))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
-                1, null, null, null, 100L, 50))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, null, null, 100L, 50))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
-                1, 1_000L, 100L, 2_000L, 200L, 50))
+        assertThatThrownBy(
+                        () -> chatService.queryMessagesByCursor(1, 1_000L, 100L, 2_000L, 200L, 50))
                 .isInstanceOf(InvalidRequestException.class);
-        assertThatThrownBy(() -> chatService.queryMessagesByCursor(
-                1, null, null, null, null, 101))
+        assertThatThrownBy(() -> chatService.queryMessagesByCursor(1, null, null, null, null, 101))
                 .isInstanceOf(InvalidRequestException.class);
     }
 
@@ -415,8 +411,11 @@ class ChatServiceTest {
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage(message(120, 321, 1_020), message(130, 321, 1_030)));
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 120L)))
-                .thenReturn(messagePage(
-                        message(90, 321, 990), message(100, 321, 1_000), message(110, 321, 1_010)));
+                .thenReturn(
+                        messagePage(
+                                message(90, 321, 990),
+                                message(100, 321, 1_000),
+                                message(110, 321, 1_010)));
         mapEveryMessage();
         when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(2, 1);
 
@@ -425,10 +424,11 @@ class ChatServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<MessageEntity>> saved = ArgumentCaptor.forClass(List.class);
         verify(messageRepository, times(2)).insertAllIfAbsent(saved.capture());
-        List<Long> savedMids = saved.getAllValues().stream()
-                .flatMap(List::stream)
-                .map(MessageEntity::getMid)
-                .toList();
+        List<Long> savedMids =
+                saved.getAllValues().stream()
+                        .flatMap(List::stream)
+                        .map(MessageEntity::getMid)
+                        .toList();
         assertThat(savedMids).containsExactly(120L, 130L, 110L);
         verify(groupMessagesApi).messages(new GroupMessagesRequest(1L, 120L));
         verifyNoMoreInteractions(groupMessagesApi);
@@ -459,8 +459,7 @@ class ChatServiceTest {
                 .thenThrow(new WeiboException("上游分页失败。", -1));
         mapEveryMessage();
 
-        assertThatThrownBy(() -> chatService.saveIncremental(1))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.saveIncremental(1)).isInstanceOf(WeiboException.class);
 
         verify(messageRepository, times(1)).insertAllIfAbsent(anyList());
         verify(messageRepository, never()).refreshGroupRange(1);
@@ -484,21 +483,20 @@ class ChatServiceTest {
 
     @Test
     void retry_ignores_earlier_captures_and_fills_the_remaining_incremental_gap() {
-        GroupMessagesResponse firstPage = messagePage(
-                message(120, 321, 1_020), message(130, 321, 1_030));
-        GroupMessagesResponse boundaryPage = messagePage(
-                message(90, 321, 990), message(100, 321, 1_000), message(110, 321, 1_010));
+        GroupMessagesResponse firstPage =
+                messagePage(message(120, 321, 1_020), message(130, 321, 1_030));
+        GroupMessagesResponse boundaryPage =
+                messagePage(
+                        message(90, 321, 990), message(100, 321, 1_000), message(110, 321, 1_010));
         when(groupRepository.findMaxMid(1)).thenReturn(100L);
-        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenReturn(firstPage);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null))).thenReturn(firstPage);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 120L)))
                 .thenThrow(new WeiboException("上游分页失败。", -1))
                 .thenReturn(boundaryPage);
         mapEveryMessage();
         when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(2, 0, 1);
 
-        assertThatThrownBy(() -> chatService.saveIncremental(1))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.saveIncremental(1)).isInstanceOf(WeiboException.class);
         assertThat(chatService.saveIncremental(1)).isEqualTo(new SaveResult(5, 1, 4));
 
         verify(messageRepository).refreshGroupRange(1);
@@ -518,10 +516,11 @@ class ChatServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<MessageEntity>> saved = ArgumentCaptor.forClass(List.class);
         verify(messageRepository, times(2)).insertAllIfAbsent(saved.capture());
-        List<Long> savedMids = saved.getAllValues().stream()
-                .flatMap(List::stream)
-                .map(MessageEntity::getMid)
-                .toList();
+        List<Long> savedMids =
+                saved.getAllValues().stream()
+                        .flatMap(List::stream)
+                        .map(MessageEntity::getMid)
+                        .toList();
         assertThat(savedMids).containsExactly(110L, 120L, 100L);
         verify(messageRepository).refreshGroupRange(1);
     }
@@ -536,8 +535,7 @@ class ChatServiceTest {
 
         chatService.saveBySince(1, 90_000, null);
 
-        assertThat(output.getOut())
-                .contains("群 1 历史同步：新增消息 1 条，忽略 1 条，最旧消息时间 1970-01-01 08:01:00");
+        assertThat(output.getOut()).contains("群 1 历史同步：新增消息 1 条，忽略 1 条，最旧消息时间 1970-01-01 08:01:00");
     }
 
     @Test
@@ -545,15 +543,17 @@ class ChatServiceTest {
         AtomicLong firstFetch = new AtomicLong();
         AtomicLong secondFetch = new AtomicLong();
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenAnswer(invocation -> {
-                    firstFetch.set(System.nanoTime());
-                    return messagePage(message(110, 321, 1_100));
-                });
+                .thenAnswer(
+                        invocation -> {
+                            firstFetch.set(System.nanoTime());
+                            return messagePage(message(110, 321, 1_100));
+                        });
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
-                .thenAnswer(invocation -> {
-                    secondFetch.set(System.nanoTime());
-                    return messagePage();
-                });
+                .thenAnswer(
+                        invocation -> {
+                            secondFetch.set(System.nanoTime());
+                            return messagePage();
+                        });
         mapEveryMessageWithTime();
         when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(1);
 
@@ -568,17 +568,18 @@ class ChatServiceTest {
         CountDownLatch firstFetchStarted = new CountDownLatch(1);
         CountDownLatch releaseFirstFetch = new CountDownLatch(1);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenAnswer(invocation -> {
-                    firstFetchStarted.countDown();
-                    releaseFirstFetch.await(5, TimeUnit.SECONDS);
-                    throw new WeiboException("上游分页失败。", -1);
-                })
+                .thenAnswer(
+                        invocation -> {
+                            firstFetchStarted.countDown();
+                            releaseFirstFetch.await(5, TimeUnit.SECONDS);
+                            throw new WeiboException("上游分页失败。", -1);
+                        })
                 .thenReturn(messagePage());
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         try {
-            Future<?> firstRequest = executor.submit(
-                    () -> chatService.saveBySince(1, 900, null));
+            final Future<?> firstRequest =
+                    executor.submit(() -> chatService.saveBySince(1, 900, null));
             assertThat(firstFetchStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
             long startedAt = System.nanoTime();
@@ -593,8 +594,7 @@ class ChatServiceTest {
                     .hasCauseInstanceOf(WeiboException.class);
 
             chatService.saveBySince(1, 900, null);
-            verify(groupMessagesApi, times(2))
-                    .messages(new GroupMessagesRequest(1L, null));
+            verify(groupMessagesApi, times(2)).messages(new GroupMessagesRequest(1L, null));
         } finally {
             releaseFirstFetch.countDown();
             executor.shutdownNow();
@@ -615,19 +615,17 @@ class ChatServiceTest {
 
     @Test
     void backfill_failure_keeps_earlier_captures_and_retry_fills_the_gap_idempotently() {
-        GroupMessagesResponse firstPage = messagePage(
-                message(110, 321, 1_001), message(120, 321, 1_002));
+        GroupMessagesResponse firstPage =
+                messagePage(message(110, 321, 1_001), message(120, 321, 1_002));
         GroupMessagesResponse secondPage = messagePage(message(100, 321, 1_000));
-        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenReturn(firstPage);
+        when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null))).thenReturn(firstPage);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
                 .thenThrow(new WeiboException("上游分页失败。", -1))
                 .thenReturn(secondPage);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 100L)))
                 .thenReturn(messagePage());
         mapEveryMessageWithTime();
-        when(messageRepository.insertAllIfAbsent(anyList()))
-                .thenReturn(2, 0, 1);
+        when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(2, 0, 1);
 
         assertThatThrownBy(() -> chatService.saveBySince(1, 1_000, null))
                 .isInstanceOf(WeiboException.class);
@@ -653,16 +651,16 @@ class ChatServiceTest {
     void proxies_image_preview_and_original_from_the_saved_string_fid() {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 1, "5302496155143676_file", "");
-        ResponseEntity<byte[]> previewResponse = ResponseEntity.ok(new byte[]{1});
-        ResponseEntity<byte[]> originalResponse = ResponseEntity.ok(new byte[]{2});
-        MediaBinary preview = new MediaBinary(new byte[]{1}, "image/jpeg");
-        MediaBinary original = new MediaBinary(new byte[]{2}, "image/jpeg");
+        ResponseEntity<byte[]> previewResponse = ResponseEntity.ok(new byte[] {1});
+        ResponseEntity<byte[]> originalResponse = ResponseEntity.ok(new byte[] {2});
+        MediaBinary preview = new MediaBinary(new byte[] {1}, "image/jpeg");
+        MediaBinary original = new MediaBinary(new byte[] {2}, "image/jpeg");
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
-        when(groupMediaApi.download(new GroupMediaRequest(
-                "5302496155143676_file", "compress"))).thenReturn(previewResponse);
-        when(groupMediaApi.download(new GroupMediaRequest(
-                "5302496155143676_file", "origin"))).thenReturn(originalResponse);
+        when(groupMediaApi.download(new GroupMediaRequest("5302496155143676_file", "compress")))
+                .thenReturn(previewResponse);
+        when(groupMediaApi.download(new GroupMediaRequest("5302496155143676_file", "origin")))
+                .thenReturn(originalResponse);
         when(messageMapper.toMediaBinary(previewResponse)).thenReturn(preview);
         when(messageMapper.toMediaBinary(originalResponse)).thenReturn(original);
 
@@ -674,8 +672,8 @@ class ChatServiceTest {
     void proxies_only_the_saved_video_cover_and_rejects_video_original() {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 10, "video-file", "video-cover");
-        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[]{1});
-        MediaBinary cover = new MediaBinary(new byte[]{1}, "image/jpeg");
+        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[] {1});
+        MediaBinary cover = new MediaBinary(new byte[] {1}, "image/jpeg");
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
@@ -695,8 +693,8 @@ class ChatServiceTest {
     void proxies_the_saved_cover_for_non_red_packet_media_type_13() {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 13, "video-file", "video-cover");
-        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[]{1});
-        MediaBinary cover = new MediaBinary(new byte[]{1}, "image/jpeg");
+        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[] {1});
+        MediaBinary cover = new MediaBinary(new byte[] {1}, "image/jpeg");
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
@@ -712,19 +710,25 @@ class ChatServiceTest {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 10, "video-file", "video-cover");
         GroupMediaRequest request = new GroupMediaRequest("video-file", null);
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{1, 2, 3}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {1, 2, 3}, HttpStatus.OK);
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
         when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
-                .thenAnswer(invocation -> {
-                    ResponseExtractor<String> extractor = invocation.getArgument(2);
-                    return extractor.extractData(upstream);
-                });
+                .thenAnswer(
+                        invocation -> {
+                            ResponseExtractor<String> extractor = invocation.getArgument(2);
+                            return extractor.extractData(upstream);
+                        });
 
-        String result = chatService.streamMessageVideo(
-                1, 100, response -> new String(response.getBody().readAllBytes()));
+        String result =
+                chatService.streamMessageVideo(
+                        1,
+                        100,
+                        response ->
+                                new String(
+                                        response.getBody().readAllBytes(), StandardCharsets.UTF_8));
 
         assertThat(result).isEqualTo("\u0001\u0002\u0003");
     }
@@ -734,20 +738,22 @@ class ChatServiceTest {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 10, "video-file", "");
         GroupMediaRequest request = new GroupMediaRequest("video-file", null);
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[0], HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[0], HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
         upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes */4");
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
         when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
-                .thenAnswer(invocation -> {
-                    ResponseExtractor<Integer> extractor = invocation.getArgument(2);
-                    return extractor.extractData(upstream);
-                });
+                .thenAnswer(
+                        invocation -> {
+                            ResponseExtractor<Integer> extractor = invocation.getArgument(2);
+                            return extractor.extractData(upstream);
+                        });
 
-        int status = chatService.streamMessageVideo(
-                1, 100, new HttpHeaders(), response -> response.getStatusCode().value());
+        int status =
+                chatService.streamMessageVideo(
+                        1, 100, new HttpHeaders(), response -> response.getStatusCode().value());
 
         assertThat(status).isEqualTo(416);
     }
@@ -755,16 +761,14 @@ class ChatServiceTest {
     @Test
     void video_stream_rejects_invalid_local_messages_before_calling_upstream() {
         when(messageRepository.findById(100L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> chatService.streamMessageVideo(
-                1, 100, response -> null))
+        assertThatThrownBy(() -> chatService.streamMessageVideo(1, 100, response -> null))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         MessageEntity mismatched = messageEntity(101, 1_000);
         MessageRecord mismatchedRecord = messageRecord(101, 10, "video-file", "");
         when(messageRepository.findById(101L)).thenReturn(Optional.of(mismatched));
         when(messageMapper.toMessageRecord(mismatched)).thenReturn(mismatchedRecord);
-        assertThatThrownBy(() -> chatService.streamMessageVideo(
-                2, 101, response -> null))
+        assertThatThrownBy(() -> chatService.streamMessageVideo(2, 101, response -> null))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         MessageEntity nonVideo = messageEntity(102, 1_000);
@@ -772,8 +776,7 @@ class ChatServiceTest {
         when(messageRepository.findById(102L)).thenReturn(Optional.of(nonVideo));
         when(messageMapper.toMessageRecord(nonVideo)).thenReturn(nonVideoRecord);
         when(messageMapper.isVideo(nonVideoRecord)).thenReturn(false);
-        assertThatThrownBy(() -> chatService.streamMessageVideo(
-                1, 102, response -> null))
+        assertThatThrownBy(() -> chatService.streamMessageVideo(1, 102, response -> null))
                 .isInstanceOf(InvalidRequestException.class);
 
         MessageEntity missingReference = messageEntity(103, 1_000);
@@ -781,8 +784,7 @@ class ChatServiceTest {
         when(messageRepository.findById(103L)).thenReturn(Optional.of(missingReference));
         when(messageMapper.toMessageRecord(missingReference)).thenReturn(missingReferenceRecord);
         when(messageMapper.isVideo(missingReferenceRecord)).thenReturn(true);
-        assertThatThrownBy(() -> chatService.streamMessageVideo(
-                1, 103, response -> null))
+        assertThatThrownBy(() -> chatService.streamMessageVideo(1, 103, response -> null))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verifyNoInteractions(groupMediaApi);
@@ -793,28 +795,27 @@ class ChatServiceTest {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 10, "video-file", "");
         GroupMediaRequest request = new GroupMediaRequest("video-file", null);
-        MockClientHttpResponse notFound = new MockClientHttpResponse(
-                new byte[0], HttpStatus.NOT_FOUND);
+        MockClientHttpResponse notFound =
+                new MockClientHttpResponse(new byte[0], HttpStatus.NOT_FOUND);
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
         when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
-                .thenAnswer(invocation -> {
-                    ResponseExtractor<Void> extractor = invocation.getArgument(2);
-                    return extractor.extractData(notFound);
-                })
+                .thenAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(2);
+                            return extractor.extractData(notFound);
+                        })
                 .thenThrow(new WeiboCookieExpiredException("Credential 失效。"))
                 .thenThrow(new WeiboRateLimitException("限流。"));
 
-        assertThatThrownBy(() -> chatService.streamMessageVideo(
-                1, 100, response -> null))
-                .isInstanceOfSatisfying(WeiboException.class,
+        assertThatThrownBy(() -> chatService.streamMessageVideo(1, 100, response -> null))
+                .isInstanceOfSatisfying(
+                        WeiboException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(-1));
-        assertThatThrownBy(() -> chatService.streamMessageVideo(
-                1, 100, response -> null))
+        assertThatThrownBy(() -> chatService.streamMessageVideo(1, 100, response -> null))
                 .isInstanceOf(WeiboCookieExpiredException.class);
-        assertThatThrownBy(() -> chatService.streamMessageVideo(
-                1, 100, response -> null))
+        assertThatThrownBy(() -> chatService.streamMessageVideo(1, 100, response -> null))
                 .isInstanceOf(WeiboRateLimitException.class);
     }
 
@@ -835,15 +836,14 @@ class ChatServiceTest {
 
         MessageEntity missingImage = messageEntity(102, 1_000);
         when(messageRepository.findById(102L)).thenReturn(Optional.of(missingImage));
-        when(messageMapper.toMessageRecord(missingImage))
-                .thenReturn(messageRecord(102, 1, "", ""));
+        when(messageMapper.toMessageRecord(missingImage)).thenReturn(messageRecord(102, 1, "", ""));
         assertThatThrownBy(() -> chatService.queryMessageMedia(1, 102, "preview"))
                 .isInstanceOf(ResourceNotFoundException.class);
         verifyNoInteractions(groupMediaApi);
     }
 
     @Test
-    void maps_upstream_media_failure_to_bad_gateway_and_preserves_credential_and_rate_limit_errors() {
+    void maps_media_failure_and_preserves_credential_and_rate_limit_errors() {
         MessageEntity entity = messageEntity(100, 1_000);
         MessageRecord record = messageRecord(100, 1, "image-fid", "");
         GroupMediaRequest request = new GroupMediaRequest("image-fid", "compress");
@@ -855,7 +855,8 @@ class ChatServiceTest {
                 .thenThrow(new WeiboRateLimitException("限流。"));
 
         assertThatThrownBy(() -> chatService.queryMessageMedia(1, 100, "preview"))
-                .isInstanceOfSatisfying(WeiboException.class,
+                .isInstanceOfSatisfying(
+                        WeiboException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(-1));
         assertThatThrownBy(() -> chatService.queryMessageMedia(1, 100, "preview"))
                 .isInstanceOf(WeiboCookieExpiredException.class);
@@ -867,7 +868,9 @@ class ChatServiceTest {
     void send_text_posts_to_weibo_then_triggers_incremental_capture_and_returns_success() {
         GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
         when(groupMessagesApi.send(request))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
+                .thenReturn(
+                        new GroupSendMessageResponse(
+                                true, 100L, 1L, "hello", null, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage());
@@ -903,7 +906,9 @@ class ChatServiceTest {
     void send_text_reports_sync_failure_when_capture_fails_after_a_successful_send() {
         GroupSendMessageRequest request = new GroupSendMessageRequest(1L, "hello");
         when(groupMessagesApi.send(request))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "hello", null, 1_000L, 1_000L));
+                .thenReturn(
+                        new GroupSendMessageResponse(
+                                true, 100L, 1L, "hello", null, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenThrow(new WeiboException("增量拉取失败。", -1));
@@ -915,14 +920,15 @@ class ChatServiceTest {
 
     @Test
     void send_image_uploads_then_sends_then_triggers_incremental_capture() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
                 .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
         when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024)))
                 .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
         when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
+                .thenReturn(
+                        new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage());
@@ -939,8 +945,7 @@ class ChatServiceTest {
     @Test
     void send_image_rejects_oversize_file_before_calling_weibo() {
         byte[] oversize = new byte[20 * 1024 * 1024 + 1];
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "big.png", "image/png", oversize);
+        MockMultipartFile file = new MockMultipartFile("file", "big.png", "image/png", oversize);
 
         assertThatThrownBy(() -> chatService.sendImage(1, file))
                 .isInstanceOf(InvalidRequestException.class)
@@ -950,8 +955,8 @@ class ChatServiceTest {
 
     @Test
     void send_image_rejects_non_image_content_type_before_calling_weibo() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.txt", "text/plain", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.txt", "text/plain", new byte[] {1, 2, 3});
 
         assertThatThrownBy(() -> chatService.sendImage(1, file))
                 .isInstanceOf(InvalidRequestException.class)
@@ -961,26 +966,26 @@ class ChatServiceTest {
 
     @Test
     void send_image_propagates_weibo_upload_failure_without_sending() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
                 .thenThrow(new WeiboException("init 失败。", -1));
 
-        assertThatThrownBy(() -> chatService.sendImage(1, file))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.sendImage(1, file)).isInstanceOf(WeiboException.class);
         verify(groupMessagesApi, never()).sendImage(any());
     }
 
     @Test
     void send_image_reports_sync_failure_when_capture_fails_after_successful_send() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
                 .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
         when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024)))
                 .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
         when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
+                .thenReturn(
+                        new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenThrow(new WeiboException("增量拉取失败。", -1));
@@ -992,14 +997,15 @@ class ChatServiceTest {
 
     @Test
     void send_image_passes_init_chunk_size_to_upload() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        final MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(groupMediaApi.initUpload(any(GroupMediaUploadInitRequest.class)))
                 .thenReturn(new GroupMediaUploadInitResponse("token-abc", 1024, 1));
         when(groupMediaApi.upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024)))
                 .thenReturn(new GroupMediaUploadResponse(5326071291448867L));
         when(groupMessagesApi.sendImage(new GroupSendImageRequest(1L, 5326071291448867L)))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
+                .thenReturn(
+                        new GroupSendMessageResponse(true, 100L, 1L, "分享图片", 1, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage());
@@ -1012,16 +1018,37 @@ class ChatServiceTest {
 
     @Test
     void downloads_a_file_message_by_fid_via_the_local_message() {
-        MessageEntity file = new MessageEntity(500L, 1, 321, "普通消息", 5, 9, "发送者", "",
-                "海外即插即充流程.md", "file-fid", "", "", "[]", "[]", "", "{}", "[]", "", 1_000, 2_000);
+        MessageEntity file =
+                new MessageEntity(
+                        500L,
+                        1,
+                        321,
+                        "普通消息",
+                        5,
+                        9,
+                        "发送者",
+                        "",
+                        "海外即插即充流程.md",
+                        "file-fid",
+                        "",
+                        "",
+                        "[]",
+                        "[]",
+                        "",
+                        "{}",
+                        "[]",
+                        "",
+                        1_000,
+                        2_000);
         when(messageRepository.findById(500L)).thenReturn(Optional.of(file));
         when(messageMapper.toMessageRecord(file)).thenReturn(messageRecord(500, 5, "file-fid", ""));
-        ResponseEntity<byte[]> upstream = ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_TYPE, "application/octet-stream")
-                .body(new byte[]{1, 2, 3});
+        ResponseEntity<byte[]> upstream =
+                ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_TYPE, "application/octet-stream")
+                        .body(new byte[] {1, 2, 3});
         when(groupMediaApi.download(new GroupMediaRequest("file-fid", null))).thenReturn(upstream);
         when(messageMapper.toMediaBinary(upstream))
-                .thenReturn(new MediaBinary(new byte[]{1, 2, 3}, "application/octet-stream"));
+                .thenReturn(new MediaBinary(new byte[] {1, 2, 3}, "application/octet-stream"));
 
         MediaBinary result = chatService.downloadMessageFile(1, 500L);
 
@@ -1031,10 +1058,31 @@ class ChatServiceTest {
 
     @Test
     void rejects_file_download_for_a_non_file_message() {
-        MessageEntity image = new MessageEntity(500L, 1, 321, "普通消息", 1, 9, "发送者", "",
-                "图片", "image-fid", "", "", "[]", "[]", "", "{}", "[]", "", 1_000, 2_000);
+        MessageEntity image =
+                new MessageEntity(
+                        500L,
+                        1,
+                        321,
+                        "普通消息",
+                        1,
+                        9,
+                        "发送者",
+                        "",
+                        "图片",
+                        "image-fid",
+                        "",
+                        "",
+                        "[]",
+                        "[]",
+                        "",
+                        "{}",
+                        "[]",
+                        "",
+                        1_000,
+                        2_000);
         when(messageRepository.findById(500L)).thenReturn(Optional.of(image));
-        when(messageMapper.toMessageRecord(image)).thenReturn(messageRecord(500, 1, "image-fid", ""));
+        when(messageMapper.toMessageRecord(image))
+                .thenReturn(messageRecord(500, 1, "image-fid", ""));
 
         assertThatThrownBy(() -> chatService.downloadMessageFile(1, 500L))
                 .isInstanceOf(InvalidRequestException.class)
@@ -1043,20 +1091,28 @@ class ChatServiceTest {
 
     @Test
     void send_video_probes_then_uploads_cover_init_chunks_sends_then_captures() {
-        byte[] videoBytes = new byte[]{1, 2, 3, 4};
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.mp4", "video/mp4", videoBytes);
+        byte[] videoBytes = new byte[] {1, 2, 3, 4};
+        MockMultipartFile file = new MockMultipartFile("file", "test.mp4", "video/mp4", videoBytes);
         when(videoProbe.probe(videoBytes))
-                .thenReturn(new VideoProbe.ProbeResult(new byte[]{9}, 320, 180, 2));
+                .thenReturn(new VideoProbe.ProbeResult(new byte[] {9}, 320, 180, 2));
         when(groupMediaApi.uploadCover(any(), eq("cover.png"), eq(1L)))
                 .thenReturn(new GroupMediaUploadResponse(5326071353316787L));
         when(groupMediaApi.initVideoUpload(any(GroupVideoInitRequest.class)))
-                .thenReturn(new GroupVideoUploadInitResponse("token-abc", "auth-xyz", 4096, "media-1"));
-        when(groupMediaApi.uploadVideo(any(), eq("test.mp4"), eq("token-abc"), eq("auth-xyz"),
-                eq(1L), eq(4096), anyString()))
+                .thenReturn(
+                        new GroupVideoUploadInitResponse("token-abc", "auth-xyz", 4096, "media-1"));
+        when(groupMediaApi.uploadVideo(
+                        any(),
+                        eq("test.mp4"),
+                        eq("token-abc"),
+                        eq("auth-xyz"),
+                        eq(1L),
+                        eq(4096),
+                        anyString()))
                 .thenReturn(new GroupMediaUploadResponse(5326071357508212L));
-        when(groupMessagesApi.sendVideo(new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L)))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享视频", 10, 1_000L, 1_000L));
+        when(groupMessagesApi.sendVideo(
+                        new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L)))
+                .thenReturn(
+                        new GroupSendMessageResponse(true, 100L, 1L, "分享视频", 10, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenReturn(messagePage());
@@ -1067,16 +1123,24 @@ class ChatServiceTest {
         verify(videoProbe).probe(videoBytes);
         verify(groupMediaApi).uploadCover(any(), eq("cover.png"), eq(1L));
         verify(groupMediaApi).initVideoUpload(any(GroupVideoInitRequest.class));
-        verify(groupMediaApi).uploadVideo(any(), eq("test.mp4"), eq("token-abc"), eq("auth-xyz"),
-                eq(1L), eq(4096), anyString());
-        verify(groupMessagesApi).sendVideo(new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L));
+        verify(groupMediaApi)
+                .uploadVideo(
+                        any(),
+                        eq("test.mp4"),
+                        eq("token-abc"),
+                        eq("auth-xyz"),
+                        eq(1L),
+                        eq(4096),
+                        anyString());
+        verify(groupMessagesApi)
+                .sendVideo(new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L));
         verify(messageRepository).refreshGroupRange(1);
     }
 
     @Test
     void send_video_rejects_non_mp4_content_type_before_calling_weibo() {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.avi", "video/x-msvideo", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.avi", "video/x-msvideo", new byte[] {1, 2, 3});
 
         assertThatThrownBy(() -> chatService.sendVideo(1, file))
                 .isInstanceOf(InvalidRequestException.class)
@@ -1087,8 +1151,7 @@ class ChatServiceTest {
     @Test
     void send_video_rejects_oversize_file_before_calling_weibo() {
         byte[] oversize = new byte[100 * 1024 * 1024 + 1];
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "big.mp4", "video/mp4", oversize);
+        MockMultipartFile file = new MockMultipartFile("file", "big.mp4", "video/mp4", oversize);
 
         assertThatThrownBy(() -> chatService.sendVideo(1, file))
                 .isInstanceOf(InvalidRequestException.class)
@@ -1098,48 +1161,51 @@ class ChatServiceTest {
 
     @Test
     void send_video_propagates_probe_failure_without_calling_weibo() {
-        byte[] videoBytes = new byte[]{1, 2, 3};
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.mp4", "video/mp4", videoBytes);
-        when(videoProbe.probe(videoBytes))
-                .thenThrow(new WeiboException("未检测到 ffmpeg，无法发送视频。", -1));
+        byte[] videoBytes = new byte[] {1, 2, 3};
+        MockMultipartFile file = new MockMultipartFile("file", "test.mp4", "video/mp4", videoBytes);
+        when(videoProbe.probe(videoBytes)).thenThrow(new WeiboException("未检测到 ffmpeg，无法发送视频。", -1));
 
-        assertThatThrownBy(() -> chatService.sendVideo(1, file))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.sendVideo(1, file)).isInstanceOf(WeiboException.class);
         verifyNoInteractions(groupMediaApi, groupMessagesApi);
     }
 
     @Test
     void send_video_propagates_upload_failure_without_sending() {
-        byte[] videoBytes = new byte[]{1, 2, 3, 4};
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.mp4", "video/mp4", videoBytes);
+        byte[] videoBytes = new byte[] {1, 2, 3, 4};
+        MockMultipartFile file = new MockMultipartFile("file", "test.mp4", "video/mp4", videoBytes);
         when(videoProbe.probe(videoBytes))
-                .thenReturn(new VideoProbe.ProbeResult(new byte[]{9}, 320, 180, 2));
+                .thenReturn(new VideoProbe.ProbeResult(new byte[] {9}, 320, 180, 2));
         when(groupMediaApi.uploadCover(any(), eq("cover.png"), eq(1L)))
                 .thenThrow(new WeiboException("封面上传失败。", -1));
 
-        assertThatThrownBy(() -> chatService.sendVideo(1, file))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.sendVideo(1, file)).isInstanceOf(WeiboException.class);
         verify(groupMessagesApi, never()).sendVideo(any());
     }
 
     @Test
     void send_video_reports_sync_failure_when_capture_fails_after_successful_send() {
-        byte[] videoBytes = new byte[]{1, 2, 3, 4};
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.mp4", "video/mp4", videoBytes);
+        byte[] videoBytes = new byte[] {1, 2, 3, 4};
+        MockMultipartFile file = new MockMultipartFile("file", "test.mp4", "video/mp4", videoBytes);
         when(videoProbe.probe(videoBytes))
-                .thenReturn(new VideoProbe.ProbeResult(new byte[]{9}, 320, 180, 2));
+                .thenReturn(new VideoProbe.ProbeResult(new byte[] {9}, 320, 180, 2));
         when(groupMediaApi.uploadCover(any(), eq("cover.png"), eq(1L)))
                 .thenReturn(new GroupMediaUploadResponse(5326071353316787L));
         when(groupMediaApi.initVideoUpload(any(GroupVideoInitRequest.class)))
-                .thenReturn(new GroupVideoUploadInitResponse("token-abc", "auth-xyz", 4096, "media-1"));
-        when(groupMediaApi.uploadVideo(any(), eq("test.mp4"), eq("token-abc"), eq("auth-xyz"),
-                eq(1L), eq(4096), anyString()))
+                .thenReturn(
+                        new GroupVideoUploadInitResponse("token-abc", "auth-xyz", 4096, "media-1"));
+        when(groupMediaApi.uploadVideo(
+                        any(),
+                        eq("test.mp4"),
+                        eq("token-abc"),
+                        eq("auth-xyz"),
+                        eq(1L),
+                        eq(4096),
+                        anyString()))
                 .thenReturn(new GroupMediaUploadResponse(5326071357508212L));
-        when(groupMessagesApi.sendVideo(new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L)))
-                .thenReturn(new GroupSendMessageResponse(true, 100L, 1L, "分享视频", 10, 1_000L, 1_000L));
+        when(groupMessagesApi.sendVideo(
+                        new GroupSendVideoRequest(1L, 5326071357508212L, 5326071353316787L)))
+                .thenReturn(
+                        new GroupSendMessageResponse(true, 100L, 1L, "分享视频", 10, 1_000L, 1_000L));
         when(groupRepository.findMaxMid(1)).thenReturn(99L);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
                 .thenThrow(new WeiboException("增量拉取失败。", -1));
@@ -1153,8 +1219,11 @@ class ChatServiceTest {
     void shared_weibo_text_loads_full_content_using_the_saved_post_id() {
         stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true, "text", "前半段。"));
         when(longTextApi.longText(new LongTextRequest("5357643507961089")))
-                .thenReturn(new LongTextResponse(new LongTextResponse.LongTextData(
-                        "HTML 正文", "完整正文。\n\n评论区可看论文全文。", false, null), 1));
+                .thenReturn(
+                        new LongTextResponse(
+                                new LongTextResponse.LongTextData(
+                                        "HTML 正文", "完整正文。\n\n评论区可看论文全文。", false, null),
+                                1));
 
         assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("完整正文。\n\n评论区可看论文全文。");
         verifyNoInteractions(groupMessagesApi);
@@ -1164,8 +1233,12 @@ class ChatServiceTest {
     @Test
     void shared_weibo_text_converts_html_when_plain_text_is_missing() {
         stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true));
-        when(longTextApi.longText(any())).thenReturn(new LongTextResponse(
-                new LongTextResponse.LongTextData("<b>第一段。</b><br>第二段。&amp;", null, false, null), 1));
+        when(longTextApi.longText(any()))
+                .thenReturn(
+                        new LongTextResponse(
+                                new LongTextResponse.LongTextData(
+                                        "<b>第一段。</b><br>第二段。&amp;", null, false, null),
+                                1));
 
         assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("第一段。\n第二段。&");
     }
@@ -1173,13 +1246,18 @@ class ChatServiceTest {
     @Test
     void shared_weibo_text_rejects_failed_or_empty_long_text_instead_of_returning_a_preview() {
         stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true, "text", "前半段。"));
-        when(longTextApi.longText(any())).thenReturn(null, new LongTextResponse(null, 0),
-                new LongTextResponse(null, 1), new LongTextResponse(
-                        new LongTextResponse.LongTextData("", "", false, null), 1));
+        when(longTextApi.longText(any()))
+                .thenReturn(
+                        null,
+                        new LongTextResponse(null, 0),
+                        new LongTextResponse(null, 1),
+                        new LongTextResponse(
+                                new LongTextResponse.LongTextData("", "", false, null), 1));
 
         for (int attempt = 0; attempt < 4; attempt++) {
             assertThatThrownBy(() -> chatService.queryMessageWeiboText(1, 100))
-                    .isInstanceOf(WeiboException.class).hasMessage("微博全文暂不可用。");
+                    .isInstanceOf(WeiboException.class)
+                    .hasMessage("微博全文暂不可用。");
         }
     }
 
@@ -1211,15 +1289,34 @@ class ChatServiceTest {
 
     private void stubSharedWeibo(Map<String, Object> status) {
         MessageEntity entity = messageEntity(100, 1_000);
-        MessageRecord message = new MessageRecord(100, 1, 321, "普通消息", 14, 9, "发送者", "", "分享微博",
-                "", "", "", List.of(Map.of("status", status)), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000);
+        MessageRecord message =
+                new MessageRecord(
+                        100,
+                        1,
+                        321,
+                        "普通消息",
+                        14,
+                        9,
+                        "发送者",
+                        "",
+                        "分享微博",
+                        "",
+                        "",
+                        "",
+                        List.of(Map.of("status", status)),
+                        List.of(),
+                        "",
+                        Map.of(),
+                        List.of(),
+                        "",
+                        1_000,
+                        2_000);
         when(messageRepository.findById(100L)).thenReturn(Optional.of(entity));
         when(messageMapper.toMessageRecord(entity)).thenReturn(message);
     }
 
     private GroupEntity group(long gid, long updatedAt) {
-        return new GroupEntity(gid, "群", "", 1, 500, 10, "[]", "", 1,
-                0, 0, updatedAt, updatedAt);
+        return new GroupEntity(gid, "群", "", 1, 500, 10, "[]", "", 1, 0, 0, updatedAt, updatedAt);
     }
 
     private GroupRecord record(long gid) {
@@ -1228,37 +1325,65 @@ class ChatServiceTest {
 
     private GidCount gidCount(long gid, long count) {
         return new GidCount() {
-            @Override public long getGid() { return gid; }
-            @Override public long getCnt() { return count; }
+            @Override
+            public long getGid() {
+                return gid;
+            }
+
+            @Override
+            public long getCnt() {
+                return count;
+            }
         };
     }
 
     private GroupMessagesResponse.Message message(long mid, int type, long time) {
-        return new GroupMessagesResponse.Message(mid, 1L, type, 9L, null, "消息", 0, time,
-                List.of(), null, null, null, null, null, "", null, null, null, "", null);
+        return new GroupMessagesResponse.Message(
+                mid, 1L, type, 9L, null, "消息", 0, time, List.of(), null, null, null, null, null, "",
+                null, null, null, "", null);
     }
 
-    private GroupMessagesResponse.Message messageWithAttitudes(long mid, long time,
-            GroupMessagesResponse.Attitude... attitudes) {
-        return new GroupMessagesResponse.Message(mid, 1L, 321, 9L, null, "消息", 0, time,
-                List.of(), null, null, null, null, null, "", null, null, null, "",
+    private GroupMessagesResponse.Message messageWithAttitudes(
+            long mid, long time, GroupMessagesResponse.Attitude... attitudes) {
+        return new GroupMessagesResponse.Message(
+                mid,
+                1L,
+                321,
+                9L,
+                null,
+                "消息",
+                0,
+                time,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                "",
                 new GroupMessagesResponse.AttitudeInfo(List.of(attitudes)));
     }
 
     private MessageEntity messageEntity(long mid, long createdAt) {
-        return new MessageEntity(mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息",
-                "", "", "", "[]", "[]", "", "{}", "[]", "", createdAt, 2_000);
+        return new MessageEntity(
+                mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息", "", "", "", "[]", "[]", "", "{}", "[]",
+                "", createdAt, 2_000);
     }
 
     private MessageView view(long mid) {
-        return new MessageView(mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息",
-                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "", "", "");
+        return new MessageView(
+                mid, 1, 321, "普通消息", 0, 9, "发送者", "", "消息", List.of(), List.of(), "", Map.of(),
+                List.of(), "", 1_000, 2_000, "", "", "", "");
     }
 
     private MessageRecord messageRecord(long mid, int mediaType, String fid, String coverFid) {
-        return new MessageRecord(mid, 1, 321, "普通消息", mediaType, 9, "发送者", "", "消息",
-                fid, coverFid, "", List.of(), List.of(), "", Map.of(), List.of(), "",
-                1_000, 2_000);
+        return new MessageRecord(
+                mid, 1, 321, "普通消息", mediaType, 9, "发送者", "", "消息", fid, coverFid, "", List.of(),
+                List.of(), "", Map.of(), List.of(), "", 1_000, 2_000);
     }
 
     private GroupMessagesResponse messagePage(GroupMessagesResponse.Message... messages) {
@@ -1267,18 +1392,20 @@ class ChatServiceTest {
 
     private void mapEveryMessage() {
         when(messageMapper.toMessageEntity(any(), eq(1L), anyLong()))
-                .thenAnswer(invocation -> {
-                    GroupMessagesResponse.Message message = invocation.getArgument(0);
-                    return Optional.of(messageEntity(message.id(), message.time()));
-                });
+                .thenAnswer(
+                        invocation -> {
+                            GroupMessagesResponse.Message message = invocation.getArgument(0);
+                            return Optional.of(messageEntity(message.id(), message.time()));
+                        });
     }
 
     private void mapEveryMessageWithTime() {
         mapEveryMessage();
         when(messageMapper.toMessageTimestamp(any()))
-                .thenAnswer(invocation -> {
-                    GroupMessagesResponse.Message message = invocation.getArgument(0);
-                    return message.time();
-                });
+                .thenAnswer(
+                        invocation -> {
+                            GroupMessagesResponse.Message message = invocation.getArgument(0);
+                            return message.time();
+                        });
     }
 }

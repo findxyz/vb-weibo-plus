@@ -1,20 +1,40 @@
 package xyz.fz.weibo.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.ResponseEntity;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
 import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
-import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.MediaBinary;
@@ -38,84 +58,77 @@ import xyz.fz.weibo.model.response.SearchProfileResponse;
 import xyz.fz.weibo.model.response.UserResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
 import xyz.fz.weibo.repository.PostRepository;
-import xyz.fz.weibo.service.mapper.PostMapper;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.longThat;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import xyz.fz.weibo.service.mapper.PostMapper;
 
 class PostServiceTest {
 
-    @Mock
-    private MyBlogApi myBlogApi;
+    @Mock private MyBlogApi myBlogApi;
 
-    @Mock
-    private SearchProfileApi searchProfileApi;
+    @Mock private SearchProfileApi searchProfileApi;
 
-    @Mock
-    private DirectMediaApi directMediaApi;
+    @Mock private DirectMediaApi directMediaApi;
 
-    @Mock
-    private LongTextApi longTextApi;
+    @Mock private LongTextApi longTextApi;
 
-    @Mock
-    private PostMapper postMapper;
+    @Mock private PostMapper postMapper;
 
-    @Mock
-    private BloggerRepository bloggerRepository;
+    @Mock private BloggerRepository bloggerRepository;
 
-    @Mock
-    private PostRepository postRepository;
+    @Mock private PostRepository postRepository;
 
-    @Mock
-    private PostLikeApi postLikeApi;
+    @Mock private PostLikeApi postLikeApi;
 
     private PostService postService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        postService = new PostService(myBlogApi, searchProfileApi, longTextApi, directMediaApi,
-                postMapper,
-                bloggerRepository, postRepository, postLikeApi);
+        postService =
+                new PostService(
+                        myBlogApi,
+                        searchProfileApi,
+                        longTextApi,
+                        directMediaApi,
+                        postMapper,
+                        bloggerRepository,
+                        postRepository,
+                        postLikeApi);
     }
 
     @Test
     void proxies_current_blogger_blog_thumbnail_from_captured_reference() {
         PostEntity entity = entity("saved-mblog", 100);
-        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
-                List.of(new PicInfo("p1",
-                        new MediaSize("https://image/thumbnail.jpg", 80, 90),
-                        new MediaSize("https://image/original.jpg", 1200, 1300))),
-                new VideoInfo("https://image/cover.jpg", "https://video.weibo.com/show?id=1"),
-                null, 0, 0, 0, 100, 200);
-        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[]{10, 20});
-        MediaBinary media = new MediaBinary(new byte[]{10, 20}, "image/jpeg");
+        PostRecord record =
+                new PostRecord(
+                        "saved-mblog",
+                        100,
+                        1,
+                        "",
+                        "",
+                        "",
+                        "",
+                        List.of(
+                                new PicInfo(
+                                        "p1",
+                                        new MediaSize("https://image/thumbnail.jpg", 80, 90),
+                                        new MediaSize("https://image/original.jpg", 1200, 1300))),
+                        new VideoInfo(
+                                "https://image/cover.jpg", "https://video.weibo.com/show?id=1"),
+                        null,
+                        0,
+                        0,
+                        0,
+                        100,
+                        200);
+        ResponseEntity<byte[]> response = ResponseEntity.ok(new byte[] {10, 20});
+        MediaBinary media = new MediaBinary(new byte[] {10, 20}, "image/jpeg");
         when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
         when(postMapper.toPostRecord(entity)).thenReturn(record);
         when(directMediaApi.download("https://image/thumbnail.jpg")).thenReturn(response);
         when(postMapper.toMediaBinary(response)).thenReturn(media);
 
-        assertThat(postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
-                .isEqualTo(media);
+        assertThat(postService.queryPostImage("saved-mblog", "p1", "thumbnail")).isEqualTo(media);
 
         verify(directMediaApi).download("https://image/thumbnail.jpg");
         verify(postMapper).toMediaBinary(response);
@@ -124,23 +137,47 @@ class PostServiceTest {
     @Test
     void proxies_every_image_variant_from_current_and_retweeted_captured_references() {
         PostEntity entity = entity("saved-mblog", 100);
-        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
-                List.of(new PicInfo("p1",
-                        new MediaSize("current-thumbnail", 80, 90),
-                        new MediaSize("current-original", 1200, 1300))),
-                new VideoInfo("current-cover", "current-page"),
-                new RetweetInfo(90, "retweeted-id", "", "", 2, "", 100,
-                        List.of(new PicInfo("p2",
-                                new MediaSize("retweeted-thumbnail", 40, 50),
-                                new MediaSize("retweeted-original", 400, 500))),
-                        "retweeted-cover", "retweeted-page"),
-                0, 0, 0, 100, 200);
-        ResponseEntity<byte[]> currentOriginal = ResponseEntity.ok(new byte[]{1});
-        ResponseEntity<byte[]> retweetedThumbnail = ResponseEntity.ok(new byte[]{2});
-        ResponseEntity<byte[]> retweetedOriginal = ResponseEntity.ok(new byte[]{3});
-        MediaBinary currentMedia = new MediaBinary(new byte[]{1}, "image/jpeg");
-        MediaBinary retweetedThumbnailMedia = new MediaBinary(new byte[]{2}, "image/jpeg");
-        MediaBinary retweetedOriginalMedia = new MediaBinary(new byte[]{3}, "image/jpeg");
+        PostRecord record =
+                new PostRecord(
+                        "saved-mblog",
+                        100,
+                        1,
+                        "",
+                        "",
+                        "",
+                        "",
+                        List.of(
+                                new PicInfo(
+                                        "p1",
+                                        new MediaSize("current-thumbnail", 80, 90),
+                                        new MediaSize("current-original", 1200, 1300))),
+                        new VideoInfo("current-cover", "current-page"),
+                        new RetweetInfo(
+                                90,
+                                "retweeted-id",
+                                "",
+                                "",
+                                2,
+                                "",
+                                100,
+                                List.of(
+                                        new PicInfo(
+                                                "p2",
+                                                new MediaSize("retweeted-thumbnail", 40, 50),
+                                                new MediaSize("retweeted-original", 400, 500))),
+                                "retweeted-cover",
+                                "retweeted-page"),
+                        0,
+                        0,
+                        0,
+                        100,
+                        200);
+        ResponseEntity<byte[]> currentOriginal = ResponseEntity.ok(new byte[] {1});
+        ResponseEntity<byte[]> retweetedThumbnail = ResponseEntity.ok(new byte[] {2});
+        ResponseEntity<byte[]> retweetedOriginal = ResponseEntity.ok(new byte[] {3});
+        MediaBinary currentMedia = new MediaBinary(new byte[] {1}, "image/jpeg");
+        MediaBinary retweetedThumbnailMedia = new MediaBinary(new byte[] {2}, "image/jpeg");
+        MediaBinary retweetedOriginalMedia = new MediaBinary(new byte[] {3}, "image/jpeg");
         when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
         when(postMapper.toPostRecord(entity)).thenReturn(record);
         when(directMediaApi.download("current-original")).thenReturn(currentOriginal);
@@ -165,15 +202,37 @@ class PostServiceTest {
     @Test
     void proxies_only_current_or_retweeted_video_cover_references() {
         PostEntity entity = entity("saved-mblog", 100);
-        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
-                List.of(), new VideoInfo("current-cover", "current-video-page"),
-                new RetweetInfo(90, "retweeted-id", "", "", 2, "", 100,
-                        List.of(), "retweeted-cover", "retweeted-video-page"),
-                0, 0, 0, 100, 200);
-        ResponseEntity<byte[]> currentResponse = ResponseEntity.ok(new byte[]{1});
-        ResponseEntity<byte[]> retweetedResponse = ResponseEntity.ok(new byte[]{2});
-        MediaBinary currentMedia = new MediaBinary(new byte[]{1}, "image/jpeg");
-        MediaBinary retweetedMedia = new MediaBinary(new byte[]{2}, "image/jpeg");
+        PostRecord record =
+                new PostRecord(
+                        "saved-mblog",
+                        100,
+                        1,
+                        "",
+                        "",
+                        "",
+                        "",
+                        List.of(),
+                        new VideoInfo("current-cover", "current-video-page"),
+                        new RetweetInfo(
+                                90,
+                                "retweeted-id",
+                                "",
+                                "",
+                                2,
+                                "",
+                                100,
+                                List.of(),
+                                "retweeted-cover",
+                                "retweeted-video-page"),
+                        0,
+                        0,
+                        0,
+                        100,
+                        200);
+        ResponseEntity<byte[]> currentResponse = ResponseEntity.ok(new byte[] {1});
+        ResponseEntity<byte[]> retweetedResponse = ResponseEntity.ok(new byte[] {2});
+        MediaBinary currentMedia = new MediaBinary(new byte[] {1}, "image/jpeg");
+        MediaBinary retweetedMedia = new MediaBinary(new byte[] {2}, "image/jpeg");
         when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
         when(postMapper.toPostRecord(entity)).thenReturn(record);
         when(directMediaApi.download("current-cover")).thenReturn(currentResponse);
@@ -201,13 +260,43 @@ class PostServiceTest {
     @Test
     void reports_missing_captured_post_picture_or_reference_as_local_not_found() {
         PostEntity noPictureEntity = entity("no-picture", 100);
-        PostRecord noPicture = new PostRecord("no-picture", 100, 1, "", "", "", "",
-                List.of(), new VideoInfo("", ""), null, 0, 0, 0, 100, 200);
+        PostRecord noPicture =
+                new PostRecord(
+                        "no-picture",
+                        100,
+                        1,
+                        "",
+                        "",
+                        "",
+                        "",
+                        List.of(),
+                        new VideoInfo("", ""),
+                        null,
+                        0,
+                        0,
+                        0,
+                        100,
+                        200);
         PostEntity noReferenceEntity = entity("no-reference", 101);
-        PostRecord noReference = new PostRecord("no-reference", 101, 1, "", "", "", "",
-                List.of(new PicInfo("p1", new MediaSize("", 0, 0),
-                        new MediaSize("", 0, 0))),
-                new VideoInfo("", ""), null, 0, 0, 0, 100, 200);
+        PostRecord noReference =
+                new PostRecord(
+                        "no-reference",
+                        101,
+                        1,
+                        "",
+                        "",
+                        "",
+                        "",
+                        List.of(
+                                new PicInfo(
+                                        "p1", new MediaSize("", 0, 0), new MediaSize("", 0, 0))),
+                        new VideoInfo("", ""),
+                        null,
+                        0,
+                        0,
+                        0,
+                        100,
+                        200);
         when(postRepository.findById("missing")).thenReturn(Optional.empty());
         when(postRepository.findById("no-picture")).thenReturn(Optional.of(noPictureEntity));
         when(postRepository.findById("no-reference")).thenReturn(Optional.of(noReferenceEntity));
@@ -227,10 +316,27 @@ class PostServiceTest {
     @Test
     void maps_media_download_failures_to_gateway_errors_but_preserves_credential_and_rate_limit() {
         PostEntity entity = entity("saved-mblog", 100);
-        PostRecord record = new PostRecord("saved-mblog", 100, 1, "", "", "", "",
-                List.of(new PicInfo("p1", new MediaSize("captured-reference", 80, 90),
-                        new MediaSize("", 0, 0))),
-                new VideoInfo("", ""), null, 0, 0, 0, 100, 200);
+        PostRecord record =
+                new PostRecord(
+                        "saved-mblog",
+                        100,
+                        1,
+                        "",
+                        "",
+                        "",
+                        "",
+                        List.of(
+                                new PicInfo(
+                                        "p1",
+                                        new MediaSize("captured-reference", 80, 90),
+                                        new MediaSize("", 0, 0))),
+                        new VideoInfo("", ""),
+                        null,
+                        0,
+                        0,
+                        0,
+                        100,
+                        200);
         when(postRepository.findById("saved-mblog")).thenReturn(Optional.of(entity));
         when(postMapper.toPostRecord(entity)).thenReturn(record);
         when(directMediaApi.download("captured-reference"))
@@ -240,23 +346,21 @@ class PostServiceTest {
                 .thenThrow(new WeiboCookieExpiredException("Credential 失效"))
                 .thenThrow(new WeiboRateLimitException("上游限流"));
 
-        assertThatThrownBy(() -> postService.queryPostImage(
-                "saved-mblog", "p1", "thumbnail"))
-                .isInstanceOfSatisfying(WeiboException.class,
+        assertThatThrownBy(() -> postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
+                .isInstanceOfSatisfying(
+                        WeiboException.class,
                         error -> assertThat(error.getErrorCode()).isNotZero());
-        assertThatThrownBy(() -> postService.queryPostImage(
-                "saved-mblog", "p1", "thumbnail"))
-                .isInstanceOfSatisfying(WeiboException.class,
+        assertThatThrownBy(() -> postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
+                .isInstanceOfSatisfying(
+                        WeiboException.class,
                         error -> assertThat(error.getErrorCode()).isNotZero());
-        assertThatThrownBy(() -> postService.queryPostImage(
-                "saved-mblog", "p1", "thumbnail"))
-                .isInstanceOfSatisfying(WeiboException.class,
+        assertThatThrownBy(() -> postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
+                .isInstanceOfSatisfying(
+                        WeiboException.class,
                         error -> assertThat(error.getErrorCode()).isNotZero());
-        assertThatThrownBy(() -> postService.queryPostImage(
-                "saved-mblog", "p1", "thumbnail"))
+        assertThatThrownBy(() -> postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
                 .isInstanceOf(WeiboCookieExpiredException.class);
-        assertThatThrownBy(() -> postService.queryPostImage(
-                "saved-mblog", "p1", "thumbnail"))
+        assertThatThrownBy(() -> postService.queryPostImage("saved-mblog", "p1", "thumbnail"))
                 .isInstanceOf(WeiboRateLimitException.class);
     }
 
@@ -266,19 +370,21 @@ class PostServiceTest {
         MblogResponse current = post(100, "current-id", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity entity = entity("current-id", 100);
-        SearchProfileRequest firstPage = new SearchProfileRequest(
-                1L, 1, 1783652523L, 1783656184L);
-        SearchProfileRequest emptyPage = new SearchProfileRequest(
-                1L, 2, 1783652523L, 1783656184L);
+        SearchProfileRequest firstPage = new SearchProfileRequest(1L, 1, 1783652523L, 1783656184L);
+        SearchProfileRequest emptyPage = new SearchProfileRequest(1L, 2, 1783652523L, 1783656184L);
 
-        when(searchProfileApi.searchProfile(firstPage)).thenAnswer(invocation -> {
-            requestTimes.add(System.nanoTime());
-            return searchPage(List.of(current));
-        });
-        when(searchProfileApi.searchProfile(emptyPage)).thenAnswer(invocation -> {
-            requestTimes.add(System.nanoTime());
-            return searchPage(List.of());
-        });
+        when(searchProfileApi.searchProfile(firstPage))
+                .thenAnswer(
+                        invocation -> {
+                            requestTimes.add(System.nanoTime());
+                            return searchPage(List.of(current));
+                        });
+        when(searchProfileApi.searchProfile(emptyPage))
+                .thenAnswer(
+                        invocation -> {
+                            requestTimes.add(System.nanoTime());
+                            return searchPage(List.of());
+                        });
         when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
         when(postMapper.toPostEntity(any(), any(), any(), anyLong())).thenReturn(entity);
         when(postRepository.insertIfAbsent(entity)).thenReturn(true);
@@ -291,8 +397,9 @@ class PostServiceTest {
         verifyNoMoreInteractions(searchProfileApi);
         verify(postRepository).insertIfAbsent(entity);
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
-        assertThat(requestTimes.get(1) - requestTimes.get(0)).isBetween(
-                TimeUnit.MILLISECONDS.toNanos(200), TimeUnit.MILLISECONDS.toNanos(2_500));
+        assertThat(requestTimes.get(1) - requestTimes.get(0))
+                .isBetween(
+                        TimeUnit.MILLISECONDS.toNanos(200), TimeUnit.MILLISECONDS.toNanos(2_500));
     }
 
     @Test
@@ -308,30 +415,29 @@ class PostServiceTest {
         PostEntity longTextEntity = entity("current-long", 110);
         PostEntity duplicateEntity = entity("duplicate", 120);
 
-        SearchProfileRequest dayOne = new SearchProfileRequest(
-                1L, 1, 1783652523L, 1783699199L);
-        SearchProfileRequest dayTwo = new SearchProfileRequest(
-                1L, 1, 1783699200L, 1783785599L);
-        SearchProfileRequest dayThree = new SearchProfileRequest(
-                1L, 1, 1783785600L, 1783828984L);
+        SearchProfileRequest dayOne = new SearchProfileRequest(1L, 1, 1783652523L, 1783699199L);
+        SearchProfileRequest dayTwo = new SearchProfileRequest(1L, 1, 1783699200L, 1783785599L);
+        SearchProfileRequest dayThree = new SearchProfileRequest(1L, 1, 1783785600L, 1783828984L);
         when(searchProfileApi.searchProfile(dayOne)).thenReturn(searchPage(List.of(normal)));
-        when(searchProfileApi.searchProfile(new SearchProfileRequest(
-                1L, 2, 1783652523L, 1783699199L))).thenReturn(searchPage(List.of()));
+        when(searchProfileApi.searchProfile(
+                        new SearchProfileRequest(1L, 2, 1783652523L, 1783699199L)))
+                .thenReturn(searchPage(List.of()));
         when(searchProfileApi.searchProfile(dayTwo)).thenReturn(searchPage(List.of(longText)));
-        when(searchProfileApi.searchProfile(new SearchProfileRequest(
-                1L, 2, 1783699200L, 1783785599L))).thenReturn(searchPage(List.of()));
+        when(searchProfileApi.searchProfile(
+                        new SearchProfileRequest(1L, 2, 1783699200L, 1783785599L)))
+                .thenReturn(searchPage(List.of()));
         when(searchProfileApi.searchProfile(dayThree)).thenReturn(searchPage(List.of(duplicate)));
-        when(searchProfileApi.searchProfile(new SearchProfileRequest(
-                1L, 2, 1783785600L, 1783828984L))).thenReturn(searchPage(List.of()));
-        when(longTextApi.longText(new LongTextRequest("current-long")))
-                .thenReturn(currentLongText);
+        when(searchProfileApi.searchProfile(
+                        new SearchProfileRequest(1L, 2, 1783785600L, 1783828984L)))
+                .thenReturn(searchPage(List.of()));
+        when(longTextApi.longText(new LongTextRequest("current-long"))).thenReturn(currentLongText);
         when(longTextApi.longText(new LongTextRequest("retweeted-long")))
                 .thenReturn(retweetedLongText);
         when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
-        when(postMapper.toPostEntity(eq(normal), any(), any(), anyLong()))
-                .thenReturn(normalEntity);
-        when(postMapper.toPostEntity(eq(longText), eq(currentLongText),
-                eq(retweetedLongText), anyLong())).thenReturn(longTextEntity);
+        when(postMapper.toPostEntity(eq(normal), any(), any(), anyLong())).thenReturn(normalEntity);
+        when(postMapper.toPostEntity(
+                        eq(longText), eq(currentLongText), eq(retweetedLongText), anyLong()))
+                .thenReturn(longTextEntity);
         when(postMapper.toPostEntity(eq(duplicate), any(), any(), anyLong()))
                 .thenReturn(duplicateEntity);
         when(postRepository.insertIfAbsent(normalEntity)).thenReturn(true);
@@ -344,9 +450,12 @@ class PostServiceTest {
         verify(searchProfileApi).searchProfile(dayOne);
         verify(searchProfileApi).searchProfile(dayTwo);
         verify(searchProfileApi).searchProfile(dayThree);
-        verify(postMapper).toPostEntity(
-                eq(longText), eq(currentLongText), eq(retweetedLongText),
-                longThat(value -> value > 0));
+        verify(postMapper)
+                .toPostEntity(
+                        eq(longText),
+                        eq(currentLongText),
+                        eq(retweetedLongText),
+                        longThat(value -> value > 0));
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
     }
 
@@ -355,12 +464,12 @@ class PostServiceTest {
         MblogResponse post = post(100, "day2-post", false, null);
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity postEntity = entity("day2-post", 100);
-        SearchProfileRequest dayOnePage1 = new SearchProfileRequest(
-                1L, 1, 1783652523L, 1783699199L);
-        SearchProfileRequest dayTwoPage1 = new SearchProfileRequest(
-                1L, 1, 1783699200L, 1783785599L);
-        SearchProfileRequest dayTwoPage2 = new SearchProfileRequest(
-                1L, 2, 1783699200L, 1783785599L);
+        SearchProfileRequest dayOnePage1 =
+                new SearchProfileRequest(1L, 1, 1783652523L, 1783699199L);
+        SearchProfileRequest dayTwoPage1 =
+                new SearchProfileRequest(1L, 1, 1783699200L, 1783785599L);
+        SearchProfileRequest dayTwoPage2 =
+                new SearchProfileRequest(1L, 2, 1783699200L, 1783785599L);
         when(searchProfileApi.searchProfile(dayOnePage1)).thenReturn(searchPage(List.of()));
         when(searchProfileApi.searchProfile(dayTwoPage1)).thenReturn(searchPage(List.of(post)));
         when(searchProfileApi.searchProfile(dayTwoPage2)).thenReturn(searchPage(List.of()));
@@ -381,16 +490,19 @@ class PostServiceTest {
     void ignores_concurrent_range_save_and_accepts_another_after_unlock() throws Exception {
         CountDownLatch requestStarted = new CountDownLatch(1);
         CountDownLatch releaseRequest = new CountDownLatch(1);
-        when(searchProfileApi.searchProfile(any())).thenAnswer(invocation -> {
-            requestStarted.countDown();
-            if (!releaseRequest.await(5, TimeUnit.SECONDS)) {
-                throw new AssertionError("等待测试释放微博请求超时。");
-            }
-            return searchPage(List.of());
-        });
+        when(searchProfileApi.searchProfile(any()))
+                .thenAnswer(
+                        invocation -> {
+                            requestStarted.countDown();
+                            if (!releaseRequest.await(5, TimeUnit.SECONDS)) {
+                                throw new AssertionError("等待测试释放微博请求超时。");
+                            }
+                            return searchPage(List.of());
+                        });
 
-        CompletableFuture<SaveResult> firstRequest = CompletableFuture.supplyAsync(
-                () -> postService.saveByRange(1, 1783652523000L, 1783656184000L));
+        CompletableFuture<SaveResult> firstRequest =
+                CompletableFuture.supplyAsync(
+                        () -> postService.saveByRange(1, 1783652523000L, 1783656184000L));
         assertThat(requestStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
         try {
@@ -408,8 +520,7 @@ class PostServiceTest {
 
     @Test
     void accepts_equal_inclusive_range_bounds() {
-        SearchProfileRequest request = new SearchProfileRequest(
-                1L, 1, 1783652523L, 1783652523L);
+        SearchProfileRequest request = new SearchProfileRequest(1L, 1, 1783652523L, 1783652523L);
         when(searchProfileApi.searchProfile(request)).thenReturn(searchPage(List.of()));
 
         assertThat(postService.saveByRange(1, 1783652523000L, 1783652523000L))
@@ -420,8 +531,7 @@ class PostServiceTest {
 
     @Test
     void rejects_invalid_range_without_calling_upstream() {
-        assertThatThrownBy(() -> postService.saveByRange(
-                1, 1783652523000L, 1783652522000L))
+        assertThatThrownBy(() -> postService.saveByRange(1, 1783652523000L, 1783652522000L))
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(searchProfileApi, never()).searchProfile(any());
@@ -434,14 +544,12 @@ class PostServiceTest {
         BloggerEntity blogger = new BloggerEntity(1L, "博主", "", "", 0, 0, 1, 1);
         PostEntity firstEntity = entity("first", 100);
         PostEntity secondEntity = entity("second", 110);
-        SearchProfileRequest dayOne = new SearchProfileRequest(
-                1L, 1, 1783652523L, 1783699199L);
-        SearchProfileRequest dayOneEmpty = new SearchProfileRequest(
-                1L, 2, 1783652523L, 1783699199L);
-        SearchProfileRequest dayTwo = new SearchProfileRequest(
-                1L, 1, 1783699200L, 1783702800L);
-        SearchProfileRequest dayTwoEmpty = new SearchProfileRequest(
-                1L, 2, 1783699200L, 1783702800L);
+        SearchProfileRequest dayOne = new SearchProfileRequest(1L, 1, 1783652523L, 1783699199L);
+        SearchProfileRequest dayOneEmpty =
+                new SearchProfileRequest(1L, 2, 1783652523L, 1783699199L);
+        SearchProfileRequest dayTwo = new SearchProfileRequest(1L, 1, 1783699200L, 1783702800L);
+        SearchProfileRequest dayTwoEmpty =
+                new SearchProfileRequest(1L, 2, 1783699200L, 1783702800L);
 
         when(searchProfileApi.searchProfile(dayOne))
                 .thenReturn(searchPage(List.of(first)), searchPage(List.of(first)));
@@ -456,8 +564,7 @@ class PostServiceTest {
         when(postRepository.insertIfAbsent(firstEntity)).thenReturn(true, false);
         when(postRepository.insertIfAbsent(secondEntity)).thenReturn(true);
 
-        assertThatThrownBy(() -> postService.saveByRange(
-                1, 1783652523000L, 1783702800000L))
+        assertThatThrownBy(() -> postService.saveByRange(1, 1783652523000L, 1783702800000L))
                 .isInstanceOf(WeiboException.class);
         verify(postRepository).insertIfAbsent(firstEntity);
         verify(postRepository, never()).insertIfAbsent(secondEntity);
@@ -480,10 +587,10 @@ class PostServiceTest {
         PostEntity entity = entity("current-id", 100);
 
         when(bloggerRepository.findLatestPostId(1)).thenReturn(0L);
-        when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null)))
-                .thenReturn(page(List.of(current)));
+        when(myBlogApi.myBlog(new MyBlogRequest(1L, 1, null))).thenReturn(page(List.of(current)));
         when(longTextApi.longText(new LongTextRequest("current-id"))).thenReturn(currentLongText);
-        when(longTextApi.longText(new LongTextRequest("retweeted-id"))).thenReturn(retweetedLongText);
+        when(longTextApi.longText(new LongTextRequest("retweeted-id")))
+                .thenReturn(retweetedLongText);
         when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
         when(postMapper.toPostEntity(any(), any(), any(), anyLong())).thenReturn(entity);
         when(postRepository.insertIfAbsent(entity)).thenReturn(true);
@@ -494,8 +601,12 @@ class PostServiceTest {
         assertThat(result).isEqualTo(new SaveResult(1, 1, 0));
         verify(myBlogApi).myBlog(new MyBlogRequest(1L, 1, null));
         verifyNoMoreInteractions(myBlogApi);
-        verify(postMapper).toPostEntity(eq(current), eq(currentLongText), eq(retweetedLongText),
-                longThat(value -> value > 0));
+        verify(postMapper)
+                .toPostEntity(
+                        eq(current),
+                        eq(currentLongText),
+                        eq(retweetedLongText),
+                        longThat(value -> value > 0));
 
         InOrder cursorOrder = inOrder(postRepository, bloggerRepository);
         cursorOrder.verify(postRepository).insertIfAbsent(entity);
@@ -591,8 +702,7 @@ class PostServiceTest {
         when(postMapper.toPostEntity(eq(current), any(), any(), anyLong())).thenReturn(entity);
         when(postRepository.insertIfAbsent(entity)).thenReturn(true);
 
-        assertThatThrownBy(() -> postService.saveIncremental(1))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> postService.saveIncremental(1)).isInstanceOf(WeiboException.class);
 
         verify(postRepository).insertIfAbsent(entity);
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
@@ -627,8 +737,7 @@ class PostServiceTest {
         when(postRepository.insertIfAbsent(remainingEntity)).thenReturn(true);
         when(postRepository.findMaxPostIdByUid(1)).thenReturn(130L);
 
-        assertThatThrownBy(() -> postService.saveIncremental(1))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> postService.saveIncremental(1)).isInstanceOf(WeiboException.class);
         verify(postRepository).insertIfAbsent(newestEntity);
         verify(postRepository).insertIfAbsent(newerEntity);
         verify(bloggerRepository, never()).refreshLatestPostId(anyLong(), anyLong());
@@ -679,8 +788,7 @@ class PostServiceTest {
         when(longTextApi.longText(new LongTextRequest("long-text")))
                 .thenThrow(new WeiboException("长文响应失败", -1));
 
-        assertThatThrownBy(() -> postService.saveIncremental(1))
-                .isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> postService.saveIncremental(1)).isInstanceOf(WeiboException.class);
 
         verify(postRepository).insertIfAbsent(firstEntity);
         verify(postMapper, never()).toPostEntity(eq(longTextPost), any(), any(), anyLong());
@@ -709,7 +817,8 @@ class PostServiceTest {
         when(myBlogApi.myBlog(any())).thenReturn(new MyBlogResponse(null, 0));
 
         assertThatThrownBy(() -> postService.saveIncremental(1))
-                .isInstanceOfSatisfying(WeiboException.class,
+                .isInstanceOfSatisfying(
+                        WeiboException.class,
                         error -> assertThat(error.getErrorCode()).isNotZero());
 
         verifyNoMoreInteractions(postMapper);
@@ -726,8 +835,7 @@ class PostServiceTest {
         when(bloggerRepository.findLatestPostId(1)).thenReturn(0L);
         when(myBlogApi.myBlog(any())).thenReturn(page(List.of(first, second)));
         when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
-        when(postMapper.toPostEntity(eq(first), any(), any(), anyLong()))
-                .thenReturn(firstEntity);
+        when(postMapper.toPostEntity(eq(first), any(), any(), anyLong())).thenReturn(firstEntity);
         when(postMapper.toPostEntity(eq(second), any(), any(), anyLong()))
                 .thenThrow(new IllegalArgumentException("Invalid Blogger Blog created_at"));
         when(postRepository.insertIfAbsent(firstEntity)).thenReturn(true);
@@ -749,13 +857,12 @@ class PostServiceTest {
         when(bloggerRepository.findAllOrdered()).thenReturn(List.of(blogger));
         when(postMapper.toBloggerRecords(List.of(blogger))).thenReturn(List.of(bloggerRecord));
         when(postRepository.findPage(
-                List.of(1L), 10L, 20L, "本地搜索", PostRepository.pageRequest(1, 100)))
+                        List.of(1L), 10L, 20L, "本地搜索", PostRepository.pageRequest(1, 100)))
                 .thenReturn(page);
         when(postMapper.toPostViews(List.of(entity), List.of(blogger))).thenReturn(List.of(view));
 
         assertThat(postService.queryBloggers()).containsExactly(bloggerRecord);
-        PostQueryResult result = postService.queryPosts(
-                List.of(1L), 10L, 20L, "本地搜索", 1, 100);
+        PostQueryResult result = postService.queryPosts(List.of(1L), 10L, 20L, "本地搜索", 1, 100);
 
         assertThat(result.items()).containsExactly(view);
         assertThat(result.page()).isEqualTo(1);
@@ -789,14 +896,28 @@ class PostServiceTest {
     }
 
     private MblogResponse post(long id, String mblogId, boolean longText, MblogResponse retweeted) {
-        return new MblogResponse(id, mblogId, "Fri Jul 10 18:18:55 +0800 2026", "正文", "纯文本",
-                "微博网页版", "", longText, 0, 0, 0, 0,
+        return new MblogResponse(
+                id,
+                mblogId,
+                "Fri Jul 10 18:18:55 +0800 2026",
+                "正文",
+                "纯文本",
+                "微博网页版",
+                "",
+                longText,
+                0,
+                0,
+                0,
+                0,
                 new UserResponse(1L, "博主", "", "", "", "/u/1", false),
-                null, null, retweeted, null);
+                null,
+                null,
+                retweeted,
+                null);
     }
 
     private PostEntity entity(String mblogId, long postId) {
-        return new PostEntity(mblogId, postId, 1, "正文", "纯文本", "", "", "[]",
-                "", "", "", 0, 0, 0, 100, 200);
+        return new PostEntity(
+                mblogId, postId, 1, "正文", "纯文本", "", "", "[]", "", "", "", 0, 0, 0, 100, 200);
     }
 }

@@ -1,16 +1,15 @@
 package xyz.fz.weibo.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Method;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class ControllerRouteNamingTest {
 
@@ -31,7 +30,8 @@ class ControllerRouteNamingTest {
     }
 
     private void assertCamelCaseMapping(AnnotatedElement element) {
-        RequestMapping mapping = AnnotatedElementUtils.findMergedAnnotation(element, RequestMapping.class);
+        RequestMapping mapping =
+                AnnotatedElementUtils.findMergedAnnotation(element, RequestMapping.class);
         if (mapping == null) {
             return;
         }
@@ -40,10 +40,13 @@ class ControllerRouteNamingTest {
                 if (segment.isEmpty()) {
                     continue;
                 }
-                if (segment.startsWith("{") && segment.endsWith("}")) {
-                    segment = segment.substring(1, segment.length() - 1);
-                }
-                assertThat(segment).as("Route %s on %s", path, element).matches("[a-z][a-zA-Z0-9]*");
+                String routeName =
+                        segment.startsWith("{") && segment.endsWith("}")
+                                ? segment.substring(1, segment.length() - 1)
+                                : segment;
+                assertThat(routeName)
+                        .as("Route %s on %s", path, element)
+                        .matches("[a-z][a-zA-Z0-9]*");
             }
         }
     }

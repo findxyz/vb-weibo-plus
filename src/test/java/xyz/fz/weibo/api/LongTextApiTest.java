@@ -1,5 +1,9 @@
 package xyz.fz.weibo.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,26 +15,24 @@ import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 @ExtendWith(MockitoExtension.class)
 class LongTextApiTest {
 
-    @Mock
-    private WeiboHttpClient client;
+    @Mock private WeiboHttpClient client;
 
     @Test
     void long_text_returns_deserialized_response_when_body_is_json() {
         LongTextApi api = new LongTextApi(client, new ObjectMapper());
         LongTextRequest request = new LongTextRequest("123");
-        String body = """
+        String body =
+                """
                 {"ok":1,"data":{"longTextContent":"完整正文","longTextContent_raw":"完整纯文本","isMarkdown":false}}
                 """;
         when(client.getForString(
-                "https://weibo.com/ajax/statuses/longtext",
-                request.toParams(), WeiboConstants.HEADERS_AJAX, true))
+                        "https://weibo.com/ajax/statuses/longtext",
+                        request.toParams(),
+                        WeiboConstants.HEADERS_AJAX,
+                        true))
                 .thenReturn(ResponseEntity.ok(body));
 
         LongTextResponse response = api.longText(request);
@@ -38,9 +40,12 @@ class LongTextApiTest {
         assertThat(response.ok()).isEqualTo(1);
         assertThat(response.data().longTextContent()).isEqualTo("完整正文");
         assertThat(response.data().longTextContentRaw()).isEqualTo("完整纯文本");
-        verify(client).getForString(
-                "https://weibo.com/ajax/statuses/longtext",
-                request.toParams(), WeiboConstants.HEADERS_AJAX, true);
+        verify(client)
+                .getForString(
+                        "https://weibo.com/ajax/statuses/longtext",
+                        request.toParams(),
+                        WeiboConstants.HEADERS_AJAX,
+                        true);
     }
 
     @Test
@@ -49,8 +54,10 @@ class LongTextApiTest {
         LongTextRequest request = new LongTextRequest("123");
         // 微博偶发返回 HTML（如登录/风控页），以 '<' 开头，非 JSON。
         when(client.getForString(
-                "https://weibo.com/ajax/statuses/longtext",
-                request.toParams(), WeiboConstants.HEADERS_AJAX, true))
+                        "https://weibo.com/ajax/statuses/longtext",
+                        request.toParams(),
+                        WeiboConstants.HEADERS_AJAX,
+                        true))
                 .thenReturn(ResponseEntity.ok("<!doctype html><html>...</html>"));
 
         LongTextResponse response = api.longText(request);

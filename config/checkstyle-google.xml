@@ -407,7 +407,7 @@
       <property name="message" value="'[a-z][a-z0-9][a-zA-Z0-9]*(?:_[a-z][a-z0-9][a-zA-Z0-9]*)*'"/>
     </module>
     <module name="EmptyCatchBlock">
-      <property name="commentFormat" value="\w+"/>
+      <property name="commentFormat" value="\S+"/>
     </module>
     <!-- https://checkstyle.org/filters/suppressionxpathfilter.html -->
     <module name="SuppressionXpathFilter">

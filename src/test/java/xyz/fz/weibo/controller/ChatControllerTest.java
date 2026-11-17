@@ -1,44 +1,5 @@
 package xyz.fz.weibo.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletOutputStream;
-import jakarta.servlet.http.HttpServletResponse;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.mock.http.client.MockClientHttpResponse;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.client.ResponseExtractor;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
-import xyz.fz.weibo.client.exception.WeiboException;
-import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
-import xyz.fz.weibo.client.exception.WeiboRateLimitException;
-import xyz.fz.weibo.domain.GroupListView;
-import xyz.fz.weibo.domain.GroupRecord;
-import xyz.fz.weibo.domain.MediaBinary;
-import xyz.fz.weibo.domain.MessageCursorResult;
-import xyz.fz.weibo.domain.MessageQueryResult;
-import xyz.fz.weibo.domain.MessageView;
-import xyz.fz.weibo.domain.SaveResult;
-import xyz.fz.weibo.model.response.GroupMessagesResponse;
-import xyz.fz.weibo.service.ChatService;
-import xyz.fz.weibo.service.ImageProxyService;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
-import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
-import xyz.fz.weibo.service.exception.ResourceNotFoundException;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,31 +15,65 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResponseExtractor;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
+import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
+import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.client.exception.WeiboRateLimitException;
+import xyz.fz.weibo.domain.GroupListView;
+import xyz.fz.weibo.domain.GroupRecord;
+import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.MessageCursorResult;
+import xyz.fz.weibo.domain.MessageQueryResult;
+import xyz.fz.weibo.domain.MessageView;
+import xyz.fz.weibo.domain.SaveResult;
+import xyz.fz.weibo.model.response.GroupMessagesResponse;
+import xyz.fz.weibo.service.ChatService;
+import xyz.fz.weibo.service.ImageProxyService;
+import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
+import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 @WebMvcTest(ChatController.class)
 class ChatControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Autowired private ObjectMapper objectMapper;
 
-    @Autowired
-    private ChatController chatController;
+    @Autowired private ChatController chatController;
 
-    @MockitoBean
-    private ChatService chatService;
+    @MockitoBean private ChatService chatService;
 
-    @MockitoBean
-    private ImageProxyService imageProxyService;
+    @MockitoBean private ImageProxyService imageProxyService;
 
     @Test
-    void shared_weibo_text_uses_the_group_message_reference_and_returns_business_json() throws Exception {
+    void shared_weibo_text_uses_the_group_message_reference_and_returns_business_json()
+            throws Exception {
         when(chatService.queryMessageWeiboText(1, 100)).thenReturn("完整正文。\n\n结尾。");
 
         mockMvc.perform(get("/chat/messages/weiboText").param("gid", "1").param("mid", "100"))
@@ -105,10 +100,11 @@ class ChatControllerTest {
 
     @Test
     void lists_local_groups_including_gid_only_placeholders() throws Exception {
-        when(chatService.queryGroupList()).thenReturn(List.of(
-                new GroupListView(3, "", "", 0, 500, 0, List.of(), "", 0,
-                        "发送者", "最新消息", 0)
-        ));
+        when(chatService.queryGroupList())
+                .thenReturn(
+                        List.of(
+                                new GroupListView(
+                                        3, "", "", 0, 500, 0, List.of(), "", 0, "发送者", "最新消息", 0)));
 
         mockMvc.perform(get("/chat/groups"))
                 .andExpect(status().isOk())
@@ -124,8 +120,7 @@ class ChatControllerTest {
 
     @Test
     void maps_missing_upstream_contacts_to_bad_gateway() throws Exception {
-        when(chatService.syncGroups())
-                .thenThrow(new WeiboException("群列表响应缺少 contacts。", -1));
+        when(chatService.syncGroups()).thenThrow(new WeiboException("群列表响应缺少 contacts。", -1));
 
         mockMvc.perform(post("/chat/groups/sync"))
                 .andExpect(status().isBadGateway())
@@ -148,7 +143,8 @@ class ChatControllerTest {
     @Test
     void attitudes_maps_upstream_snapshots_by_mid_and_rejects_malformed_mids() throws Exception {
         when(chatService.queryAttitudes(101L, List.of(100L, 200L)))
-                .thenReturn(Map.of(200L, List.of(new GroupMessagesResponse.Attitude("good", 5, 1))));
+                .thenReturn(
+                        Map.of(200L, List.of(new GroupMessagesResponse.Attitude("good", 5, 1))));
 
         mockMvc.perform(get("/chat/attitudes").param("gid", "101").param("mids", "100, 200"))
                 .andExpect(status().isOk())
@@ -164,26 +160,48 @@ class ChatControllerTest {
 
     @Test
     void messages_binds_inclusive_shanghai_times_filters_and_pagination() throws Exception {
-        MessageView view = new MessageView(100, 101, 321, "普通消息", 0, 9, "发送者", "", "消息",
-                List.of(), List.of(), "", Map.of(), List.of(), "", 1_000, 2_000, "", "",
-                "/chat/media?gid=101&mid=100&variant=video", "");
+        MessageView view =
+                new MessageView(
+                        100,
+                        101,
+                        321,
+                        "普通消息",
+                        0,
+                        9,
+                        "发送者",
+                        "",
+                        "消息",
+                        List.of(),
+                        List.of(),
+                        "",
+                        Map.of(),
+                        List.of(),
+                        "",
+                        1_000,
+                        2_000,
+                        "",
+                        "",
+                        "/chat/media?gid=101&mid=100&variant=video",
+                        "");
         when(chatService.queryMessages(
-                101, 1_783_652_523_000L, 1_783_656_184_000L, "发送者", "消息", 2, 20))
+                        101, 1_783_652_523_000L, 1_783_656_184_000L, "发送者", "消息", 2, 20))
                 .thenReturn(new MessageQueryResult(group(101), List.of(view), 2, 20, 1));
 
-        mockMvc.perform(get("/chat/messages")
-                        .param("gid", "101")
-                        .param("start", "2026-07-10 11:02:03")
-                        .param("end", "2026-07-10 12:03:04")
-                        .param("senderName", "发送者")
-                        .param("keyword", "消息")
-                        .param("page", "2")
-                        .param("size", "20"))
+        mockMvc.perform(
+                        get("/chat/messages")
+                                .param("gid", "101")
+                                .param("start", "2026-07-10 11:02:03")
+                                .param("end", "2026-07-10 12:03:04")
+                                .param("senderName", "发送者")
+                                .param("keyword", "消息")
+                                .param("page", "2")
+                                .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.group.gid").value(101))
                 .andExpect(jsonPath("$.items[0].mid").value(100))
-                .andExpect(jsonPath("$.items[0].videoUrl")
-                        .value("/chat/media?gid=101&mid=100&variant=video"))
+                .andExpect(
+                        jsonPath("$.items[0].videoUrl")
+                                .value("/chat/media?gid=101&mid=100&variant=video"))
                 .andExpect(jsonPath("$.items[0].group").doesNotExist())
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(20))
@@ -192,36 +210,36 @@ class ChatControllerTest {
 
     @Test
     void messages_returns_sender_avatar() throws Exception {
-        MessageView view = objectMapper.readValue("""
-                {"mid": 100, "gid": 101, "senderAvatar": "https://example.test/avatar.jpg"}
-                """, MessageView.class);
+        MessageView view =
+                objectMapper.readValue(
+                        """
+                        {"mid": 100, "gid": 101, "senderAvatar": "https://example.test/avatar.jpg"}
+                        """,
+                        MessageView.class);
         when(chatService.queryMessages(101, null, null, null, null, 1, 100))
                 .thenReturn(new MessageQueryResult(group(101), List.of(view), 1, 100, 1));
 
-        mockMvc.perform(get("/chat/messages")
-                        .param("gid", "101")
-                        .param("page", "1")
-                        .param("size", "100"))
+        mockMvc.perform(
+                        get("/chat/messages")
+                                .param("gid", "101")
+                                .param("page", "1")
+                                .param("size", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].senderAvatar")
-                        .value("https://example.test/avatar.jpg"));
+                .andExpect(
+                        jsonPath("$.items[0].senderAvatar")
+                                .value("https://example.test/avatar.jpg"));
     }
 
     @Test
     void messages_requires_gid() throws Exception {
-        mockMvc.perform(get("/chat/messages"))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/chat/messages")).andExpect(status().isBadRequest());
     }
 
     @Test
     void messages_requires_explicit_page_and_size() throws Exception {
-        mockMvc.perform(get("/chat/messages")
-                        .param("gid", "101")
-                        .param("size", "100"))
+        mockMvc.perform(get("/chat/messages").param("gid", "101").param("size", "100"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/chat/messages")
-                        .param("gid", "101")
-                        .param("page", "1"))
+        mockMvc.perform(get("/chat/messages").param("gid", "101").param("page", "1"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -230,34 +248,38 @@ class ChatControllerTest {
         when(chatService.queryMessages(101, null, null, " ", "\t", 1, 100))
                 .thenReturn(new MessageQueryResult(group(101), List.of(), 1, 100, 0));
 
-        mockMvc.perform(get("/chat/messages")
-                        .param("gid", "101")
-                        .param("start", " ")
-                        .param("end", "\t")
-                        .param("senderName", " ")
-                        .param("keyword", "\t")
-                        .param("page", "1")
-                        .param("size", "100"))
+        mockMvc.perform(
+                        get("/chat/messages")
+                                .param("gid", "101")
+                                .param("start", " ")
+                                .param("end", "\t")
+                                .param("senderName", " ")
+                                .param("keyword", "\t")
+                                .param("page", "1")
+                                .param("size", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(0));
     }
 
     @Test
     void cursor_messages_bind_the_composite_cursor_and_return_the_next_cursor() throws Exception {
-        MessageView view = objectMapper.readValue("""
-                {"mid": 100, "gid": 101, "createdAt": 1000}
-                """, MessageView.class);
-        when(chatService.queryMessagesByCursor(
-                101, 2_000L, 200L, null, null, 20))
-                .thenReturn(new MessageCursorResult(
-                        group(101), List.of(view), 20, true,
-                        1_000L, 100L, null, null));
+        MessageView view =
+                objectMapper.readValue(
+                        """
+                        {"mid": 100, "gid": 101, "createdAt": 1000}
+                        """,
+                        MessageView.class);
+        when(chatService.queryMessagesByCursor(101, 2_000L, 200L, null, null, 20))
+                .thenReturn(
+                        new MessageCursorResult(
+                                group(101), List.of(view), 20, true, 1_000L, 100L, null, null));
 
-        mockMvc.perform(get("/chat/messages/cursor")
-                        .param("gid", "101")
-                        .param("beforeCreatedAt", "2000")
-                        .param("beforeMid", "200")
-                        .param("size", "20"))
+        mockMvc.perform(
+                        get("/chat/messages/cursor")
+                                .param("gid", "101")
+                                .param("beforeCreatedAt", "2000")
+                                .param("beforeMid", "200")
+                                .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.group.gid").value(101))
                 .andExpect(jsonPath("$.items[0].mid").value(100))
@@ -268,26 +290,28 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.nextAfterCreatedAt").isEmpty())
                 .andExpect(jsonPath("$.nextAfterMid").isEmpty());
 
-        verify(chatService).queryMessagesByCursor(
-                101, 2_000L, 200L, null, null, 20);
+        verify(chatService).queryMessagesByCursor(101, 2_000L, 200L, null, null, 20);
     }
 
     @Test
     void cursor_messages_bind_the_after_cursor_for_newer_messages() throws Exception {
-        MessageView view = objectMapper.readValue("""
-                {"mid": 300, "gid": 101, "createdAt": 3000}
-                """, MessageView.class);
-        when(chatService.queryMessagesByCursor(
-                101, null, null, 2_000L, 200L, 20))
-                .thenReturn(new MessageCursorResult(
-                        group(101), List.of(view), 20, true,
-                        null, null, 3_000L, 300L));
+        MessageView view =
+                objectMapper.readValue(
+                        """
+                        {"mid": 300, "gid": 101, "createdAt": 3000}
+                        """,
+                        MessageView.class);
+        when(chatService.queryMessagesByCursor(101, null, null, 2_000L, 200L, 20))
+                .thenReturn(
+                        new MessageCursorResult(
+                                group(101), List.of(view), 20, true, null, null, 3_000L, 300L));
 
-        mockMvc.perform(get("/chat/messages/cursor")
-                        .param("gid", "101")
-                        .param("afterCreatedAt", "2000")
-                        .param("afterMid", "200")
-                        .param("size", "20"))
+        mockMvc.perform(
+                        get("/chat/messages/cursor")
+                                .param("gid", "101")
+                                .param("afterCreatedAt", "2000")
+                                .param("afterMid", "200")
+                                .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].mid").value(300))
                 .andExpect(jsonPath("$.hasMore").value(true))
@@ -296,16 +320,17 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.nextAfterCreatedAt").value(3_000))
                 .andExpect(jsonPath("$.nextAfterMid").value(300));
 
-        verify(chatService).queryMessagesByCursor(
-                101, null, null, 2_000L, 200L, 20);
+        verify(chatService).queryMessagesByCursor(101, null, null, 2_000L, 200L, 20);
     }
 
     @Test
-    void since_binds_shanghai_time_and_optional_starting_mid_from_query_parameters() throws Exception {
-        mockMvc.perform(post("/chat/since")
-                        .param("gid", "101")
-                        .param("sinceTime", "2026-07-10 11:02:03")
-                        .param("beforeMid", "50"))
+    void since_binds_shanghai_time_and_optional_starting_mid_from_query_parameters()
+            throws Exception {
+        mockMvc.perform(
+                        post("/chat/since")
+                                .param("gid", "101")
+                                .param("sinceTime", "2026-07-10 11:02:03")
+                                .param("beforeMid", "50"))
                 .andExpect(status().isNoContent());
 
         verify(chatService).saveBySince(101, 1_783_652_523_000L, 50L);
@@ -313,12 +338,12 @@ class ChatControllerTest {
 
     @Test
     void since_requires_gid_and_time_but_allows_omitting_before_mid() throws Exception {
-        mockMvc.perform(post("/chat/since")
-                        .param("gid", "101")
-                        .param("sinceTime", "2026-07-10 11:02:03"))
+        mockMvc.perform(
+                        post("/chat/since")
+                                .param("gid", "101")
+                                .param("sinceTime", "2026-07-10 11:02:03"))
                 .andExpect(status().isNoContent());
-        mockMvc.perform(post("/chat/since").param("gid", "101"))
-                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/chat/since").param("gid", "101")).andExpect(status().isBadRequest());
 
         verify(chatService).saveBySince(101, 1_783_652_523_000L, null);
     }
@@ -326,130 +351,160 @@ class ChatControllerTest {
     @Test
     void media_returns_only_mapped_bytes_and_content_type() throws Exception {
         when(chatService.queryMessageMedia(101, 100, "preview"))
-                .thenReturn(new MediaBinary(new byte[]{1, 2, 3}, "image/jpeg"));
+                .thenReturn(new MediaBinary(new byte[] {1, 2, 3}, "image/jpeg"));
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "preview"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "preview"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/jpeg"))
                 .andExpect(header().string("Cache-Control", "max-age=86400, private"))
                 .andExpect(header().doesNotExist("Content-Disposition"))
                 .andExpect(header().doesNotExist("Set-Cookie"))
-                .andExpect(content().bytes(new byte[]{1, 2, 3}));
+                .andExpect(content().bytes(new byte[] {1, 2, 3}));
     }
 
     @Test
     void video_streams_the_full_response_with_playback_headers() throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{4, 5, 6}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {4, 5, 6}, HttpStatus.OK);
         upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         upstream.getHeaders().setContentLength(3);
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(2);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(2);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(eq(101L), eq(100L), any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "video/mp4"))
                 .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 3))
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
-                .andExpect(content().bytes(new byte[]{4, 5, 6}));
+                .andExpect(content().bytes(new byte[] {4, 5, 6}));
     }
 
     @Test
     void video_normalizes_a_valid_upstream_range_to_partial_content() throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{5, 6}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {5, 6}, HttpStatus.OK);
         upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         upstream.getHeaders().setContentLength(2);
         upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 1-2/4");
         upstream.getHeaders().set(HttpHeaders.ACCEPT_RANGES, "bytes");
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
-                argThat(headers -> "bytes=1-2".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(
+                        eq(101L),
+                        eq(100L),
+                        argThat(headers -> "bytes=1-2".equals(headers.getFirst(HttpHeaders.RANGE))),
+                        any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=1-2"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=1-2"))
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "video/mp4"))
                 .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 2))
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 1-2/4"))
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
-                .andExpect(content().bytes(new byte[]{5, 6}));
+                .andExpect(content().bytes(new byte[] {5, 6}));
     }
 
     @Test
     void video_supports_an_open_ended_range() throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{3, 4}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {3, 4}, HttpStatus.OK);
         upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         upstream.getHeaders().setContentLength(2);
         upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4");
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
-                argThat(headers -> "bytes=2-".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(
+                        eq(101L),
+                        eq(100L),
+                        argThat(headers -> "bytes=2-".equals(headers.getFirst(HttpHeaders.RANGE))),
+                        any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=2-"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=2-"))
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4"))
-                .andExpect(content().bytes(new byte[]{3, 4}));
+                .andExpect(content().bytes(new byte[] {3, 4}));
     }
 
     @Test
     void video_rejects_an_upstream_range_that_does_not_match_the_request() throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{1, 2}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {1, 2}, HttpStatus.OK);
         upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         upstream.getHeaders().setContentLength(2);
         upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 0-1/4");
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=1-2"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=1-2"))
                 .andExpect(status().isBadGateway());
     }
 
     @Test
     void video_returns_range_not_satisfiable_when_upstream_ignores_an_out_of_bounds_range()
             throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{1, 2, 3, 4}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {1, 2, 3, 4}, HttpStatus.OK);
         upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         upstream.getHeaders().setContentLength(4);
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
-                argThat(headers -> "bytes=10-".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(
+                        eq(101L),
+                        eq(100L),
+                        argThat(headers -> "bytes=10-".equals(headers.getFirst(HttpHeaders.RANGE))),
+                        any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=10-"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=10-"))
                 .andExpect(status().isRequestedRangeNotSatisfiable())
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"))
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
@@ -458,19 +513,23 @@ class ChatControllerTest {
 
     @Test
     void video_preserves_a_standard_upstream_range_not_satisfiable_response() throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[0], HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[0], HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
         upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes */4");
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=10-"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=10-"))
                 .andExpect(status().isRequestedRangeNotSatisfiable())
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"))
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
@@ -479,23 +538,29 @@ class ChatControllerTest {
 
     @Test
     void video_stops_normally_when_the_client_disconnects_during_streaming() throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{1, 2}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {1, 2}, HttpStatus.OK);
         upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         upstream.getHeaders().setContentLength(2);
         upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 0-1/4");
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
         ServletOutputStream output = mock(ServletOutputStream.class);
         doThrow(new IOException("客户端已断开。"))
-                .when(output).write(any(byte[].class), anyInt(), anyInt());
+                .when(output)
+                .write(any(byte[].class), anyInt(), anyInt());
         HttpServletResponse response = mock(HttpServletResponse.class);
         when(response.getOutputStream()).thenReturn(output);
 
-        assertThatCode(() -> chatController.queryMessageMedia(
-                101, 100, "video", "bytes=0-1", response))
+        assertThatCode(
+                        () ->
+                                chatController.queryMessageMedia(
+                                        101, 100, "video", "bytes=0-1", response))
                 .doesNotThrowAnyException();
     }
 
@@ -503,48 +568,59 @@ class ChatControllerTest {
     void video_stops_normally_when_the_upstream_disconnects_during_streaming() throws Exception {
         ClientHttpResponse upstream = mock(ClientHttpResponse.class);
         when(upstream.getStatusCode()).thenReturn(HttpStatus.OK);
+        @SuppressWarnings("PMD.LooseCoupling")
         HttpHeaders upstreamHeaders = new HttpHeaders();
         upstreamHeaders.setContentType(MediaType.valueOf("video/mp4"));
         upstreamHeaders.setContentLength(4);
         upstreamHeaders.set(HttpHeaders.CONTENT_RANGE, "bytes 0-3/4");
         when(upstream.getHeaders()).thenReturn(upstreamHeaders);
-        when(upstream.getBody()).thenReturn(new InputStream() {
-            @Override
-            public int read() {
-                return 0;
-            }
+        when(upstream.getBody())
+                .thenReturn(
+                        new InputStream() {
+                            @Override
+                            public int read() {
+                                return 0;
+                            }
 
-            @Override
-            public int read(byte[] b) throws IOException {
-                throw new IOException("Premature end of Content-Length delimited message body");
-            }
-        });
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
+                            @Override
+                            public int read(byte[] b) throws IOException {
+                                throw new IOException(
+                                        "Premature end of Content-Length delimited message body");
+                            }
+                        });
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(eq(101L), eq(100L), any(HttpHeaders.class), any());
         ServletOutputStream output = mock(ServletOutputStream.class);
         HttpServletResponse response = mock(HttpServletResponse.class);
         when(response.getOutputStream()).thenReturn(output);
 
-        assertThatCode(() -> chatController.queryMessageMedia(
-                101, 100, "video", "bytes=0-3", response))
+        assertThatCode(
+                        () ->
+                                chatController.queryMessageMedia(
+                                        101, 100, "video", "bytes=0-3", response))
                 .doesNotThrowAnyException();
     }
 
     @Test
     void video_rejects_malformed_and_multiple_ranges_before_requesting_upstream() throws Exception {
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=bad"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=bad"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=0-1,2-3"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=0-1,2-3"))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(chatService);
@@ -552,65 +628,80 @@ class ChatControllerTest {
 
     @Test
     void video_translates_a_suffix_range_after_probing_the_complete_length() throws Exception {
-        MockClientHttpResponse probe = new MockClientHttpResponse(
-                new byte[]{1}, HttpStatus.OK);
+        MockClientHttpResponse probe = new MockClientHttpResponse(new byte[] {1}, HttpStatus.OK);
         probe.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         probe.getHeaders().setContentLength(1);
         probe.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 0-0/4");
-        MockClientHttpResponse suffix = new MockClientHttpResponse(
-                new byte[]{3, 4}, HttpStatus.OK);
+        MockClientHttpResponse suffix =
+                new MockClientHttpResponse(new byte[] {3, 4}, HttpStatus.OK);
         suffix.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
         suffix.getHeaders().setContentLength(2);
         suffix.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4");
-        doAnswer(invocation -> {
-            ResponseExtractor<Long> extractor = invocation.getArgument(3);
-            return extractor.extractData(probe);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
-                argThat(headers -> "bytes=0-0".equals(headers.getFirst(HttpHeaders.RANGE))), any());
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(3);
-            return extractor.extractData(suffix);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(100L),
-                argThat(headers -> "bytes=2-3".equals(headers.getFirst(HttpHeaders.RANGE))), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Long> extractor = invocation.getArgument(3);
+                            return extractor.extractData(probe);
+                        })
+                .when(chatService)
+                .streamMessageVideo(
+                        eq(101L),
+                        eq(100L),
+                        argThat(headers -> "bytes=0-0".equals(headers.getFirst(HttpHeaders.RANGE))),
+                        any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(3);
+                            return extractor.extractData(suffix);
+                        })
+                .when(chatService)
+                .streamMessageVideo(
+                        eq(101L),
+                        eq(100L),
+                        argThat(headers -> "bytes=2-3".equals(headers.getFirst(HttpHeaders.RANGE))),
+                        any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "100")
-                        .param("variant", "video")
-                        .header(HttpHeaders.RANGE, "bytes=-2"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "video")
+                                .header(HttpHeaders.RANGE, "bytes=-2"))
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4"))
                 .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 2))
-                .andExpect(content().bytes(new byte[]{3, 4}));
+                .andExpect(content().bytes(new byte[] {3, 4}));
     }
 
     @Test
     void video_rejects_an_upstream_response_without_content_length() throws Exception {
-        MockClientHttpResponse upstream = new MockClientHttpResponse(
-                new byte[]{4, 5, 6}, HttpStatus.OK);
+        MockClientHttpResponse upstream =
+                new MockClientHttpResponse(new byte[] {4, 5, 6}, HttpStatus.OK);
         upstream.getHeaders().setContentType(MediaType.valueOf("video/mp4"));
-        doAnswer(invocation -> {
-            ResponseExtractor<Void> extractor = invocation.getArgument(2);
-            return extractor.extractData(upstream);
-        }).when(chatService).streamMessageVideo(eq(101L), eq(101L), any());
+        doAnswer(
+                        invocation -> {
+                            ResponseExtractor<Void> extractor = invocation.getArgument(2);
+                            return extractor.extractData(upstream);
+                        })
+                .when(chatService)
+                .streamMessageVideo(eq(101L), eq(101L), any());
 
-        mockMvc.perform(get("/chat/media")
-                        .param("gid", "101")
-                        .param("mid", "101")
-                        .param("variant", "video"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "101")
+                                .param("variant", "video"))
                 .andExpect(status().isBadGateway());
     }
 
     @Test
     void image_proxies_bytes_and_content_type() throws Exception {
         when(imageProxyService.fetch("https://example.test/avatar.jpg"))
-                .thenReturn(new MediaBinary(new byte[]{4, 5, 6}, "image/jpeg"));
+                .thenReturn(new MediaBinary(new byte[] {4, 5, 6}, "image/jpeg"));
 
-        mockMvc.perform(get("/chat/image")
-                        .param("url", "https://example.test/avatar.jpg"))
+        mockMvc.perform(get("/chat/image").param("url", "https://example.test/avatar.jpg"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/jpeg"))
-                .andExpect(content().bytes(new byte[]{4, 5, 6}));
+                .andExpect(content().bytes(new byte[] {4, 5, 6}));
 
         verify(imageProxyService).fetch("https://example.test/avatar.jpg");
     }
@@ -620,8 +711,7 @@ class ChatControllerTest {
         when(imageProxyService.fetch("https://example.test/avatar.jpg"))
                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY));
 
-        mockMvc.perform(get("/chat/image")
-                        .param("url", "https://example.test/avatar.jpg"))
+        mockMvc.perform(get("/chat/image").param("url", "https://example.test/avatar.jpg"))
                 .andExpect(status().isBadGateway());
     }
 
@@ -638,30 +728,44 @@ class ChatControllerTest {
         when(chatService.queryMessageMedia(101, 104, "preview"))
                 .thenThrow(new WeiboException("下载失败。", -1));
 
-        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "100")
-                        .param("variant", "bad"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "100")
+                                .param("variant", "bad"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "101")
-                        .param("variant", "preview"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "101")
+                                .param("variant", "preview"))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "102")
-                        .param("variant", "preview"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "102")
+                                .param("variant", "preview"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "103")
-                        .param("variant", "preview"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "103")
+                                .param("variant", "preview"))
                 .andExpect(status().isTooManyRequests());
-        mockMvc.perform(get("/chat/media").param("gid", "101").param("mid", "104")
-                        .param("variant", "preview"))
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "101")
+                                .param("mid", "104")
+                                .param("variant", "preview"))
                 .andExpect(status().isBadGateway());
     }
 
     @Test
-    void send_text_binds_gid_and_content_and_returns_the_incremental_capture_result() throws Exception {
+    void send_text_binds_gid_and_content_and_returns_the_incremental_capture_result()
+            throws Exception {
         when(chatService.sendText(101, "hello")).thenReturn(new SaveResult(3, 2, 1));
 
-        mockMvc.perform(post("/chat/messages/send")
-                        .param("gid", "101")
-                        .param("content", "hello"))
+        mockMvc.perform(post("/chat/messages/send").param("gid", "101").param("content", "hello"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fetchedCount").value(3))
                 .andExpect(jsonPath("$.insertedCount").value(2))
@@ -683,9 +787,7 @@ class ChatControllerTest {
         when(chatService.sendText(101, "hello"))
                 .thenThrow(new WeiboException("消息发送失败：result != true。", -1));
 
-        mockMvc.perform(post("/chat/messages/send")
-                        .param("gid", "101")
-                        .param("content", "hello"))
+        mockMvc.perform(post("/chat/messages/send").param("gid", "101").param("content", "hello"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value(502));
     }
@@ -693,26 +795,24 @@ class ChatControllerTest {
     @Test
     void send_text_maps_sync_failure_to_conflict() throws Exception {
         when(chatService.sendText(101, "hello"))
-                .thenThrow(new MessageSentButSyncFailedException(
-                        "消息已发出，但本地同步失败，稍后会自动补全。", new RuntimeException()));
+                .thenThrow(
+                        new MessageSentButSyncFailedException(
+                                "消息已发出，但本地同步失败，稍后会自动补全。", new RuntimeException()));
 
-        mockMvc.perform(post("/chat/messages/send")
-                        .param("gid", "101")
-                        .param("content", "hello"))
+        mockMvc.perform(post("/chat/messages/send").param("gid", "101").param("content", "hello"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409));
     }
 
     @Test
-    void sendImage_binds_gid_and_file_and_returns_the_incremental_capture_result() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+    void sendImage_binds_gid_and_file_and_returns_the_incremental_capture_result()
+            throws Exception {
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
                 .thenReturn(new SaveResult(3, 2, 1));
 
-        mockMvc.perform(multipart("/chat/messages/sendImage")
-                        .file(file)
-                        .param("gid", "101"))
+        mockMvc.perform(multipart("/chat/messages/sendImage").file(file).param("gid", "101"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fetchedCount").value(3))
                 .andExpect(jsonPath("$.insertedCount").value(2))
@@ -723,8 +823,8 @@ class ChatControllerTest {
 
     @Test
     void sendImage_requires_gid_and_file() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         mockMvc.perform(multipart("/chat/messages/sendImage").file(file))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(multipart("/chat/messages/sendImage").param("gid", "101"))
@@ -733,43 +833,39 @@ class ChatControllerTest {
 
     @Test
     void sendImage_maps_upstream_failure_to_bad_gateway() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
                 .thenThrow(new WeiboException("图片消息发送失败：result != true。", -1));
 
-        mockMvc.perform(multipart("/chat/messages/sendImage")
-                        .file(file)
-                        .param("gid", "101"))
+        mockMvc.perform(multipart("/chat/messages/sendImage").file(file).param("gid", "101"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value(502));
     }
 
     @Test
     void sendImage_maps_sync_failure_to_conflict() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.png", "image/png", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.png", "image/png", new byte[] {1, 2, 3});
         when(chatService.sendImage(eq(101L), any(MultipartFile.class)))
-                .thenThrow(new MessageSentButSyncFailedException(
-                        "消息已发出，但本地同步失败，稍后会自动补全。", new RuntimeException()));
+                .thenThrow(
+                        new MessageSentButSyncFailedException(
+                                "消息已发出，但本地同步失败，稍后会自动补全。", new RuntimeException()));
 
-        mockMvc.perform(multipart("/chat/messages/sendImage")
-                        .file(file)
-                        .param("gid", "101"))
+        mockMvc.perform(multipart("/chat/messages/sendImage").file(file).param("gid", "101"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409));
     }
 
     @Test
-    void sendVideo_binds_gid_and_file_and_returns_the_incremental_capture_result() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.mp4", "video/mp4", new byte[]{1, 2, 3});
+    void sendVideo_binds_gid_and_file_and_returns_the_incremental_capture_result()
+            throws Exception {
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.mp4", "video/mp4", new byte[] {1, 2, 3});
         when(chatService.sendVideo(eq(101L), any(MultipartFile.class)))
                 .thenReturn(new SaveResult(3, 2, 1));
 
-        mockMvc.perform(multipart("/chat/messages/sendVideo")
-                        .file(file)
-                        .param("gid", "101"))
+        mockMvc.perform(multipart("/chat/messages/sendVideo").file(file).param("gid", "101"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fetchedCount").value(3))
                 .andExpect(jsonPath("$.insertedCount").value(2))
@@ -780,8 +876,8 @@ class ChatControllerTest {
 
     @Test
     void sendVideo_requires_gid_and_file() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file", "test.mp4", "video/mp4", new byte[]{1, 2, 3});
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.mp4", "video/mp4", new byte[] {1, 2, 3});
         mockMvc.perform(multipart("/chat/messages/sendVideo").file(file))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(multipart("/chat/messages/sendVideo").param("gid", "101"))

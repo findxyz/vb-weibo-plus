@@ -1,16 +1,16 @@
 package xyz.fz.weibo.controller;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
 import xyz.fz.weibo.api.PostLikeApi;
-import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.api.SearchProfileApi;
+import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
 import xyz.fz.weibo.model.request.SearchProfileRequest;
@@ -30,8 +30,11 @@ public class WeiboBlogController {
     private final SearchProfileApi searchProfileApi;
     private final PostLikeApi postLikeApi;
 
-    public WeiboBlogController(MyBlogApi myBlogApi, LongTextApi longTextApi, SearchProfileApi searchProfileApi,
-                               PostLikeApi postLikeApi) {
+    public WeiboBlogController(
+            MyBlogApi myBlogApi,
+            LongTextApi longTextApi,
+            SearchProfileApi searchProfileApi,
+            PostLikeApi postLikeApi) {
         this.myBlogApi = myBlogApi;
         this.longTextApi = longTextApi;
         this.searchProfileApi = searchProfileApi;
@@ -50,9 +53,10 @@ public class WeiboBlogController {
     }
 
     @GetMapping("/mymblog")
-    public MyBlogResponse myblog(@RequestParam Long uid,
-                                 @RequestParam Integer page,
-                                 @RequestParam(required = false) String sinceId) {
+    public MyBlogResponse myblog(
+            @RequestParam Long uid,
+            @RequestParam Integer page,
+            @RequestParam(required = false) String sinceId) {
         return myBlogApi.myBlog(new MyBlogRequest(uid, page, sinceId));
     }
 
@@ -62,10 +66,12 @@ public class WeiboBlogController {
     }
 
     @GetMapping("/searchProfile")
-    public SearchProfileResponse searchProfile(@RequestParam Long uid,
-                                               @RequestParam Integer page,
-                                               @RequestParam Long startTime,
-                                               @RequestParam Long endTime) {
-        return searchProfileApi.searchProfile(new SearchProfileRequest(uid, page, startTime, endTime));
+    public SearchProfileResponse searchProfile(
+            @RequestParam Long uid,
+            @RequestParam Integer page,
+            @RequestParam Long startTime,
+            @RequestParam Long endTime) {
+        return searchProfileApi.searchProfile(
+                new SearchProfileRequest(uid, page, startTime, endTime));
     }
 }

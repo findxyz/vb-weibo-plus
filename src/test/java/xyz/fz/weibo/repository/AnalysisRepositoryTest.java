@@ -1,5 +1,10 @@
 package xyz.fz.weibo.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -11,34 +16,29 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import xyz.fz.weibo.entity.AnalysisEntity;
 
-import javax.sql.DataSource;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
-@DataJpaTest(properties = {
-        "spring.test.database.replace=none",
-        "spring.jpa.hibernate.ddl-auto=none",
-        "spring.jpa.open-in-view=false",
-        "spring.sql.init.mode=always"
-})
+@DataJpaTest(
+        properties = {
+            "spring.test.database.replace=none",
+            "spring.jpa.hibernate.ddl-auto=none",
+            "spring.jpa.open-in-view=false",
+            "spring.sql.init.mode=always"
+        })
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AnalysisRepositoryTest {
 
     private static final Path DATABASE = createDatabase();
 
-    @Autowired
-    private AnalysisRepository analysisRepository;
+    @Autowired private AnalysisRepository analysisRepository;
 
-    @Autowired
-    private DataSource dataSource;
+    @Autowired private DataSource dataSource;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATABASE.toAbsolutePath());
         registry.add("spring.datasource.driver-class-name", () -> "org.sqlite.JDBC");
-        registry.add("spring.jpa.database-platform", () -> "org.hibernate.community.dialect.SQLiteDialect");
+        registry.add(
+                "spring.jpa.database-platform",
+                () -> "org.hibernate.community.dialect.SQLiteDialect");
     }
 
     @AfterAll
@@ -57,8 +57,10 @@ class AnalysisRepositoryTest {
 
         assertThat(pageable.getPageNumber()).isEqualTo(1);
         assertThat(pageable.getPageSize()).isEqualTo(10);
-        assertThat(pageable.getSort().getOrderFor("createdAt").getDirection()).isEqualTo(Sort.Direction.DESC);
-        assertThat(pageable.getSort().getOrderFor("id").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(pageable.getSort().getOrderFor("createdAt").getDirection())
+                .isEqualTo(Sort.Direction.DESC);
+        assertThat(pageable.getSort().getOrderFor("id").getDirection())
+                .isEqualTo(Sort.Direction.DESC);
     }
 
     @Test
@@ -76,18 +78,22 @@ class AnalysisRepositoryTest {
         analysisRepository.save(analysis(100L, 2_000L, "晚的", "结果二", 2, 200L));
         analysisRepository.save(analysis(200L, 3_000L, "别的群", "结果三", 3, 300L));
 
-        Page<AnalysisEntity> page = analysisRepository.findPage(100L, AnalysisRepository.pageRequest(1, 20));
+        Page<AnalysisEntity> page =
+                analysisRepository.findPage(100L, AnalysisRepository.pageRequest(1, 20));
 
         assertThat(page.getTotalElements()).isEqualTo(2);
-        assertThat(page.getContent()).extracting(AnalysisEntity::getPrompt)
+        assertThat(page.getContent())
+                .extracting(AnalysisEntity::getPrompt)
                 .containsExactly("晚的", "早的");
     }
 
-    private AnalysisEntity analysis(long gid, long date, String prompt, String result, int messageCount) {
+    private AnalysisEntity analysis(
+            long gid, long date, String prompt, String result, int messageCount) {
         return analysis(gid, date, prompt, result, messageCount, System.currentTimeMillis());
     }
 
-    private AnalysisEntity analysis(long gid, long date, String prompt, String result, int messageCount, long createdAt) {
+    private AnalysisEntity analysis(
+            long gid, long date, String prompt, String result, int messageCount, long createdAt) {
         return new AnalysisEntity(gid, date, prompt, result, messageCount, createdAt);
     }
 

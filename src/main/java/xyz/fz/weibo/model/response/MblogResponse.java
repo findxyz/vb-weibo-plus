@@ -1,7 +1,6 @@
 package xyz.fz.weibo.model.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.Map;
 
 /**
@@ -24,6 +23,4 @@ public record MblogResponse(
         @JsonProperty("pic_infos") Map<String, PicInfoResponse> picInfos,
         @JsonProperty("page_info") PageInfoResponse pageInfo,
         @JsonProperty("retweeted_status") MblogResponse retweetedStatus,
-        @JsonProperty("mix_media_info") MixMediaInfoResponse mixMediaInfo
-) {
-}
+        @JsonProperty("mix_media_info") MixMediaInfoResponse mixMediaInfo) {}

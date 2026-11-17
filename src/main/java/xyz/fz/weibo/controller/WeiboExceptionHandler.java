@@ -1,5 +1,6 @@
 package xyz.fz.weibo.controller;
 
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -11,8 +12,6 @@ import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
-
-import java.util.Map;
 
 /**
  * 微博接口全局异常处理，按异常类型映射到对应 HTTP 状态码。
@@ -37,7 +36,8 @@ public class WeiboExceptionHandler {
 
     @ExceptionHandler(WeiboException.class)
     public ResponseEntity<Map<String, Object>> handleWeibo(WeiboException e) {
-        HttpStatus status = e.getErrorCode() != 0 ? HttpStatus.BAD_GATEWAY : HttpStatus.INTERNAL_SERVER_ERROR;
+        HttpStatus status =
+                e.getErrorCode() != 0 ? HttpStatus.BAD_GATEWAY : HttpStatus.INTERNAL_SERVER_ERROR;
         return build(status, e.getMessage());
     }
 
@@ -47,7 +47,8 @@ public class WeiboExceptionHandler {
     }
 
     @ExceptionHandler(MessageSentButSyncFailedException.class)
-    public ResponseEntity<Map<String, Object>> handleSentButSyncFailed(MessageSentButSyncFailedException e) {
+    public ResponseEntity<Map<String, Object>> handleSentButSyncFailed(
+            MessageSentButSyncFailedException e) {
         return build(HttpStatus.CONFLICT, e.getMessage());
     }
 
@@ -57,6 +58,7 @@ public class WeiboExceptionHandler {
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String msg) {
-        return ResponseEntity.status(status).body(Map.of("code", status.value(), "msg", msg == null ? "" : msg));
+        return ResponseEntity.status(status)
+                .body(Map.of("code", status.value(), "msg", msg == null ? "" : msg));
     }
 }

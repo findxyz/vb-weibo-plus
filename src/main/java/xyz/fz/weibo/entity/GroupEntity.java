@@ -49,12 +49,22 @@ public class GroupEntity {
     @Column(name = "updated_at", nullable = false)
     private long updatedAt;
 
-    protected GroupEntity() {
-    }
+    protected GroupEntity() {}
 
-    public GroupEntity(Long gid, String name, String avatar, int memberCount, int maxMember, long ownerId,
-                       String adminsJson, String summary, int groupType, long minMid, long maxMid,
-                       long createdAt, long updatedAt) {
+    public GroupEntity(
+            Long gid,
+            String name,
+            String avatar,
+            int memberCount,
+            int maxMember,
+            long ownerId,
+            String adminsJson,
+            String summary,
+            int groupType,
+            long minMid,
+            long maxMid,
+            long createdAt,
+            long updatedAt) {
         this.gid = gid;
         this.name = name;
         this.avatar = avatar;

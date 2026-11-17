@@ -1,9 +1,12 @@
 package xyz.fz.weibo.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,15 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.CalendarView;
 import xyz.fz.weibo.domain.MediaBinary;
-import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.PostLikeState;
+import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.service.PostService;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
-
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.List;
 
 @RestController
 @RequestMapping("/post")
@@ -43,10 +42,8 @@ public class PostController {
     @PostMapping("/range")
     public ResponseEntity<Void> saveByRange(
             @RequestParam long uid,
-            @RequestParam
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
-            @RequestParam
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end) {
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end) {
         if (uid <= 0) {
             throw new InvalidRequestException("uid 必须大于 0。");
         }
@@ -59,9 +56,7 @@ public class PostController {
 
     @GetMapping("/image")
     public ResponseEntity<byte[]> queryPostImage(
-            @RequestParam String mblogId,
-            @RequestParam String pid,
-            @RequestParam String variant) {
+            @RequestParam String mblogId, @RequestParam String pid, @RequestParam String variant) {
         MediaBinary image = postService.queryPostImage(mblogId, pid, variant);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, private")
@@ -71,8 +66,7 @@ public class PostController {
 
     @GetMapping("/videoCover")
     public ResponseEntity<byte[]> queryPostVideoCover(
-            @RequestParam String mblogId,
-            @RequestParam(defaultValue = "false") boolean retweeted) {
+            @RequestParam String mblogId, @RequestParam(defaultValue = "false") boolean retweeted) {
         return mediaResponse(postService.queryPostVideoCover(mblogId, retweeted));
     }
 
@@ -83,7 +77,9 @@ public class PostController {
 
     @GetMapping("/like")
     public ResponseEntity<PostLikeState> queryLike(@RequestParam String mblogId) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(postService.queryLike(mblogId));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(postService.queryLike(mblogId));
     }
 
     @PostMapping("/like")
@@ -106,10 +102,10 @@ public class PostController {
     public PostQueryResult queryPosts(
             HttpServletRequest request,
             @RequestParam(required = false) List<Long> uids,
-            @RequestParam(required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
-            @RequestParam(required = false)
-            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+                    LocalDateTime start,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+                    LocalDateTime end,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "100") int size) {

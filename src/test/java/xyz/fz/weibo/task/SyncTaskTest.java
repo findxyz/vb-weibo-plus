@@ -1,6 +1,17 @@
 package xyz.fz.weibo.task;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.lang.reflect.Method;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,26 +28,12 @@ import xyz.fz.weibo.domain.GroupRecord;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.PostService;
 
-import java.lang.reflect.Method;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 @ExtendWith(MockitoExtension.class)
 class SyncTaskTest {
 
-    @Mock
-    private ChatService chatService;
+    @Mock private ChatService chatService;
 
-    @Mock
-    private PostService postService;
+    @Mock private PostService postService;
 
     private SyncTask syncTask;
 
@@ -54,8 +51,7 @@ class SyncTaskTest {
 
     @Test
     void application_start_continues_when_group_sync_requires_login() {
-        doThrow(new WeiboCookieExpiredException("未登录。"))
-                .when(chatService).syncGroups();
+        doThrow(new WeiboCookieExpiredException("未登录。")).when(chatService).syncGroups();
 
         assertThatCode(syncTask::run).doesNotThrowAnyException();
     }
@@ -72,11 +68,11 @@ class SyncTaskTest {
 
     @Test
     void group_message_check_stops_after_one_group_fails() {
-        SyncTask twoGidTask = new SyncTask(chatService, postService, "4761715839862414, 4761715839862415");
-        when(chatService.queryGroups()).thenReturn(List.of(
-                group(4761715839862414L), group(4761715839862415L)));
-        doThrow(new WeiboException("上游失败。"))
-                .when(chatService).saveIncremental(4761715839862414L);
+        SyncTask twoGidTask =
+                new SyncTask(chatService, postService, "4761715839862414, 4761715839862415");
+        when(chatService.queryGroups())
+                .thenReturn(List.of(group(4761715839862414L), group(4761715839862415L)));
+        doThrow(new WeiboException("上游失败。")).when(chatService).saveIncremental(4761715839862414L);
 
         twoGidTask.syncGroupMessages();
 
@@ -123,8 +119,7 @@ class SyncTaskTest {
 
     @Test
     void websocket_check_handles_weibo_failure() {
-        doThrow(new WeiboException("上游失败。"))
-                .when(chatService).openWebSocket();
+        doThrow(new WeiboException("上游失败。")).when(chatService).openWebSocket();
 
         assertThatCode(syncTask::openWebSocket).doesNotThrowAnyException();
     }
@@ -134,8 +129,13 @@ class SyncTaskTest {
         ObjectMapper mapper = new ObjectMapper();
 
         syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"other\"}")));
-        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"groupchat\",\"info\":{\"gid\":2}}")));
-        syncTask.onGroupPush(new GroupPushEvent(mapper.readTree("{\"type\":\"groupchat\",\"info\":{\"gid\":4761715839862414}}")));
+        syncTask.onGroupPush(
+                new GroupPushEvent(
+                        mapper.readTree("{\"type\":\"groupchat\",\"info\":{\"gid\":2}}")));
+        syncTask.onGroupPush(
+                new GroupPushEvent(
+                        mapper.readTree(
+                                "{\"type\":\"groupchat\",\"info\":{\"gid\":4761715839862414}}")));
 
         verify(chatService).saveIncremental(4761715839862414L);
         verify(chatService, never()).saveIncremental(2);
@@ -167,8 +167,7 @@ class SyncTaskTest {
     @Test
     void blogger_blog_check_stops_after_one_blogger_fails() {
         when(postService.queryBloggers()).thenReturn(List.of(blogger(303), blogger(404)));
-        doThrow(new WeiboException("上游失败。"))
-                .when(postService).saveIncremental(303);
+        doThrow(new WeiboException("上游失败。")).when(postService).saveIncremental(303);
 
         syncTask.syncBloggerBlogs();
 

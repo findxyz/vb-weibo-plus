@@ -1,5 +1,6 @@
 package xyz.fz.weibo.controller;
 
+import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,8 +11,6 @@ import xyz.fz.weibo.api.GroupListApi;
 import xyz.fz.weibo.api.LoginApi;
 import xyz.fz.weibo.model.response.LoginResponse;
 import xyz.fz.weibo.service.ChatService;
-
-import java.util.Map;
 
 /**
  * 微博登录接口。
@@ -24,7 +23,8 @@ public class WeiboLoginController {
     private final GroupListApi groupListApi;
     private final ChatService chatService;
 
-    public WeiboLoginController(LoginApi loginApi, GroupListApi groupListApi, ChatService chatService) {
+    public WeiboLoginController(
+            LoginApi loginApi, GroupListApi groupListApi, ChatService chatService) {
         this.loginApi = loginApi;
         this.groupListApi = groupListApi;
         this.chatService = chatService;

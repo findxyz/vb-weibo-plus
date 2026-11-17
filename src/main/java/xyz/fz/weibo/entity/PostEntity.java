@@ -58,13 +58,25 @@ public class PostEntity {
     @Column(name = "saved_at", nullable = false)
     private long savedAt;
 
-    protected PostEntity() {
-    }
+    protected PostEntity() {}
 
-    public PostEntity(String mblogId, long postId, long uid, String content, String contentRaw,
-                      String source, String region, String picsJson, String videoCoverUrl,
-                      String videoPageUrl, String retweetedJson, int repostsCount, int commentsCount,
-                      int attitudesCount, long createdAt, long savedAt) {
+    public PostEntity(
+            String mblogId,
+            long postId,
+            long uid,
+            String content,
+            String contentRaw,
+            String source,
+            String region,
+            String picsJson,
+            String videoCoverUrl,
+            String videoPageUrl,
+            String retweetedJson,
+            int repostsCount,
+            int commentsCount,
+            int attitudesCount,
+            long createdAt,
+            long savedAt) {
         this.mblogId = mblogId;
         this.postId = postId;
         this.uid = uid;
