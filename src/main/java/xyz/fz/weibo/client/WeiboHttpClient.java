@@ -190,6 +190,7 @@ public class WeiboHttpClient {
         return resp;
     }
 
+    @SuppressWarnings("ConstantValue")
     private <T> T withRateLimitRetry(
             URI uri,
             @SuppressWarnings("PMD.LooseCoupling") HttpHeaders headers,
