@@ -383,6 +383,11 @@
     <module name="EmptyCatchBlock">
       <property name="commentFormat" value="\S+"/>
     </module>
+    <module name="IllegalTokenText">
+      <property name="tokens" value="COMMENT_CONTENT"/>
+      <property name="format" value=".*"/>
+      <property name="message" value="禁止添加注释。"/>
+    </module>
     <module name="SuppressionXpathFilter">
       <property name="file" value="${org.checkstyle.google.suppressionxpathfilter.config}"
              default="checkstyle-xpath-suppressions.xml" />
