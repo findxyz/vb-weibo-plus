@@ -15,9 +15,6 @@ import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.model.request.SearchProfileRequest;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
 
-/**
- * searchProfile 接口：按时间范围检索用户微博。
- */
 @Component
 public class SearchProfileApi {
 
@@ -35,8 +32,6 @@ public class SearchProfileApi {
     }
 
     public SearchProfileResponse searchProfile(SearchProfileRequest request) {
-        // searchProfile 校验 Referer 里的 uid，必须为 https://weibo.com/u/{uid}，
-        // 否则对久远日期的微博返回空 list（近期日期偶尔能命中）
         Map<String, String> headers = new LinkedHashMap<>(WeiboConstants.HEADERS_AJAX);
         headers.put(HttpHeaders.REFERER, "https://weibo.com/u/" + request.uid());
         ResponseEntity<String> resp =

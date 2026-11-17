@@ -7,9 +7,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.api.DirectMediaApi;
 
-/**
- * 微博媒体下载接口：图床 / 视频直链。
- */
 @RestController
 @RequestMapping("/weibo/media")
 public class WeiboMediaController {

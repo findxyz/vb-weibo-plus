@@ -16,9 +16,6 @@ import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
-/**
- * 微博群聊接口：群列表与群消息。
- */
 @RestController
 @RequestMapping("/weibo/group")
 public class WeiboGroupController {

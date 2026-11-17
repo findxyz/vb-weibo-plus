@@ -18,9 +18,6 @@ import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
 
-/**
- * 微博内容接口：我的微博列表与长文。
- */
 @RestController
 @RequestMapping("/weibo/blog")
 public class WeiboBlogController {

@@ -14,9 +14,6 @@ import xyz.fz.weibo.model.request.GroupSendVideoRequest;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
-/**
- * 群聊消息接口。
- */
 @Component
 public class GroupMessagesApi {
 
@@ -58,9 +55,6 @@ public class GroupMessagesApi {
         }
     }
 
-    /**
-     * 群聊发送图片消息：复用 send_message.json，带 fids/media_type=1/annotations。
-     */
     public GroupSendMessageResponse sendImage(GroupSendImageRequest request) {
         ResponseEntity<String> resp =
                 client.postForm(
@@ -75,9 +69,6 @@ public class GroupMessagesApi {
         }
     }
 
-    /**
-     * 群聊发送视频消息：复用 send_message.json，带 fids/media_type=10/annotations（含 video_pic_fid）。
-     */
     public GroupSendMessageResponse sendVideo(GroupSendVideoRequest request) {
         ResponseEntity<String> resp =
                 client.postForm(

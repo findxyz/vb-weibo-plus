@@ -16,9 +16,6 @@ import xyz.fz.weibo.domain.AnalysisPageResult;
 import xyz.fz.weibo.domain.AnalysisView;
 import xyz.fz.weibo.service.AnalysisService;
 
-/**
- * 群聊分析接口。
- */
 @RestController
 @RequestMapping("/chat/analyses")
 public class AnalysisController {
@@ -40,9 +37,6 @@ public class AnalysisController {
         return analysisService.analyze(gid, date, prompt);
     }
 
-    /**
-     * 流式分析：SSE 逐段推送 delta 事件，完成后推送 done 事件（内容为 AnalysisView），失败推送 error 事件。
-     */
     @PostMapping("/stream")
     public SseEmitter analyzeStream(
             @RequestParam long gid,

@@ -10,7 +10,6 @@ if not exist "%~dp0%JAR%" (
     exit /b 1
 )
 
-rem ===== JDK version check (JDK 21 or higher required) =====
 java -version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] java command not found. Please install JDK 21 or higher and configure PATH.
@@ -41,13 +40,6 @@ if !JAVA_MAJOR! LSS 21 (
     exit /b 1
 )
 
-rem ===== Launch parameters (adjust the values in the java command below) =====
-rem --server.port                     - server port, default 18080
-rem --weibo.database-path             - database file path, default weibo.db
-rem --weibo.chat.auto-sync-gids       - group IDs for scheduled incremental sync, comma-separated, default 4761715839862414
-rem --weibo.ai.base-url               - OpenAI-compatible API base URL, default https://api.deepseek.com
-rem --weibo.ai.api-key                - AI API key, default sk-xxx (replace with your real key)
-
 echo ============================================
 echo   vb-weibo-plus
 echo ============================================
@@ -57,7 +49,6 @@ echo   JDK: %JAVA_VER%
 echo ============================================
 echo.
 
-rem Open the browser after a 5-second delay
 start "" /b cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:18080/chat/index.html"
 
 java -jar "%~dp0%JAR%" --server.port=18080 --weibo.database-path=weibo.db --weibo.chat.auto-sync-gids=4761715839862414 --weibo.ai.base-url=https://api.deepseek.com --weibo.ai.api-key=sk-xxx

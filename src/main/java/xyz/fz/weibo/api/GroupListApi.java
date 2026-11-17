@@ -10,9 +10,6 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.GroupListRequest;
 import xyz.fz.weibo.model.response.GroupListResponse;
 
-/**
- * 群聊列表接口。
- */
 @Component
 public class GroupListApi {
 

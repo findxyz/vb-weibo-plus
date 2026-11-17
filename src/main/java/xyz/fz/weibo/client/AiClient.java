@@ -24,9 +24,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import xyz.fz.weibo.client.exception.WeiboException;
 
-/**
- * OpenAI 兼容格式的 AI 调用客户端。
- */
 @Component
 public class AiClient {
 
@@ -56,12 +53,6 @@ public class AiClient {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 调用大模型对话接口，返回生成的文本。
-     *
-     * @param userPrompt 用户提示词
-     * @return AI 生成的文本
-     */
     public String chat(String userPrompt) {
         assertConfigured();
         try {
@@ -116,13 +107,6 @@ public class AiClient {
         }
     }
 
-    /**
-     * 流式调用大模型对话接口，逐段回调增量文本，返回完整文本。
-     *
-     * @param userPrompt    用户提示词
-     * @param deltaConsumer 增量文本回调，回调内抛异常会中断读取
-     * @return AI 生成的完整文本
-     */
     public String chatStream(String userPrompt, Consumer<String> deltaConsumer) {
         assertConfigured();
         try {

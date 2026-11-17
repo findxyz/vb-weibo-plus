@@ -13,15 +13,6 @@ import org.springframework.stereotype.Component;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.MediaBinary;
 
-/**
- * 将微博错标为 image/jpeg 的 HEIC 群图片转码为 JPEG，使桌面浏览器可直接显示。
- * <p>
- * 仅在检测到 HEIC magic（offset 4-7 == "ftyp" 且 brand ∈ {"heic","mif1"}）时转码，
- * 其余格式原样透传。转码依赖系统 ffmpeg（加入 PATH 或配置 weibo.media.ffmpeg-path）。
- * <p>
- * 若启动时检测不到 ffmpeg，HEIC 图片降级为原样透传（Content-Type 改为 image/heic），
- * 不会报错；此时桌面浏览器仍无法显示，但不影响其他格式图片。
- */
 @Component
 public class HeicConverter {
 
@@ -102,9 +93,6 @@ public class HeicConverter {
         }
     }
 
-    /**
-     * 启动时探测 ffmpeg 是否可执行。执行 {@code ffmpeg -version}，退出码为 0 即视为可用。
-     */
     @SuppressWarnings("DuplicatedCode")
     private boolean probeFfmpeg() {
         try {
@@ -123,9 +111,6 @@ public class HeicConverter {
         }
     }
 
-    /**
-     * HEIC magic 检测：字节 4-7 为 "ftyp"，紧跟的 brand（8-11）为 heic 或 mif1。
-     */
     static boolean isHeic(byte[] content) {
         if (content == null || content.length < 12) {
             return false;
@@ -152,7 +137,7 @@ public class HeicConverter {
         try {
             Files.deleteIfExists(path);
         } catch (IOException ignored) {
-            // 临时文件清理失败不影响主流程
+            return;
         }
     }
 }

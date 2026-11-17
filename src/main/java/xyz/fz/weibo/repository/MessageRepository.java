@@ -149,9 +149,6 @@ public interface MessageRepository
                 > 0;
     }
 
-    /**
-     * 单事务批量插入，避免增量同步边拉边写时前端轮询读到「写一半」的中间态。
-     */
     @Transactional
     default int insertAllIfAbsent(List<MessageEntity> messages) {
         int inserted = 0;

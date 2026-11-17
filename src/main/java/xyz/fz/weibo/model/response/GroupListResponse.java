@@ -4,9 +4,6 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
-/**
- * 群聊列表响应。
- */
 public record GroupListResponse(int totalNumber, List<Contact> contacts) {
 
     public record Contact(GroupUser user) {}

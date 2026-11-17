@@ -3,23 +3,6 @@
           "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
           "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
-<!--
-    Checkstyle configuration that checks the Google coding conventions from Google Java Style
-    that can be found at https://google.github.io/styleguide/javaguide.html
-
-    Checkstyle is very configurable. Be sure to read the documentation at
-    http://checkstyle.org (or in your downloaded distribution).
-
-    To completely disable a check, just comment it out or delete it from the file.
-    To suppress certain violations please review suppression filters.
-
-    Vendored from Checkstyle 14.4.0 google_checks.xml. Project changes: 4-space indentation,
-    8-space continuation indentation, snake_case names for @Test methods,
-    and no documentation or comment-formatting checks.
-
-    Authors: Max Vetrenko, Mauryan Kansara, Ruslan Diachenko, Roman Ivanov.
- -->
-
 <module name="Checker">
 
   <property name="charset" value="UTF-8"/>
@@ -30,14 +13,12 @@
 
   <module name="SuppressWarningsFilter"/>
 
-  <!-- https://checkstyle.org/filters/suppressionfilter.html -->
   <module name="SuppressionFilter">
     <property name="file" value="${org.checkstyle.google.suppressionfilter.config}"
            default="checkstyle-suppressions.xml" />
     <property name="optional" value="true"/>
   </module>
 
-  <!-- https://checkstyle.org/filters/suppresswithnearbytextfilter.html -->
   <module name="SuppressWithNearbyTextFilter">
     <property name="nearbyTextPattern"
               value="CHECKSTYLE.SUPPRESS\: (\w+) for ([+-]\d+) lines"/>
@@ -45,8 +26,6 @@
     <property name="lineRange" value="$2"/>
   </module>
 
-  <!-- Checks for whitespace                               -->
-  <!-- See http://checkstyle.org/checks/whitespace/index.html -->
   <module name="FileTabCharacter">
     <property name="eachLine" value="true"/>
   </module>
@@ -65,7 +44,6 @@
     <property name="ignorePattern"
              value="^package.*|^import.*|href\s*=\s*&quot;[^&quot;]*&quot;|http://|https://|ftp://"/>
   </module>
-  <!--  Suppression to prevent LineLength Check from flagging lines in Text-blocks -->
   <module name="SuppressWithPlainTextCommentFilter">
     <property name="checkFormat" value="LineLength"/>
     <property name="offCommentFormat" value='^.*"""\s*$'/>
@@ -111,7 +89,6 @@
       <property name="tokens" value="PACKAGE_DEF, IMPORT, STATIC_IMPORT"/>
     </module>
 
-    <!-- Modules -->
     <module name="ModuleDirectiveOrder"/>
 
     <module name="NeedBraces">
@@ -134,7 +111,6 @@
                 value="LITERAL_CASE, LITERAL_DEFAULT"/>
     </module>
     <module name="SuppressionXpathSingleFilter">
-      <!-- LITERAL_CASE, LITERAL_DEFAULT are reused in SWITCH_RULE  -->
       <property name="id" value="LeftCurlyNl"/>
       <property name="query" value="//SWITCH_RULE/SLIST"/>
     </module>
@@ -213,13 +189,11 @@
       <property name="option" value="EOL"/>
     </module>
     <module name="SeparatorWrap">
-      <!-- ELLIPSIS is EOL until https://github.com/google/styleguide/issues/259 -->
       <property name="id" value="SeparatorWrapEllipsis"/>
       <property name="tokens" value="ELLIPSIS"/>
       <property name="option" value="EOL"/>
     </module>
     <module name="SeparatorWrap">
-      <!-- ARRAY_DECLARATOR is EOL until https://github.com/google/styleguide/issues/258 -->
       <property name="id" value="SeparatorWrapArrayDeclarator"/>
       <property name="tokens" value="ARRAY_DECLARATOR"/>
       <property name="option" value="EOL"/>
@@ -409,7 +383,6 @@
     <module name="EmptyCatchBlock">
       <property name="commentFormat" value="\S+"/>
     </module>
-    <!-- https://checkstyle.org/filters/suppressionxpathfilter.html -->
     <module name="SuppressionXpathFilter">
       <property name="file" value="${org.checkstyle.google.suppressionxpathfilter.config}"
              default="checkstyle-xpath-suppressions.xml" />
@@ -423,12 +396,9 @@
     </module>
     <module name="SuppressWithNearbyCommentFilter">
       <property name="commentFormat" value="CHECKSTYLE.SUPPRESS\: ([\w\|]+)"/>
-      <!-- $1 refers to the first match group in the regex defined in commentFormat -->
       <property name="checkFormat" value="$1"/>
-      <!-- The check is suppressed in the next line of code after the comment -->
       <property name="influenceFormat" value="1"/>
     </module>
-    <!-- Project test methods retain snake_case names. -->
     <module name="SuppressionXpathSingleFilter">
       <property name="checks" value="GoogleMethodName"/>
       <property name="query" value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test']]/IDENT"/>

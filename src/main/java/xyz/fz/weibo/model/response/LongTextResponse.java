@@ -2,9 +2,6 @@ package xyz.fz.weibo.model.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-/**
- * 长文响应。
- */
 public record LongTextResponse(
         LongTextData data,
         int ok

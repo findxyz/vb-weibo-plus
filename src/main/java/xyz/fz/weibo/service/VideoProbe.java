@@ -15,12 +15,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import xyz.fz.weibo.client.exception.WeiboException;
 
-/**
- * 从视频提取封面图（PNG）并探测属性（宽/高/时长），用于群聊发送视频。
- * <p>
- * 依赖系统 ffmpeg（加入 PATH 或配置 weibo.media.ffmpeg-path），与 HeicConverter 共用同一配置项。
- * 网页端约束：MP4、时长小于 5 分钟、文件小于 100 MB，本类在探测后校验时长上限。
- */
 @Component
 public class VideoProbe {
 
@@ -50,9 +44,6 @@ public class VideoProbe {
 
     public record ProbeResult(byte[] coverPng, int width, int height, int duration) {}
 
-    /**
-     * 探测视频属性并提取封面图。ffmpeg 不可用或视频不合法时抛 WeiboException，不降级。
-     */
     public ProbeResult probe(byte[] videoBytes) {
         if (!ffmpegAvailable) {
             throw new WeiboException("未检测到 ffmpeg，无法发送视频。请安装 ffmpeg 并加入 PATH。", -1);
@@ -187,9 +178,6 @@ public class VideoProbe {
                 input.toString());
     }
 
-    /**
-     * ffprobe 通常与 ffmpeg 同目录，将 ffmpeg 配置值的 basename 替换为 ffprobe。
-     */
     private String resolveFfprobePath() {
         if ("ffmpeg".equals(ffmpegPath)) {
             return "ffprobe";
@@ -225,7 +213,7 @@ public class VideoProbe {
         try {
             Files.deleteIfExists(path);
         } catch (IOException ignored) {
-            // 临时文件清理失败不影响主流程
+            return;
         }
     }
 }

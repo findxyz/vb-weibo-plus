@@ -15,10 +15,6 @@ import xyz.fz.weibo.client.WeiboCookieHolder;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.response.LoginResponse;
 
-/**
- * 扫码登录：Playwright headless Chromium 打开 chat 页，轮询 SUB cookie 直到用户扫码确认。
- * 登录期间浏览器 Page 暴露为实例字段，供取图端点截图二维码。
- */
 @Component
 public class LoginApi {
 
@@ -29,10 +25,8 @@ public class LoginApi {
     @Value("${weibo.qr-timeout-seconds:300}")
     private int qrTimeoutSeconds;
 
-    // 登录运行期间持有的页面引用，供取图端点访问。单用户本地工具下无需并发保护。
     private volatile Page currentPage;
 
-    // 登录运行期间持有的浏览器上下文，供取图端点判断登录是否已完成。单用户本地工具下无需并发保护。
     private volatile BrowserContext currentContext;
 
     public LoginApi(WeiboCookieHolder holder) {
@@ -52,7 +46,6 @@ public class LoginApi {
 
             long deadline = System.currentTimeMillis() + qrTimeoutSeconds * 1000L;
             while (System.currentTimeMillis() < deadline) {
-                //noinspection BusyWait
                 Thread.sleep(500);
                 List<Cookie> cookies = ctx.cookies();
                 String sub = null;
@@ -81,7 +74,6 @@ public class LoginApi {
                     if (ssoLoginState == null) {
                         throw new WeiboException("扫码登录不完整，缺少 SSOLoginState");
                     }
-                    // 登录已成：立即切断取图，避免登录成功后页面跳转、截图端截到非二维码图片
                     currentPage = null;
                     String cookie =
                             "SUBP="
@@ -111,18 +103,11 @@ public class LoginApi {
         }
     }
 
-    /**
-     * 截取当前登录页面的二维码图片。
-     *
-     * @return PNG 图片字节；若登录未进行中、登录已完成或二维码暂不可用（轮换中），返回 null
-     */
     public byte[] captureQrImage() {
         Page page = currentPage;
         if (page == null) {
             return null;
         }
-        // 登录确认后页面会立即跳转，第一个 img 变成头像不再是二维码；
-        // 一旦读到 SUB cookie 即视为登录已成，不再截图，避免前端展示误图
         try {
             for (Cookie c : currentContext.cookies()) {
                 if (".weibo.com".equals(c.domain)
@@ -133,7 +118,6 @@ public class LoginApi {
                 }
             }
         } catch (Exception e) {
-            // 上下文已关闭等异常，等同于登录结束，返回 null 让前端保持旧图
             return null;
         }
         try {
@@ -145,7 +129,6 @@ public class LoginApi {
                                     .setTimeout(2000));
             return img.first().screenshot();
         } catch (Exception e) {
-            // 二维码轮换中元素短暂失效，返回 null 让前端保持旧图
             return null;
         }
     }

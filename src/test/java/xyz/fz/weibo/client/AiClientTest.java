@@ -22,9 +22,6 @@ import org.springframework.web.client.RestTemplate;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.config.NoOpResponseErrorHandler;
 
-/**
- * AiClient 测试：用本地 HttpServer 起一个 OpenAI 兼容端点，校验 chat 与 chatStream 的请求构造、SSE 解析与异常映射。
- */
 class AiClientTest {
 
     private HttpServer server;

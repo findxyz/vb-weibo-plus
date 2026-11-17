@@ -1,8 +1,5 @@
 package xyz.fz.weibo.client.exception;
 
-/**
- * 微博异常基类，带 errorCode 字段（默认 0，表示非业务错误）。
- */
 public class WeiboException extends RuntimeException {
 
     private final int errorCode;

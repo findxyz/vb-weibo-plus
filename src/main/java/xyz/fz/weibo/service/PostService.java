@@ -304,7 +304,6 @@ public class PostService {
         if (bloggerRepository.existsById(uid)) {
             throw new InvalidRequestException("该博主已在列表中。");
         }
-        // 首次添加复用增量同步：拉取最新一页微博，同时写入博主元数据
         saveIncremental(uid);
         BloggerEntity blogger =
                 bloggerRepository
@@ -446,8 +445,6 @@ public class PostService {
             int errorCode = response == null || response.ok() == 0 ? -1 : response.ok();
             throw new WeiboException("长文响应失败：mblogId = " + post.mblogId() + "。", errorCode);
         }
-        // data 为 null 表示长文解析失败已容错（见 LongTextApi），按「无长文」处理，
-        // 正文回退到微博列表里的短文本。
         if (response.data() == null) {
             return null;
         }

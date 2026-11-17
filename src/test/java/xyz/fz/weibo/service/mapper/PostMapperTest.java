@@ -113,7 +113,6 @@ class PostMapperTest {
     @Test
     void long_text_falls_back_to_short_text_when_long_text_data_is_missing() throws Exception {
         MblogResponse post = readPost();
-        // 长文响应解析失败已容错为无长文（data=null），正文回退到微博列表里的短文本。
         LongTextResponse empty = new LongTextResponse(null, 1);
 
         PostEntity entity = postMapper.toPostEntity(post, empty, null, 2000);
@@ -225,8 +224,6 @@ class PostMapperTest {
 
     @Test
     void retweet_info_tolerates_blank_created_at_from_deleted_source() throws Exception {
-        // 搜索接口返回的已删除原微博 created_at 可能为空字符串，
-        // toPostEntity 经 toRetweetInfo 解析空串会抛 DateTimeParseException，中断整批历史同步
         MblogResponse source = readPost();
         MblogResponse deleted =
                 new MblogResponse(
@@ -345,7 +342,6 @@ class PostMapperTest {
 
     @Test
     void falls_back_to_mix_media_video_when_page_info_missing() throws Exception {
-        // 混合发布（多视频、图文混合）的微博没有 page_info，视频在 mix_media_info.items 里
         MblogResponse source = readPost();
         PageInfoResponse mixedVideo =
                 new PageInfoResponse(
@@ -387,7 +383,6 @@ class PostMapperTest {
 
     @Test
     void skips_posts_whose_blogger_metadata_is_missing_instead_of_throwing() {
-        // posts.uid 没有匹配的 bloggers 行时，toPostViews 不应整体崩溃，而应跳过该条
         PostEntity withBlogger =
                 new PostEntity("m1", 100, 1, "", "", "", "", "[]", "", "", "", 0, 0, 0, 100, 200);
         PostEntity orphan =

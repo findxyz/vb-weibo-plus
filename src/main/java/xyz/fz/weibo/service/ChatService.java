@@ -76,7 +76,6 @@ public class ChatService {
     private static final long MAX_IMAGE_SIZE = 20L * 1024 * 1024;
     private static final long MAX_VIDEO_SIZE = 100L * 1024 * 1024;
 
-    /** 实时表态最多向回翻的时间线页数，防止老消息把上游请求拖到失控。 */
     private static final int MAX_ATTITUDE_PAGES = 10;
 
     private final GroupListApi groupListApi;
@@ -284,12 +283,6 @@ public class ChatService {
                 loadingAfter && next != null ? next.getMid() : null);
     }
 
-    /**
-     * 实时拉取一批消息的表态，不落库：从最大 mid 起沿时间线向回翻页，
-     * 集齐全部目标消息或达到页数上限为止。翻到的消息一律返回条目——表态被
-     * 撤空时返回空列表，供前端清除旧缓存；上限内没翻到的消息不出现在结果里，
-     * 前端据此保留已有缓存。
-     */
     public Map<Long, List<GroupMessagesResponse.Attitude>> queryAttitudes(
             long gid, List<Long> mids) {
         validateGid(gid);

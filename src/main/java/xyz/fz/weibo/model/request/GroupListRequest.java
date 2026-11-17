@@ -4,11 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import xyz.fz.weibo.client.WeiboConstants;
 
-/**
- * 群聊列表请求参数。
- * <p>
- * 所有参数固定，仅 t 为每次请求实时生成的毫秒时间戳。
- */
 public record GroupListRequest() {
 
     public Map<String, String> toParams() {

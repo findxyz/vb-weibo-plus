@@ -355,7 +355,6 @@ class WeiboHttpClientTest {
         assertThat(resp.getBody()).contains("name=\"filetoken\"").contains("token123");
     }
 
-    /** ByteArrayResource 子类，暴露 filename 让 RestTemplate 输出 Content-Disposition 的 filename。 */
     private static final class ByteArrayResourceWithFilename extends ByteArrayResource {
         private final String filename;
 

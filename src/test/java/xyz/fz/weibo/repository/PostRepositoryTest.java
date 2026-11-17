@@ -299,9 +299,7 @@ class PostRepositoryTest {
 
     @Test
     void daily_counts_use_cst_timezone_for_utc_midnight_boundary() {
-        // UTC 2026-07-10T15:59:59 = CST 2026-07-10T23:59:59（同日）
         postRepository.insertIfAbsent(post("late", 10, 1, 1783699199000L, "同日末尾"));
-        // UTC 2026-07-10T16:00:00 = CST 2026-07-11T00:00:00（次日）
         postRepository.insertIfAbsent(post("next", 20, 1, 1783699200000L, "次日开头"));
 
         List<DailyPostCount> counts = postRepository.findDailyCounts(1L);

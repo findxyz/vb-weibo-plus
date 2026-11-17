@@ -8,12 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * Cookie 内存缓存与持久化。
- * <p>
- * 应用启动时从 cookie 文件恢复登录态，运行时由 LoginApi 扫码登录回写。
- * 文件写失败只记 warn 日志，以内存值为准。
- */
 @Component
 public class WeiboCookieHolder {
 

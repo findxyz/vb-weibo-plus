@@ -1012,7 +1012,6 @@ class ChatServiceTest {
 
         chatService.sendImage(1, file);
 
-        // 关键：init 响应的 length（分片大小 KB）必须透传给 upload，否则大图无法分片
         verify(groupMediaApi).upload(any(), eq("test.png"), eq("token-abc"), eq(1L), eq(1024));
     }
 

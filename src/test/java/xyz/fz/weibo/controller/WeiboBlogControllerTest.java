@@ -30,9 +30,6 @@ import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
 
-/**
- * 微博内容接口 Controller 层测试：验证正常返回与异常映射。
- */
 @WebMvcTest(WeiboBlogController.class)
 class WeiboBlogControllerTest {
 

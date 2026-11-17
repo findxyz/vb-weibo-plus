@@ -4,11 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import xyz.fz.weibo.client.WeiboConstants;
 
-/**
- * 群聊文字消息发送请求参数。
- * <p>
- * id 为群 gid，content 为消息正文，source 固定。
- */
 public record GroupSendMessageRequest(Long id, String content) {
 
     public Map<String, String> toParams() {

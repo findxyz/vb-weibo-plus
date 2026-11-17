@@ -152,7 +152,6 @@ class AnalysisControllerTest {
 
     @Test
     void stream_emits_delta_and_done_events() throws Exception {
-        // 桩 analyzeStreaming：同步回调 delta 并返回最终 view
         AtomicReference<Consumer<String>> captured = new AtomicReference<>();
         when(analysisService.analyzeStreaming(
                         eq(1L), eq(LocalDate.of(2026, 8, 7)), eq("分析一下"), any()))

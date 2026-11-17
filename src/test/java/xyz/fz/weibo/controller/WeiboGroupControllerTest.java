@@ -31,9 +31,6 @@ import xyz.fz.weibo.model.response.GroupListResponse;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 
-/**
- * 群聊接口 Controller 层测试：验证正常返回、字节流透传与异常映射。
- */
 @WebMvcTest(WeiboGroupController.class)
 class WeiboGroupControllerTest {
 

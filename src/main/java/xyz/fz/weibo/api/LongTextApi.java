@@ -11,9 +11,6 @@ import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.response.LongTextResponse;
 
-/**
- * 长文接口。
- */
 @Component
 public class LongTextApi {
 
@@ -36,8 +33,6 @@ public class LongTextApi {
         try {
             return objectMapper.readValue(resp.getBody(), LongTextResponse.class);
         } catch (JsonProcessingException e) {
-            // 长文是辅助内容，解析失败（如微博返回 HTML 而非 JSON）不应让整条微博同步失败：
-            // 记录原始响应供排查，按「无长文」处理，正文回退到微博列表里的短文本。
             log.atWarn()
                     .addArgument(request::id)
                     .addArgument(resp::getBody)

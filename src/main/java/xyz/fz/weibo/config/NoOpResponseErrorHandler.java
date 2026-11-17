@@ -5,9 +5,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResponseErrorHandler;
 
-/**
- * 禁用 RestTemplate 默认的 4xx/5xx 抛异常行为，交给 WeiboHttpClient 统一按状态码判定公共错误。
- */
 public class NoOpResponseErrorHandler implements ResponseErrorHandler {
 
     @Override

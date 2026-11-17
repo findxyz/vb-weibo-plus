@@ -52,7 +52,6 @@ class LongTextApiTest {
     void long_text_tolerates_non_json_body_by_returning_empty_response() {
         LongTextApi api = new LongTextApi(client, new ObjectMapper());
         LongTextRequest request = new LongTextRequest("123");
-        // 微博偶发返回 HTML（如登录/风控页），以 '<' 开头，非 JSON。
         when(client.getForString(
                         "https://weibo.com/ajax/statuses/longtext",
                         request.toParams(),
@@ -62,7 +61,6 @@ class LongTextApiTest {
 
         LongTextResponse response = api.longText(request);
 
-        // 容错：不抛异常，按「无长文」处理，调用方据此回退到微博列表短文本。
         assertThat(response.ok()).isEqualTo(1);
         assertThat(response.data()).isNull();
     }

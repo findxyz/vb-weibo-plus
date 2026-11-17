@@ -12,9 +12,6 @@ import xyz.fz.weibo.api.LoginApi;
 import xyz.fz.weibo.model.response.LoginResponse;
 import xyz.fz.weibo.service.ChatService;
 
-/**
- * 微博登录接口。
- */
 @RestController
 @RequestMapping("/weibo/login")
 public class WeiboLoginController {
@@ -33,7 +30,6 @@ public class WeiboLoginController {
     @PostMapping("/qr")
     public LoginResponse qr() {
         LoginResponse response = loginApi.qrLogin();
-        // 登录成功后立即同步群列表，避免前端拿到空列表
         chatService.syncGroups();
         return response;
     }

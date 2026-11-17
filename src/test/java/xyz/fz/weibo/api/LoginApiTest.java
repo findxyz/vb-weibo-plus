@@ -45,7 +45,6 @@ class LoginApiTest {
 
     @Test
     void capture_returns_null_when_sub_cookie_already_present() {
-        // 登录确认后页面即将跳转，此时读到 SUB 即视为登录已成，禁止再截图
         startLogin(mock(Page.class), List.of(weiboCookie("SUB", "sub-token-value")));
 
         assertThat(loginApi.captureQrImage()).isNull();
@@ -53,13 +52,11 @@ class LoginApiTest {
 
     @Test
     void capture_returns_null_when_login_not_started() {
-        // 未在登录运行期间，currentPage 为空时不截图
         assertThat(loginApi.captureQrImage()).isNull();
     }
 
     @Test
     void capture_returns_null_when_qr_element_transiently_unavailable() {
-        // 二维码轮换中元素短暂失效时返回 null，前端保持旧图
         Page page = mock(Page.class);
         startLogin(page, List.of());
         imageLocator(page, false);
@@ -69,7 +66,6 @@ class LoginApiTest {
 
     @Test
     void capture_screenshots_first_image_when_scanning_in_progress() {
-        // 扫码进行中、无登录完成信号时，正常截取第一个 img
         Page page = mock(Page.class);
         startLogin(page, List.of());
         Locator locator = imageLocator(page, true);
@@ -82,7 +78,6 @@ class LoginApiTest {
 
     @Test
     void capture_ignores_non_sub_cookies_and_screenshots() {
-        // 非 SUB 的 cookie（如 SSOLoginState）存在不代表登录已成，仍应截图
         Page page = mock(Page.class);
         startLogin(page, List.of(weiboCookie("SSOLoginState", "t")));
         Locator locator = imageLocator(page, true);

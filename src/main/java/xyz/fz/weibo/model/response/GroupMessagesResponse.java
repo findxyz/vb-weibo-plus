@@ -5,9 +5,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 
-/**
- * 群聊消息响应。
- */
 public record GroupMessagesResponse(boolean result, List<Message> messages, long ts) {
 
     public record Message(
@@ -32,7 +29,6 @@ public record GroupMessagesResponse(boolean result, List<Message> messages, long
             @JsonProperty("recall_by") String recallBy,
             @JsonProperty("attitude_info") AttitudeInfo attitudeInfo) {}
 
-    /** 消息表态快照：attitudes 为该消息当前全部表态，非增量。 */
     public record AttitudeInfo(@JsonProperty("attitudes") List<Attitude> attitudes) {}
 
     public record Attitude(String name, int count, int selected) {}

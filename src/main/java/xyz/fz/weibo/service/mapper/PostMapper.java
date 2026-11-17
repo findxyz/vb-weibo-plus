@@ -139,8 +139,6 @@ public class PostMapper {
         List<PostView> views = new ArrayList<>(posts.size());
         for (PostEntity entity : posts) {
             PostRecord post = toPostRecord(entity);
-            // 本地可能存在没有博主元数据的孤儿微博（历史抓取或手动清理），
-            // 跳过这些条目而不是整体崩溃，保证列表页可用
             BloggerRecord blogger = bloggerByUid.get(post.uid());
             if (blogger == null) {
                 continue;
@@ -185,8 +183,6 @@ public class PostMapper {
         if (post == null) {
             return null;
         }
-        // 搜索接口返回的原微博可能已被删除：缺少 id、user、created_at，
-        // 这里用占位值兜底，保留「此微博已删除」之类的提示正文
         UserResponse user = post.user();
         VideoInfo video = toVideo(post);
         return new RetweetInfo(
@@ -205,8 +201,6 @@ public class PostMapper {
     }
 
     private String content(MblogResponse post, LongTextResponse longText, boolean raw) {
-        // 非长文，或长文数据缺失（如微博返回非 JSON 已容错为无长文）时，
-        // 回退到微博列表里的短文本，保证正文不丢。
         if (!post.isLongText()
                 || longText == null
                 || longText.ok() != 1
@@ -261,7 +255,6 @@ public class PostMapper {
         if (!video.coverUrl().isBlank() && !video.pageUrl().isBlank()) {
             return video;
         }
-        // 混合发布的微博没有 page_info，视频在 mix_media_info.items 里，取第一个视频条目
         if (post.mixMediaInfo() == null || post.mixMediaInfo().items() == null) {
             return video;
         }

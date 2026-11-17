@@ -3,9 +3,6 @@ package xyz.fz.weibo.model.response;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
 
-/**
- * 微博条目结构，列表与长文接口共享。
- */
 public record MblogResponse(
         Long id,
         @JsonProperty("mblogid") String mblogId,

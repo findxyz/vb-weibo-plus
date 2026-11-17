@@ -18,9 +18,6 @@ import xyz.fz.weibo.repository.AnalysisRepository;
 import xyz.fz.weibo.repository.MessageRepository;
 import xyz.fz.weibo.service.exception.InvalidRequestException;
 
-/**
- * 群聊分析：取本地消息拼接后调 AI 分析，结果存库。
- */
 @Service
 public class AnalysisService {
 
@@ -48,9 +45,6 @@ public class AnalysisService {
         return save(gid, prepared, result);
     }
 
-    /**
-     * 流式分析：AI 生成的增量文本通过 deltaConsumer 逐段回调，完成后存库。
-     */
     public AnalysisView analyzeStreaming(
             long gid, LocalDate date, String prompt, Consumer<String> deltaConsumer) {
         PreparedAnalysis prepared = prepare(gid, date, prompt);

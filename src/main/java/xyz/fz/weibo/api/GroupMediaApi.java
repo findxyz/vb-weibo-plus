@@ -23,14 +23,6 @@ import xyz.fz.weibo.model.response.GroupMediaUploadInitResponse;
 import xyz.fz.weibo.model.response.GroupMediaUploadResponse;
 import xyz.fz.weibo.model.response.GroupVideoUploadInitResponse;
 
-/**
- * 群聊媒体接口：msget 下载 + 图片上传（init/uploadx）+ 视频上传（封面/init/分片上传）。
- * <p>
- * 下载返回 byte[] 响应，透传 Content-Type / Content-Disposition 等响应头；
- * 图片上传为两步（init 初始化、uploadx 上传文件）；
- * 视频上传为四步（封面图 uploadx、multimedia/init 初始化、octet-stream 分片上传、send_message 发送），
- * 其中 send_message 在 GroupMessagesApi，其余在本类。
- */
 @Component
 public class GroupMediaApi {
 
@@ -66,9 +58,6 @@ public class GroupMediaApi {
                 GROUP_MEDIA_URL, request.toParams(), headers, true, responseExtractor);
     }
 
-    /**
-     * 群聊发送图片第 1 步：初始化文件（fileplatform/init.json，form-urlencoded）。
-     */
     public GroupMediaUploadInitResponse initUpload(GroupMediaUploadInitRequest request) {
         ResponseEntity<String> resp =
                 client.postForm(
@@ -79,14 +68,6 @@ public class GroupMediaApi {
         return deserialize(resp.getBody(), GroupMediaUploadInitResponse.class);
     }
 
-    /**
-     * 群聊发送图片第 2 步：分片上传文件（uploadx.json，multipart/form-data）。
-     * <p>
-     * source/is_chunk/selectId 走 query 参数，file/filetoken/startloc 走 multipart body。
-     * 分片大小取自 init 响应的 length（单位 KB）。中间分片响应 {@code {"succ":true}}，
-     * 最后一片响应 {@code {"fid":...}}。微博不回传 offset，由客户端按已上传字节累加 startloc。
-     * chunkSizeKb <= 0 时退化为单次上传（兼容异常 init 响应）。
-     */
     public GroupMediaUploadResponse upload(
             byte[] bytes, String filename, String fileToken, long gid, int chunkSizeKb) {
         Map<String, String> queryParams = new LinkedHashMap<>();
@@ -131,12 +112,6 @@ public class GroupMediaApi {
         }
     }
 
-    /**
-     * 群聊发送视频第 1 步：上传封面图（uploadx.json，multipart/form-data）。
-     * <p>
-     * 与图片 upload 复用 uploadx.json，但 file part 字段名为 imageName（浏览器从视频提取的 PNG 封面），
-     * 返回的 fid 在最终发送消息时写入 annotations.video_pic_fid，不是视频文件本身的 fid。
-     */
     public GroupMediaUploadResponse uploadCover(byte[] coverBytes, String coverName, long gid) {
         Map<String, String> queryParams = new LinkedHashMap<>();
         queryParams.put("source", WeiboConstants.SOURCE);
@@ -154,12 +129,6 @@ public class GroupMediaApi {
         return coverResponse;
     }
 
-    /**
-     * 群聊发送视频第 2 步：初始化视频（webim/2/multimedia/init.json，form-urlencoded）。
-     * <p>
-     * 与图片 init 复用同一 header 组，但走不同 URL，并额外带 mediaprops（width/height/duration）。
-     * 响应新增 auth（分片上传鉴权，用于 X-Up-Auth）与 mediaId。
-     */
     public GroupVideoUploadInitResponse initVideoUpload(GroupVideoInitRequest request) {
         ResponseEntity<String> resp =
                 client.postForm(
@@ -170,14 +139,6 @@ public class GroupMediaApi {
         return deserialize(resp.getBody(), GroupVideoUploadInitResponse.class);
     }
 
-    /**
-     * 群聊发送视频第 3 步：分片上传视频（up.video.weibocdn.com/2/multimedia/upload.json，octet-stream）。
-     * <p>
-     * 与图片 upload 的区别：走独立 CDN 主机；body 为原始分片二进制（非 multipart）；
-     * header 带 X-Up-Auth（init 响应的 auth）；query 带 chunk/chunks/selectId/check/sectioncheck。
-     * check 为整个文件的 MD5，sectioncheck 为当前分片的 MD5。最后一片响应 {@code {"fid":...}}。
-     * chunkSizeKb <= 0 时退化为单次上传（兼容异常 init 响应）。
-     */
     public GroupMediaUploadResponse uploadVideo(
             byte[] bytes,
             String filename,
@@ -221,10 +182,6 @@ public class GroupMediaApi {
         return new GroupMediaUploadResponse(fid);
     }
 
-    /**
-     * ByteArrayResource 子类，暴露 filename 让 RestTemplate 输出 Content-Disposition 的 filename。
-     * 图片与封面图复用。
-     */
     private static final class ImageByteArrayResource extends ByteArrayResource {
         private final String filename;
 

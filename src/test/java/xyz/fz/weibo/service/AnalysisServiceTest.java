@@ -51,7 +51,6 @@ class AnalysisServiceTest {
 
     @Test
     void analyze_prepares_calls_ai_and_saves() {
-        // 覆盖 buildMessageText 三分支：sender null、text blank 有 typeName、text blank 无 typeName
         List<MessageEntity> messages =
                 List.of(
                         message(1L, null, "[图片]", null, 1_000L),
@@ -157,7 +156,6 @@ class AnalysisServiceTest {
                 .thenReturn(
                         new PageImpl<>(
                                 messages, MessageRepository.pageRequest(1, Integer.MAX_VALUE), 1));
-        // 桩 chatStream：模拟 AI 逐段回调
         when(aiClient.chatStream(any(), any()))
                 .thenAnswer(
                         inv -> {

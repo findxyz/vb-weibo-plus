@@ -13,9 +13,6 @@ import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
-/**
- * 微博接口全局异常处理，按异常类型映射到对应 HTTP 状态码。
- */
 @RestControllerAdvice
 public class WeiboExceptionHandler {
 

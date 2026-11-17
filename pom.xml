@@ -172,7 +172,6 @@
                                     <zipfileset src="${com.microsoft.playwright:driver-bundle:jar}"
                                                 includes="META-INF/**,com/**,driver/win32_x64/**"/>
                                 </zip>
-                                <!-- Spring Boot 要求内嵌依赖 JAR 不压缩，其他已有条目保留原压缩方式。 -->
                                 <zip destfile="${project.build.directory}/${project.build.finalName}.jar"
                                      update="true" compress="false" keepcompression="true">
                                     <zipfileset dir="${project.build.directory}/playwright-windows"

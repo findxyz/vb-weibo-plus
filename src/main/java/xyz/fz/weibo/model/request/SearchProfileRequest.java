@@ -3,11 +3,6 @@ package xyz.fz.weibo.model.request;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * searchProfile 接口请求参数。
- * <p>
- * startTime / endTime 为秒级时间戳，用于按时间范围筛选用户微博。
- */
 public record SearchProfileRequest(Long uid, Integer page, Long startTime, Long endTime) {
 
     public Map<String, String> toParams() {

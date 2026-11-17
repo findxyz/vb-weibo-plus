@@ -106,14 +106,10 @@ class HeicConverterTest {
 
         converter.init();
 
-        // 非真实 ffmpeg 时，HEIC 走降级透传而非报错
         MediaBinary result = converter.convertIfHeic(new MediaBinary(HEIC, "image/jpeg"));
         assertThat(result.contentType()).isEqualTo("image/heic");
     }
 
-    /**
-     * 构造 converter 并触发一次 ffmpeg 探测（@PostConstruct 仅在 Spring 容器中调用）。
-     */
     private static HeicConverter newConverter(String ffmpegPath) {
         HeicConverter converter = new HeicConverter(ffmpegPath);
         converter.init();

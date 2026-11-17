@@ -16,17 +16,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import xyz.fz.weibo.entity.MessageEntity;
 
-/**
- * 回归测试：验证 insertIfAbsent 在 WAL 模式下并发写不触发 SQLITE_BUSY。
- *
- * <p>根因：旧的 insertIfAbsent 在单个 @Transactional 内先 existsById（SELECT 读快照）
- * 再 saveAndFlush（INSERT 写）。WAL 模式下，事务内的读会获取 MVCC 快照，当另一个写者
- * 在此期间提交后，当前事务的 INSERT 因快照失效立即返回 SQLITE_BUSY，且 busy_timeout
- * 不保护此场景（快照失效不可重试）。修复方式是改为原子 INSERT OR IGNORE，消除事务内的前置读。
- *
- * <p>本测试用两条并发 insertIfAbsent 模拟 saveBySince 与 SyncTask 并发写同一 SQLite 文件。
- * 修复前此测试稳定失败（SQLITE_BUSY），修复后应稳定通过。
- */
 @DataJpaTest(
         properties = {
             "spring.test.database.replace=none",

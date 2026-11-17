@@ -10,9 +10,6 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.model.request.MyBlogRequest;
 import xyz.fz.weibo.model.response.MyBlogResponse;
 
-/**
- * 我的微博列表接口。
- */
 @Component
 public class MyBlogApi {
 

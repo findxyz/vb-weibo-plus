@@ -18,9 +18,6 @@ import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 
-/**
- * 媒体下载接口 Controller 层测试：验证字节流下载与响应头透传。
- */
 @WebMvcTest(WeiboMediaController.class)
 class WeiboMediaControllerTest {
 

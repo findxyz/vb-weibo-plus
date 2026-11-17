@@ -16,14 +16,11 @@ weibo:
   qr-timeout-seconds: 300
   database-path: ${WEIBO_DATABASE_PATH:weibo.db}
   chat:
-    # auto-sync-gids：自动接收和增量同步的群号，逗号分割，留空则不同步
     auto-sync-gids: ${WEIBO_AUTO_SYNC_GIDS:4761715839862414,5046020575330655}
-    # sync-group-fixed-delay：群消息定时拉取间隔，与 WebSocket 连接状态无关
     sync-group-fixed-delay: ${WEIBO_SYNC_GROUP_FIXED_DELAY:1m}
   media:
     ffmpeg-path: ${WEIBO_FFMPEG_PATH:ffmpeg}
   ai:
-    # base-url：OpenAI 兼容 API 地址，如 https://api.openai.com 或 https://dashscope.aliyuncs.com/compatible-mode
     base-url: ${WEIBO_AI_BASE_URL:}
     api-key: ${WEIBO_AI_API_KEY:}
     model: ${WEIBO_AI_MODEL:deepseek-v4-flash}
@@ -32,14 +29,10 @@ weibo:
 
 spring:
   servlet:
-    # max-file-size：单个上传文件上限，群聊发图需要容纳手机原图
-    # max-request-size：整个 multipart 请求上限，略大于文件上限即可
     multipart:
       max-file-size: 20MB
       max-request-size: 21MB
   datasource:
-    # busy_timeout：撞锁时让 SQLite 等待 5 秒再重试，而不是立即抛 SQLITE_BUSY
-    # journal_mode=WAL：开启预写式日志，读不阻塞写、写不阻塞读，缓解 /chat/since 与后台 SyncTask 并发写同一文件
     url: jdbc:sqlite:${weibo.database-path}?busy_timeout=5000&journal_mode=WAL
     driver-class-name: org.sqlite.JDBC
   jpa:

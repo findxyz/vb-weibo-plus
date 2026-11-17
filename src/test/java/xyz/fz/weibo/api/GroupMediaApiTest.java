@@ -152,12 +152,10 @@ class GroupMediaApiTest {
     @SuppressWarnings("unchecked")
     void upload_chunks_oversized_file_by_init_length_and_returns_last_chunk_fid() {
         GroupMediaApi api = new GroupMediaApi(client, objectMapper);
-        // 2.5 MB 图片，init.length=1024 KB -> 切成 3 片：1MB + 1MB + 499963B
         int chunkSizeKb = 1024;
         int chunkSize = chunkSizeKb * 1024;
         int total = 2 * chunkSize + 499_963;
         byte[] bytes = new byte[total];
-        // 模拟真实分片响应序列：中间片 {"succ":true}，最后一片返回 fid
         when(client.postMultipart(
                         eq("https://api.weibo.com/webim/uploadx.json"),
                         any(Map.class),
@@ -172,7 +170,6 @@ class GroupMediaApiTest {
                 api.upload(bytes, "media.png", "token-abc", 5046020575330655L, chunkSizeKb);
 
         assertThat(response.fid()).isEqualTo(5326071291448867L);
-        // 共调用 3 次 postMultipart，每次一片
         verify(client, times(3))
                 .postMultipart(
                         eq("https://api.weibo.com/webim/uploadx.json"),
@@ -180,7 +177,6 @@ class GroupMediaApiTest {
                         any(MultiValueMap.class),
                         eq(WeiboConstants.HEADERS_WEBIM_SEND),
                         eq(true));
-        // 校验每片 startloc 与字节长度
         @SuppressWarnings("unchecked")
         ArgumentCaptor<MultiValueMap<String, Object>> bodyCaptor =
                 ArgumentCaptor.forClass(MultiValueMap.class);
@@ -208,7 +204,6 @@ class GroupMediaApiTest {
     void upload_throws_when_response_has_no_fid_rejecting_error_body_silently_parsed_to_zero() {
         GroupMediaApi api = new GroupMediaApi(client, objectMapper);
         byte[] bytes = new byte[] {1, 2, 3};
-        // 真实分片过大错误：HTTP 200，body 不含 fid（会被反序列化为 fid=0）
         when(client.postMultipart(
                         eq("https://api.weibo.com/webim/uploadx.json"),
                         any(Map.class),
@@ -381,7 +376,6 @@ class GroupMediaApiTest {
                         eq(true)))
                 .thenReturn(ResponseEntity.ok("{\"fid\":5326071357508212}"));
 
-        // chunkSizeKb <= 0 退化为单次上传（整文件一片）
         GroupMediaUploadResponse response =
                 api.uploadVideo(
                         bytes,
@@ -406,7 +400,6 @@ class GroupMediaApiTest {
     @SuppressWarnings("unchecked")
     void upload_video_chunks_oversized_file_and_returns_last_chunk_fid() {
         GroupMediaApi api = new GroupMediaApi(client, objectMapper);
-        // 2.5 MB 视频，init.length=1024 KB -> 切成 3 片：1MB + 1MB + 499963B
         int chunkSizeKb = 1024;
         int chunkSize = chunkSizeKb * 1024;
         int total = 2 * chunkSize + 499_963;
@@ -439,7 +432,6 @@ class GroupMediaApiTest {
                         any(byte[].class),
                         any(Map.class),
                         eq(true));
-        // 校验每片 query 的 chunk 序号与 startloc
         ArgumentCaptor<Map<String, String>> queryCaptor = ArgumentCaptor.forClass(Map.class);
         verify(client, times(3))
                 .postOctetStream(

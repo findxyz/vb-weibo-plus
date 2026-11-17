@@ -26,12 +26,6 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
 
-/**
- * 微博 HTTP 客户端：封装 GET 请求的统一状态码判定与限流重试。
- * <p>
- * 公共错误由状态码驱动：429 退避重试，414 立即失败，302 按是否跳登录域判定 Cookie 失效，
- * 200 且 String 响应时按 body 校验 21301/relogin!。byte[] 响应（媒体下载）不检查 body。
- */
 @Component
 public class WeiboHttpClient {
 
@@ -121,12 +115,6 @@ public class WeiboHttpClient {
         return new HttpEntity<>(form, httpHeaders);
     }
 
-    /**
-     * multipart/form-data POST：file part 用 ByteArrayResource 包装（带 filename），不落临时文件。
-     * <p>
-     * 与 postForm 的区别：queryParams 进 URL（如 uploadx.json 的 source/is_chunk/selectId），
-     * body 为 MultiValueMap（含 file part 与普通字段）。
-     */
     public ResponseEntity<String> postMultipart(
             String url,
             Map<String, String> queryParams,
@@ -144,13 +132,6 @@ public class WeiboHttpClient {
                 () -> executeAndCheck(uri, HttpMethod.POST, entity, String.class));
     }
 
-    /**
-     * application/octet-stream POST：body 为原始分片二进制（如视频分片上传）。
-     * <p>
-     * 与 postMultipart 的区别：queryParams 进 URL（如 name/chunk/chunks/selectId），
-     * body 为 byte[]，非 multipart；Content-Type 固定为 application/octet-stream。
-     * 动态 header（如 X-Up-Auth）由调用方放入 headers。
-     */
     public ResponseEntity<String> postOctetStream(
             String url,
             Map<String, String> queryParams,
@@ -194,7 +175,6 @@ public class WeiboHttpClient {
                                 }));
     }
 
-    /** 发送一次请求并校验响应。 */
     private <T> ResponseEntity<T> executeAndCheck(
             URI uri, HttpMethod method, HttpEntity<?> entity, Class<T> responseType) {
         ResponseEntity<T> resp = restTemplate.exchange(uri, method, entity, responseType);
@@ -210,14 +190,10 @@ public class WeiboHttpClient {
         return resp;
     }
 
-    /**
-     * 重试循环：attempt 从 1 到 MAX_RETRY+1，即 1 次初始加最多 3 次重试，合计 4 次请求。
-     */
     private <T> T withRateLimitRetry(
             URI uri,
             @SuppressWarnings("PMD.LooseCoupling") HttpHeaders headers,
             Supplier<T> request) {
-        //noinspection ConstantValue
         for (int attempt = 1; attempt <= WeiboConstants.MAX_RETRY + 1; attempt++) {
             try {
                 if (log.isDebugEnabled()) {
@@ -301,10 +277,6 @@ public class WeiboHttpClient {
         return httpHeaders;
     }
 
-    /**
-     * 校验 String body 是否为登录失效 JSON（error_code=21301 或 error=relogin!）。
-     * JsonProcessingException 时跳过，兼容 JSONP 等非 JSON 响应。
-     */
     private void checkCookieExpiredByBody(String body) {
         if (body == null || body.isEmpty()) {
             return;
@@ -323,11 +295,10 @@ public class WeiboHttpClient {
                 }
             }
         } catch (JsonProcessingException e) {
-            // 非 JSON 响应（如 JSONP），忽略
+            return;
         }
     }
 
-    /** Cookie 脱敏：只保留 key 和值长度，避免日志泄露完整凭证。 */
     private String maskCookie(@SuppressWarnings("PMD.LooseCoupling") HttpHeaders headers) {
         String cookie = headers.getFirst(HttpHeaders.COOKIE);
         if (cookie == null || cookie.isEmpty()) {
@@ -357,7 +328,6 @@ public class WeiboHttpClient {
         return sb.append("}").toString();
     }
 
-    /** 响应预览：String 截断到 500 字符，byte[] 只显示长度。 */
     private String previewBody(Object body) {
         if (body == null) {
             return "null";
