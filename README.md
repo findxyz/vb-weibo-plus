@@ -112,7 +112,63 @@ npm.cmd --prefix frontend run build
 cargo run --locked --manifest-path backend/rust/Cargo.toml
 ```
 
-运行 `cargo test --locked --manifest-path backend/rust/Cargo.toml` 验证后端。执行 `& ./backend/rust/release/build.ps1` 生成 `backend/rust/target/weibo-plus-rust.7z`。完整解压后双击 `weibo-plus.exe` 打开桌面窗口，需要 Microsoft Edge WebView2 运行时。移动 EXE 时，请一并移动包内的 `WebView2Loader.dll`（如有），两者需在同一目录。设置 `WEIBO_OPEN_BROWSER=false` 可仅启动本地 HTTP 服务。
+运行 `cargo test --locked --manifest-path backend/rust/Cargo.toml` 验证后端。设置 `WEIBO_OPEN_BROWSER=false` 可仅启动本地 HTTP 服务。
+
+#### Windows x64 发布包
+
+发布包必须包含 `weibo-plus.exe` 和 `WebView2Loader.dll`，打包脚本要求使用 **Windows x64 GNU** 工具链。新机器需要安装 [Rustup](https://rustup.rs/)、[MinGW-w64](https://www.mingw-w64.org/downloads/)、[Node.js](https://nodejs.org/) 22.12 或更高版本，以及 npm 10 或更高版本。还需要 `tar.exe` 支持写入 7z。首次构建需要能访问 npm 和 crates.io，或已准备好依赖缓存。
+
+可使用 MSYS2 的 MINGW64 工具链或 LLVM MinGW。在新开的 PowerShell 中，从仓库根目录执行以下命令。第一行以 MSYS2 MINGW64 的默认安装路径为例，请按实际位置修改：
+
+```powershell
+$mingwBin = 'C:\msys64\mingw64\bin'
+$env:Path = "$mingwBin;$env:USERPROFILE\.cargo\bin;$env:Path"
+rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal
+$env:RUSTUP_TOOLCHAIN = 'stable-x86_64-pc-windows-gnu'
+rustc -vV
+Get-Command gcc.exe, dlltool.exe, windres.exe, ar.exe -ErrorAction Stop
+node --version
+npm.cmd --version
+tar.exe --version
+& .\backend\rust\release\build.ps1
+```
+
+`rustc -vV` 的 `host` 应为 `x86_64-pc-windows-gnu`。脚本会构建前端，以 `--locked --release --features desktop` 编译 Rust，再从 Cargo 依赖的构建输出提取 `WebView2Loader.dll`，与 EXE 一起写入 `backend/rust/target/weibo-plus-rust.7z`。确认本次脚本成功退出后再使用该文件，失败时输出目录可能还留有上次的压缩包。
+
+#### GNU 打包常见错误
+
+如果使用 LLVM MinGW，遇到 `unable to find library -lgcc` 或 `-lgcc_eh`，从 Rust GNU 工具链自带的库中补齐链接路径。在同一个 PowerShell 中执行：
+
+```powershell
+$sysroot = rustc --print sysroot
+$gnuLib = Join-Path $sysroot 'lib\rustlib\x86_64-pc-windows-gnu\lib\self-contained'
+$compatLib = New-Item -ItemType Directory -Force .\backend\rust\target\gnu-link-libs
+Copy-Item -LiteralPath (Join-Path $gnuLib 'libgcc.a'), (Join-Path $gnuLib 'libgcc_eh.a') -Destination $compatLib.FullName -ErrorAction Stop
+$env:CARGO_ENCODED_RUSTFLAGS = '-L' + [char]31 + "native=$($compatLib.FullName)"
+& .\backend\rust\release\build.ps1
+```
+
+如果 `windres` 报 `Unable to create temp file: Permission denied`，给构建进程设一个可写的临时目录，再执行发布脚本。这在受限终端中尤其有用：
+
+```powershell
+$buildTemp = New-Item -ItemType Directory -Force .\backend\rust\target\windres-tmp
+$env:TMP = $env:TEMP = $env:TMPDIR = $buildTemp.FullName
+& .\backend\rust\release\build.ps1
+```
+
+#### 验证发布包
+
+```powershell
+$archive = '.\backend\rust\target\weibo-plus-rust.7z'
+tar.exe -tf $archive
+$verifyDir = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('weibo-plus-verify-' + [guid]::NewGuid()))
+tar.exe -xf $archive -C $verifyDir.FullName
+if ($LASTEXITCODE -ne 0) { throw 'Archive extraction failed.' }
+(Get-Item -LiteralPath (Join-Path $verifyDir.FullName 'weibo-plus.exe')).VersionInfo |
+    Select-Object FileVersion, ProductVersion
+```
+
+确认压缩包内同时有 `weibo-plus.exe` 和 `WebView2Loader.dll`。EXE 属性中的「文件版本」和「产品版本」来自 `backend/rust/Cargo.toml`。解压后将 DLL 和 EXE 放在同一目录，双击 EXE 确认桌面窗口能打开聊天页。运行机器需要 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。
 
 ## 前端开发
 
