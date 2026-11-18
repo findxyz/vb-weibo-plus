@@ -112,9 +112,7 @@ npm.cmd --prefix frontend run build
 cargo run --locked --manifest-path backend/rust/Cargo.toml
 ```
 
-运行 `cargo test --locked --manifest-path backend/rust/Cargo.toml` 验证后端。执行 `& ./backend/rust/release/build.ps1` 生成 `backend/rust/target/weibo-plus-rust.7z`，解压后双击 `weibo-plus.exe` 启动。
-
-构建两个后端后，运行 `node backend/rust/tests/java_interop.mjs` 验证接口和 SQLite 兼容性。
+运行 `cargo test --locked --manifest-path backend/rust/Cargo.toml` 验证后端。执行 `& ./backend/rust/release/build.ps1` 生成 `backend/rust/target/weibo-plus-rust.7z`。完整解压后双击 `weibo-plus.exe` 打开桌面窗口，需要 Microsoft Edge WebView2 运行时。移动 EXE 时，请一并移动包内的 `WebView2Loader.dll`（如有），两者需在同一目录。设置 `WEIBO_OPEN_BROWSER=false` 可仅启动本地 HTTP 服务。
 
 ## 前端开发
 

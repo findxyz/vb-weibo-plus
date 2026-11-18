@@ -6,6 +6,7 @@ publish = false
 
 [features]
 embed-frontend = ["dep:mime_guess", "dep:rust-embed"]
+desktop = ["embed-frontend", "dep:tao", "dep:windows-sys", "dep:wry"]
 
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
@@ -29,7 +30,10 @@ tower-http = { version = "0.6", features = ["fs"] }
 utoipa-swagger-ui = { version = "10", default-features = false, features = ["vendored"] }
 
 [target.'cfg(windows)'.dependencies]
+tao = { version = "0.37", default-features = false, features = ["rwh_06"], optional = true }
 tokio-tungstenite = { version = "0.29", features = ["native-tls"] }
+windows-sys = { version = "0.61", features = ["Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"], optional = true }
+wry = { version = "0.57", default-features = false, optional = true }
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"

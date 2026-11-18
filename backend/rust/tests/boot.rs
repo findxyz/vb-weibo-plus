@@ -45,18 +45,18 @@ async fn serves_chat_and_post_from_the_same_origin() {
 }
 
 #[tokio::test]
-async fn reopens_a_java_database_and_credential_without_conversion() {
+async fn reopens_an_existing_database_and_credential() {
     let directory = tempfile::tempdir().unwrap();
     let database_path = directory.path().join("weibo.db");
     let cookie_file = directory.path().join(".weibo_cookie.txt");
-    let java_credential = "SUBP=example-subp; ALF=123; SSOLoginState=456; SUB=example-sub";
-    fs::write(&cookie_file, format!("  {java_credential}\r\n")).unwrap();
+    let saved_credential = "SUBP=example-subp; ALF=123; SSOLoginState=456; SUB=example-sub";
+    fs::write(&cookie_file, format!("  {saved_credential}\r\n")).unwrap();
     {
-        let java_database = rusqlite::Connection::open(&database_path).unwrap();
-        java_database
-            .execute_batch(include_str!("../../java/src/main/resources/schema.sql"))
+        let connection = rusqlite::Connection::open(&database_path).unwrap();
+        connection
+            .execute_batch(include_str!("../src/schema.sql"))
             .unwrap();
-        java_database
+        connection
             .execute(
                 "INSERT INTO bloggers (uid, screen_name) VALUES (17, '测试博主')",
                 [],
@@ -71,7 +71,7 @@ async fn reopens_a_java_database_and_credential_without_conversion() {
     })
     .await
     .unwrap();
-    assert_eq!(state.credential.get().as_deref(), Some(java_credential));
+    assert_eq!(state.credential.get().as_deref(), Some(saved_credential));
     let blogger = state
         .db
         .run(|connection| {
@@ -88,8 +88,8 @@ async fn reopens_a_java_database_and_credential_without_conversion() {
     state.credential.set(Some(replacement.to_owned())).unwrap();
     assert_eq!(fs::read_to_string(&cookie_file).unwrap(), replacement);
 
-    let java_database = rusqlite::Connection::open(database_path).unwrap();
-    let journal_mode: String = java_database
+    let connection = rusqlite::Connection::open(database_path).unwrap();
+    let journal_mode: String = connection
         .pragma_query_value(None, "journal_mode", |row| row.get(0))
         .unwrap();
     assert_eq!(journal_mode, "wal");
