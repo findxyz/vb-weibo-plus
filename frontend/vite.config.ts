@@ -22,8 +22,6 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: '../target/generated-resources/frontend',
-      emptyOutDir: true,
       rolldownOptions: {
         input: {
           post: fileURLToPath(new URL('./post/index.html', import.meta.url)),

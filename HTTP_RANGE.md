@@ -10,13 +10,13 @@ GET /chat/media?gid={gid}&mid={mid}&variant=video
 
 | 层次 | 文件 | 职责 |
 | --- | --- | --- |
-| HTTP 入口 | `src/main/java/xyz/fz/weibo/controller/ChatController.java` | 判断有无 `Range`、校验分片响应、设置下游状态码和响应头、传输字节流 |
-| 业务校验 | `src/main/java/xyz/fz/weibo/service/ChatService.java` | 校验群、消息和视频类型，根据本地消息取得媒体引用 |
-| 上游接口 | `src/main/java/xyz/fz/weibo/api/GroupMediaApi.java` | 将请求头转发给微博媒体下载接口 |
-| HTTP 客户端 | `src/main/java/xyz/fz/weibo/client/WeiboHttpClient.java` | 使用 `RestTemplate.execute` 流式读取微博响应 |
+| HTTP 入口 | `backend/java/src/main/java/xyz/fz/weibo/controller/ChatController.java` | 判断有无 `Range`、校验分片响应、设置下游状态码和响应头、传输字节流 |
+| 业务校验 | `backend/java/src/main/java/xyz/fz/weibo/service/ChatService.java` | 校验群、消息和视频类型，根据本地消息取得媒体引用 |
+| 上游接口 | `backend/java/src/main/java/xyz/fz/weibo/api/GroupMediaApi.java` | 将请求头转发给微博媒体下载接口 |
+| HTTP 客户端 | `backend/java/src/main/java/xyz/fz/weibo/client/WeiboHttpClient.java` | 使用 `RestTemplate.execute` 流式读取微博响应 |
 | 接口样例 | `CHAT_API.http` | 手动发送完整视频请求和 Range 请求 |
 | 浏览器测试页 | `src/main/resources/static/video-player.html` | 测试播放器、Range 下载和非 Range 完整下载 |
-| 回归测试 | `src/test/java/xyz/fz/weibo/controller/ChatControllerTest.java` | 验证 `200`、`206`、`416`、各种 Range 形式和客户端断开 |
+| 回归测试 | `backend/java/src/test/java/xyz/fz/weibo/controller/ChatControllerTest.java` | 验证 `200`、`206`、`416`、各种 Range 形式和客户端断开 |
 
 协议依据是 [RFC 9110 第 14 章：Range Requests](https://www.rfc-editor.org/rfc/rfc9110.html#section-14)。
 

@@ -21,6 +21,8 @@
 
 React 页面通过 HTTP／SSE 访问 Spring Boot（默认 `:18080`）。后端负责微博 API、群聊 WebSocket、本地 SQLite、图片／视频代理，以及可选的 AI 分析；ffmpeg 可选，用于 HEIC 图片转码等媒体处理。
 
+React 工程位于 `frontend/`，Java 工程、Maven Wrapper、静态检查配置和 Windows 发布工具位于 `backend/java/`。
+
 ### 整体分层
 
 ```mermaid
@@ -79,17 +81,18 @@ graph TB
 
 ## 启动运行
 
-```bash
-mvn spring-boot:run
+```powershell
+cd backend/java
+.\mvnw.cmd spring-boot:run
 ```
 
 默认监听 `http://localhost:18080`。接口示例见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
 
-也可以将 `weibo-plus.jar` 与 `run.bat` 放在同一目录后双击运行。脚本内置端口、同步群号等参数，可直接在 `run.bat` 中修改。
+从源码启动时，默认在仓库根目录读写 `weibo.db` 和 `.weibo_cookie.txt`。解压 `weibo-plus-java.7z` 后也可以双击 `run.bat`，数据默认保存在解压目录。脚本内置端口、同步群号等参数，可直接在 `run.bat` 中修改。
 
 ## 前端开发
 
-前端代码位于 `frontend`，要求 Node.js 22.12.0 或更高版本、npm 10 或更高版本。请先启动 Spring Boot，再运行：
+前端代码位于 `frontend`，要求 Node.js 22.12.0 或更高版本、npm 10 或更高版本。先启动 Spring Boot，再从另一个终端的仓库根目录运行：
 
 ```bash
 cd frontend
@@ -108,29 +111,31 @@ npx playwright install chromium
 npm test
 ```
 
-测试默认使用 Playwright 自带的 Chromium；若已安装 Chrome，可设置 `PREVIEW_BROWSER_CHANNEL=chrome` 复用。
+前端独立构建输出到 `frontend/dist/`。测试默认使用 Playwright 自带的 Chromium，若已安装 Chrome，可设置 `PREVIEW_BROWSER_CHANNEL=chrome` 复用。
 
 ## 后端快速自检
 
-```bash
-mvn -Pquick clean test
+```powershell
+cd backend/java
+.\mvnw.cmd -Pquick clean test
 ```
 
-快速执行后端静态检查和测试，跳过前端构建及浏览器测试。检查产物位于 `target/quick`。
+快速执行后端静态检查和测试，跳过前端构建及浏览器测试。检查产物位于 `backend/java/target/quick/`。
 
 ## 构建和发布
 
-```bash
-mvn clean package
+```powershell
+cd backend/java
+.\mvnw.cmd clean package
 ```
 
-产物为 `target/weibo-plus.jar` 和 `target/weibo-plus.7z`。首次构建会自动安装前端依赖；运行时只需 JDK 21。
+产物为 `backend/java/target/weibo-plus.jar` 和 `backend/java/target/weibo-plus-java.7z`。Maven 自动构建前端并将静态资源打入 JAR。压缩包包含 `weibo-plus.jar` 和 `run.bat`，运行时只需 JDK 21。
 
 发布包仅保留 Windows x64 的 Playwright 驱动，扫码登录需在 Windows x64 上运行。
 
 ## 配置说明
 
-主要配置位于 `src/main/resources/application.yml`，部分配置支持环境变量覆盖：
+主要配置位于 `backend/java/src/main/resources/application.yml`，部分配置支持环境变量覆盖：
 
 | 配置项 | 环境变量 | 默认值 |
 |--------|----------|--------|

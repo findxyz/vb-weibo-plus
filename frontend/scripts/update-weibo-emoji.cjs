@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 /**
- * 更新微博表情映射表（weibo-emoji.js）
+ * 更新微博表情映射表（emoji-map.js）
  *
  * 数据源：微博官方 webim emotions.json 接口（需登录态 cookie）
  *   https://api.weibo.com/webim/emotions.json?source=209678993
  *
  * 用法：
- *   node scripts/update-weibo-emoji.js
+ *   node frontend/scripts/update-weibo-emoji.cjs
  *
  * 前提：项目根目录下存在 .weibo_cookie.txt（扫码登录后自动生成）。
- * 产出：src/main/resources/static/chat/weibo-emoji.js
+ * 产出：frontend/src/chat/emoji-map.js
  */
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
 
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(__dirname, "../..");
 const COOKIE_FILE = path.join(ROOT, ".weibo_cookie.txt");
-const OUT_FILE = path.join(ROOT, "src/main/resources/static/chat/weibo-emoji.js");
+const OUT_FILE = path.join(ROOT, "frontend/src/chat/emoji-map.js");
 
 const EMOTIONS_URL =
   "https://api.weibo.com/webim/emotions.json?source=209678993";
@@ -82,7 +82,8 @@ async function main() {
     if (!map[phrase]) map[phrase] = icon; // 去重，保留首条
   }
   const keys = Object.keys(map);
-  const js = "window.WEIBO_EMOJI_MAP = " + JSON.stringify(map) + ";\n";
+  const js = "/** @type {Record<string, string>} */\n"
+    + "export const WEIBO_EMOJI_MAP = " + JSON.stringify(map) + ";\n";
 
   fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
   fs.writeFileSync(OUT_FILE, js, "utf8");

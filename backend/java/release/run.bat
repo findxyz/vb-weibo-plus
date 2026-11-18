@@ -49,8 +49,11 @@ echo   JDK: %JAVA_VER%
 echo ============================================
 echo.
 
+pushd "%~dp0" || exit /b 1
+
 start "" /b cmd /c "timeout /t 5 /nobreak >nul & start http://localhost:18080/chat/index.html"
 
 java -jar "%~dp0%JAR%" --server.port=18080 --weibo.database-path=weibo.db --weibo.chat.auto-sync-gids=4761715839862414 --weibo.ai.base-url=https://api.deepseek.com --weibo.ai.api-key=sk-xxx
 
+popd
 pause

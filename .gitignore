@@ -51,6 +51,7 @@ run-target.bat
 .scratch/debug/
 
 # Frontend dependencies and browser test output
+frontend/dist/
 frontend/node_modules/
 frontend/test-results/
 frontend/playwright-report/

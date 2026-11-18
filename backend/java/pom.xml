@@ -30,7 +30,7 @@
         <springdoc.version>2.10.0</springdoc.version>
         <frontend.node.version>v24.22.3</frontend.node.version>
         <frontend.npm.version>11.14.1</frontend.npm.version>
-        <sevenzip.executable>${project.basedir}/scripts/7-Zip/7z.exe</sevenzip.executable>
+        <sevenzip.executable>${project.basedir}/release/7-Zip/7z.exe</sevenzip.executable>
     </properties>
 
     <dependencyManagement>
@@ -217,7 +217,7 @@
                 <artifactId>frontend-maven-plugin</artifactId>
                 <version>2.0.2</version>
                 <configuration>
-                    <workingDirectory>frontend</workingDirectory>
+                    <workingDirectory>${project.basedir}/../../frontend</workingDirectory>
                     <installDirectory>${project.build.directory}/frontend-toolchain</installDirectory>
                 </configuration>
                 <executions>
@@ -240,13 +240,18 @@
                         <id>build-frontend</id>
                         <phase>generate-resources</phase>
                         <goals><goal>npm</goal></goals>
-                        <configuration><arguments>run build</arguments></configuration>
+                        <configuration>
+                            <arguments>run build -- --outDir "${project.build.directory}/generated-resources/frontend" --emptyOutDir</arguments>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <workingDirectory>${project.basedir}/../..</workingDirectory>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -285,9 +290,9 @@
                                 <exec executable="${sevenzip.executable}" dir="${project.build.directory}" failonerror="true">
                                     <arg value="a"/>
                                     <arg value="-sccUTF-8"/>
-                                    <arg value="weibo-plus.7z"/>
+                                    <arg value="weibo-plus-java.7z"/>
                                     <arg value="weibo-plus.jar"/>
-                                    <arg value="${project.basedir}/run.bat"/>
+                                    <arg value="${project.basedir}/release/run.bat"/>
                                 </exec>
                             </target>
                         </configuration>

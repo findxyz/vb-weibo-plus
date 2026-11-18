@@ -1,11 +1,11 @@
 # Google Style 与 PMD Best Practices
 
-后端检查统一走默认 lifecycle：`mvn clean test` 和 `mvn clean package` 都会执行 enforcer、Checkstyle、PMD、SpotBugs 及测试。
+在 `backend/java/` 目录运行以下命令。`.\mvnw.cmd clean test` 和 `.\mvnw.cmd clean package` 都会执行 Enforcer、Checkstyle、PMD、SpotBugs 及测试。
 
 本地快速自检可跳过前端构建和浏览器测试：
 
-```bash
-mvn -Pquick clean test
+```powershell
+.\mvnw.cmd -Pquick clean test
 ```
 
 发现违规会阻断构建。Checkstyle 在 `validate` 阶段失败时，不会继续执行 PMD 和测试。
@@ -14,11 +14,11 @@ mvn -Pquick clean test
 
 同时生成两份报告、查看全部违规：
 
-```bash
-mvn -Pquick checkstyle:checkstyle pmd:pmd
+```powershell
+.\mvnw.cmd -Pquick checkstyle:checkstyle pmd:pmd
 ```
 
-此命令只生成报告，不作门禁。报告位于 `target/quick/checkstyle-result.xml`、`target/quick/reports/checkstyle.html`、`target/quick/pmd.xml` 和 `target/quick/reports/pmd.html`。单独执行 PMD 门禁可运行 `mvn pmd:check`；PMD 已绑定默认 lifecycle，无需 profile。PMD 类型解析使用编译类路径及已有的编译产物；完整编译和测试需先处理 Checkstyle 违规。
+此命令只生成报告，不作门禁。报告位于 `target/quick/checkstyle-result.xml`、`target/quick/reports/checkstyle.html`、`target/quick/pmd.xml` 和 `target/quick/reports/pmd.html`。单独执行 PMD 门禁可运行 `.\mvnw.cmd pmd:check`。PMD 已绑定默认生命周期，无需 profile。PMD 类型解析使用编译类路径及已有的编译产物。完整编译和测试需先处理 Checkstyle 违规。
 
 ## 构建约束
 
