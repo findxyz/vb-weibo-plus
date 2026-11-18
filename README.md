@@ -73,26 +73,52 @@ graph TB
     CookieFile -.->|启动恢复| Client
 ```
 
-## 前置条件
+## 后端
 
-- **JDK 21**
-- **Maven 3.9+**
-- **ffmpeg**（可选）：用于 HEIC 图片转码。未安装时 HEIC 图片无法预览；将 ffmpeg 加入 PATH，或通过 `WEIBO_FFMPEG_PATH` 指定路径。
+默认端口为 `18080`。从仓库启动时，两个后端都使用根目录的 `weibo.db` 和 `.weibo_cookie.txt`。Windows x64 发布包从解压目录读取数据文件。切换后端前先停止当前进程。
 
-## 启动运行
+HEIC 预览需要 ffmpeg，视频发送还需要 ffprobe。HTTP 示例见 [raws/](raws/)。
+
+### Java
+
+编译目标为 Java 21。Maven 构建和 Windows 发布包启动脚本均要求 JDK 21 或更高版本，允许使用任意补丁版本。
+
+> **Java4Shell 安全更新（CVE-2026-114938）**
+>
+> 启动 Java 后端前，请使用已修复的 JDK。使用 Oracle JDK 21 时，请升级到 `21.0.13.1+4` 或更新的安全版本。其他发行版请以各自的安全公告为准。[OpenJDK 公告](https://openjdk.org/groups/vulnerability/advisories/2026-11-17) · [Oracle JDK 21 发布说明](https://www.oracle.com/java/technologies/javase/21all-relnotes.html#R21_0_13_1)
+>
+> 暂时无法升级 HotSpot 时，可以禁用 Base64 硬件加速路径。使用发布包时，将 `run.bat` 中的 `java -jar` 改为 `java -XX:-UseBASE64Intrinsics -jar`。从源码启动时，在 `backend/java/` 执行下面的命令。[漏洞披露方的缓解说明](https://calif.io/java4shell)
+>
+> ```powershell
+> .\mvnw.cmd spring-boot:run "-Dspring-boot.run.jvmArguments=-XX:-UseBASE64Intrinsics"
+> ```
+
+从仓库根目录执行：
 
 ```powershell
 cd backend/java
 .\mvnw.cmd spring-boot:run
 ```
 
-默认监听 `http://localhost:18080`。接口示例与原始资料位于 [`raws/`](raws/)。
+在 `backend/java/` 运行 `.\mvnw.cmd -Pquick test` 可快速检查后端。运行 `.\mvnw.cmd clean package` 生成 `target/weibo-plus-java.7z`，解压后双击 `run.bat` 启动。
 
-从源码启动时，默认在仓库根目录读写 `weibo.db` 和 `.weibo_cookie.txt`。解压 `weibo-plus-java.7z` 后也可以双击 `run.bat`，数据默认保存在解压目录。脚本内置端口、同步群号等参数，可直接在 `run.bat` 中修改。
+### Rust
+
+源码构建需要 Rust 和 Cargo。扫码登录需要本机 Chrome、Edge 或 Chromium，可通过 `WEIBO_CHROMIUM_PATH` 指定浏览器。从仓库根目录执行：
+
+```powershell
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run build
+cargo run --locked --manifest-path backend/rust/Cargo.toml
+```
+
+运行 `cargo test --locked --manifest-path backend/rust/Cargo.toml` 验证后端。执行 `& ./backend/rust/release/build.ps1` 生成 `backend/rust/target/weibo-plus-rust.7z`，解压后双击 `weibo-plus.exe` 启动。
+
+构建两个后端后，运行 `node backend/rust/tests/java_interop.mjs` 验证接口和 SQLite 兼容性。
 
 ## 前端开发
 
-前端代码位于 `frontend`，要求 Node.js 22.12.0 或更高版本、npm 10 或更高版本。先启动 Spring Boot，再从另一个终端的仓库根目录运行：
+前端代码位于 `frontend`，要求 Node.js 22.12.0 或更高版本、npm 10 或更高版本。先启动一个后端，再从另一个终端的仓库根目录运行：
 
 ```bash
 cd frontend
@@ -112,51 +138,6 @@ npm test
 ```
 
 前端独立构建输出到 `frontend/dist/`。测试默认使用 Playwright 自带的 Chromium，若已安装 Chrome，可设置 `PREVIEW_BROWSER_CHANNEL=chrome` 复用。
-
-## Rust 后端
-
-从仓库根目录构建前端并启动 Rust。调试服务默认监听 `127.0.0.1:18080`，从仓库根目录读写 `weibo.db` 和 `.weibo_cookie.txt`。
-
-```powershell
-npm.cmd --prefix frontend ci
-npm.cmd --prefix frontend run build
-cargo run --locked --manifest-path backend/rust/Cargo.toml
-```
-
-从 Java 切换到 Rust 前，先关闭 Java 进程。Rust 可以继续使用现有 SQLite 和登录凭据。使用独立发布包时，把数据文件放在 EXE 同目录，或者通过 `WEIBO_DATABASE_PATH` 和 `WEIBO_COOKIE_FILE` 指定路径。
-
-Rust 的扫码登录使用本机 Chrome、Edge 或 Chromium。也可以通过 `WEIBO_CHROMIUM_PATH` 指定浏览器。发送视频需要 ffmpeg 和 ffprobe，HEIC 图片转换使用同一套 ffmpeg 配置。
-
-运行 Rust 接口测试及构建 Windows x64 发布包：
-
-```powershell
-cargo test --locked --manifest-path backend/rust/Cargo.toml
-& ./backend/rust/release/build.ps1
-```
-
-发布包 `backend/rust/target/weibo-plus-rust.7z` 内含 `weibo-plus.exe`。双击 EXE 会启动后端并打开群聊页面，React 静态资源和 SQLite 随可执行文件发布。
-
-构建两个后端后，可从仓库根目录运行 `node backend/rust/tests/java_interop.mjs`，验证现有接口及 SQLite 的双向兼容。该测试会自行创建临时数据库和模拟 AI 服务。
-
-## 后端快速自检
-
-```powershell
-cd backend/java
-.\mvnw.cmd -Pquick clean test
-```
-
-快速执行后端静态检查和测试，跳过前端构建及浏览器测试。检查产物位于 `backend/java/target/quick/`。
-
-## 构建和发布
-
-```powershell
-cd backend/java
-.\mvnw.cmd clean package
-```
-
-产物为 `backend/java/target/weibo-plus.jar` 和 `backend/java/target/weibo-plus-java.7z`。Maven 自动构建前端并将静态资源打入 JAR。压缩包包含 `weibo-plus.jar` 和 `run.bat`，运行时只需 JDK 21。
-
-发布包仅保留 Windows x64 的 Playwright 驱动，扫码登录需在 Windows x64 上运行。
 
 ## 配置说明
 

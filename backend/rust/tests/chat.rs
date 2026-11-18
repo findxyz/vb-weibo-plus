@@ -77,3 +77,45 @@ async fn response(router: &axum::Router, uri: &str) -> Value {
     assert_eq!(response.status(), StatusCode::OK);
     serde_json::from_slice(&to_bytes(response.into_body(), 32 * 1024).await.unwrap()).unwrap()
 }
+
+#[tokio::test]
+async fn historical_sticker_uses_the_same_origin_image_proxy() {
+    let directory = tempfile::tempdir().unwrap();
+    let state = AppState::new(Config {
+        database_path: directory.path().join("weibo.db"),
+        cookie_file: directory.path().join("test-weibo-cookie.txt"),
+        ..Config::default()
+    })
+    .await
+    .unwrap();
+    let original = "http://wx2.sinaimg.cn/large/sticker.jpg?size=large&name=a%20b";
+    let pic_infos = json!([{"original_pic": original}]).to_string();
+    state
+        .db
+        .run(move |db| {
+            db.execute(
+                "INSERT INTO messages (mid, gid, media_type, pic_infos, created_at, saved_at)
+                 VALUES (7, 3, 15, ?, 10, 20)",
+                [pic_infos],
+            )
+        })
+        .await
+        .unwrap();
+    let router = app(state);
+
+    for route in [
+        "/chat/messages?gid=3&page=1&size=10",
+        "/chat/messages/cursor?gid=3&size=10",
+    ] {
+        let body = response(&router, route).await;
+        let item = &body["items"][0];
+        let preview = item["previewUrl"].as_str().unwrap();
+        assert!(preview.starts_with("/chat/image?"), "{preview}");
+        let parsed = reqwest::Url::parse(&format!("http://localhost{preview}")).unwrap();
+        assert_eq!(
+            parsed.query_pairs().next().unwrap(),
+            ("url".into(), original.into())
+        );
+        assert_eq!(item["originalUrl"], preview);
+    }
+}

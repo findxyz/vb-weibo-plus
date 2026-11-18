@@ -166,7 +166,17 @@ fn message_view(row: &Row<'_>) -> rusqlite::Result<Value> {
     } else if media_type == 5 && !fid.trim().is_empty() {
         file = media("file");
     } else if media_type == 15 {
-        preview = super::string(&pics[0]["original_pic"]);
+        let sticker = super::string(&pics[0]["original_pic"]);
+        preview = if reqwest::Url::parse(&sticker)
+            .is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
+        {
+            let mut proxy =
+                reqwest::Url::parse("http://localhost/chat/image").expect("valid image proxy URL");
+            proxy.query_pairs_mut().append_pair("url", &sticker);
+            format!("{}?{}", proxy.path(), proxy.query().unwrap_or_default())
+        } else {
+            sticker
+        };
         original.clone_from(&preview);
     }
     Ok(json!({
