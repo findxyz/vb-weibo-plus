@@ -10,6 +10,8 @@ mvn -Pquick clean test
 
 发现违规会阻断构建。Checkstyle 在 `validate` 阶段失败时，不会继续执行 PMD 和测试。
 
+构建中的 PMD 门禁读取 `pmd.xml`，可读报告输出为 XDoc。需要 HTML 报告时可单独执行 `pmd:pmd`。
+
 同时生成两份报告、查看全部违规：
 
 ```bash
