@@ -11,11 +11,11 @@
 
 ### 微博群聊
 
-![微博群聊](chat.png)
+![微博群聊](raws/chat.png)
 
 ### 本地微博
 
-![本地微博](post.png)
+![本地微博](raws/post.png)
 
 ## 系统架构
 
@@ -86,7 +86,7 @@ cd backend/java
 .\mvnw.cmd spring-boot:run
 ```
 
-默认监听 `http://localhost:18080`。接口示例见 `CHAT_API.http`、`POST_API.http`、`WEIBO_API.http`。
+默认监听 `http://localhost:18080`。接口示例与原始资料位于 [`raws/`](raws/)。
 
 从源码启动时，默认在仓库根目录读写 `weibo.db` 和 `.weibo_cookie.txt`。解压 `weibo-plus-java.7z` 后也可以双击 `run.bat`，数据默认保存在解压目录。脚本内置端口、同步群号等参数，可直接在 `run.bat` 中修改。
 

@@ -44,6 +44,9 @@ desktop.ini
 # OpenCode（临时会话文件）
 .omo/
 
+# WorkBuddy（本地会话文件）
+/.workbuddy/
+
 # 运行脚本（本地分发用，不进版本控制）
 run-target.bat
 
