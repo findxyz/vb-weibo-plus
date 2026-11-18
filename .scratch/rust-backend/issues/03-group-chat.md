@@ -4,7 +4,7 @@
 
 **Blocked by:** 01、02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 群列表、游标分页、历史筛选、长文、态度和文本发送对齐 Java。
-- [ ] 定时、WebSocket 和 Historical Capture 对齐现有行为。
+- [x] 群列表、游标分页、历史筛选、长文、态度和文本发送对齐 Java。
+- [x] 定时、WebSocket 和 Historical Capture 对齐现有行为。

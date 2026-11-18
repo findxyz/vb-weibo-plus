@@ -4,7 +4,7 @@
 
 **Blocked by:** 01、02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 日历、分页、正文与转发搜索及元数据兼容。
-- [ ] 上游采集、历史范围和 Post Like 映射到现有接口。
+- [x] 日历、分页、正文与转发搜索及元数据兼容。
+- [x] 上游采集、历史范围和 Post Like 映射到现有接口。

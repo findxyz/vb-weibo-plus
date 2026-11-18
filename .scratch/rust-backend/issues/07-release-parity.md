@@ -4,7 +4,7 @@
 
 **Blocked by:** 01、02、03、04、05、06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Java 和 Rust 双向读取隔离测试数据。
-- [ ] 验证 HTTP、页面和 Windows 归档，说明测试覆盖与手工验证范围。
+- [x] Java 和 Rust 双向读取隔离测试数据。
+- [x] 验证 HTTP、页面和 Windows 归档，说明测试覆盖与手工验证范围。

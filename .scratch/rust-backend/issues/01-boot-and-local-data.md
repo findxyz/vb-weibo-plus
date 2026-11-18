@@ -4,7 +4,7 @@
 
 **Blocked by:** 无
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 验证页面入口及 SQLite 初始化、WAL 和 Credential 格式。
-- [ ] 原有表结构和数据可以用于后续功能切片。
+- [x] 验证页面入口及 SQLite 初始化、WAL 和 Credential 格式。
+- [x] 原有表结构和数据可以用于后续功能切片。

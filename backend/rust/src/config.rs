@@ -7,6 +7,7 @@ const ENV_OPTIONS: &[(&str, &str)] = &[
     ("SERVER_ADDRESS", "server.address"),
     ("SERVER_PORT", "server.port"),
     ("WEIBO_PORT", "server.port"),
+    ("WEIBO_OPEN_BROWSER", "weibo.open-browser"),
     ("WEIBO_DATABASE_PATH", "weibo.database-path"),
     ("WEIBO_COOKIE_FILE", "weibo.cookie-file"),
     ("WEIBO_FRONTEND_DIR", "weibo.frontend-dir"),
@@ -35,6 +36,7 @@ pub struct Config {
     pub database_path: PathBuf,
     pub cookie_file: PathBuf,
     pub frontend_dir: PathBuf,
+    pub open_browser: bool,
     pub ffmpeg_path: PathBuf,
     pub auto_sync_gids: Vec<i64>,
     pub sync_group_fixed_delay: Duration,
@@ -60,6 +62,7 @@ impl Default for Config {
             } else {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../frontend/dist")
             },
+            open_browser: cfg!(all(feature = "embed-frontend", windows)),
             ffmpeg_path: "ffmpeg".into(),
             auto_sync_gids: vec![4761715839862414, 5046020575330655],
             sync_group_fixed_delay: Duration::from_secs(60),
@@ -79,6 +82,19 @@ impl Default for Config {
 impl Config {
     pub fn load() -> Result<Self, String> {
         let mut config = Self::default();
+        let arguments = env::args().skip(1).collect::<Vec<_>>();
+        let active_profiles = arguments
+            .iter()
+            .rev()
+            .find_map(|argument| argument.strip_prefix("--spring.profiles.active="))
+            .map(str::to_owned)
+            .or_else(|| env::var("SPRING_PROFILES_ACTIVE").ok());
+        if active_profiles
+            .is_some_and(|profiles| profiles.split(',').any(|profile| profile.trim() == "dev"))
+        {
+            config.openapi_enabled = true;
+            config.swagger_ui_enabled = true;
+        }
         #[cfg(feature = "embed-frontend")]
         {
             let executable = env::current_exe().map_err(|error| error.to_string())?;
@@ -92,12 +108,14 @@ impl Config {
                 config.apply(key, &value)?;
             }
         }
-        for argument in env::args().skip(1) {
+        for argument in arguments {
             let (key, value) = argument
                 .strip_prefix("--")
                 .and_then(|argument| argument.split_once('='))
                 .ok_or_else(|| "配置参数应使用 --名称=值 格式。".to_owned())?;
-            config.apply(key, value)?;
+            if key != "spring.profiles.active" {
+                config.apply(key, value)?;
+            }
         }
         Ok(config)
     }
@@ -110,6 +128,7 @@ impl Config {
             "weibo.database-path" => self.database_path = value.into(),
             "weibo.cookie-file" => self.cookie_file = value.into(),
             "weibo.frontend-dir" => self.frontend_dir = value.into(),
+            "weibo.open-browser" => self.open_browser = value.parse().map_err(|_| invalid())?,
             "weibo.qr-timeout-seconds" => {
                 self.qr_timeout = Duration::from_secs(value.parse().map_err(|_| invalid())?)
             }

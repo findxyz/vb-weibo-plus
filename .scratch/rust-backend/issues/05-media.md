@@ -4,7 +4,7 @@
 
 **Blocked by:** 02、03、04
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 上传步骤、限额、图片和视频代理行为对齐 Java。
-- [ ] Range、文件名、内容类型和 ffmpeg 路径按现有契约验证。
+- [x] 上传步骤、限额、图片和视频代理行为对齐 Java。
+- [x] Range、文件名、内容类型和 ffmpeg 路径按现有契约验证。

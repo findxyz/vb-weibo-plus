@@ -1,6 +1,6 @@
 # 完整 Rust 后端
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## Problem Statement
 

@@ -1,6 +1,6 @@
 # vb-weibo-plus
 
-A single-user, locally-run tool that drives one Weibo account's web credentials via a local Spring Boot web app. The operator QR-scans to log in, then manually invokes Weibo Web/API endpoints through HTTP controllers.
+A single-user, locally-run tool that connects one Weibo account to a shared web frontend. The operator signs in by scanning a QR code and chooses a Java or Rust backend. Both expose the same browser interfaces and support the same local data formats.
 
 ## Language
 

@@ -19,9 +19,9 @@
 
 ## 系统架构
 
-React 页面通过 HTTP／SSE 访问 Spring Boot（默认 `:18080`）。后端负责微博 API、群聊 WebSocket、本地 SQLite、图片／视频代理，以及可选的 AI 分析；ffmpeg 可选，用于 HEIC 图片转码等媒体处理。
+React 页面通过 HTTP／SSE 访问本地后端（默认 `:18080`）。后端负责微博 API、群聊 WebSocket、本地 SQLite、图片／视频代理和可选的 AI 分析。ffmpeg 用于 HEIC 图片转换和视频发送。下图以 Java 实现为例。
 
-React 工程位于 `frontend/`，Java 工程、Maven Wrapper、静态检查配置和 Windows 发布工具位于 `backend/java/`。
+React 工程位于 `frontend/`。Java 后端位于 `backend/java/`，Rust 后端位于 `backend/rust/`。两个后端提供相同的前端入口，运行时选择其中一个。
 
 ### 整体分层
 
@@ -112,6 +112,31 @@ npm test
 ```
 
 前端独立构建输出到 `frontend/dist/`。测试默认使用 Playwright 自带的 Chromium，若已安装 Chrome，可设置 `PREVIEW_BROWSER_CHANNEL=chrome` 复用。
+
+## Rust 后端
+
+从仓库根目录构建前端并启动 Rust。调试服务默认监听 `127.0.0.1:18080`，从仓库根目录读写 `weibo.db` 和 `.weibo_cookie.txt`。
+
+```powershell
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run build
+cargo run --locked --manifest-path backend/rust/Cargo.toml
+```
+
+从 Java 切换到 Rust 前，先关闭 Java 进程。Rust 可以继续使用现有 SQLite 和登录凭据。使用独立发布包时，把数据文件放在 EXE 同目录，或者通过 `WEIBO_DATABASE_PATH` 和 `WEIBO_COOKIE_FILE` 指定路径。
+
+Rust 的扫码登录使用本机 Chrome、Edge 或 Chromium。也可以通过 `WEIBO_CHROMIUM_PATH` 指定浏览器。发送视频需要 ffmpeg 和 ffprobe，HEIC 图片转换使用同一套 ffmpeg 配置。
+
+运行 Rust 接口测试及构建 Windows x64 发布包：
+
+```powershell
+cargo test --locked --manifest-path backend/rust/Cargo.toml
+& ./backend/rust/release/build.ps1
+```
+
+发布包 `backend/rust/target/weibo-plus-rust.7z` 内含 `weibo-plus.exe`。双击 EXE 会启动后端并打开群聊页面，React 静态资源和 SQLite 随可执行文件发布。
+
+构建两个后端后，可从仓库根目录运行 `node backend/rust/tests/java_interop.mjs`，验证现有接口及 SQLite 的双向兼容。该测试会自行创建临时数据库和模拟 AI 服务。
 
 ## 后端快速自检
 

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 登录和二维码接口对齐 Java 的方法、状态和内容类型。
-- [ ] 不同请求使用正确的 Credential 和上游错误处理。
+- [x] 登录和二维码接口对齐 Java 的方法、状态和内容类型。
+- [x] 不同请求使用正确的 Credential 和上游错误处理。
