@@ -20,7 +20,7 @@ pub const USER_AGENT: &str = concat!(
 );
 const CONTACTS_URL: &str = "https://api.weibo.com/webim/2/direct_messages/contacts.json";
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("{msg}")]
 pub struct WeiboError {
     pub status: StatusCode,

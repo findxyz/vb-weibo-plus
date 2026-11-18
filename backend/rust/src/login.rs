@@ -2,6 +2,7 @@ use std::{
     env,
     ffi::OsString,
     fs,
+    future::Future,
     path::PathBuf,
     process::{Child, Command, Stdio},
     sync::Arc,
@@ -22,7 +23,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tokio::{
     net::TcpStream,
-    sync::Mutex,
+    sync::{Mutex, watch},
     time::{sleep, timeout},
 };
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
@@ -36,10 +37,12 @@ const CHAT_URL: &str = "https://api.weibo.com/chat";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
+type LoginResult = Result<LoginResponse, WeiboError>;
+
 #[derive(Clone, Default)]
 struct LoginSession {
     active: Arc<Mutex<Option<Browser>>>,
-    in_progress: Arc<Mutex<()>>,
+    in_progress: Arc<Mutex<Option<watch::Receiver<Option<LoginResult>>>>>,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -58,7 +61,7 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
     Json(json!({"valid": weibo::group_list(&state).await.is_ok()}))
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct LoginResponse {
     sub: String,
     subp: String,
@@ -71,11 +74,15 @@ struct LoginResponse {
 async fn qr(
     State(state): State<AppState>,
     Extension(session): Extension<LoginSession>,
-) -> Result<Json<LoginResponse>, WeiboError> {
-    tokio::spawn(async move { session.login(&state).await })
-        .await
-        .map_err(|_| WeiboError::internal("扫码登录失败。"))?
-        .map(Json)
+) -> Result<Response, WeiboError> {
+    let login_session = session.clone();
+    let result = session
+        .wait_for_login(async move { login_session.login(&state).await })
+        .await?;
+    Ok(match result {
+        Some(response) => Json(response).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    })
 }
 
 async fn qr_image(Extension(session): Extension<LoginSession>) -> Response {
@@ -87,11 +94,40 @@ async fn qr_image(Extension(session): Extension<LoginSession>) -> Response {
 }
 
 impl LoginSession {
+    async fn wait_for_login(
+        &self,
+        start: impl Future<Output = LoginResult> + Send + 'static,
+    ) -> Result<Option<LoginResponse>, WeiboError> {
+        let (mut receiver, started_here) = {
+            let mut in_progress = self.in_progress.lock().await;
+            if let Some(receiver) = in_progress
+                .as_ref()
+                .filter(|receiver| receiver.has_changed().is_ok())
+            {
+                (receiver.clone(), false)
+            } else {
+                let (sender, receiver) = watch::channel(None);
+                *in_progress = Some(receiver.clone());
+                let in_progress = Arc::clone(&self.in_progress);
+                tokio::spawn(async move {
+                    let result = start.await;
+                    in_progress.lock().await.take();
+                    let _ = sender.send(Some(result));
+                });
+                (receiver, true)
+            }
+        };
+        let result = receiver
+            .wait_for(Option::is_some)
+            .await
+            .map_err(|_| WeiboError::internal("扫码登录失败。"))?;
+        match result.as_ref().expect("QR login result is ready") {
+            Ok(response) => Ok(started_here.then(|| response.clone())),
+            Err(error) => Err(error.clone()),
+        }
+    }
+
     async fn login(&self, state: &AppState) -> Result<LoginResponse, WeiboError> {
-        let _session = self
-            .in_progress
-            .try_lock()
-            .map_err(|_| WeiboError::new(StatusCode::CONFLICT, "扫码登录正在进行。"))?;
         let url = weibo::upstream_url(state, CHAT_URL)?;
         let mut browser = Browser::launch(state).await?;
         browser.navigate(url.as_str()).await?;
@@ -417,6 +453,60 @@ mod tests {
 
     use super::*;
     use crate::Config;
+
+    #[tokio::test]
+    async fn qr_request_rejoins_after_disconnect_and_can_retry_after_failure() {
+        let session = LoginSession::default();
+        let (started, first_started) = tokio::sync::oneshot::channel();
+        let (finish, first_finish) = tokio::sync::oneshot::channel();
+        let first_session = session.clone();
+        let first = tokio::spawn(async move {
+            first_session
+                .wait_for_login(async move {
+                    started.send(()).unwrap();
+                    first_finish.await.unwrap();
+                    Err(WeiboError::upstream("模拟扫码失败。"))
+                })
+                .await
+        });
+        first_started.await.unwrap();
+        first.abort();
+        assert!(first.await.err().unwrap().is_cancelled());
+
+        let joined = session.wait_for_login(async {
+            Err(WeiboError::new(
+                StatusCode::CONFLICT,
+                "重复启动了扫码会话。",
+            ))
+        });
+        tokio::pin!(joined);
+        assert!(
+            timeout(Duration::from_millis(100), &mut joined)
+                .await
+                .is_err()
+        );
+        finish.send(()).unwrap();
+        assert_eq!(joined.await.err().unwrap().status, StatusCode::BAD_GATEWAY);
+
+        let (finish_retry, retry_finish) = tokio::sync::oneshot::channel();
+        let retry = session.wait_for_login(async move {
+            retry_finish.await.unwrap();
+            Ok(LoginResponse {
+                sub: "test-SUB".into(),
+                subp: "test-SUBP".into(),
+                sso_login_state: "test-SSOLoginState".into(),
+                alf: "test-ALF".into(),
+            })
+        });
+        tokio::pin!(retry);
+        assert!(futures_util::poll!(&mut retry).is_pending());
+        let joined = session.wait_for_login(async { panic!("Started a second QR session") });
+        tokio::pin!(joined);
+        assert!(futures_util::poll!(&mut joined).is_pending());
+        finish_retry.send(()).unwrap();
+        assert_eq!(retry.await.unwrap().unwrap().sub, "test-SUB");
+        assert!(joined.await.unwrap().is_none());
+    }
 
     #[tokio::test]
     #[ignore = "requires a locally installed Chromium browser"]
