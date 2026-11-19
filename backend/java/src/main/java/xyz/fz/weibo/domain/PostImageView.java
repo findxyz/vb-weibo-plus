@@ -7,6 +7,4 @@ public record PostImageView(
         int originalWidth,
         int originalHeight,
         String thumbnailUrl,
-        String originalUrl
-) {
-}
+        String originalUrl) {}

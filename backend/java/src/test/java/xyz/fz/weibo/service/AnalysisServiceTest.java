@@ -70,12 +70,11 @@ class AnalysisServiceTest {
                                 messages.size()));
         when(aiClient.chat(any())).thenReturn("分析结果");
         when(analysisRepository.save(any()))
-                .thenAnswer(
-                        inv -> {
-                            AnalysisEntity entity = inv.getArgument(0);
-                            ReflectionTestUtils.setField(entity, "id", 99L);
-                            return entity;
-                        });
+                .thenAnswer(inv -> {
+                    AnalysisEntity entity = inv.getArgument(0);
+                    ReflectionTestUtils.setField(entity, "id", 99L);
+                    return entity;
+                });
 
         AnalysisView view = analysisService.analyze(GID, DATE, "分析一下");
 
@@ -157,20 +156,18 @@ class AnalysisServiceTest {
                         new PageImpl<>(
                                 messages, MessageRepository.pageRequest(1, Integer.MAX_VALUE), 1));
         when(aiClient.chatStream(any(), any()))
-                .thenAnswer(
-                        inv -> {
-                            Consumer<String> consumer = inv.getArgument(1);
-                            consumer.accept("第一");
-                            consumer.accept("段");
-                            return "第一段";
-                        });
+                .thenAnswer(inv -> {
+                    Consumer<String> consumer = inv.getArgument(1);
+                    consumer.accept("第一");
+                    consumer.accept("段");
+                    return "第一段";
+                });
         when(analysisRepository.save(any()))
-                .thenAnswer(
-                        inv -> {
-                            AnalysisEntity entity = inv.getArgument(0);
-                            ReflectionTestUtils.setField(entity, "id", 99L);
-                            return entity;
-                        });
+                .thenAnswer(inv -> {
+                    AnalysisEntity entity = inv.getArgument(0);
+                    ReflectionTestUtils.setField(entity, "id", 99L);
+                    return entity;
+                });
 
         List<String> deltas = new ArrayList<>();
         AnalysisView view = analysisService.analyzeStreaming(GID, DATE, "分析一下", deltas::add);

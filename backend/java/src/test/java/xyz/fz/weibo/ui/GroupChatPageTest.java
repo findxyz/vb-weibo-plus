@@ -106,21 +106,20 @@ class GroupChatPageTest {
         try (Page page = browser.newPage()) {
             List<String> errors = new ArrayList<>();
             page.onPageError(errors::add);
-            page.onResponse(
-                    response -> {
-                        if (response.url().contains("/assets/")) {
-                            String mime = response.headers().getOrDefault("content-type", "");
-                            if (response.status() != 200) {
-                                errors.add(response.url());
-                            }
-                            if (response.url().endsWith(".js") && !mime.contains("javascript")) {
-                                errors.add(mime);
-                            }
-                            if (response.url().endsWith(".css") && !mime.startsWith("text/css")) {
-                                errors.add(mime);
-                            }
-                        }
-                    });
+            page.onResponse(response -> {
+                if (response.url().contains("/assets/")) {
+                    String mime = response.headers().getOrDefault("content-type", "");
+                    if (response.status() != 200) {
+                        errors.add(response.url());
+                    }
+                    if (response.url().endsWith(".js") && !mime.contains("javascript")) {
+                        errors.add(mime);
+                    }
+                    if (response.url().endsWith(".css") && !mime.startsWith("text/css")) {
+                        errors.add(mime);
+                    }
+                }
+            });
             Assertions.assertThat(page.navigate(baseUrl + "/chat/index.html").status())
                     .isEqualTo(200);
             assertThat(page.locator("h1")).hasText("微博群聊 - 打包资源群");

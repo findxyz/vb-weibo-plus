@@ -216,13 +216,12 @@ public class PostMapper {
             return List.of();
         }
         List<PicInfo> result = new ArrayList<>(source.size());
-        source.forEach(
-                (pid, info) ->
-                        result.add(
-                                new PicInfo(
-                                        pid,
-                                        toMediaSize(info == null ? null : info.thumbnail()),
-                                        toMediaSize(originalImage(info)))));
+        source.forEach((pid, info) ->
+                result.add(
+                        new PicInfo(
+                                pid,
+                                toMediaSize(info == null ? null : info.thumbnail()),
+                                toMediaSize(originalImage(info)))));
         return List.copyOf(result);
     }
 
@@ -280,24 +279,15 @@ public class PostMapper {
 
     private List<PostImageView> toImageViews(String mblogId, List<PicInfo> pics) {
         return pics.stream()
-                .map(
-                        pic ->
-                                new PostImageView(
-                                        pic.pid(),
-                                        pic.thumbnail().width(),
-                                        pic.thumbnail().height(),
-                                        pic.original().width(),
-                                        pic.original().height(),
-                                        imageUrl(
-                                                pic.thumbnail().url(),
-                                                mblogId,
-                                                pic.pid(),
-                                                "thumbnail"),
-                                        imageUrl(
-                                                pic.original().url(),
-                                                mblogId,
-                                                pic.pid(),
-                                                "original")))
+                .map(pic ->
+                        new PostImageView(
+                                pic.pid(),
+                                pic.thumbnail().width(),
+                                pic.thumbnail().height(),
+                                pic.original().width(),
+                                pic.original().height(),
+                                imageUrl(pic.thumbnail().url(), mblogId, pic.pid(), "thumbnail"),
+                                imageUrl(pic.original().url(), mblogId, pic.pid(), "original")))
                 .toList();
     }
 

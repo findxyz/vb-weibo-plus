@@ -19,6 +19,4 @@ public record PostView(
         int attitudesCount,
         long createdAt,
         long savedAt,
-        BloggerRecord blogger
-) {
-}
+        BloggerRecord blogger) {}

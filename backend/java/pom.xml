@@ -140,6 +140,30 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <java>
+                        <googleJavaFormat>
+                            <version>2.0.0</version>
+                            <style>AOSP</style>
+                            <cleanup>false</cleanup>
+                        </googleJavaFormat>
+                        <importOrder>
+                            <order>\#,</order>
+                        </importOrder>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless</id>
+                        <phase>validate</phase>
+                        <goals><goal>check</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>3.6.0</version>

@@ -11,6 +11,4 @@ public record RetweetView(
         String screenName,
         long createdAt,
         List<PostImageView> pics,
-        PostVideoView video
-) {
-}
+        PostVideoView video) {}

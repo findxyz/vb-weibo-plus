@@ -10,6 +10,4 @@ public record GroupSendMessageResponse(
         String content,
         @JsonProperty("media_type") Integer mediaType,
         Long time,
-        Long ts
-) {
-}
+        Long ts) {}

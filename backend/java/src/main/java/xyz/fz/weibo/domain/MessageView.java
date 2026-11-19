@@ -24,6 +24,4 @@ public record MessageView(
         String previewUrl,
         String originalUrl,
         String videoUrl,
-        String fileUrl
-) {
-}
+        String fileUrl) {}

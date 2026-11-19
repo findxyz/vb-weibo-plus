@@ -4,6 +4,5 @@ import java.util.List;
 
 public record MixMediaInfoResponse(List<Item> items) {
 
-    public record Item(String type, PageInfoResponse data) {
-    }
+    public record Item(String type, PageInfoResponse data) {}
 }

@@ -14,6 +14,4 @@ public record GroupListView(
         int groupType,
         String latestSenderName,
         String latestMessage,
-        long messageCount
-) {
-}
+        long messageCount) {}

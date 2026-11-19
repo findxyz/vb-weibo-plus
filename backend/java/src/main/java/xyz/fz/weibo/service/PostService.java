@@ -325,12 +325,11 @@ public class PostService {
         }
         List<CalendarView.MonthGroup> months =
                 byMonth.entrySet().stream()
-                        .map(
-                                entry ->
-                                        new CalendarView.MonthGroup(
-                                                entry.getKey(),
-                                                monthTotals.get(entry.getKey()),
-                                                entry.getValue()))
+                        .map(entry ->
+                                new CalendarView.MonthGroup(
+                                        entry.getKey(),
+                                        monthTotals.get(entry.getKey()),
+                                        entry.getValue()))
                         .toList();
         return new CalendarView(months);
     }

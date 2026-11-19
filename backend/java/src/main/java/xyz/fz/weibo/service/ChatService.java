@@ -160,12 +160,11 @@ public class ChatService {
                     .forEach(item -> messageCounts.put(item.getGid(), item.getCnt()));
         }
         return groups.stream()
-                .map(
-                        group ->
-                                toGroupListView(
-                                        group,
-                                        latestMessages.get(group.getMaxMid()),
-                                        messageCounts.getOrDefault(group.getGid(), 0L)))
+                .map(group ->
+                        toGroupListView(
+                                group,
+                                latestMessages.get(group.getMaxMid()),
+                                messageCounts.getOrDefault(group.getGid(), 0L)))
                 .toList();
     }
 

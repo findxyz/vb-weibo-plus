@@ -10,6 +10,4 @@ public record MessageCursorResult(
         Long nextBeforeCreatedAt,
         Long nextBeforeMid,
         Long nextAfterCreatedAt,
-        Long nextAfterMid
-) {
-}
+        Long nextAfterMid) {}

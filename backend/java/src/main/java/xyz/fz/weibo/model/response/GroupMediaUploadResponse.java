@@ -1,4 +1,3 @@
 package xyz.fz.weibo.model.response;
 
-public record GroupMediaUploadResponse(long fid) {
-}
+public record GroupMediaUploadResponse(long fid) {}

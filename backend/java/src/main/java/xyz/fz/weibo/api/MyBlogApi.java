@@ -24,8 +24,9 @@ public class MyBlogApi {
     }
 
     public MyBlogResponse myBlog(MyBlogRequest request) {
-        ResponseEntity<String> resp = client.getForString(
-                MY_BLOG_URL, request.toParams(), WeiboConstants.HEADERS_AJAX, true);
+        ResponseEntity<String> resp =
+                client.getForString(
+                        MY_BLOG_URL, request.toParams(), WeiboConstants.HEADERS_AJAX, true);
         try {
             return objectMapper.readValue(resp.getBody(), MyBlogResponse.class);
         } catch (JsonProcessingException e) {

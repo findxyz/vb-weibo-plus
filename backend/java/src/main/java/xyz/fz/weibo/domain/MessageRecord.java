@@ -23,6 +23,4 @@ public record MessageRecord(
         List<String> recallMids,
         String recallBy,
         long createdAt,
-        long savedAt
-) {
-}
+        long savedAt) {}

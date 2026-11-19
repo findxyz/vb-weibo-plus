@@ -6,6 +6,4 @@ public record LoginResponse(
         String sub,
         String subp,
         @JsonProperty("SSOLoginState") String ssoLoginState,
-        @JsonProperty("ALF") String alf
-) {
-}
+        @JsonProperty("ALF") String alf) {}

@@ -374,17 +374,15 @@ class PostServiceTest {
         SearchProfileRequest emptyPage = new SearchProfileRequest(1L, 2, 1783652523L, 1783656184L);
 
         when(searchProfileApi.searchProfile(firstPage))
-                .thenAnswer(
-                        invocation -> {
-                            requestTimes.add(System.nanoTime());
-                            return searchPage(List.of(current));
-                        });
+                .thenAnswer(invocation -> {
+                    requestTimes.add(System.nanoTime());
+                    return searchPage(List.of(current));
+                });
         when(searchProfileApi.searchProfile(emptyPage))
-                .thenAnswer(
-                        invocation -> {
-                            requestTimes.add(System.nanoTime());
-                            return searchPage(List.of());
-                        });
+                .thenAnswer(invocation -> {
+                    requestTimes.add(System.nanoTime());
+                    return searchPage(List.of());
+                });
         when(postMapper.toBloggerEntity(any(), anyLong())).thenReturn(blogger);
         when(postMapper.toPostEntity(any(), any(), any(), anyLong())).thenReturn(entity);
         when(postRepository.insertIfAbsent(entity)).thenReturn(true);
@@ -491,14 +489,13 @@ class PostServiceTest {
         CountDownLatch requestStarted = new CountDownLatch(1);
         CountDownLatch releaseRequest = new CountDownLatch(1);
         when(searchProfileApi.searchProfile(any()))
-                .thenAnswer(
-                        invocation -> {
-                            requestStarted.countDown();
-                            if (!releaseRequest.await(5, TimeUnit.SECONDS)) {
-                                throw new AssertionError("等待测试释放微博请求超时。");
-                            }
-                            return searchPage(List.of());
-                        });
+                .thenAnswer(invocation -> {
+                    requestStarted.countDown();
+                    if (!releaseRequest.await(5, TimeUnit.SECONDS)) {
+                        throw new AssertionError("等待测试释放微博请求超时。");
+                    }
+                    return searchPage(List.of());
+                });
 
         CompletableFuture<SaveResult> firstRequest =
                 CompletableFuture.supplyAsync(

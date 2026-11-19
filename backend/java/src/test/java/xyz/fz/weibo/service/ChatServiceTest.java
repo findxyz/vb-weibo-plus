@@ -543,17 +543,15 @@ class ChatServiceTest {
         AtomicLong firstFetch = new AtomicLong();
         AtomicLong secondFetch = new AtomicLong();
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenAnswer(
-                        invocation -> {
-                            firstFetch.set(System.nanoTime());
-                            return messagePage(message(110, 321, 1_100));
-                        });
+                .thenAnswer(invocation -> {
+                    firstFetch.set(System.nanoTime());
+                    return messagePage(message(110, 321, 1_100));
+                });
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, 110L)))
-                .thenAnswer(
-                        invocation -> {
-                            secondFetch.set(System.nanoTime());
-                            return messagePage();
-                        });
+                .thenAnswer(invocation -> {
+                    secondFetch.set(System.nanoTime());
+                    return messagePage();
+                });
         mapEveryMessageWithTime();
         when(messageRepository.insertAllIfAbsent(anyList())).thenReturn(1);
 
@@ -568,12 +566,11 @@ class ChatServiceTest {
         CountDownLatch firstFetchStarted = new CountDownLatch(1);
         CountDownLatch releaseFirstFetch = new CountDownLatch(1);
         when(groupMessagesApi.messages(new GroupMessagesRequest(1L, null)))
-                .thenAnswer(
-                        invocation -> {
-                            firstFetchStarted.countDown();
-                            releaseFirstFetch.await(5, TimeUnit.SECONDS);
-                            throw new WeiboException("上游分页失败。", -1);
-                        })
+                .thenAnswer(invocation -> {
+                    firstFetchStarted.countDown();
+                    releaseFirstFetch.await(5, TimeUnit.SECONDS);
+                    throw new WeiboException("上游分页失败。", -1);
+                })
                 .thenReturn(messagePage());
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -716,11 +713,10 @@ class ChatServiceTest {
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
         when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
-                .thenAnswer(
-                        invocation -> {
-                            ResponseExtractor<String> extractor = invocation.getArgument(2);
-                            return extractor.extractData(upstream);
-                        });
+                .thenAnswer(invocation -> {
+                    ResponseExtractor<String> extractor = invocation.getArgument(2);
+                    return extractor.extractData(upstream);
+                });
 
         String result =
                 chatService.streamMessageVideo(
@@ -745,11 +741,10 @@ class ChatServiceTest {
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
         when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
-                .thenAnswer(
-                        invocation -> {
-                            ResponseExtractor<Integer> extractor = invocation.getArgument(2);
-                            return extractor.extractData(upstream);
-                        });
+                .thenAnswer(invocation -> {
+                    ResponseExtractor<Integer> extractor = invocation.getArgument(2);
+                    return extractor.extractData(upstream);
+                });
 
         int status =
                 chatService.streamMessageVideo(
@@ -801,11 +796,10 @@ class ChatServiceTest {
         when(messageMapper.toMessageRecord(entity)).thenReturn(record);
         when(messageMapper.isVideo(record)).thenReturn(true);
         when(groupMediaApi.stream(eq(request), any(HttpHeaders.class), any()))
-                .thenAnswer(
-                        invocation -> {
-                            ResponseExtractor<Void> extractor = invocation.getArgument(2);
-                            return extractor.extractData(notFound);
-                        })
+                .thenAnswer(invocation -> {
+                    ResponseExtractor<Void> extractor = invocation.getArgument(2);
+                    return extractor.extractData(notFound);
+                })
                 .thenThrow(new WeiboCookieExpiredException("Credential 失效。"))
                 .thenThrow(new WeiboRateLimitException("限流。"));
 
@@ -1391,20 +1385,18 @@ class ChatServiceTest {
 
     private void mapEveryMessage() {
         when(messageMapper.toMessageEntity(any(), eq(1L), anyLong()))
-                .thenAnswer(
-                        invocation -> {
-                            GroupMessagesResponse.Message message = invocation.getArgument(0);
-                            return Optional.of(messageEntity(message.id(), message.time()));
-                        });
+                .thenAnswer(invocation -> {
+                    GroupMessagesResponse.Message message = invocation.getArgument(0);
+                    return Optional.of(messageEntity(message.id(), message.time()));
+                });
     }
 
     private void mapEveryMessageWithTime() {
         mapEveryMessage();
         when(messageMapper.toMessageTimestamp(any()))
-                .thenAnswer(
-                        invocation -> {
-                            GroupMessagesResponse.Message message = invocation.getArgument(0);
-                            return message.time();
-                        });
+                .thenAnswer(invocation -> {
+                    GroupMessagesResponse.Message message = invocation.getArgument(0);
+                    return message.time();
+                });
     }
 }

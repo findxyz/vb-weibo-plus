@@ -9,6 +9,4 @@ public record UserResponse(
         @JsonProperty("avatar_large") String avatarLarge,
         @JsonProperty("avatar_hd") String avatarHd,
         @JsonProperty("profile_url") String profileUrl,
-        boolean verified
-) {
-}
+        boolean verified) {}

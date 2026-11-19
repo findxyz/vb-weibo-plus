@@ -557,10 +557,8 @@ class ChatControllerTest {
         HttpServletResponse response = mock(HttpServletResponse.class);
         when(response.getOutputStream()).thenReturn(output);
 
-        assertThatCode(
-                        () ->
-                                chatController.queryMessageMedia(
-                                        101, 100, "video", "bytes=0-1", response))
+        assertThatCode(() ->
+                        chatController.queryMessageMedia(101, 100, "video", "bytes=0-1", response))
                 .doesNotThrowAnyException();
     }
 
@@ -599,10 +597,8 @@ class ChatControllerTest {
         HttpServletResponse response = mock(HttpServletResponse.class);
         when(response.getOutputStream()).thenReturn(output);
 
-        assertThatCode(
-                        () ->
-                                chatController.queryMessageMedia(
-                                        101, 100, "video", "bytes=0-3", response))
+        assertThatCode(() ->
+                        chatController.queryMessageMedia(101, 100, "video", "bytes=0-3", response))
                 .doesNotThrowAnyException();
     }
 

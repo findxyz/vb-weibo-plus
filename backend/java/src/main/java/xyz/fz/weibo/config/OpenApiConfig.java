@@ -10,9 +10,11 @@ public class OpenApiConfig {
 
     @Bean
     public OpenAPI weiboOpenApi() {
-        return new OpenAPI().info(new Info()
-                .title("vb-weibo-plus")
-                .description("单用户本地微博客户端服务接口。")
-                .version("1.0.0"));
+        return new OpenAPI()
+                .info(
+                        new Info()
+                                .title("vb-weibo-plus")
+                                .description("单用户本地微博客户端服务接口。")
+                                .version("1.0.0"));
     }
 }

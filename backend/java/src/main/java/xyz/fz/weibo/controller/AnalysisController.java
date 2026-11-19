@@ -43,36 +43,32 @@ public class AnalysisController {
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date,
             @RequestParam String prompt) {
         SseEmitter emitter = new SseEmitter((timeoutSeconds + 60L) * 1000L);
-        CompletableFuture.runAsync(
-                () -> {
-                    try {
-                        AnalysisView view =
-                                analysisService.analyzeStreaming(
-                                        gid,
-                                        date,
-                                        prompt,
-                                        delta -> {
-                                            try {
-                                                emitter.send(
-                                                        SseEmitter.event()
-                                                                .name("delta")
-                                                                .data(delta));
-                                            } catch (IOException e) {
-                                                throw new IllegalStateException(
-                                                        "推送分析结果失败：" + e.getMessage(), e);
-                                            }
-                                        });
-                        emitter.send(SseEmitter.event().name("done").data(view));
-                        emitter.complete();
-                    } catch (Exception e) {
-                        try {
-                            emitter.send(SseEmitter.event().name("error").data(e.getMessage()));
-                            emitter.complete();
-                        } catch (IOException ignored) {
-                            emitter.completeWithError(e);
-                        }
-                    }
-                });
+        CompletableFuture.runAsync(() -> {
+            try {
+                AnalysisView view =
+                        analysisService.analyzeStreaming(
+                                gid,
+                                date,
+                                prompt,
+                                delta -> {
+                                    try {
+                                        emitter.send(SseEmitter.event().name("delta").data(delta));
+                                    } catch (IOException e) {
+                                        throw new IllegalStateException(
+                                                "推送分析结果失败：" + e.getMessage(), e);
+                                    }
+                                });
+                emitter.send(SseEmitter.event().name("done").data(view));
+                emitter.complete();
+            } catch (Exception e) {
+                try {
+                    emitter.send(SseEmitter.event().name("error").data(e.getMessage()));
+                    emitter.complete();
+                } catch (IOException ignored) {
+                    emitter.completeWithError(e);
+                }
+            }
+        });
         return emitter;
     }
 

@@ -115,10 +115,9 @@ class PostRepositoryTest {
         assertThat(
                         Arrays.stream(PostRepository.class.getDeclaredMethods())
                                 .filter(method -> method.getReturnType().equals(Page.class)))
-                .allSatisfy(
-                        method ->
-                                assertThat(method.getParameterTypes())
-                                        .anyMatch(Pageable.class::isAssignableFrom));
+                .allSatisfy(method ->
+                        assertThat(method.getParameterTypes())
+                                .anyMatch(Pageable.class::isAssignableFrom));
     }
 
     @Test

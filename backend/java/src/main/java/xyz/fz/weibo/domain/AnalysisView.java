@@ -7,6 +7,4 @@ public record AnalysisView(
         String prompt,
         String result,
         int messageCount,
-        String createdAt
-) {
-}
+        String createdAt) {}

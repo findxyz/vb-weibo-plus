@@ -86,13 +86,11 @@ class PostMapperTest {
             assertThat(entity.getCreatedAt()).isEqualTo(1783678735000L);
             assertThat(record.pics())
                     .singleElement()
-                    .satisfies(
-                            pic -> {
-                                assertThat(pic.pid()).isEqualTo("p1");
-                                assertThat(pic.original().url())
-                                        .isEqualTo("https://image/largest.jpg");
-                                assertThat(pic.original().width()).isEqualTo(1200);
-                            });
+                    .satisfies(pic -> {
+                        assertThat(pic.pid()).isEqualTo("p1");
+                        assertThat(pic.original().url()).isEqualTo("https://image/largest.jpg");
+                        assertThat(pic.original().width()).isEqualTo(1200);
+                    });
             assertThat(record.video().coverUrl()).isEqualTo("https://image/cover.jpg");
             assertThat(record.video().pageUrl())
                     .isEqualTo("https://video.weibo.com/show?fid=current");
@@ -101,10 +99,9 @@ class PostMapperTest {
             assertThat(record.retweeted().createdAt()).isEqualTo(1783562400000L);
             assertThat(record.retweeted().pics())
                     .singleElement()
-                    .satisfies(
-                            pic ->
-                                    assertThat(pic.original().url())
-                                            .isEqualTo("https://image/retweeted-large.jpg"));
+                    .satisfies(pic ->
+                            assertThat(pic.original().url())
+                                    .isEqualTo("https://image/retweeted-large.jpg"));
         } finally {
             Locale.setDefault(originalLocale);
         }
@@ -140,53 +137,49 @@ class PostMapperTest {
         assertThat(bloggerRecord.verified()).isTrue();
         assertThat(views)
                 .singleElement()
-                .satisfies(
-                        view -> {
-                            assertThat(view.content()).isEqualTo("当前完整 HTML");
-                            assertThat(view.postUrl()).isEqualTo("https://weibo.com/1/current-id");
-                            assertThat(view.blogger()).isEqualTo(bloggerRecord);
-                            assertThat(view.pics())
-                                    .singleElement()
-                                    .satisfies(
-                                            image -> {
-                                                assertThat(image.pid()).isEqualTo("p1");
-                                                assertThat(image.thumbnailWidth()).isEqualTo(80);
-                                                assertThat(image.originalWidth()).isEqualTo(1200);
-                                                assertThat(image.thumbnailUrl())
-                                                        .isEqualTo(
-                                                                "/post/image?mblogId=current-id"
-                                                                        + "&pid=p1"
-                                                                        + "&variant=thumbnail");
-                                                assertThat(image.originalUrl())
-                                                        .isEqualTo(
-                                                                "/post/image?mblogId=current-id"
-                                                                        + "&pid=p1"
-                                                                        + "&variant=original");
-                                            });
-                            assertThat(view.video().coverUrl())
-                                    .isEqualTo("/post/videoCover?mblogId=current-id");
-                            assertThat(view.video().pageUrl())
-                                    .isEqualTo("https://video.weibo.com/show?fid=current");
-                            assertThat(view.retweeted().contentRaw()).isEqualTo("转发完整纯文本");
-                            assertThat(view.retweeted().pics())
-                                    .singleElement()
-                                    .satisfies(
-                                            image -> {
-                                                assertThat(image.thumbnailUrl())
-                                                        .isEqualTo(
-                                                                "/post/image?mblogId=current-id"
-                                                                        + "&pid=p2"
-                                                                        + "&variant=thumbnail");
-                                                assertThat(image.originalUrl())
-                                                        .isEqualTo(
-                                                                "/post/image?mblogId=current-id"
-                                                                        + "&pid=p2"
-                                                                        + "&variant=original");
-                                            });
-                            assertThat(view.retweeted().video().coverUrl())
-                                    .isEqualTo(
-                                            "/post/videoCover?mblogId=current-id&retweeted=true");
-                        });
+                .satisfies(view -> {
+                    assertThat(view.content()).isEqualTo("当前完整 HTML");
+                    assertThat(view.postUrl()).isEqualTo("https://weibo.com/1/current-id");
+                    assertThat(view.blogger()).isEqualTo(bloggerRecord);
+                    assertThat(view.pics())
+                            .singleElement()
+                            .satisfies(image -> {
+                                assertThat(image.pid()).isEqualTo("p1");
+                                assertThat(image.thumbnailWidth()).isEqualTo(80);
+                                assertThat(image.originalWidth()).isEqualTo(1200);
+                                assertThat(image.thumbnailUrl())
+                                        .isEqualTo(
+                                                "/post/image?mblogId=current-id"
+                                                        + "&pid=p1"
+                                                        + "&variant=thumbnail");
+                                assertThat(image.originalUrl())
+                                        .isEqualTo(
+                                                "/post/image?mblogId=current-id"
+                                                        + "&pid=p1"
+                                                        + "&variant=original");
+                            });
+                    assertThat(view.video().coverUrl())
+                            .isEqualTo("/post/videoCover?mblogId=current-id");
+                    assertThat(view.video().pageUrl())
+                            .isEqualTo("https://video.weibo.com/show?fid=current");
+                    assertThat(view.retweeted().contentRaw()).isEqualTo("转发完整纯文本");
+                    assertThat(view.retweeted().pics())
+                            .singleElement()
+                            .satisfies(image -> {
+                                assertThat(image.thumbnailUrl())
+                                        .isEqualTo(
+                                                "/post/image?mblogId=current-id"
+                                                        + "&pid=p2"
+                                                        + "&variant=thumbnail");
+                                assertThat(image.originalUrl())
+                                        .isEqualTo(
+                                                "/post/image?mblogId=current-id"
+                                                        + "&pid=p2"
+                                                        + "&variant=original");
+                            });
+                    assertThat(view.retweeted().video().coverUrl())
+                            .isEqualTo("/post/videoCover?mblogId=current-id&retweeted=true");
+                });
     }
 
     @Test
@@ -212,13 +205,9 @@ class PostMapperTest {
                         source.retweetedStatus(),
                         source.mixMediaInfo());
 
-        assertThatThrownBy(
-                        () ->
-                                postMapper.toPostEntity(
-                                        invalid,
-                                        longText("全文", "纯文本"),
-                                        longText("转发全文", "转发纯文本"),
-                                        2000))
+        assertThatThrownBy(() ->
+                        postMapper.toPostEntity(
+                                invalid, longText("全文", "纯文本"), longText("转发全文", "转发纯文本"), 2000))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -323,21 +312,18 @@ class PostMapperTest {
                 postMapper.toPostRecord(postMapper.toPostEntity(post, null, null, 2000));
 
         assertThat(record.pics())
-                .anySatisfy(
-                        pic -> {
-                            assertThat(pic.pid()).isEqualTo("largest");
-                            assertThat(pic.original().url()).isEqualTo("largest");
-                        })
-                .anySatisfy(
-                        pic -> {
-                            assertThat(pic.pid()).isEqualTo("original");
-                            assertThat(pic.original().url()).isEqualTo("original");
-                        })
-                .anySatisfy(
-                        pic -> {
-                            assertThat(pic.pid()).isEqualTo("large");
-                            assertThat(pic.original().url()).isEqualTo("large");
-                        });
+                .anySatisfy(pic -> {
+                    assertThat(pic.pid()).isEqualTo("largest");
+                    assertThat(pic.original().url()).isEqualTo("largest");
+                })
+                .anySatisfy(pic -> {
+                    assertThat(pic.pid()).isEqualTo("original");
+                    assertThat(pic.original().url()).isEqualTo("original");
+                })
+                .anySatisfy(pic -> {
+                    assertThat(pic.pid()).isEqualTo("large");
+                    assertThat(pic.original().url()).isEqualTo("large");
+                });
     }
 
     @Test
@@ -394,11 +380,10 @@ class PostMapperTest {
 
         assertThat(views)
                 .singleElement()
-                .satisfies(
-                        view -> {
-                            assertThat(view.mblogId()).isEqualTo("m1");
-                            assertThat(view.blogger().uid()).isEqualTo(1);
-                        });
+                .satisfies(view -> {
+                    assertThat(view.mblogId()).isEqualTo("m1");
+                    assertThat(view.blogger().uid()).isEqualTo(1);
+                });
     }
 
     @Test

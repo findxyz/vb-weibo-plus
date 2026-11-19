@@ -51,26 +51,23 @@ class PostHistorySubmissionTest {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         when(searchProfileApi.searchProfile(any()))
-                .thenAnswer(
-                        invocation -> {
-                            started.countDown();
-                            assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
-                            return new SearchProfileResponse(
-                                    new SearchProfileResponse.SearchProfileData(List.of(), 0, ""),
-                                    1);
-                        });
+                .thenAnswer(invocation -> {
+                    started.countDown();
+                    assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                    return new SearchProfileResponse(
+                            new SearchProfileResponse.SearchProfileData(List.of(), 0, ""), 1);
+                });
 
         try (var executor = Executors.newSingleThreadExecutor()) {
             var submission =
-                    executor.submit(
-                            () ->
-                                    mockMvc.perform(
-                                                    post("/post/range")
-                                                            .param("uid", "1")
-                                                            .param("start", "2026-07-10 11:02:03")
-                                                            .param("end", "2026-07-10 12:03:04"))
-                                            .andExpect(status().isNoContent())
-                                            .andExpect(content().string("")));
+                    executor.submit(() ->
+                            mockMvc.perform(
+                                            post("/post/range")
+                                                    .param("uid", "1")
+                                                    .param("start", "2026-07-10 11:02:03")
+                                                    .param("end", "2026-07-10 12:03:04"))
+                                    .andExpect(status().isNoContent())
+                                    .andExpect(content().string("")));
             try {
                 assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
                 submission.get(2, TimeUnit.SECONDS);

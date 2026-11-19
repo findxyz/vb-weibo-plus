@@ -155,15 +155,14 @@ class AnalysisControllerTest {
         AtomicReference<Consumer<String>> captured = new AtomicReference<>();
         when(analysisService.analyzeStreaming(
                         eq(1L), eq(LocalDate.of(2026, 8, 7)), eq("分析一下"), any()))
-                .thenAnswer(
-                        inv -> {
-                            Consumer<String> consumer = inv.getArgument(3);
-                            captured.set(consumer);
-                            consumer.accept("第一");
-                            consumer.accept("段");
-                            return new AnalysisView(
-                                    9L, 1L, "2026-08-07", "分析一下", "第一段", 2, "2026-08-07 10:00:00");
-                        });
+                .thenAnswer(inv -> {
+                    Consumer<String> consumer = inv.getArgument(3);
+                    captured.set(consumer);
+                    consumer.accept("第一");
+                    consumer.accept("段");
+                    return new AnalysisView(
+                            9L, 1L, "2026-08-07", "分析一下", "第一段", 2, "2026-08-07 10:00:00");
+                });
 
         MvcResult start =
                 mockMvc.perform(

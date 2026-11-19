@@ -11,6 +11,4 @@ public record GroupRecord(
         long ownerId,
         List<Long> admins,
         String summary,
-        int groupType
-) {
-}
+        int groupType) {}

@@ -55,14 +55,13 @@ class AiClientTest {
 
     @Test
     void chat_throws_on_non_2xx_status() throws Exception {
-        startServer(
-                exchange -> {
-                    byte[] body = "{\"error\":\"rate limited\"}".getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().set("Content-Type", "application/json");
-                    exchange.sendResponseHeaders(429, body.length);
-                    exchange.getResponseBody().write(body);
-                    exchange.close();
-                });
+        startServer(exchange -> {
+            byte[] body = "{\"error\":\"rate limited\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(429, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
 
         assertThatThrownBy(() -> aiClient.chat("分析一下"))
                 .isInstanceOf(WeiboException.class)
@@ -72,11 +71,10 @@ class AiClientTest {
 
     @Test
     void chat_throws_on_empty_response_body() throws Exception {
-        startServer(
-                exchange -> {
-                    exchange.sendResponseHeaders(200, -1);
-                    exchange.close();
-                });
+        startServer(exchange -> {
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
 
         assertThatThrownBy(() -> aiClient.chat("分析一下"))
                 .isInstanceOf(WeiboException.class)
@@ -85,16 +83,15 @@ class AiClientTest {
 
     @Test
     void chat_throws_on_empty_content() throws Exception {
-        startServer(
-                exchange -> {
-                    byte[] body =
-                            "{\"choices\":[{\"message\":{\"content\":\"\"}}]}"
-                                    .getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().set("Content-Type", "application/json");
-                    exchange.sendResponseHeaders(200, body.length);
-                    exchange.getResponseBody().write(body);
-                    exchange.close();
-                });
+        startServer(exchange -> {
+            byte[] body =
+                    "{\"choices\":[{\"message\":{\"content\":\"\"}}]}"
+                            .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
 
         assertThatThrownBy(() -> aiClient.chat("分析一下"))
                 .isInstanceOf(WeiboException.class)
@@ -103,16 +100,15 @@ class AiClientTest {
 
     @Test
     void chat_returns_content_on_success() throws Exception {
-        startServer(
-                exchange -> {
-                    byte[] body =
-                            "{\"choices\":[{\"message\":{\"content\":\"这是分析结果\"}}]}"
-                                    .getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().set("Content-Type", "application/json");
-                    exchange.sendResponseHeaders(200, body.length);
-                    exchange.getResponseBody().write(body);
-                    exchange.close();
-                });
+        startServer(exchange -> {
+            byte[] body =
+                    "{\"choices\":[{\"message\":{\"content\":\"这是分析结果\"}}]}"
+                            .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
 
         String result = aiClient.chat("分析一下");
 
@@ -121,14 +117,13 @@ class AiClientTest {
 
     @Test
     void chat_wraps_json_parse_failure() throws Exception {
-        startServer(
-                exchange -> {
-                    byte[] body = "not a json".getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().set("Content-Type", "application/json");
-                    exchange.sendResponseHeaders(200, body.length);
-                    exchange.getResponseBody().write(body);
-                    exchange.close();
-                });
+        startServer(exchange -> {
+            byte[] body = "not a json".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
 
         assertThatThrownBy(() -> aiClient.chat("分析一下"))
                 .isInstanceOf(WeiboException.class)
@@ -146,13 +141,12 @@ class AiClientTest {
 
     @Test
     void chat_stream_throws_on_non_2xx_status() throws Exception {
-        startServer(
-                exchange -> {
-                    byte[] body = "{\"error\":\"rate limited\"}".getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(429, body.length);
-                    exchange.getResponseBody().write(body);
-                    exchange.close();
-                });
+        startServer(exchange -> {
+            byte[] body = "{\"error\":\"rate limited\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(429, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
 
         assertThatThrownBy(() -> aiClient.chatStream("分析一下", delta -> {}))
                 .isInstanceOf(WeiboException.class)
@@ -173,15 +167,14 @@ class AiClientTest {
                                 "data: [DONE]",
                                 "data: {\"choices\":[{\"delta\":{\"content\":\"不应出现\"}}]}")
                         + "\n";
-        startServer(
-                exchange -> {
-                    exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
-                    exchange.sendResponseHeaders(200, 0);
-                    try (var out = exchange.getResponseBody()) {
-                        out.write(sse.getBytes(StandardCharsets.UTF_8));
-                        out.flush();
-                    }
-                });
+        startServer(exchange -> {
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, 0);
+            try (var out = exchange.getResponseBody()) {
+                out.write(sse.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+            }
+        });
 
         List<String> deltas = new ArrayList<>();
         String full = aiClient.chatStream("分析一下", deltas::add);
@@ -193,15 +186,14 @@ class AiClientTest {
     @Test
     void chat_stream_throws_when_content_empty() throws Exception {
         String sse = "data: {\"choices\":[{\"delta\":{\"content\":\"\"}}]}\ndata: [DONE]\n";
-        startServer(
-                exchange -> {
-                    exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
-                    exchange.sendResponseHeaders(200, 0);
-                    try (var out = exchange.getResponseBody()) {
-                        out.write(sse.getBytes(StandardCharsets.UTF_8));
-                        out.flush();
-                    }
-                });
+        startServer(exchange -> {
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, 0);
+            try (var out = exchange.getResponseBody()) {
+                out.write(sse.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+            }
+        });
 
         assertThatThrownBy(() -> aiClient.chatStream("分析一下", delta -> {}))
                 .isInstanceOf(WeiboException.class)

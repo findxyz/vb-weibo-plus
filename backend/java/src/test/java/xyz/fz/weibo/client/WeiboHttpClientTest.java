@@ -45,12 +45,11 @@ class WeiboHttpClientTest {
     void post_form_once_does_not_retry_at_transport_or_application_layer() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         server =
-                startServer(
-                        exchange -> {
-                            requests.incrementAndGet();
-                            exchange.sendResponseHeaders(503, -1);
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    requests.incrementAndGet();
+                    exchange.sendResponseHeaders(503, -1);
+                    exchange.close();
+                });
 
         ResponseEntity<String> response =
                 createClient()
@@ -75,24 +74,22 @@ class WeiboHttpClientTest {
     void streaming_response_can_be_consumed_before_upstream_completes() throws Exception {
         CountDownLatch firstChunkConsumed = new CountDownLatch(1);
         server =
-                startServer(
-                        exchange -> {
-                            try (exchange) {
-                                exchange.getResponseHeaders()
-                                        .set(HttpHeaders.CONTENT_RANGE, "bytes 0-5/12");
-                                exchange.sendResponseHeaders(206, 0);
-                                exchange.getResponseBody().write(new byte[] {1, 2, 3});
-                                exchange.getResponseBody().flush();
-                                try {
-                                    assertThat(firstChunkConsumed.await(2, TimeUnit.SECONDS))
-                                            .isTrue();
-                                    exchange.getResponseBody().write(new byte[] {4, 5, 6});
-                                } catch (InterruptedException e) {
-                                    Thread.currentThread().interrupt();
-                                    throw new IOException(e);
-                                }
-                            }
-                        });
+                startServer(exchange -> {
+                    try (exchange) {
+                        exchange.getResponseHeaders()
+                                .set(HttpHeaders.CONTENT_RANGE, "bytes 0-5/12");
+                        exchange.sendResponseHeaders(206, 0);
+                        exchange.getResponseBody().write(new byte[] {1, 2, 3});
+                        exchange.getResponseBody().flush();
+                        try {
+                            assertThat(firstChunkConsumed.await(2, TimeUnit.SECONDS)).isTrue();
+                            exchange.getResponseBody().write(new byte[] {4, 5, 6});
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException(e);
+                        }
+                    }
+                });
 
         byte[] body =
                 createClient()
@@ -123,23 +120,21 @@ class WeiboHttpClientTest {
     @Test
     void streaming_response_rejects_unexpected_redirects() throws Exception {
         server =
-                startServer(
-                        exchange -> {
-                            exchange.getResponseHeaders()
-                                    .set(HttpHeaders.LOCATION, "https://example.com/other");
-                            exchange.sendResponseHeaders(302, -1);
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    exchange.getResponseHeaders()
+                            .set(HttpHeaders.LOCATION, "https://example.com/other");
+                    exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                });
 
-        assertThatThrownBy(
-                        () ->
-                                createClient()
-                                        .getForStream(
-                                                mediaUrl(),
-                                                Map.of(),
-                                                Map.of(),
-                                                false,
-                                                response -> response.getBody().readAllBytes()))
+        assertThatThrownBy(() ->
+                        createClient()
+                                .getForStream(
+                                        mediaUrl(),
+                                        Map.of(),
+                                        Map.of(),
+                                        false,
+                                        response -> response.getBody().readAllBytes()))
                 .isInstanceOf(WeiboException.class)
                 .hasMessage("非预期的 302 重定向：https://example.com/other");
     }
@@ -147,44 +142,40 @@ class WeiboHttpClientTest {
     @Test
     void streaming_response_maps_login_redirect_to_expired_credential() throws Exception {
         server =
-                startServer(
-                        exchange -> {
-                            exchange.getResponseHeaders()
-                                    .set(HttpHeaders.LOCATION, "https://passport.weibo.com/login");
-                            exchange.sendResponseHeaders(302, -1);
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    exchange.getResponseHeaders()
+                            .set(HttpHeaders.LOCATION, "https://passport.weibo.com/login");
+                    exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                });
 
-        assertThatThrownBy(
-                        () ->
-                                createClient()
-                                        .getForStream(
-                                                mediaUrl(),
-                                                Map.of(),
-                                                Map.of(),
-                                                true,
-                                                response -> response.getBody().readAllBytes()))
+        assertThatThrownBy(() ->
+                        createClient()
+                                .getForStream(
+                                        mediaUrl(),
+                                        Map.of(),
+                                        Map.of(),
+                                        true,
+                                        response -> response.getBody().readAllBytes()))
                 .isInstanceOf(WeiboCookieExpiredException.class);
     }
 
     @Test
     void streaming_response_preserves_uri_too_long_error() throws Exception {
         server =
-                startServer(
-                        exchange -> {
-                            exchange.sendResponseHeaders(414, -1);
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    exchange.sendResponseHeaders(414, -1);
+                    exchange.close();
+                });
 
-        assertThatThrownBy(
-                        () ->
-                                createClient()
-                                        .getForStream(
-                                                mediaUrl(),
-                                                Map.of(),
-                                                Map.of(),
-                                                false,
-                                                response -> response.getBody().readAllBytes()))
+        assertThatThrownBy(() ->
+                        createClient()
+                                .getForStream(
+                                        mediaUrl(),
+                                        Map.of(),
+                                        Map.of(),
+                                        false,
+                                        response -> response.getBody().readAllBytes()))
                 .isInstanceOf(WeiboUriTooLongException.class);
     }
 
@@ -192,16 +183,15 @@ class WeiboHttpClientTest {
     void streaming_response_retries_after_rate_limit() throws Exception {
         AtomicInteger requestCount = new AtomicInteger();
         server =
-                startServer(
-                        exchange -> {
-                            if (requestCount.incrementAndGet() == 1) {
-                                exchange.sendResponseHeaders(429, -1);
-                            } else {
-                                exchange.sendResponseHeaders(200, 2);
-                                exchange.getResponseBody().write(new byte[] {7, 8});
-                            }
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    if (requestCount.incrementAndGet() == 1) {
+                        exchange.sendResponseHeaders(429, -1);
+                    } else {
+                        exchange.sendResponseHeaders(200, 2);
+                        exchange.getResponseBody().write(new byte[] {7, 8});
+                    }
+                    exchange.close();
+                });
 
         byte[] body =
                 createClient()
@@ -219,23 +209,21 @@ class WeiboHttpClientTest {
     @Test
     void post_form_encodes_params_and_returns_the_response_body() throws Exception {
         server =
-                startServer(
-                        exchange -> {
-                            if (!"POST".equals(exchange.getRequestMethod())) {
-                                exchange.sendResponseHeaders(405, -1);
-                                exchange.close();
-                                return;
-                            }
-                            String body =
-                                    new String(
-                                            exchange.getRequestBody().readAllBytes(),
-                                            StandardCharsets.UTF_8);
-                            exchange.getResponseHeaders()
-                                    .set(HttpHeaders.CONTENT_TYPE, "application/json");
-                            exchange.sendResponseHeaders(200, body.length());
-                            exchange.getResponseBody().write(body.getBytes(StandardCharsets.UTF_8));
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    if (!"POST".equals(exchange.getRequestMethod())) {
+                        exchange.sendResponseHeaders(405, -1);
+                        exchange.close();
+                        return;
+                    }
+                    String body =
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
+                    exchange.sendResponseHeaders(200, body.length());
+                    exchange.getResponseBody().write(body.getBytes(StandardCharsets.UTF_8));
+                    exchange.close();
+                });
 
         ResponseEntity<String> resp =
                 createClient()
@@ -253,17 +241,15 @@ class WeiboHttpClientTest {
     void post_form_retries_rate_limit_and_preserves_the_successful_response() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         server =
-                startServer(
-                        exchange -> {
-                            if (requests.incrementAndGet() == 1) {
-                                exchange.sendResponseHeaders(429, -1);
-                            } else {
-                                exchange.sendResponseHeaders(200, 2);
-                                exchange.getResponseBody()
-                                        .write("ok".getBytes(StandardCharsets.UTF_8));
-                            }
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    if (requests.incrementAndGet() == 1) {
+                        exchange.sendResponseHeaders(429, -1);
+                    } else {
+                        exchange.sendResponseHeaders(200, 2);
+                        exchange.getResponseBody().write("ok".getBytes(StandardCharsets.UTF_8));
+                    }
+                    exchange.close();
+                });
 
         ResponseEntity<String> response =
                 createClient().postForm(mediaUrl(), Map.of("id", "123"), Map.of(), false);
@@ -276,22 +262,16 @@ class WeiboHttpClientTest {
     @Test
     void post_form_maps_login_redirect_to_expired_credential() throws Exception {
         server =
-                startServer(
-                        exchange -> {
-                            exchange.getResponseHeaders()
-                                    .set(HttpHeaders.LOCATION, "https://passport.weibo.com/login");
-                            exchange.sendResponseHeaders(302, -1);
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    exchange.getResponseHeaders()
+                            .set(HttpHeaders.LOCATION, "https://passport.weibo.com/login");
+                    exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                });
 
-        assertThatThrownBy(
-                        () ->
-                                createClient()
-                                        .postForm(
-                                                mediaUrl(),
-                                                Map.of("content", "hello"),
-                                                Map.of(),
-                                                true))
+        assertThatThrownBy(() ->
+                        createClient()
+                                .postForm(mediaUrl(), Map.of("content", "hello"), Map.of(), true))
                 .isInstanceOf(WeiboCookieExpiredException.class);
     }
 
@@ -299,31 +279,28 @@ class WeiboHttpClientTest {
     void post_multipart_sends_query_params_in_url_and_multipart_body_with_file_part()
             throws Exception {
         server =
-                startServer(
-                        exchange -> {
-                            if (!"POST".equals(exchange.getRequestMethod())) {
-                                exchange.sendResponseHeaders(405, -1);
-                                exchange.close();
-                                return;
-                            }
-                            String contentType =
-                                    exchange.getRequestHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
-                            String requestUri = exchange.getRequestURI().toString();
-                            byte[] body = exchange.getRequestBody().readAllBytes();
-                            String echoedBody =
-                                    "contentType="
-                                            + contentType
-                                            + "\nuri="
-                                            + requestUri
-                                            + "\nbody="
-                                            + new String(body, StandardCharsets.UTF_8);
-                            exchange.getResponseHeaders()
-                                    .set(HttpHeaders.CONTENT_TYPE, "text/plain");
-                            exchange.sendResponseHeaders(200, echoedBody.length());
-                            exchange.getResponseBody()
-                                    .write(echoedBody.getBytes(StandardCharsets.UTF_8));
-                            exchange.close();
-                        });
+                startServer(exchange -> {
+                    if (!"POST".equals(exchange.getRequestMethod())) {
+                        exchange.sendResponseHeaders(405, -1);
+                        exchange.close();
+                        return;
+                    }
+                    String contentType =
+                            exchange.getRequestHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+                    String requestUri = exchange.getRequestURI().toString();
+                    byte[] body = exchange.getRequestBody().readAllBytes();
+                    String echoedBody =
+                            "contentType="
+                                    + contentType
+                                    + "\nuri="
+                                    + requestUri
+                                    + "\nbody="
+                                    + new String(body, StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "text/plain");
+                    exchange.sendResponseHeaders(200, echoedBody.length());
+                    exchange.getResponseBody().write(echoedBody.getBytes(StandardCharsets.UTF_8));
+                    exchange.close();
+                });
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new ByteArrayResourceWithFilename(new byte[] {1, 2, 3}, "test.png"));

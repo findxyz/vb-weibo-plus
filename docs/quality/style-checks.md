@@ -1,6 +1,6 @@
 # Google Style 与 PMD Best Practices
 
-在 `backend/java/` 目录运行以下命令。`.\mvnw.cmd clean test` 和 `.\mvnw.cmd clean package` 都会执行 Enforcer、Checkstyle、PMD、SpotBugs 及测试。
+在 `backend/java/` 目录运行以下命令。`.\mvnw.cmd clean test` 和 `.\mvnw.cmd clean package` 都会执行 Enforcer、Spotless、Checkstyle、PMD、SpotBugs 及测试。
 
 本地快速自检可跳过前端构建和浏览器测试：
 
@@ -8,7 +8,7 @@
 .\mvnw.cmd -Pquick clean test
 ```
 
-发现违规会阻断构建。Checkstyle 在 `validate` 阶段失败时，不会继续执行 PMD 和测试。
+Spotless 和 Checkstyle 在 `validate` 阶段依次执行，发现违规会阻断构建。
 
 构建中的 PMD 门禁读取 `pmd.xml`，可读报告输出为 XDoc。需要 HTML 报告时可单独执行 `pmd:pmd`。
 
@@ -23,6 +23,18 @@
 ## 构建约束
 
 构建通过 Maven Wrapper 固定 Maven 3.9.9。`maven-enforcer-plugin` 在 `validate` 阶段要求 JDK 21+、Maven 3.9+，并检查依赖版本收敛、插件版本显式和重复类。
+
+## Spotless
+
+Spotless 格式化生产和测试 Java 源码。google-java-format 的 AOSP 模式使用 4 空格基础缩进和 8 空格续行缩进，按 100 字符的行宽排版。静态导入和普通导入各自按字母排序，静态导入在前，两组之间空一行。
+
+先应用格式，再运行构建前置检查：
+
+```powershell
+.\mvnw.cmd spotless:apply validate
+```
+
+Checkstyle 仍会检查测试方法命名、注释和格式化后仍超长的行。修正这些违规后，可再次运行上述命令。
 
 ## Checkstyle
 

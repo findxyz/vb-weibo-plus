@@ -462,16 +462,15 @@ class GroupMediaApiTest {
                         eq(true)))
                 .thenReturn(ResponseEntity.ok("{\"succ\":true}"));
 
-        assertThatThrownBy(
-                        () ->
-                                api.uploadVideo(
-                                        bytes,
-                                        "test.mp4",
-                                        "token-abc",
-                                        "auth-xyz",
-                                        5046020575330655L,
-                                        4096,
-                                        "1b5f45f90889d408c7d29f33318ebfc9"))
+        assertThatThrownBy(() ->
+                        api.uploadVideo(
+                                bytes,
+                                "test.mp4",
+                                "token-abc",
+                                "auth-xyz",
+                                5046020575330655L,
+                                4096,
+                                "1b5f45f90889d408c7d29f33318ebfc9"))
                 .isInstanceOf(WeiboException.class)
                 .hasMessageContaining("视频上传失败");
     }

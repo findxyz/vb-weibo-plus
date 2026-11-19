@@ -131,15 +131,12 @@ public class GroupPushApi {
                     .header("User-Agent", WeiboConstants.USER_AGENT)
                     .header("Cookie", credential)
                     .buildAsync(SOCKET_URL, new PushListener(uid, credential))
-                    .whenComplete(
-                            (ignored, error) -> {
-                                connecting.set(false);
-                                if (error != null) {
-                                    log.atWarn()
-                                            .addArgument(error::getMessage)
-                                            .log("微博 WebSocket 连接失败：{}");
-                                }
-                            });
+                    .whenComplete((ignored, error) -> {
+                        connecting.set(false);
+                        if (error != null) {
+                            log.atWarn().addArgument(error::getMessage).log("微博 WebSocket 连接失败：{}");
+                        }
+                    });
         } catch (Exception e) {
             connecting.set(false);
             log.atWarn().addArgument(e::getMessage).log("微博 WebSocket 初始化失败：{}");
@@ -192,6 +189,7 @@ public class GroupPushApi {
 
         private final long uid;
         private final String credential;
+
         @SuppressWarnings("PMD.AvoidStringBufferField")
         private StringBuilder incoming = new StringBuilder();
 

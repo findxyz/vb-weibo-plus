@@ -17,6 +17,4 @@ public record PostRecord(
         int commentsCount,
         int attitudesCount,
         long createdAt,
-        long savedAt
-) {
-}
+        long savedAt) {}
