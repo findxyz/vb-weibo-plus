@@ -39,7 +39,7 @@ pub fn run(url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let download_events = event_loop.create_proxy();
     let icon = Icon::from_resource(1, None)?;
     let window = WindowBuilder::new()
-        .with_title("Weibo Plus")
+        .with_title("Weibo Plus - https://github.com/findxyz/vb-weibo-plus")
         .with_inner_size(LogicalSize::new(1280, 850))
         .with_window_icon(Some(icon.clone()))
         .with_taskbar_icon(Some(icon))
