@@ -50,6 +50,13 @@ desktop.ini
 # 运行脚本（本地分发用，不进版本控制）
 run-target.bat
 
+# Rust 本地发布产物
+/WebView2Loader.dll
+/weibo-plus.exe
+
+# Rust 本地配置（可能含 API 密钥）
+/weibo-plus.properties
+
 # 调试脚本与本地 playwright 依赖（浏览器复现回路，不进版本控制）
 .scratch/debug/
 

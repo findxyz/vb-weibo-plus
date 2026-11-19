@@ -50,6 +50,6 @@ try {
 }
 
 $archive = Join-Path $target 'weibo-plus-rust.7z'
-tar.exe --format 7zip -cf $archive -C $release @releaseFiles
+tar.exe --format 7zip -cf $archive -C $release @releaseFiles -C $PSScriptRoot 'weibo-plus.properties'
 if ($LASTEXITCODE -ne 0) { throw 'Creating the Rust release archive failed.' }
 Get-Item -LiteralPath $archive

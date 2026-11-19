@@ -1,7 +1,10 @@
 use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::{fs, io};
+
+const CONFIG_FILE: &str = "weibo-plus.properties";
 
 const ENV_OPTIONS: &[(&str, &str)] = &[
     ("SERVER_ADDRESS", "server.address"),
@@ -95,13 +98,13 @@ impl Config {
             config.openapi_enabled = true;
             config.swagger_ui_enabled = true;
         }
-        #[cfg(feature = "embed-frontend")]
-        {
-            let executable = env::current_exe().map_err(|error| error.to_string())?;
-            if let Some(directory) = executable.parent() {
+        let executable = env::current_exe().map_err(|error| error.to_string())?;
+        if let Some(directory) = executable.parent() {
+            if cfg!(feature = "embed-frontend") {
                 config.database_path = directory.join(config.database_path);
                 config.cookie_file = directory.join(config.cookie_file);
             }
+            config.load_file(directory)?;
         }
         for (variable, key) in ENV_OPTIONS {
             if let Ok(value) = env::var(variable) {
@@ -118,6 +121,38 @@ impl Config {
             }
         }
         Ok(config)
+    }
+
+    fn load_file(&mut self, directory: &Path) -> Result<(), String> {
+        let path = directory.join(CONFIG_FILE);
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(format!("读取配置文件失败：{}（{error}）。", path.display())),
+        };
+        for (index, line) in content.trim_start_matches('\u{feff}').lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let at_line = |error: &str| format!("{} 第 {} 行：{error}", path.display(), index + 1);
+            let (key, value) = line
+                .split_once('=')
+                .ok_or_else(|| at_line("配置应使用名称=值格式。"))?;
+            let (key, value) = (key.trim(), value.trim());
+            self.apply(key, value).map_err(|error| at_line(&error))?;
+            let path_value = match key {
+                "weibo.database-path" => &mut self.database_path,
+                "weibo.cookie-file" => &mut self.cookie_file,
+                "weibo.frontend-dir" if !value.is_empty() => &mut self.frontend_dir,
+                "weibo.media.ffmpeg-path" if Path::new(value).components().count() > 1 => {
+                    &mut self.ffmpeg_path
+                }
+                _ => continue,
+            };
+            *path_value = directory.join(&*path_value);
+        }
+        Ok(())
     }
 
     fn apply(&mut self, key: &str, value: &str) -> Result<(), String> {
@@ -183,4 +218,40 @@ fn parse_duration(value: &str) -> Option<Duration> {
     };
     let amount: u64 = amount.parse().ok()?;
     amount.checked_mul(millis).map(Duration::from_millis)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loads_sidecar_values_and_resolves_relative_paths() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join(CONFIG_FILE),
+            "\u{feff}# 本地配置\r\n\r\nserver.port = 18081\r\nweibo.database-path = 数据/my posts.db\r\nweibo.ai.api-key = example==\r\nweibo.media.ffmpeg-path = ffmpeg\r\n",
+        )
+        .unwrap();
+        let mut config = Config::default();
+        config.load_file(directory.path()).unwrap();
+        assert_eq!(config.bind.port(), 18081);
+        assert_eq!(
+            config.database_path,
+            directory.path().join("数据/my posts.db")
+        );
+        assert_eq!(config.ai_api_key, "example==");
+        assert_eq!(config.ffmpeg_path, Path::new("ffmpeg"));
+    }
+
+    #[test]
+    fn reports_the_line_of_an_invalid_setting() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join(CONFIG_FILE),
+            "# 本地配置\nserver.port=no",
+        )
+        .unwrap();
+        let error = Config::default().load_file(directory.path()).unwrap_err();
+        assert!(error.ends_with("weibo-plus.properties 第 2 行：配置值格式错误：server.port。"));
+    }
 }

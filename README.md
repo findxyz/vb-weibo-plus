@@ -104,7 +104,7 @@ cd backend/java
 
 ### Rust
 
-源码构建需要 Rust 和 Cargo。扫码登录需要本机 Chrome、Edge 或 Chromium，可通过 `WEIBO_CHROMIUM_PATH` 指定浏览器。从仓库根目录执行：
+**从源码运行**（在仓库根目录执行）
 
 ```powershell
 npm.cmd --prefix frontend ci
@@ -112,65 +112,19 @@ npm.cmd --prefix frontend run build
 cargo run --locked --manifest-path backend/rust/Cargo.toml
 ```
 
-运行 `cargo test --locked --manifest-path backend/rust/Cargo.toml` 验证后端。设置 `WEIBO_OPEN_BROWSER=false` 可仅启动本地 HTTP 服务。
+后端测试用 `cargo test --locked --manifest-path backend/rust/Cargo.toml`。扫码登录需要 Chrome、Edge 或 Chromium，可用 `WEIBO_CHROMIUM_PATH` 指定浏览器。
 
-#### Windows x64 发布包
+**打包 Windows x64 桌面版**
 
-发布包必须包含 `weibo-plus.exe` 和 `WebView2Loader.dll`，打包脚本要求使用 **Windows x64 GNU** 工具链。新机器需要安装 [Rustup](https://rustup.rs/)、[MinGW-w64](https://www.mingw-w64.org/downloads/)、[Node.js](https://nodejs.org/) 22.12 或更高版本，以及 npm 10 或更高版本。还需要 `tar.exe` 支持写入 7z。首次构建需要能访问 npm 和 crates.io，或已准备好依赖缓存。
-
-可使用 MSYS2 的 MINGW64 工具链或 LLVM MinGW。在新开的 PowerShell 中，从仓库根目录执行以下命令。第一行以 MSYS2 MINGW64 的默认安装路径为例，请按实际位置修改：
+将 Rust `x86_64-pc-windows-gnu` 工具链、MinGW-w64、Node.js ≥ 22.12、npm ≥ 10 和支持写入 7z 的 `tar.exe` 加入 `PATH`，然后在仓库根目录运行：
 
 ```powershell
-$mingwBin = 'C:\msys64\mingw64\bin'
-$env:Path = "$mingwBin;$env:USERPROFILE\.cargo\bin;$env:Path"
-rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal
-$env:RUSTUP_TOOLCHAIN = 'stable-x86_64-pc-windows-gnu'
-rustc -vV
-Get-Command gcc.exe, dlltool.exe, windres.exe, ar.exe -ErrorAction Stop
-node --version
-npm.cmd --version
-tar.exe --version
 & .\backend\rust\release\build.ps1
 ```
 
-`rustc -vV` 的 `host` 应为 `x86_64-pc-windows-gnu`。脚本会构建前端，以 `--locked --release --features desktop` 编译 Rust，再从 Cargo 依赖的构建输出提取 `WebView2Loader.dll`，与 EXE 一起写入 `backend/rust/target/weibo-plus-rust.7z`。确认本次脚本成功退出后再使用该文件，失败时输出目录可能还留有上次的压缩包。
+完整解压 `backend/rust/target/weibo-plus-rust.7z` 到可写目录，双击 `weibo-plus.exe`。运行需要 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。
 
-#### GNU 打包常见错误
-
-如果使用 LLVM MinGW，遇到 `unable to find library -lgcc` 或 `-lgcc_eh`，从 Rust GNU 工具链自带的库中补齐链接路径。在同一个 PowerShell 中执行：
-
-```powershell
-$sysroot = rustc --print sysroot
-$gnuLib = Join-Path $sysroot 'lib\rustlib\x86_64-pc-windows-gnu\lib\self-contained'
-$compatLib = New-Item -ItemType Directory -Force .\backend\rust\target\gnu-link-libs
-Copy-Item -LiteralPath (Join-Path $gnuLib 'libgcc.a'), (Join-Path $gnuLib 'libgcc_eh.a') -Destination $compatLib.FullName -ErrorAction Stop
-$env:CARGO_ENCODED_RUSTFLAGS = '-L' + [char]31 + "native=$($compatLib.FullName)"
-& .\backend\rust\release\build.ps1
-```
-
-如果 `windres` 报 `Unable to create temp file: Permission denied`，给构建进程设一个可写的临时目录，再执行发布脚本。这在受限终端中尤其有用：
-
-```powershell
-$buildTemp = New-Item -ItemType Directory -Force .\backend\rust\target\windres-tmp
-$env:TMP = $env:TEMP = $env:TMPDIR = $buildTemp.FullName
-& .\backend\rust\release\build.ps1
-```
-
-#### 验证发布包
-
-```powershell
-$archive = '.\backend\rust\target\weibo-plus-rust.7z'
-tar.exe -tf $archive
-$verifyDir = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('weibo-plus-verify-' + [guid]::NewGuid()))
-tar.exe -xf $archive -C $verifyDir.FullName
-if ($LASTEXITCODE -ne 0) { throw 'Archive extraction failed.' }
-(Get-Item -LiteralPath (Join-Path $verifyDir.FullName 'weibo-plus.exe')).VersionInfo |
-    Select-Object FileVersion, ProductVersion
-```
-
-确认压缩包内同时有 `weibo-plus.exe` 和 `WebView2Loader.dll`。EXE 属性中的「文件版本」和「产品版本」来自 `backend/rust/Cargo.toml`。解压后将 DLL 和 EXE 放在同一目录，双击 EXE 确认桌面窗口能打开聊天页。运行机器需要 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。
-
-## 前端开发
+## 前端
 
 前端代码位于 `frontend`，要求 Node.js 22.12.0 或更高版本、npm 10 或更高版本。先启动一个后端，再从另一个终端的仓库根目录运行：
 
@@ -194,6 +148,12 @@ npm test
 前端独立构建输出到 `frontend/dist/`。测试默认使用 Playwright 自带的 Chromium，若已安装 Chrome，可设置 `PREVIEW_BROWSER_CHANNEL=chrome` 复用。
 
 ## 配置说明
+
+### Rust
+
+编辑 EXE 同目录的 `weibo-plus.properties`，去掉配置项前的 `#`，例如 `server.port=18081`。以 UTF-8 保存后重启。相对路径以配置文件所在目录为基准。优先级从高到低为命令行、环境变量、配置文件、默认值。[配置模板](backend/rust/release/weibo-plus.properties)
+
+### Java
 
 主要配置位于 `backend/java/src/main/resources/application.yml`，部分配置支持环境变量覆盖：
 
