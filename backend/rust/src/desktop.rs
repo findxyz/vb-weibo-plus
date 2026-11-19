@@ -4,7 +4,7 @@ use reqwest::Url;
 use tao::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoopBuilder},
     platform::{
         run_return::EventLoopExtRunReturn,
         windows::{IconExtWindows, WindowBuilderExtWindows, WindowExtWindows},
@@ -21,6 +21,7 @@ use wry::{NewWindowResponse, WebContext, WebViewBuilder, WebViewBuilderExtWindow
 
 pub fn run(url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let origin = Url::parse(url)?.origin();
+    let page_origin = serde_json::to_string(&origin.ascii_serialization())?;
     let navigate = move |url: String| {
         let Ok(url) = Url::parse(&url) else {
             return false;
@@ -34,7 +35,8 @@ pub fn run(url: &str) -> Result<(), Box<dyn std::error::Error>> {
         false
     };
 
-    let mut event_loop = EventLoop::new();
+    let mut event_loop = EventLoopBuilder::<PathBuf>::with_user_event().build();
+    let download_events = event_loop.create_proxy();
     let icon = Icon::from_resource(1, None)?;
     let window = WindowBuilder::new()
         .with_title("Weibo Plus")
@@ -46,7 +48,7 @@ pub fn run(url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let profile = env::var_os("LOCALAPPDATA")
         .map(|path| PathBuf::from(path).join("Weibo Plus").join("WebView2"));
     let mut context = WebContext::new(profile);
-    let _webview = WebViewBuilder::new_with_web_context(&mut context)
+    let webview = WebViewBuilder::new_with_web_context(&mut context)
         .with_url(url)
         .with_additional_browser_args("")
         .with_navigation_handler(navigate.clone())
@@ -57,22 +59,32 @@ pub fn run(url: &str) -> Result<(), Box<dyn std::error::Error>> {
                 NewWindowResponse::Deny
             }
         })
+        .with_download_completed_handler(move |_, path, success| {
+            if success && let Some(path) = path {
+                let _ = download_events.send_event(path);
+            }
+        })
         .build(&window)
         .map_err(|error| {
             format!("无法创建 WebView2 窗口，请检查 Microsoft Edge WebView2 运行时。\n{error}")
         })?;
     center_window(&window);
     window.set_visible(true);
-    event_loop.run_return(|event, _, control_flow| {
-        if matches!(
-            event,
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
+    event_loop.run_return(|event, _, control_flow| match event {
+        Event::UserEvent(path) => {
+            if let Ok(path) = serde_json::to_string(&path.to_string_lossy()) {
+                let _ = webview.evaluate_script(&format!(
+                    "if (location.origin === {page_origin}) {{
+                        window.dispatchEvent(new CustomEvent('desktop-download-complete', {{ detail: {path} }}));
+                    }}"
+                ));
             }
-        ) {
-            *control_flow = ControlFlow::Exit;
         }
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => *control_flow = ControlFlow::Exit,
+        _ => {}
     });
     Ok(())
 }

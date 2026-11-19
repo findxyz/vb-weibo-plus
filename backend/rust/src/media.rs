@@ -638,8 +638,46 @@ async fn process_output(
     timeout: u64,
 ) -> std::io::Result<std::process::Output> {
     let mut command = tokio::process::Command::new(path);
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     command.kill_on_drop(true).args(arguments);
     tokio::time::timeout(Duration::from_secs(timeout), command.output()).await?
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::process_output;
+    use std::path::Path;
+
+    #[tokio::test]
+    async fn media_subprocess_does_not_share_a_console() {
+        let output = process_output(
+            Path::new("powershell.exe"),
+            &[
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                r#"Add-Type 'using System.Runtime.InteropServices;
+                    public class Kernel {
+                        [DllImport("kernel32.dll")]
+                        public static extern uint GetConsoleProcessList(uint[] ids, uint count);
+                    }';
+                    [Console]::WriteLine([Kernel]::GetConsoleProcessList([UInt32[]]::new(1), 1))"#,
+            ],
+            15,
+        )
+        .await
+        .unwrap();
+        assert!(output.status.success());
+        let console_processes: u32 = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse()
+            .unwrap();
+        assert!(console_processes <= 1);
+    }
 }
 
 fn temporary_dir() -> ApiResult<tempfile::TempDir> {

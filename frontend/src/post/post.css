@@ -202,8 +202,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .management-dialog::backdrop { background: rgb(0 12 28 / 65%); }
 .management-window { display: grid; grid-template-rows: 40px minmax(0, 1fr); max-height: calc(80vh - 2px); }
 .management-status { min-height: 18px; margin: 0; color: var(--danger); font: 13px/1.3 var(--hand); }
-.global-tip { position: fixed; z-index: 50; top: 16px; right: 16px; max-width: 360px; padding: 8px 12px; border: 1px solid var(--danger); border-radius: var(--radius); color: var(--danger); background: var(--surface); box-shadow: var(--shadow-dialog); font: 13px/1.3 var(--hand); pointer-events: none; overflow-wrap: anywhere; }
+.global-tip, .download-notice { position: fixed; z-index: 50; right: 16px; max-width: 360px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); background: var(--surface); box-shadow: var(--shadow-dialog); font: 13px/1.3 var(--hand); pointer-events: none; overflow-wrap: anywhere; }
+.global-tip { top: 16px; border-color: var(--danger); color: var(--danger); }
 .global-tip[role="status"] { border-color: var(--border); color: var(--text); }
+.download-notice { bottom: 16px; max-width: min(360px, calc(100vw - 32px)); background: var(--surface-alt); }
+.download-notice strong { display: block; color: var(--link); }
+.download-notice span { color: var(--muted); }
 .management-dialog .search-overlay-tip { overflow-wrap: anywhere; }
 .post-card.flash-highlight { animation: flash-card 1.6s ease-out; }
 @keyframes flash-card {

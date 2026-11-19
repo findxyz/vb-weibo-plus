@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import DownloadNotice from '../shared/DownloadNotice';
 import ChatPage from './ChatPage';
 import './chat.css';
 
@@ -14,5 +15,5 @@ const queryClient = new QueryClient({
 });
 
 createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}><ChatPage /></QueryClientProvider>,
+  <QueryClientProvider client={queryClient}><ChatPage /><DownloadNotice /></QueryClientProvider>,
 );
