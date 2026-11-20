@@ -160,7 +160,7 @@ async fn connect_and_receive(
 }
 
 async fn push_uid(state: &AppState) -> Result<Option<i64>, WeiboError> {
-    let timestamp = chrono::Utc::now().timestamp_millis().to_string();
+    let timestamp = jiff::Timestamp::now().as_millisecond().to_string();
     let url = weibo::with_query(PROFILE_URL, &[("source", SOURCE), ("t", &timestamp)]);
     let response = weibo::request(
         state,

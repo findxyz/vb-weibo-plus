@@ -7,6 +7,7 @@ pub mod login;
 mod media;
 mod openapi;
 mod post;
+mod shanghai;
 mod static_files;
 pub mod weibo;
 
