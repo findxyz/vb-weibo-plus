@@ -203,19 +203,13 @@
                         <ruleset>config/pmd.xml</ruleset>
                     </rulesets>
                     <printFailingErrors>true</printFailingErrors>
+                    <outputFormat>xhtml</outputFormat>
                 </configuration>
                 <executions>
                     <execution>
                         <id>pmd-check</id>
                         <phase>process-test-classes</phase>
                         <goals><goal>check</goal></goals>
-                    </execution>
-                    <execution>
-                        <id>pmd</id>
-                        <goals><goal>pmd</goal></goals>
-                        <configuration>
-                            <outputFormat>xdoc</outputFormat>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>

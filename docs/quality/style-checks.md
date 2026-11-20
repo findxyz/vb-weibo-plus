@@ -10,7 +10,7 @@
 
 Spotless 和 Checkstyle 在 `validate` 阶段依次执行，发现违规会阻断构建。
 
-构建中的 PMD 门禁读取 `pmd.xml`，可读报告输出为 XDoc。需要 HTML 报告时可单独执行 `pmd:pmd`。
+构建时，PMD 直接生成可在浏览器打开的 `reports/pmd.xhtml`，门禁读取 `pmd.xml`。
 
 同时生成两份报告、查看全部违规：
 
@@ -18,7 +18,7 @@ Spotless 和 Checkstyle 在 `validate` 阶段依次执行，发现违规会阻�
 .\mvnw.cmd -Pquick checkstyle:checkstyle pmd:pmd
 ```
 
-此命令只生成报告，不作门禁。报告位于 `target/quick/checkstyle-result.xml`、`target/quick/reports/checkstyle.html`、`target/quick/pmd.xml` 和 `target/quick/reports/pmd.html`。单独执行 PMD 门禁可运行 `.\mvnw.cmd pmd:check`。PMD 已绑定默认生命周期，无需 profile。PMD 类型解析使用编译类路径及已有的编译产物。完整编译和测试需先处理 Checkstyle 违规。
+此命令只生成报告，不作门禁。报告位于 `target/quick/checkstyle-result.xml`、`target/quick/reports/checkstyle.html`、`target/quick/pmd.xml` 和 `target/quick/reports/pmd.xhtml`。单独执行 PMD 门禁可运行 `.\mvnw.cmd pmd:check`。PMD 已绑定默认生命周期，无需 profile。PMD 类型解析使用编译类路径及已有的编译产物。完整编译和测试需先处理 Checkstyle 违规。
 
 ## 构建约束
 
