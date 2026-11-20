@@ -78,6 +78,7 @@ import xyz.fz.weibo.model.response.LongTextResponse;
 import xyz.fz.weibo.repository.GidCount;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
+import xyz.fz.weibo.service.exception.MediaProcessingException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
@@ -1156,9 +1157,10 @@ class ChatServiceTest {
     void send_video_propagates_probe_failure_without_calling_weibo() {
         byte[] videoBytes = new byte[] {1, 2, 3};
         MockMultipartFile file = new MockMultipartFile("file", "test.mp4", "video/mp4", videoBytes);
-        when(videoProbe.probe(videoBytes)).thenThrow(new WeiboException("未检测到 ffmpeg，无法发送视频。", -1));
+        MediaProcessingException failure = new MediaProcessingException("未检测到 ffmpeg，无法发送视频。");
+        when(videoProbe.probe(videoBytes)).thenThrow(failure);
 
-        assertThatThrownBy(() -> chatService.sendVideo(1, file)).isInstanceOf(WeiboException.class);
+        assertThatThrownBy(() -> chatService.sendVideo(1, file)).isSameAs(failure);
         verifyNoInteractions(groupMediaApi, groupMessagesApi);
     }
 

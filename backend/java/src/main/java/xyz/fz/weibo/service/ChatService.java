@@ -62,6 +62,7 @@ import xyz.fz.weibo.model.response.GroupSendMessageResponse;
 import xyz.fz.weibo.model.response.GroupVideoUploadInitResponse;
 import xyz.fz.weibo.repository.GroupRepository;
 import xyz.fz.weibo.repository.MessageRepository;
+import xyz.fz.weibo.service.exception.MediaProcessingException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.MessageMapper;
@@ -484,7 +485,10 @@ public class ChatService {
             } catch (RuntimeException e) {
                 throw new MessageSentButSyncFailedException("消息已发出，但本地同步失败，稍后会自动补全。", e);
             }
-        } catch (InvalidRequestException | WeiboException | MessageSentButSyncFailedException e) {
+        } catch (InvalidRequestException
+                | WeiboException
+                | MediaProcessingException
+                | MessageSentButSyncFailedException e) {
             throw e;
         } catch (IOException | RuntimeException e) {
             throw new WeiboException("视频上传失败：" + e.getMessage(), e);
@@ -565,7 +569,7 @@ public class ChatService {
                 throw new WeiboException("群消息媒体下载失败。", -1);
             }
             return heicConverter.convertIfHeic(messageMapper.toMediaBinary(response));
-        } catch (WeiboException e) {
+        } catch (WeiboException | MediaProcessingException e) {
             throw e;
         } catch (RuntimeException e) {
             throw new WeiboException("群消息媒体下载失败。", -1, e);

@@ -13,7 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import xyz.fz.weibo.client.exception.WeiboException;
+import xyz.fz.weibo.service.exception.MediaProcessingException;
 
 @Component
 public class VideoProbe {
@@ -46,7 +46,7 @@ public class VideoProbe {
 
     public ProbeResult probe(byte[] videoBytes) {
         if (!ffmpegAvailable) {
-            throw new WeiboException("未检测到 ffmpeg，无法发送视频。请安装 ffmpeg 并加入 PATH。", -1);
+            throw new MediaProcessingException("未检测到 ffmpeg，无法发送视频。请安装 ffmpeg 并加入 PATH。");
         }
         Path input = null;
         try {
@@ -57,21 +57,21 @@ public class VideoProbe {
             int height = dims[1];
             int duration = probeDuration(input);
             if (width <= 0 || height <= 0) {
-                throw new WeiboException("视频属性探测失败：宽高非法。", -1);
+                throw new MediaProcessingException("视频属性探测失败：宽高非法。");
             }
             if (duration <= 0) {
-                throw new WeiboException("视频属性探测失败：时长非法。", -1);
+                throw new MediaProcessingException("视频属性探测失败：时长非法。");
             }
             if (duration > MAX_DURATION_SECONDS) {
-                throw new WeiboException("视频时长超过 5 分钟限制。", -1);
+                throw new MediaProcessingException("视频时长超过 5 分钟限制。");
             }
             byte[] cover = extractCover(input);
             if (cover.length == 0) {
-                throw new WeiboException("视频封面提取失败：未得到封面图数据。", -1);
+                throw new MediaProcessingException("视频封面提取失败：未得到封面图数据。");
             }
             return new ProbeResult(cover, width, height, duration);
         } catch (IOException | InterruptedException e) {
-            throw new WeiboException("视频属性探测失败：" + e.getMessage(), -1, e);
+            throw new MediaProcessingException("视频属性探测失败：" + e.getMessage(), e);
         } finally {
             deleteQuietly(input);
         }
@@ -85,23 +85,23 @@ public class VideoProbe {
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         if (!process.waitFor(30, TimeUnit.SECONDS)) {
             process.destroyForcibly();
-            throw new WeiboException("视频属性探测超时。", -1);
+            throw new MediaProcessingException("视频属性探测超时。");
         }
         if (process.exitValue() != 0) {
-            throw new WeiboException("视频属性探测失败：ffprobe 退出码 " + process.exitValue() + "。", -1);
+            throw new MediaProcessingException("视频属性探测失败：ffprobe 退出码 " + process.exitValue() + "。");
         }
         try {
             JsonNode root = objectMapper.readTree(output);
             JsonNode stream =
                     root != null && root.has("streams") ? root.get("streams").get(0) : null;
             if (stream == null) {
-                throw new WeiboException("视频属性探测失败：无流信息。", -1);
+                throw new MediaProcessingException("视频属性探测失败：无流信息。");
             }
             return new int[] {stream.path("width").asInt(0), stream.path("height").asInt(0)};
-        } catch (WeiboException e) {
+        } catch (MediaProcessingException e) {
             throw e;
         } catch (Exception e) {
-            throw new WeiboException("视频属性探测失败：解析 ffprobe 输出失败。", -1, e);
+            throw new MediaProcessingException("视频属性探测失败：解析 ffprobe 输出失败。", e);
         }
     }
 
@@ -113,22 +113,22 @@ public class VideoProbe {
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         if (!process.waitFor(30, TimeUnit.SECONDS)) {
             process.destroyForcibly();
-            throw new WeiboException("视频时长探测超时。", -1);
+            throw new MediaProcessingException("视频时长探测超时。");
         }
         if (process.exitValue() != 0) {
-            throw new WeiboException("视频时长探测失败：ffprobe 退出码 " + process.exitValue() + "。", -1);
+            throw new MediaProcessingException("视频时长探测失败：ffprobe 退出码 " + process.exitValue() + "。");
         }
         try {
             JsonNode root = objectMapper.readTree(output);
             JsonNode format = root != null && root.has("format") ? root.get("format") : null;
             if (format == null) {
-                throw new WeiboException("视频时长探测失败：无 format 信息。", -1);
+                throw new MediaProcessingException("视频时长探测失败：无 format 信息。");
             }
             return (int) Math.round(format.path("duration").asDouble(0));
-        } catch (WeiboException e) {
+        } catch (MediaProcessingException e) {
             throw e;
         } catch (Exception e) {
-            throw new WeiboException("视频时长探测失败：解析 ffprobe 输出失败。", -1, e);
+            throw new MediaProcessingException("视频时长探测失败：解析 ffprobe 输出失败。", e);
         }
     }
 
@@ -155,10 +155,10 @@ public class VideoProbe {
         byte[] cover = process.getInputStream().readAllBytes();
         if (!process.waitFor(30, TimeUnit.SECONDS)) {
             process.destroyForcibly();
-            throw new WeiboException("视频封面提取超时。", -1);
+            throw new MediaProcessingException("视频封面提取超时。");
         }
         if (process.exitValue() != 0) {
-            throw new WeiboException("视频封面提取失败：ffmpeg 退出码 " + process.exitValue() + "。", -1);
+            throw new MediaProcessingException("视频封面提取失败：ffmpeg 退出码 " + process.exitValue() + "。");
         }
         return cover;
     }

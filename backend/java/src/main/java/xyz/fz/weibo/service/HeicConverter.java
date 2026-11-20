@@ -10,8 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.service.exception.MediaProcessingException;
 
 @Component
 public class HeicConverter {
@@ -75,18 +75,18 @@ public class HeicConverter {
                             .start();
             if (!process.waitFor(30, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new WeiboException("群消息 HEIC 图片转码超时。", -1);
+                throw new MediaProcessingException("群消息 HEIC 图片转码超时。");
             }
             if (process.exitValue() != 0) {
-                throw new WeiboException("群消息 HEIC 图片转码失败。", -1);
+                throw new MediaProcessingException("群消息 HEIC 图片转码失败。");
             }
             byte[] jpeg = Files.readAllBytes(output);
             if (jpeg.length == 0) {
-                throw new WeiboException("群消息 HEIC 图片转码失败。", -1);
+                throw new MediaProcessingException("群消息 HEIC 图片转码失败。");
             }
             return new MediaBinary(jpeg, "image/jpeg");
         } catch (IOException | InterruptedException e) {
-            throw new WeiboException("群消息 HEIC 图片转码失败。", -1, e);
+            throw new MediaProcessingException("群消息 HEIC 图片转码失败。", e);
         } finally {
             deleteQuietly(input);
             deleteQuietly(output);

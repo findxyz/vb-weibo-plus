@@ -10,6 +10,7 @@ import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
 import xyz.fz.weibo.exception.InvalidRequestException;
+import xyz.fz.weibo.service.exception.MediaProcessingException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
@@ -36,6 +37,11 @@ public class WeiboExceptionHandler {
         HttpStatus status =
                 e.getErrorCode() != 0 ? HttpStatus.BAD_GATEWAY : HttpStatus.INTERNAL_SERVER_ERROR;
         return build(status, e.getMessage());
+    }
+
+    @ExceptionHandler(MediaProcessingException.class)
+    public ResponseEntity<Map<String, Object>> handleMediaProcessing(MediaProcessingException e) {
+        return build(HttpStatus.BAD_GATEWAY, e.getMessage());
     }
 
     @ExceptionHandler(InvalidRequestException.class)

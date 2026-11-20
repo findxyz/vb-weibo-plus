@@ -55,6 +55,7 @@ import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.ImageProxyService;
+import xyz.fz.weibo.service.exception.MediaProcessingException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
@@ -868,6 +869,20 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.ignoredCount").value(1));
 
         verify(chatService).sendVideo(eq(101L), any(MultipartFile.class));
+    }
+
+    @Test
+    void send_video_returns_original_media_processing_error_as_bad_gateway() throws Exception {
+        MockMultipartFile file =
+                new MockMultipartFile("file", "test.mp4", "video/mp4", new byte[] {1, 2, 3});
+        String message = "未检测到 ffmpeg，无法发送视频。";
+        when(chatService.sendVideo(eq(101L), any(MultipartFile.class)))
+                .thenThrow(new MediaProcessingException(message));
+
+        mockMvc.perform(multipart("/chat/messages/sendVideo").file(file).param("gid", "101"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value(502))
+                .andExpect(jsonPath("$.msg").value(message));
     }
 
     @Test
