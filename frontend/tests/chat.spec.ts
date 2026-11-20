@@ -1226,21 +1226,20 @@ test('chat_starts_following_when_the_user_scrolls_to_the_bottom', async ({ page 
   await expect.poll(() => atBottom(page)).toBe(true);
 });
 
-test('chat_closes_following_on_blur_and_catches_up_in_place', async ({ page }) => {
+test('chat_keeps_following_when_the_visible_page_loses_focus', async ({ page }) => {
   const items = makeMessages(1, 60, '消息');
   messagesByGid.set(1, items);
   await openChat(page);
   await expect.poll(() => atBottom(page)).toBe(true);
-  await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
-  const messages = page.locator('.messages');
-  const readingPosition = await messages.evaluate(element => element.scrollTop);
+  const bottom = page.getByRole('button', { name: '滚到最新消息', exact: true });
+  await bottom.click();
+  await expect(bottom).toHaveAccessibleDescription('正在跟随新消息');
 
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   items.push(makeMessages(1, 61, '消息')[60]);
-  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(page.getByRole('button', { name: '有新消息', exact: true })).toBeVisible();
-  expect(requests.some(value => value.includes('afterMid=60'))).toBe(true);
-  expect(await messages.evaluate(element => element.scrollTop)).toBe(readingPosition);
+  await expect(page.locator('[data-mid="61"]')).toBeInViewport();
+  await expect.poll(() => atBottom(page)).toBe(true);
+  await expect(bottom).toHaveAccessibleDescription('正在跟随新消息');
 });
 
 test('chat_closes_following_when_hidden_before_a_poll_returns', async ({ page }) => {
@@ -1248,7 +1247,9 @@ test('chat_closes_following_when_hidden_before_a_poll_returns', async ({ page })
   messagesByGid.set(1, items);
   await openChat(page);
   await expect.poll(() => atBottom(page)).toBe(true);
-  await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
+  const bottom = page.getByRole('button', { name: '滚到最新消息', exact: true });
+  await bottom.click();
+  await expect(bottom).toHaveAccessibleDescription('正在跟随新消息');
   const messages = page.locator('.messages');
   const readingPosition = await messages.evaluate(element => element.scrollTop);
   holdPredicate = url => url.pathname === '/chat/messages/cursor' && !url.searchParams.has('beforeMid');
@@ -1267,6 +1268,7 @@ test('chat_closes_following_when_hidden_before_a_poll_returns', async ({ page })
     Reflect.deleteProperty(document, 'hidden');
     document.dispatchEvent(new Event('visibilitychange'));
   });
+  await expect(bottom).toHaveAccessibleDescription('滚到最新消息并跟随');
 });
 
 test('chat_closes_following_when_switching_groups_or_reloading', async ({ page }) => {
@@ -2675,10 +2677,16 @@ test('chat_trims_after_a_large_catch_up_and_rejects_late_older_messages', async 
         .find(item => item.getBoundingClientRect().bottom > top)!;
       return { mid: element.dataset.mid!, top: element.getBoundingClientRect().top };
     });
-    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
     messagesByGid.set(1, makeMessages(1, 20101, '压力消息'));
     const completed = page.waitForResponse(response => response.url().includes('afterMid=20100'));
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.evaluate(() => {
+      Reflect.deleteProperty(document, 'hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
     await completed;
     await expect(page.getByRole('status').filter({ hasText: '收到 1 条新消息' })).toHaveText('收到 1 条新消息');
     const anchorTop = await page.locator(`[data-mid="${anchor.mid}"]`).evaluate(element => element.getBoundingClientRect().top);

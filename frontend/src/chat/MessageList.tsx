@@ -253,11 +253,14 @@ export default function MessageList({
     const onBlur = () => {
       settleRef.current = null;
       pendingCatchUpRef.current = true;
+    };
+    const onHidden = () => {
+      onBlur();
       updateFollowing(false);
     };
     const onVisibility = () => {
       if (document.hidden) {
-        onBlur();
+        onHidden();
       } else {
         wake();
       }
@@ -265,14 +268,14 @@ export default function MessageList({
     const onFocus = () => wake();
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', onBlur);
-    window.addEventListener('pagehide', onBlur);
+    window.addEventListener('pagehide', onHidden);
     window.addEventListener('focus', onFocus);
     return () => {
       stopped = true;
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
-      window.removeEventListener('pagehide', onBlur);
+      window.removeEventListener('pagehide', onHidden);
       window.removeEventListener('focus', onFocus);
     };
   }, [pollingEnabled]);
@@ -294,7 +297,7 @@ export default function MessageList({
       const atBottom = height - top - container.clientHeight <= FOLLOW_BOTTOM_THRESHOLD;
       const leftBottom = followingRef.current && top < previous.top && !atBottom;
       // 内容高度变化时，用户向上离开底部仍可关闭跟随。
-      if ((height === previous.height || leftBottom) && top !== previous.top && !document.hidden && document.hasFocus()) {
+      if ((height === previous.height || leftBottom) && top !== previous.top && !document.hidden) {
         updateFollowing(top > previous.top && atBottom);
         if (!followingRef.current) settleRef.current = null;
       }

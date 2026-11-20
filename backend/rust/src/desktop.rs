@@ -70,6 +70,7 @@ pub fn run(url: &str) -> Result<(), Box<dyn std::error::Error>> {
         })?;
     center_window(&window);
     window.set_visible(true);
+    let mut minimized = false;
     event_loop.run_return(|event, _, control_flow| match event {
         Event::UserEvent(path) => {
             if let Ok(path) = serde_json::to_string(&path.to_string_lossy()) {
@@ -84,6 +85,16 @@ pub fn run(url: &str) -> Result<(), Box<dyn std::error::Error>> {
             event: WindowEvent::CloseRequested,
             ..
         } => *control_flow = ControlFlow::Exit,
+        Event::WindowEvent {
+            event: WindowEvent::Resized(_),
+            ..
+        } => {
+            let next_minimized = window.is_minimized();
+            if minimized != next_minimized {
+                minimized = next_minimized;
+                let _ = webview.set_visible(!minimized);
+            }
+        }
         _ => {}
     });
     Ok(())
