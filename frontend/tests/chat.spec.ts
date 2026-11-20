@@ -1171,6 +1171,130 @@ test('chat_polls_new_messages_without_moving_the_viewport', async ({ page }) => 
   await expect.poll(() => atBottom(page)).toBe(true);
 });
 
+test('chat_starts_following_from_the_new_messages_button_and_stops_when_scrolling_up', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  const pill = page.getByRole('button', { name: '有新消息', exact: true });
+  const messages = page.locator('.messages');
+
+  items.push(makeMessages(1, 61, '消息')[60]);
+  await expect(pill).toBeVisible();
+  await pill.click();
+  await expect(page.locator('[data-mid="61"]')).toBeInViewport();
+
+  mediaHoldMids.add(62);
+  items.push({ ...makeMessages(1, 62, '消息')[61], previewUrl: '/chat/media?gid=1&mid=62&variant=preview' });
+  await expect(page.locator('[data-mid="62"]')).toBeInViewport();
+  await expect.poll(() => atBottom(page)).toBe(true);
+  await expect(pill).toBeHidden();
+  await expect.poll(() => heldMedia.has(62)).toBe(true);
+  await page.keyboard.press('Shift');
+  releaseMedia(62);
+  await expect(page.locator('[data-mid="62"] img')).toHaveJSProperty('naturalWidth', 320);
+  await expect.poll(() => atBottom(page)).toBe(true);
+
+  await messages.hover();
+  await page.mouse.wheel(0, -400);
+  await expect.poll(() => atBottom(page)).toBe(false);
+  items.push(makeMessages(1, 63, '消息')[62]);
+  await expect(pill).toBeVisible();
+  await expect(page.locator('[data-mid="63"]')).toHaveCount(0);
+});
+
+test('chat_starts_following_when_the_user_scrolls_to_the_bottom', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  const pill = page.getByRole('button', { name: '有新消息', exact: true });
+  const messages = page.locator('.messages');
+  await messages.hover();
+  await page.mouse.wheel(0, -400);
+  await expect.poll(() => atBottom(page)).toBe(false);
+  const readingPosition = await messages.evaluate(element => element.scrollTop);
+
+  items.push(makeMessages(1, 61, '消息')[60]);
+  await expect(pill).toBeVisible();
+  expect(await messages.evaluate(element => element.scrollTop)).toBe(readingPosition);
+
+  await page.mouse.wheel(0, 1200);
+  await expect(page.locator('[data-mid="61"]')).toBeInViewport();
+  items.push(makeMessages(1, 62, '消息')[61]);
+  await expect(page.locator('[data-mid="62"]')).toBeInViewport();
+  await expect.poll(() => atBottom(page)).toBe(true);
+});
+
+test('chat_closes_following_on_blur_and_catches_up_in_place', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
+  const messages = page.locator('.messages');
+  const readingPosition = await messages.evaluate(element => element.scrollTop);
+
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  items.push(makeMessages(1, 61, '消息')[60]);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByRole('button', { name: '有新消息', exact: true })).toBeVisible();
+  expect(requests.some(value => value.includes('afterMid=60'))).toBe(true);
+  expect(await messages.evaluate(element => element.scrollTop)).toBe(readingPosition);
+});
+
+test('chat_closes_following_when_hidden_before_a_poll_returns', async ({ page }) => {
+  const items = makeMessages(1, 60, '消息');
+  messagesByGid.set(1, items);
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
+  const messages = page.locator('.messages');
+  const readingPosition = await messages.evaluate(element => element.scrollTop);
+  holdPredicate = url => url.pathname === '/chat/messages/cursor' && !url.searchParams.has('beforeMid');
+  await expect.poll(() => held.length).toBe(1);
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  items.push(makeMessages(1, 61, '消息')[60]);
+  holdPredicate = null;
+  releaseHeld();
+  await expect(page.getByRole('button', { name: '有新消息', exact: true })).toBeVisible();
+  expect(await messages.evaluate(element => element.scrollTop)).toBe(readingPosition);
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, 'hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+});
+
+test('chat_closes_following_when_switching_groups_or_reloading', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 60, '群一'));
+  const secondGroup = makeMessages(2, 60, '群二');
+  messagesByGid.set(2, secondGroup);
+  await openChat(page);
+  await expect(page.locator('.message').last()).toContainText('群一 60');
+  await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
+
+  await page.locator('.group-row', { hasText: '第二群' }).click();
+  await expect(page.locator('.message').last()).toContainText('群二 60');
+  await expect.poll(() => atBottom(page)).toBe(true);
+  secondGroup.push(makeMessages(2, 61, '群二')[60]);
+  const pill = page.getByRole('button', { name: '有新消息', exact: true });
+  await expect(pill).toBeVisible();
+  await expect(page.locator('[data-mid="61"]')).toHaveCount(0);
+
+  await pill.click();
+  await expect(page.locator('[data-mid="61"]')).toBeInViewport();
+  await page.reload();
+  await expect(page.locator('[data-mid="61"]')).toBeInViewport();
+  await expect.poll(() => atBottom(page)).toBe(true);
+  secondGroup.push(makeMessages(2, 62, '群二')[61]);
+  await expect(pill).toBeVisible();
+  await expect(page.locator('[data-mid="62"]')).toHaveCount(0);
+});
+
 test('chat_scroll_bottom_button_lands_on_the_newest_message', async ({ page }) => {
   const items = makeMessages(1, 60, '消息');
   messagesByGid.set(1, items);
@@ -1182,6 +1306,57 @@ test('chat_scroll_bottom_button_lands_on_the_newest_message', async ({ page }) =
   await page.locator('.scroll-bottom-button').click();
   await expect(page.locator('[data-mid="61"]')).toBeVisible();
   await expect(page.locator('.new-messages-button')).toBeHidden();
+  items.push(makeMessages(1, 62, '消息')[61]);
+  await expect(page.locator('[data-mid="62"]')).toBeInViewport();
+  await expect.poll(() => atBottom(page)).toBe(true);
+});
+
+test('chat_shows_a_follow_halo_and_respects_reduced_motion', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 60, '消息'));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  const bottom = page.getByRole('button', { name: '滚到最新消息', exact: true });
+  const halo = () => bottom.evaluate(element => {
+    const style = getComputedStyle(element, '::after');
+    return { visible: style.content !== 'none', animated: style.animationName !== 'none' };
+  });
+  const buttonColor = await bottom.evaluate(element => getComputedStyle(element).backgroundColor);
+  await expect.poll(halo).toEqual({ visible: false, animated: false });
+
+  await bottom.click();
+  await expect(bottom).toHaveAccessibleDescription('正在跟随新消息');
+  await expect(bottom).toHaveCSS('background-color', buttonColor);
+  await expect.poll(halo).toEqual({ visible: true, animated: true });
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(halo).toEqual({ visible: true, animated: false });
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.locator('.messages').hover();
+  await page.mouse.wheel(0, -400);
+  await expect.poll(halo).toEqual({ visible: false, animated: false });
+});
+
+test('chat_stops_following_when_scrolling_up_as_a_message_grows', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 60, '消息'));
+  await openChat(page);
+  await expect.poll(() => atBottom(page)).toBe(true);
+  const bottom = page.getByRole('button', { name: '滚到最新消息', exact: true });
+  await bottom.click();
+  await expect(bottom).toHaveAccessibleDescription('正在跟随新消息');
+
+  const messages = page.locator('.messages');
+  await messages.hover();
+  await messages.evaluate(container => {
+    container.addEventListener('scroll', () => {
+      container.querySelector<HTMLElement>('[data-mid="60"]')!.style.minHeight = '300px';
+    }, { capture: true, once: true });
+  });
+  await page.mouse.wheel(0, -400);
+
+  await expect(bottom).toHaveAccessibleDescription('滚到最新消息并跟随');
+  await expect.poll(() => atBottom(page)).toBe(false);
 });
 
 test('chat_catches_up_after_returning_without_moving_the_viewport', async ({ page }) => {

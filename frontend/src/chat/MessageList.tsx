@@ -16,6 +16,7 @@ const WINDOW_CAP = KEEP_ABOVE + KEEP_BELOW;
 const ESTIMATED_HEIGHT = 96;
 const GAP_HEIGHT = 16;
 const LOAD_EARLIER_THRESHOLD = 120;
+const FOLLOW_BOTTOM_THRESHOLD = 2;
 const POLL_BASE_MS = 1000;
 const POLL_MAX_MS = 30000;
 
@@ -49,7 +50,7 @@ export default function MessageList({
   const [viewerImage, setViewerImage] = useState<ImageSelection | null>(null);
   const [newMessagesVisible, setNewMessagesVisible] = useState(false);
   const [announcement, setAnnouncement] = useState({ serial: 0, text: '' });
-  const [bottomRequest, setBottomRequest] = useState(0);
+  const [following, setFollowing] = useState(false);
   const [attitudesEnabled, setAttitudesEnabled] = useState(() =>
     localStorage.getItem(STORAGE_KEYS.CHAT_ATTITUDES) === '1');
 
@@ -63,7 +64,9 @@ export default function MessageList({
   const hasMoreRef = useRef(false);
   const loadingEarlierRef = useRef(false);
   const settleRef = useRef<{ boundary: ChatMessage } | null>(null);
-  const pendingBottomRef = useRef(false);
+  const pendingBottomRef = useRef<'once' | 'follow' | null>(null);
+  const followingRef = useRef(false);
+  const scrollPositionRef = useRef({ top: 0, height: 0 });
   const pendingAnchorRef = useRef<Anchor | null>(null);
   const pendingCompensationRef = useRef<{ mids: number[]; apply: boolean; estimated: number } | null>(null);
   const pendingJumpRef = useRef<number | null>(null);
@@ -93,9 +96,7 @@ export default function MessageList({
       if (items.length === 0) {
         setWindowMids(null);
       } else {
-        const start = Math.max(0, items.length - WINDOW_CAP);
-        setWindowMids({ start: items[start].mid, end: items[items.length - 1].mid });
-        pendingBottomRef.current = true;
+        showLatest(items, 'once');
       }
       setStatus('ready');
       void loadAttitudes(items);
@@ -132,22 +133,21 @@ export default function MessageList({
     const bottomSpacer = bottomSpacerRef.current;
     if (!container || !topSpacer || !bottomSpacer) return;
     const heights = heightsRef.current;
+    let resized = false;
     for (const element of container.querySelectorAll<HTMLElement>('[data-mid]')) {
-      heights.set(Number(element.dataset.mid), element.offsetHeight);
+      const mid = Number(element.dataset.mid);
+      const height = element.offsetHeight;
+      if (heights.has(mid) && heights.get(mid) !== height) resized = true;
+      heights.set(mid, height);
     }
     topSpacer.style.height = `${sumHeights(heights, ordered.slice(0, startIndex))}px`;
     bottomSpacer.style.height = `${sumHeights(heights, ordered.slice(endIndex + 1))}px`;
 
-    if (pendingBottomRef.current) {
-      pendingBottomRef.current = false;
-      container.scrollTop = container.scrollHeight;
-      settleRef.current = ordered.length ? { boundary: ordered[ordered.length - 1] } : null;
-    }
     const anchor = pendingAnchorRef.current;
     if (anchor) {
       pendingAnchorRef.current = null;
       const element = container.querySelector<HTMLElement>(`[data-mid="${anchor.mid}"]`);
-      if (element) container.scrollTop += element.getBoundingClientRect().top - anchor.top;
+      if (element) setScrollTop(container, container.scrollTop + element.getBoundingClientRect().top - anchor.top);
     }
     const compensation = pendingCompensationRef.current;
     if (compensation) {
@@ -155,7 +155,7 @@ export default function MessageList({
       if (compensation.apply) {
         let measured = 0;
         for (const mid of compensation.mids) measured += messageHeight(heights, mid);
-        container.scrollTop += measured - compensation.estimated;
+        setScrollTop(container, container.scrollTop + measured - compensation.estimated);
       }
     }
     const jumpIndex = pendingJumpRef.current;
@@ -164,12 +164,24 @@ export default function MessageList({
       const target = ordered[jumpIndex];
       const element = target && container.querySelector<HTMLElement>(`[data-mid="${target.mid}"]`);
       if (element) {
-        container.scrollTop += element.getBoundingClientRect().top - container.getBoundingClientRect().top;
+        setScrollTop(container, container.scrollTop + element.getBoundingClientRect().top - container.getBoundingClientRect().top);
       }
+    }
+    const bottomRequest = pendingBottomRef.current;
+    pendingBottomRef.current = null;
+    if (bottomRequest === 'once' || (bottomRequest === 'follow' && followingRef.current)) {
+      setScrollTop(container, container.scrollHeight);
+      settleRef.current = ordered.length ? { boundary: ordered[ordered.length - 1] } : null;
+      setNewMessagesVisible(false);
+    } else if (resized && followingRef.current) {
+      setScrollTop(container, container.scrollHeight);
+    }
+    if (scrollPositionRef.current.top === container.scrollTop) {
+      scrollPositionRef.current.height = container.scrollHeight;
     }
   });
 
-  // 图片晚于落底加载完成时只补收尾内的撑高；用户一旦输入就不再移动视口。
+  // 跟随中或一次性落底收尾时，补偿图片和表态撑高。
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -182,23 +194,15 @@ export default function MessageList({
         heightsRef.current.set(mid, height);
         const message = messagesRef.current.get(mid);
         const settle = settleRef.current;
-        if (message && settle && compareMessages(message, settle.boundary) <= 0) {
-          container.scrollTop = container.scrollHeight;
+        if (followingRef.current
+          || (message && settle && compareMessages(message, settle.boundary) <= 0)) {
+          setScrollTop(container, container.scrollHeight);
         }
       }
     });
     for (const element of container.querySelectorAll<HTMLElement>('[data-mid]')) observer.observe(element);
     return () => observer.disconnect();
   });
-
-  // 一次性落底：提示与滚底按钮共用，落底后重新进入收尾。
-  useLayoutEffect(() => {
-    if (!bottomRequest) return;
-    const container = containerRef.current;
-    if (!container) return;
-    container.scrollTop = container.scrollHeight;
-    settleRef.current = ordered.length ? { boundary: ordered[ordered.length - 1] } : null;
-  }, [bottomRequest]);
 
   const workRef = useRef<() => void>(() => {});
   const refreshRef = useRef<() => Promise<boolean>>(async () => true);
@@ -217,13 +221,12 @@ export default function MessageList({
 
   // 轮询当前群；失败按 1 秒起指数退避封顶 30 秒，成功后归零。登录失效时暂停。
   useEffect(() => {
-    if (!pollingEnabled) return;
     let stopped = false;
     let running = false;
     let wakePending = false;
     let timer = 0;
     const loop = async () => {
-      if (stopped) return;
+      if (stopped || !pollingEnabled) return;
       if (running) {
         wakePending = true;
         return;
@@ -245,29 +248,31 @@ export default function MessageList({
       window.clearTimeout(timer);
       void loop();
     };
-    timer = window.setTimeout(loop, POLL_BASE_MS);
+    if (pollingEnabled) timer = window.setTimeout(loop, POLL_BASE_MS);
 
+    const onBlur = () => {
+      settleRef.current = null;
+      pendingCatchUpRef.current = true;
+      updateFollowing(false);
+    };
     const onVisibility = () => {
       if (document.hidden) {
-        settleRef.current = null;
-        pendingCatchUpRef.current = true;
+        onBlur();
       } else {
         wake();
       }
     };
-    const onBlur = () => {
-      settleRef.current = null;
-      pendingCatchUpRef.current = true;
-    };
     const onFocus = () => wake();
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('pagehide', onBlur);
     window.addEventListener('focus', onFocus);
     return () => {
       stopped = true;
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('pagehide', onBlur);
       window.removeEventListener('focus', onFocus);
     };
   }, [pollingEnabled]);
@@ -282,6 +287,17 @@ export default function MessageList({
     const container = containerRef.current;
     if (!container) return;
     const run = () => {
+      const previous = scrollPositionRef.current;
+      const top = container.scrollTop;
+      const height = container.scrollHeight;
+      scrollPositionRef.current = { top, height };
+      const atBottom = height - top - container.clientHeight <= FOLLOW_BOTTOM_THRESHOLD;
+      const leftBottom = followingRef.current && top < previous.top && !atBottom;
+      // 内容高度变化时，用户向上离开底部仍可关闭跟随。
+      if ((height === previous.height || leftBottom) && top !== previous.top && !document.hidden && document.hasFocus()) {
+        updateFollowing(top > previous.top && atBottom);
+        if (!followingRef.current) settleRef.current = null;
+      }
       if (frameRef.current) {
         pendingScrollRef.current = true;
         return;
@@ -301,6 +317,12 @@ export default function MessageList({
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
   }, []);
+
+  // 记录程序定位后的实际位置，避免其触发的滚动事件开启跟随。
+  function setScrollTop(container: HTMLElement, top: number) {
+    container.scrollTop = top;
+    scrollPositionRef.current = { top: container.scrollTop, height: container.scrollHeight };
+  }
 
   useEffect(() => {
     // 页面内任一用户输入都结束落底收尾，包括在侧栏或页面其它区域的操作。
@@ -373,7 +395,7 @@ export default function MessageList({
       (element): element is HTMLElement => element instanceof HTMLElement && Boolean(element.dataset.mid));
   }
 
-  // 新消息只追加、不移动视口；到达即结束落底收尾，旧图片随后加载也不能把视口拉回底部。
+  // 跟随中落到最新；其余情况保留阅读位置并提示有新消息。
   function appendFresh(items: ChatMessage[]) {
     if (!items.length) return;
     const freshCount = items.filter(message => !messagesRef.current.has(message.mid)).length;
@@ -401,6 +423,7 @@ export default function MessageList({
     setOrdered(retained);
     if (freshCount) setAnnouncement(previous => ({ serial: previous.serial + 1, text: `收到 ${freshCount} 条新消息` }));
     setNewMessagesVisible(true);
+    if (followingRef.current) showLatest(retained, 'follow');
     void loadAttitudes(items);
   }
 
@@ -490,15 +513,24 @@ export default function MessageList({
     }
   }
 
-  // 提示与右下角按钮同一动作：先刷新一次，再一次性落底并收起提示。
-  async function jumpToLatest() {
-    await refreshOnce();
-    const all = [...messagesRef.current.values()].sort(compareMessages);
+  function showLatest(all: ChatMessage[], request: 'once' | 'follow') {
     if (!all.length) return;
     const start = Math.max(0, all.length - WINDOW_CAP);
     setWindowMids({ start: all[start].mid, end: all[all.length - 1].mid });
-    setNewMessagesVisible(false);
-    setBottomRequest(value => value + 1);
+    pendingBottomRef.current = request;
+  }
+
+  function updateFollowing(next: boolean) {
+    if (followingRef.current === next) return;
+    followingRef.current = next;
+    setFollowing(next);
+  }
+
+  // 两个跳到底部的按钮都会开启跟随，并立即补一次刷新。
+  function jumpToLatest() {
+    updateFollowing(true);
+    showLatest(ordered, 'follow');
+    void refreshOnce();
   }
 
   function countAbove(elements: HTMLElement[], top: number) {
@@ -633,7 +665,9 @@ export default function MessageList({
         </svg>
       </button>
       <button type="button" className="scroll-bottom-button" aria-label="滚到最新消息"
-        onClick={() => { void jumpToLatest(); }}>
+        aria-description={following ? '正在跟随新消息' : undefined}
+        title={following ? '正在跟随新消息' : '滚到最新消息并跟随'}
+        data-following={following} onClick={jumpToLatest}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 4v12" />
           <path d="m6.5 10.5 5.5 5.5 5.5-5.5" />
@@ -641,7 +675,7 @@ export default function MessageList({
         </svg>
       </button>
       <button type="button" className="new-messages-button" hidden={!newMessagesVisible}
-        onClick={() => { void jumpToLatest(); }}>有新消息</button>
+        onClick={jumpToLatest}>有新消息</button>
       <ImageViewer selection={viewerImage} onChange={setViewerImage} onClose={() => setViewerImage(null)} />
     </>
   );
