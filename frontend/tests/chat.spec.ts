@@ -588,6 +588,44 @@ test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ pa
   await expect(page.locator('article.message[data-mid="1"]')).toBeVisible();
 });
 
+test('chat_reserves_gif_sticker_space_before_the_image_loads', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const gif = Buffer.from('474946383961c8006400800000ff000000ff002c00000000010001000002024401003b', 'hex');
+  const items = makeMessages(1, 2, '消息');
+  items[0] = {
+    ...items[0], text: '[动画表情]', mediaType: 15,
+    previewUrl: '/chat/image?url=https%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Fslow-sticker.gif',
+  };
+  messagesByGid.set(1, items);
+  let releaseGif!: () => void;
+  const pendingGif = new Promise<void>(resolve => { releaseGif = resolve; });
+  await page.route('**/chat/image?*slow-sticker.gif', async route => {
+    await pendingGif;
+    await route.fulfill({ contentType: 'image/gif', body: gif });
+  });
+  await openChat(page);
+
+  const preview = page.locator('[data-mid="1"] button.media-preview');
+  const image = preview.locator('img');
+  const nextMessage = page.locator('[data-mid="2"]');
+  try {
+    await expect(preview).toBeVisible();
+    const before = (await preview.boundingBox())!;
+    const nextBefore = (await nextMessage.boundingBox())!;
+    expect(before.height).toBeGreaterThan(100);
+    await expect(image).toHaveCSS('opacity', '0');
+
+    releaseGif();
+    await expect(image).toHaveJSProperty('naturalWidth', 200);
+    await expect(image).toHaveCSS('transition-property', 'opacity');
+    await expect(image).toHaveCSS('opacity', '1');
+    expect(await preview.boundingBox()).toEqual(before);
+    expect((await nextMessage.boundingBox())!.y).toBe(nextBefore.y);
+  } finally {
+    releaseGif();
+  }
+});
+
 test('chat_loops_a_gif_sticker_after_its_first_playback', async ({ page }) => {
   const gif = Buffer.from(
     '47494638376101000100800000ff000000ff00'

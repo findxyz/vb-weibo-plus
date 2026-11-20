@@ -972,6 +972,31 @@ h1 {
   height: auto;
 }
 
+.media-preview.sticker-preview {
+  width: 120px;
+  aspect-ratio: 1;
+  background: var(--surface-subtle);
+}
+
+.media-preview.sticker-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: scale-down;
+  opacity: 0;
+}
+
+.sticker-preview img[data-loaded="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sticker-preview img {
+    transition: opacity 160ms ease-out;
+  }
+}
+
 .video-preview span {
   position: absolute;
   display: grid;

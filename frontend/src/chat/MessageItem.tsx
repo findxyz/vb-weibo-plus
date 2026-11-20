@@ -68,6 +68,7 @@ function attitudeChips(attitudes: Attitude[]) {
 
 export default function MessageItem({ message, isAdmin, onOpenImage, highlighted = false }: Props) {
   const [playing, setPlaying] = useState(false);
+  const [loadedStickerSource, setLoadedStickerSource] = useState<string>();
   const previewRef = useRef<HTMLButtonElement>(null);
   const isSystem = message.senderName?.trim() === SYSTEM_SENDER;
   const hasVideo = Boolean(message.videoUrl) && Boolean(message.previewUrl);
@@ -102,13 +103,15 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         </div>
         {messageBody(message, text, hideText, onOpenImage)}
         {hasImage && (
-          <button ref={previewRef} type="button" className="media-preview" aria-label="查看原图"
+          <button ref={previewRef} type="button" className={isSticker ? 'media-preview sticker-preview' : 'media-preview'} aria-label="查看原图"
             onClick={() => onOpenImage({
               images: [{
                 url: message.originalUrl || message.previewUrl, previewUrl: message.previewUrl, loopGif: isSticker,
               }], index: 0,
             })}>
-            <img src={imageSource} alt="" loading="lazy" />
+            <img src={imageSource} alt="" loading="lazy"
+              data-loaded={isSticker ? Boolean(imageSource && loadedStickerSource === imageSource) : undefined}
+              onLoad={isSticker ? () => setLoadedStickerSource(imageSource) : undefined} />
           </button>
         )}
         {hasVideo && !playing && (
