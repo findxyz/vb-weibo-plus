@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useImageZoom } from '../shared/useImageZoom';
+import { useLoopingGif } from './useLoopingGif';
 
-export type GalleryImage = { url: string; previewUrl?: string };
+export type GalleryImage = { url: string; previewUrl?: string; loopGif?: boolean };
 export type ImageSelection = { images: GalleryImage[]; index: number };
 
-function ViewerImage({ url, previewUrl }: { url: string; previewUrl?: string }) {
+function ViewerImage({ url, previewUrl, loopGif = false }: GalleryImage) {
   const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
   const [showLoading, setShowLoading] = useState(false);
+  const imageSource = useLoopingGif(url, loopGif);
   const zoom = useImageZoom();
   useEffect(() => {
     if (state !== 'loading') return;
@@ -20,7 +22,7 @@ function ViewerImage({ url, previewUrl }: { url: string; previewUrl?: string }) 
       )}
       <img
         {...zoom}
-        src={url}
+        src={imageSource}
         alt="消息原图"
         decoding="async"
         fetchPriority="high"

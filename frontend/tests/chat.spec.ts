@@ -1,5 +1,5 @@
 import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import { STORAGE_KEYS } from '../src/shared/storage-keys.js';
 import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../src/shared/date.js';
@@ -586,6 +586,35 @@ test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ pa
   await page.mouse.click(5, 5);
   await expect(dialog).not.toHaveJSProperty('open', true);
   await expect(page.locator('article.message[data-mid="1"]')).toBeVisible();
+});
+
+test('chat_loops_a_gif_sticker_after_its_first_playback', async ({ page }) => {
+  const gif = Buffer.from(
+    '47494638376101000100800000ff000000ff00'
+    + '21f90400140000002c0000000001000100000202440100'
+    + '21f90400140000002c00000000010001000002024c01003b',
+    'hex',
+  );
+  const url = '/chat/image?url=https%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Fsticker.gif';
+  const [message] = makeMessages(1, 1, '[动画表情]');
+  messagesByGid.set(1, [{ ...message, mediaType: 15, previewUrl: url, originalUrl: url }]);
+  await page.route('**/chat/image?*sticker.gif', route => route.fulfill({ contentType: 'image/gif', body: gif }));
+  await openChat(page);
+
+  async function expectLoop(image: Locator) {
+    await expect(image).toBeVisible();
+    await expect(image).toHaveJSProperty('naturalWidth', 1);
+    await page.waitForTimeout(500);
+    const frame = await image.screenshot();
+    await expect.poll(async () => (await image.screenshot()).equals(frame), {
+      timeout: 2000, intervals: [50, 50, 50],
+    }).toBe(false);
+  }
+
+  const trigger = page.locator('article[data-mid="1"]').getByRole('button', { name: '查看原图' });
+  await expectLoop(trigger.locator('img'));
+  await trigger.click();
+  await expectLoop(page.getByAltText('消息原图'));
 });
 
 for (const context of ['messages', 'history'] as const) {

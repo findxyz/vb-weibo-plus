@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Avatar from './Avatar';
 import MessageText from './MessageText';
 import WeiboCard, { type WeiboUrlObject } from './WeiboCard';
 import { emojiSource } from './emoji';
 import type { Attitude, ChatMessage } from './api';
 import type { ImageSelection } from './ImageViewer';
+import { useLoopingGif } from './useLoopingGif';
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
@@ -67,9 +68,12 @@ function attitudeChips(attitudes: Attitude[]) {
 
 export default function MessageItem({ message, isAdmin, onOpenImage, highlighted = false }: Props) {
   const [playing, setPlaying] = useState(false);
+  const previewRef = useRef<HTMLButtonElement>(null);
   const isSystem = message.senderName?.trim() === SYSTEM_SENDER;
   const hasVideo = Boolean(message.videoUrl) && Boolean(message.previewUrl);
   const hasImage = Boolean(message.previewUrl) && !hasVideo;
+  const isSticker = message.mediaType === 15;
+  const imageSource = useLoopingGif(message.previewUrl, hasImage && !isSystem && isSticker, previewRef);
   const hasMedia = hasVideo || hasImage;
   const text = message.text?.trim() ? message.text : `[${message.msgTypeName || '消息'}]`;
   const hideText = hasMedia && HIDDEN_CAPTIONS.has(message.text?.trim() ?? '');
@@ -98,11 +102,13 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         </div>
         {messageBody(message, text, hideText, onOpenImage)}
         {hasImage && (
-          <button type="button" className="media-preview" aria-label="查看原图"
+          <button ref={previewRef} type="button" className="media-preview" aria-label="查看原图"
             onClick={() => onOpenImage({
-              images: [{ url: message.originalUrl || message.previewUrl, previewUrl: message.previewUrl }], index: 0,
+              images: [{
+                url: message.originalUrl || message.previewUrl, previewUrl: message.previewUrl, loopGif: isSticker,
+              }], index: 0,
             })}>
-            <img src={message.previewUrl} alt="" loading="lazy" />
+            <img src={imageSource} alt="" loading="lazy" />
           </button>
         )}
         {hasVideo && !playing && (
