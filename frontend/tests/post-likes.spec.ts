@@ -109,20 +109,22 @@ test('like_updates_immediately_ignores_write_response_state_and_can_be_cancelled
   expect(reads).toEqual(['outer-repost', 'outer-repost']);
 });
 
-test('unknown_state_can_be_retried_without_sending_a_like', async ({ page }) => {
+test('unknown_state_is_retried_on_page_reload_without_sending_a_like', async ({ page }) => {
   await page.route(url => url.pathname === '/post/like', async route => {
     if (reads.length) return route.fallback();
     reads.push('outer-repost');
     await route.fulfill({ status: 502, json: { msg: '微博状态暂时不可用' } });
   });
   await page.goto(`${baseUrl}post/index.html`);
-  const retry = page.getByRole('button', { name: '重试查询点赞状态' });
-  await expect(retry).toBeEnabled();
-  await expect(retry).not.toHaveAttribute('aria-pressed');
+  const unknown = page.getByRole('button', { name: '点赞状态未知' });
+  await expect(unknown).toBeDisabled();
+  await expect(unknown).not.toHaveAttribute('aria-pressed');
+  await expect(page.locator('.post-like-error')).toContainText('微博状态暂时不可用');
   await expect(page.locator('.post-like-count')).toHaveCount(0);
-  await retry.click();
+  await page.reload();
   await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
   expect(reads).toEqual(['outer-repost', 'outer-repost']);
+  expect(writes).toEqual([]);
   expect(writes).toEqual([]);
 });
 
@@ -178,7 +180,7 @@ test('failed_write_keeps_clicked_state_until_next_actual_query', async ({ page }
   expect(writes).toHaveLength(1);
 });
 
-test('only_visible_posts_are_queried_and_scroll_back_reads_fresh_state', async ({ page }) => {
+test('visible_posts_are_queried_once_and_reselection_reads_fresh_state', async ({ page }) => {
   posts.items = Array.from({ length: 12 }, (_, index) => ({ ...posts.items[0],
     mblogId: `post-${index}`, content: '正文<br>'.repeat(8), retweeted: null }));
   posts.total = 12;
@@ -191,11 +193,67 @@ test('only_visible_posts_are_queried_and_scroll_back_reads_fresh_state', async (
   liked = true;
   count = 92;
   await page.getByRole('article').first().scrollIntoViewIfNeeded();
+  await expect(page.locator('.post-like-button').first()).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.post-like-count').first()).toHaveText('7');
+  expect(reads.filter(id => id === 'post-0')).toHaveLength(1);
+  expect(reads.filter(id => id === 'post-11')).toHaveLength(1);
+
+  await page.getByRole('button', { name: '测试博主', exact: true }).click();
   await expect(page.locator('.post-like-button').first()).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.post-like-count').first()).toHaveText('92');
   expect(reads.filter(id => id === 'post-0')).toHaveLength(2);
   expect(reads.filter(id => id === 'post-11')).toHaveLength(1);
   expect(writes).toEqual([]);
+});
+
+test('scrolling up past a post with a failed like lookup keeps moving up', async ({ page }) => {
+  posts.items = Array.from({ length: 12 }, (_, index) => ({ ...posts.items[0],
+    mblogId: `post-${index}`, content: '正文<br>'.repeat(8), retweeted: null }));
+  let lookups = 0;
+  await page.route(url => url.pathname === '/post/like' && url.searchParams.get('mblogId') === 'post-0', async route => {
+    lookups++;
+    await route.fulfill({ status: 502, json: { msg: '微博状态暂时不可用' } });
+  });
+  await page.goto(`${baseUrl}post/index.html`);
+  const feed = page.getByLabel('微博列表');
+  const first = page.getByRole('article').first();
+  await expect(first.locator('.post-like-error')).toBeVisible();
+  const edge = await feed.evaluate(element => {
+    const bottom = element.querySelector('article')!.getBoundingClientRect().bottom;
+    return element.scrollTop + bottom - element.getBoundingClientRect().top;
+  });
+  await feed.hover();
+  await feed.evaluate((element, top) => { element.scrollTop = top; }, edge + 5);
+  await expect(first).not.toBeInViewport();
+  await page.mouse.wheel(0, -14);
+  await expect(first).toBeInViewport();
+  await expect(first.locator('.post-like-error')).toContainText('微博状态暂时不可用');
+  await expect.poll(() => feed.evaluate(element => element.scrollTop)).toBeLessThan(edge - 5);
+  expect(lookups).toBe(1);
+});
+
+test('scrolling away lets the first visible like lookup finish', async ({ page }) => {
+  posts.items = Array.from({ length: 12 }, (_, index) => ({ ...posts.items[0],
+    mblogId: `post-${index}`, content: '正文<br>'.repeat(8), retweeted: null }));
+  let release: (() => Promise<void>) | undefined;
+  await page.route(url => url.pathname === '/post/like' && url.searchParams.get('mblogId') === 'post-0', async route => {
+    reads.push('post-0');
+    await new Promise<void>(resolve => { release = async () => {
+      await route.fulfill({ json: { liked: true, count: 19 } });
+      resolve();
+    }; });
+  });
+  await page.goto(`${baseUrl}post/index.html`);
+  const first = page.getByRole('article').first();
+  const last = page.getByRole('article').last();
+  await expect.poll(() => reads.includes('post-0')).toBe(true);
+  await last.scrollIntoViewIfNeeded();
+  await expect(last.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
+  await release!();
+  await expect(first.getByRole('button', { name: '取消点赞' })).toBeEnabled();
+  await first.scrollIntoViewIfNeeded();
+  await expect(first.getByLabel('当前点赞数：19')).toBeInViewport();
+  expect(reads.filter(id => id === 'post-0')).toHaveLength(1);
 });
 
 test('logging_in_again_discards_previous_account_like_cache', async ({ page }) => {

@@ -8,7 +8,7 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
   mblogId: string; enabled: boolean; session: number; onUnauthorized: () => void;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [queryVisible, setQueryVisible] = useState(false);
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
   const client = useQueryClient();
   const queryKey = useMemo(() => ['post', 'like', session, mblogId], [session, mblogId]);
   const params = new URLSearchParams({ mblogId });
@@ -21,7 +21,7 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
       target: mutation.state.variables as LikeState | undefined }),
   }).at(-1);
   const state = useQuery({
-    queryKey, enabled: enabled && queryVisible,
+    queryKey, enabled: enabled && hasBeenVisible,
     staleTime: 0, gcTime: 0,
     initialData: processing ? latest?.target : undefined,
     queryFn: load,
@@ -40,10 +40,9 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
   useEffect(() => {
     const button = buttonRef.current!;
     const observer = new IntersectionObserver(entries => {
-      const visible = entries.some(entry => entry.isIntersecting);
-      // 提交中的操作保留即时状态，下一次进入可见区域时再查询。
-      setQueryVisible(visible && client.isMutating({ mutationKey: queryKey, exact: true }) === 0);
-      if (!visible) void client.cancelQueries({ queryKey, exact: true });
+      if (!entries.some(entry => entry.isIntersecting) || client.isMutating({ mutationKey: queryKey, exact: true })) return;
+      setHasBeenVisible(true);
+      observer.disconnect();
     }, { root: button.closest('.posts') });
     observer.observe(button.closest('.post-card')!);
     return () => observer.disconnect();
@@ -53,19 +52,18 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
   }, [state.error, latest?.error, onUnauthorized]);
 
   function click() {
-    if (!enabled || state.isFetching || client.isMutating({ mutationKey: queryKey, exact: true })) return;
-    if (!confirmed) { void state.refetch(); return; }
+    if (!enabled || !confirmed || client.isMutating({ mutationKey: queryKey, exact: true })) return;
     operation.mutate({ liked: !confirmed.liked,
       count: Math.max(0, confirmed.count + (confirmed.liked ? -1 : 1)) });
   }
 
   const label = state.isFetching ? '查询中…'
-    : !confirmed ? '状态未知，重试' : confirmed.liked ? '已赞' : '点赞';
+    : !confirmed ? '状态未知' : confirmed.liked ? '已赞' : '点赞';
   const name = state.isFetching ? '正在查询点赞状态'
-    : !confirmed ? '重试查询点赞状态' : confirmed.liked ? '取消点赞' : '点赞';
+    : !confirmed ? '点赞状态未知' : confirmed.liked ? '取消点赞' : '点赞';
   return <div className="post-like">
     <button ref={buttonRef} type="button" className="post-like-button" aria-label={name}
-      aria-pressed={confirmed?.liked} disabled={!enabled} aria-disabled={processing || state.isFetching}
+      aria-pressed={confirmed?.liked} disabled={!enabled || !confirmed} aria-disabled={processing || state.isFetching}
       onClick={click} title={confirmed?.liked ? '取消点赞' : undefined}>
       <span aria-hidden="true">👍</span>{label}
     </button>
