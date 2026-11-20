@@ -329,7 +329,7 @@ fn java_optional_i64_list<'de, D: Deserializer<'de>>(
 }
 
 pub async fn group_list(state: &AppState) -> Result<GroupList, WeiboError> {
-    let timestamp = chrono::Utc::now().timestamp_millis().to_string();
+    let timestamp = jiff::Timestamp::now().as_millisecond().to_string();
     let url = with_query(
         CONTACTS_URL,
         &[
@@ -373,7 +373,7 @@ pub async fn sync_groups(state: &AppState) -> Result<(), WeiboError> {
             Ok((id, user))
         })
         .collect::<Result<_, WeiboError>>()?;
-    let timestamp = chrono::Utc::now().timestamp_millis();
+    let timestamp = jiff::Timestamp::now().as_millisecond();
     state.db.run(move |connection| {
         let transaction = connection.transaction()?;
         for (id, user) in users {

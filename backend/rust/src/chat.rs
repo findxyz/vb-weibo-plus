@@ -12,12 +12,11 @@ use axum::{
     http::{StatusCode, Uri, header},
     routing::{get, post},
 };
-use chrono::{NaiveDateTime, TimeZone};
-use chrono_tz::Asia::Shanghai;
+use jiff::{Timestamp, civil::DateTime};
 use serde::{Deserialize, Deserializer, de::DeserializeOwned};
 use serde_json::{Value, json};
 
-use crate::{AppState, DbError, weibo::WeiboError};
+use crate::{AppState, DbError, shanghai, weibo::WeiboError};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -142,13 +141,9 @@ fn optional_datetime(value: Option<&str>) -> Result<Option<i64>, WeiboError> {
 }
 
 fn datetime(value: &str) -> Result<i64, WeiboError> {
-    let time = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S")
+    let time = DateTime::strptime("%Y-%m-%d %H:%M:%S", value)
         .map_err(|_| bad_request("日期时间格式无效。"))?;
-    Shanghai
-        .from_local_datetime(&time)
-        .earliest()
-        .map(|time| time.timestamp_millis())
-        .ok_or_else(|| bad_request("日期时间无效。"))
+    shanghai::milliseconds(time).ok_or_else(|| bad_request("日期时间无效。"))
 }
 
 fn optional_number<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
@@ -205,7 +200,7 @@ fn database(_: DbError) -> WeiboError {
 }
 
 fn now() -> i64 {
-    chrono::Utc::now().timestamp_millis()
+    Timestamp::now().as_millisecond()
 }
 
 fn number(value: &Value) -> Option<i64> {

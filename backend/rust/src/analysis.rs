@@ -4,9 +4,8 @@ use axum::response::sse::{Event, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use chrono_tz::{Asia::Shanghai, Tz};
 use futures_util::stream;
+use jiff::{Timestamp, ZonedDateTime, civil::Date};
 use rusqlite::{OptionalExtension, Row, params};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -15,7 +14,7 @@ use std::fmt::Write;
 use std::str::FromStr;
 use tokio::sync::mpsc;
 
-use crate::{AppState, DbError};
+use crate::{AppState, DbError, shanghai};
 
 pub(crate) fn routes() -> Router<AppState> {
     Router::new()
@@ -67,7 +66,7 @@ impl IntoResponse for AnalysisError {
 
 struct AnalysisInput {
     gid: i64,
-    date: NaiveDate,
+    date: Date,
     prompt: String,
 }
 
@@ -114,7 +113,7 @@ async fn input(request: Request, state: &AppState) -> Result<AnalysisInput, Anal
     }
 
     let gid = number(&required(&params, "gid")?, "gid")?;
-    let date = NaiveDate::parse_from_str(&required(&params, "date")?, "%Y-%m-%d")
+    let date = Date::strptime("%Y-%m-%d", &required(&params, "date")?)
         .map_err(|_| AnalysisError::invalid("参数 date 格式错误。"))?;
     let prompt = required(&params, "prompt")?;
     Ok(AnalysisInput { gid, date, prompt })
@@ -127,18 +126,8 @@ fn validate_gid(gid: i64) -> Result<(), AnalysisError> {
     Ok(())
 }
 
-fn shanghai_time(milliseconds: i64) -> Result<DateTime<Tz>, AnalysisError> {
-    DateTime::<Utc>::from_timestamp_millis(milliseconds)
-        .map(|date| date.with_timezone(&Shanghai))
-        .ok_or_else(|| AnalysisError::failed("本地记录时间无效。"))
-}
-
-fn start_of_day(date: NaiveDate) -> Option<i64> {
-    let midnight = date.and_hms_opt(0, 0, 0)?;
-    Shanghai
-        .from_local_datetime(&midnight)
-        .earliest()
-        .map(|date| date.timestamp_millis())
+fn shanghai_time(milliseconds: i64) -> Result<ZonedDateTime, AnalysisError> {
+    shanghai::local_time(milliseconds).ok_or_else(|| AnalysisError::failed("本地记录时间无效。"))
 }
 
 async fn analyze(
@@ -190,10 +179,11 @@ async fn run_analysis(
         return Err(AnalysisError::invalid("prompt 不能为空。"));
     }
     let invalid_date = || AnalysisError::invalid("参数 date 格式错误。");
-    let start = start_of_day(date).ok_or_else(invalid_date)?;
+    let start = shanghai::start_of_day(date).ok_or_else(invalid_date)?;
     let end = date
-        .succ_opt()
-        .and_then(start_of_day)
+        .tomorrow()
+        .ok()
+        .and_then(shanghai::start_of_day)
         .ok_or_else(invalid_date)?;
 
     let messages = state
@@ -231,7 +221,7 @@ async fn run_analysis(
                 let kind = kind.as_deref().filter(|kind| !kind.trim().is_empty());
                 format!("[{}]", kind.unwrap_or("非文本消息"))
             });
-        writeln!(prompt_text, "[{}] {sender}: {text}", when.format("%H:%M"))
+        writeln!(prompt_text, "[{}] {sender}: {text}", when.strftime("%H:%M"))
             .expect("writing to String cannot fail");
     }
 
@@ -240,7 +230,7 @@ async fn run_analysis(
         Some(sender) => read_ai_stream(response, sender).await?,
         None => read_ai_completion(response).await?,
     };
-    let created_at = Utc::now().timestamp_millis();
+    let created_at = Timestamp::now().as_millisecond();
     let row = state
         .db
         .run(move |db| {
@@ -467,12 +457,12 @@ impl StoredAnalysis {
         Ok(AnalysisView {
             id: self.id,
             gid: self.gid,
-            date: shanghai_time(self.date)?.format("%Y-%m-%d").to_string(),
+            date: shanghai_time(self.date)?.strftime("%Y-%m-%d").to_string(),
             prompt: self.prompt,
             result: self.result,
             message_count: self.message_count,
             created_at: shanghai_time(self.created_at)?
-                .format("%Y-%m-%d %H:%M:%S")
+                .strftime("%Y-%m-%d %H:%M:%S")
                 .to_string(),
         })
     }
@@ -529,11 +519,11 @@ async fn list(
         .map(|(id, date, prompt_preview, message_count, created_at)| {
             Ok(AnalysisSummary {
                 id,
-                date: shanghai_time(date)?.format("%Y-%m-%d").to_string(),
+                date: shanghai_time(date)?.strftime("%Y-%m-%d").to_string(),
                 prompt_preview,
                 message_count,
                 created_at: shanghai_time(created_at)?
-                    .format("%Y-%m-%d %H:%M:%S")
+                    .strftime("%Y-%m-%d %H:%M:%S")
                     .to_string(),
             })
         })

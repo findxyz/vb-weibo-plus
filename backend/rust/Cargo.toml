@@ -11,15 +11,14 @@ desktop = ["embed-frontend", "dep:tao", "dep:windows-sys", "dep:wry"]
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
 base64 = "0.22"
-chrono = { version = "0.4", features = ["serde"] }
-chrono-tz = "0.10"
 futures-util = "0.3"
 html-escape = "0.2"
+jiff = { version = "1", features = ["tzdb-bundle-always"] }
 md5 = "0.8"
 mime_guess = { version = "2", optional = true }
 regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart", "stream", "gzip", "brotli", "deflate"] }
-rusqlite = { version = "0.39", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 rust-embed = { version = "8", optional = true, features = ["debug-embed"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
@@ -42,4 +41,5 @@ winresource = "0.1"
 tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
 
 [dev-dependencies]
+syn = { version = "2", features = ["full", "visit"] }
 tower = { version = "0.5", features = ["util"] }

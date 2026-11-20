@@ -3,14 +3,13 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-use chrono_tz::Asia::Shanghai;
+use jiff::{Timestamp, civil::DateTime};
 use reqwest::Method;
 use rusqlite::{OptionalExtension, Row, params, params_from_iter, types::Value as SqlValue};
 use serde_json::{Value, json};
 
 use crate::{
-    AppState,
+    AppState, shanghai,
     weibo::{self, HeaderProfile, Retry, WeiboError},
 };
 
@@ -307,10 +306,9 @@ fn parse_optional<T: std::str::FromStr>(
 }
 
 fn parse_time(value: &str) -> ApiResult<i64> {
-    NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S")
+    DateTime::strptime("%Y-%m-%d %H:%M:%S", value)
         .ok()
-        .and_then(|date| Shanghai.from_local_datetime(&date).earliest())
-        .map(|date| date.timestamp_millis())
+        .and_then(shanghai::milliseconds)
         .ok_or_else(|| bad_request("日期格式无效。"))
 }
 
@@ -653,7 +651,7 @@ async fn capture_incremental(state: &AppState, uid: i64) -> ApiResult<Value> {
         let response = blog(state, uid, page, since.as_deref()).await?;
         let posts = require_blog_posts(&response, "微博列表")?;
         let Some(first) = posts.first() else { break };
-        let captured = Utc::now().timestamp_millis();
+        let captured = Timestamp::now().as_millisecond();
         save_blogger(state, &first["user"], captured).await?;
         let mut reached = false;
         for item in posts {
@@ -704,25 +702,14 @@ async fn range(State(state): State<AppState>, request: Request) -> ApiResult<Sta
 }
 
 async fn capture_range(state: &AppState, uid: i64, start: i64, end: i64) -> ApiResult<()> {
-    let to_local = |epoch| {
-        DateTime::from_timestamp_millis(epoch)
-            .map(|instant| instant.with_timezone(&Shanghai).date_naive())
-    };
+    let to_local = |epoch| shanghai::local_time(epoch).map(|local| local.date());
     let mut date = to_local(start).ok_or_else(|| bad_request("日期格式无效。"))?;
     let final_date = to_local(end).ok_or_else(|| bad_request("日期格式无效。"))?;
     let mut requested = false;
     loop {
-        let next = date
-            .succ_opt()
-            .ok_or_else(|| bad_request("日期格式无效。"))?;
-        let midnight = |day: chrono::NaiveDate| {
-            Shanghai
-                .from_local_datetime(&day.and_hms_opt(0, 0, 0).expect("valid midnight"))
-                .earliest()
-                .map(|time| time.timestamp_millis())
-        };
-        let lower = midnight(date).unwrap_or(start).max(start);
-        let upper = (midnight(next).unwrap_or(end.saturating_add(1)) - 1).min(end);
+        let next = date.tomorrow().map_err(|_| bad_request("日期格式无效。"))?;
+        let lower = shanghai::start_of_day(date).unwrap_or(start).max(start);
+        let upper = (shanghai::start_of_day(next).unwrap_or(end.saturating_add(1)) - 1).min(end);
         let mut page = 1;
         loop {
             if requested {
@@ -739,7 +726,7 @@ async fn capture_range(state: &AppState, uid: i64, start: i64, end: i64) -> ApiR
             .await?;
             let posts = require_blog_posts(&response, "微博搜索")?;
             let Some(first) = posts.first() else { break };
-            let captured = Utc::now().timestamp_millis();
+            let captured = Timestamp::now().as_millisecond();
             save_blogger(state, &first["user"], captured).await?;
             for item in posts {
                 capture_post(state, item, captured).await?;
@@ -834,8 +821,8 @@ async fn capture_post(state: &AppState, item: &Value, captured: i64) -> ApiResul
 }
 
 fn weibo_timestamp(value: &str) -> ApiResult<i64> {
-    DateTime::parse_from_str(value, "%a %b %d %H:%M:%S %z %Y")
-        .map(|date| date.timestamp_millis())
+    Timestamp::strptime("%a %b %d %H:%M:%S %z %Y", value)
+        .map(Timestamp::as_millisecond)
         .map_err(|_| upstream_error("微博创建时间格式无效。"))
 }
 
