@@ -1547,6 +1547,9 @@ test('chat_sends_text_on_enter_and_refreshes_immediately', async ({ page }) => {
   expect(body.get('gid')).toBe('1');
   expect(body.get('content')).toBe('你好');
   await expect(input).toHaveValue('');
+  await expect(input).toBeFocused();
+  await page.keyboard.insertText('下一条');
+  await expect(input).toHaveValue('下一条');
 
   const pill = page.locator('.new-messages-button');
   await expect(pill).toBeVisible({ timeout: 3000 });
@@ -1582,6 +1585,7 @@ test('chat_keeps_the_text_when_sending_fails', async ({ page }) => {
   await input.press('Enter');
   await expect(hint).toHaveText('发送失败');
   await expect(input).toHaveValue('失败内容');
+  await expect(input).toBeFocused();
 
   sendStatus = 409;
   await input.press('Enter');

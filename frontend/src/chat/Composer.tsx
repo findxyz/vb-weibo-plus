@@ -137,7 +137,6 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
       setHint({ text: hintText, level: 'error' });
     } finally {
       setSending(false);
-      inputRef.current?.focus();
     }
   }
 
@@ -219,9 +218,10 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
           aria-label="输入消息"
           placeholder="输入消息后按 Enter 发送"
           value={text}
-          disabled={disabled}
+          disabled={gid == null}
+          readOnly={sending}
           onChange={event => changeText(event.target.value)}
-          onPaste={handlePaste}
+          onPaste={sending ? undefined : handlePaste}
           onKeyDown={event => {
             if (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
               event.preventDefault();
