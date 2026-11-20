@@ -24,8 +24,8 @@ import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.service.PostService;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 
 @WebMvcTest(PostController.class)

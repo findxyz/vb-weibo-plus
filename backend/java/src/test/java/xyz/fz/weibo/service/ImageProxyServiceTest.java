@@ -20,7 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import xyz.fz.weibo.domain.MediaBinary;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.exception.InvalidRequestException;
 
 class ImageProxyServiceTest {
 

@@ -1,4 +1,4 @@
-package xyz.fz.weibo.service.exception;
+package xyz.fz.weibo.exception;
 
 public class InvalidRequestException extends IllegalArgumentException {
 

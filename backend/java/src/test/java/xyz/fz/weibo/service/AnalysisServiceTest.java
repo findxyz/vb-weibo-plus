@@ -28,9 +28,9 @@ import xyz.fz.weibo.domain.AnalysisPageResult;
 import xyz.fz.weibo.domain.AnalysisView;
 import xyz.fz.weibo.entity.AnalysisEntity;
 import xyz.fz.weibo.entity.MessageEntity;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.repository.AnalysisRepository;
 import xyz.fz.weibo.repository.MessageRepository;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 @ExtendWith(MockitoExtension.class)
 class AnalysisServiceTest {

@@ -14,9 +14,9 @@ import xyz.fz.weibo.domain.AnalysisSummary;
 import xyz.fz.weibo.domain.AnalysisView;
 import xyz.fz.weibo.entity.AnalysisEntity;
 import xyz.fz.weibo.entity.MessageEntity;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.repository.AnalysisRepository;
 import xyz.fz.weibo.repository.MessageRepository;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 @Service
 public class AnalysisService {

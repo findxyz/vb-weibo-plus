@@ -33,10 +33,10 @@ import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MessageCursorResult;
 import xyz.fz.weibo.domain.MessageQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.service.ChatService;
 import xyz.fz.weibo.service.ImageProxyService;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 @RestController
 @RequestMapping("/chat")

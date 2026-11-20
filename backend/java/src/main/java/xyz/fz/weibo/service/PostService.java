@@ -36,6 +36,7 @@ import xyz.fz.weibo.domain.PostView;
 import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.entity.BloggerEntity;
 import xyz.fz.weibo.entity.PostEntity;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.model.request.LongTextRequest;
 import xyz.fz.weibo.model.request.MyBlogRequest;
 import xyz.fz.weibo.model.request.SearchProfileRequest;
@@ -46,7 +47,6 @@ import xyz.fz.weibo.model.response.SearchProfileResponse;
 import xyz.fz.weibo.repository.BloggerRepository;
 import xyz.fz.weibo.repository.DailyPostCount;
 import xyz.fz.weibo.repository.PostRepository;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 import xyz.fz.weibo.service.mapper.PostMapper;
 

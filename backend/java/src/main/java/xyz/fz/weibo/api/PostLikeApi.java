@@ -17,7 +17,7 @@ import xyz.fz.weibo.client.WeiboHttpClient;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.domain.PostLikeState;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.exception.InvalidRequestException;
 
 @Component
 public class PostLikeApi {

@@ -24,6 +24,16 @@ Spotless 和 Checkstyle 在 `validate` 阶段依次执行，发现违规会阻�
 
 构建通过 Maven Wrapper 固定 Maven 3.9.9。`maven-enforcer-plugin` 在 `validate` 阶段要求 JDK 21+、Maven 3.9+，并检查依赖版本收敛、插件版本显式和重复类。
 
+## ArchUnit
+
+Java 分层依赖检查随 Maven 测试运行，包含 `quick` 模式。规则会拦截控制器直接依赖 Repository、微博 API 适配层反向依赖 Service 等跨层依赖。控制器、Service 和微博 API 适配层可以使用 `xyz.fz.weibo.exception` 中的共用异常，该包不依赖其他受检层。
+
+在 `backend/java/` 单独运行架构测试：
+
+```powershell
+.\mvnw.cmd -Pquick -Dtest=ArchitectureTest test
+```
+
 ## Spotless
 
 Spotless 格式化生产和测试 Java 源码。google-java-format 的 AOSP 模式使用 4 空格基础缩进和 8 空格续行缩进，按 100 字符的行宽排版。静态导入和普通导入各自按字母排序，静态导入在前，两组之间空一行。

@@ -19,8 +19,8 @@ import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.service.PostService;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 @RestController
 @RequestMapping("/post")

@@ -9,7 +9,7 @@ import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
 import xyz.fz.weibo.client.exception.WeiboUriTooLongException;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
 import xyz.fz.weibo.service.exception.ResourceNotFoundException;
 

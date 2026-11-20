@@ -18,7 +18,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import xyz.fz.weibo.domain.MediaBinary;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
+import xyz.fz.weibo.exception.InvalidRequestException;
 
 @Service
 public class ImageProxyService {

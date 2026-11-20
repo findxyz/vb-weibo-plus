@@ -26,8 +26,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import xyz.fz.weibo.domain.AnalysisPageResult;
 import xyz.fz.weibo.domain.AnalysisSummary;
 import xyz.fz.weibo.domain.AnalysisView;
+import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.service.AnalysisService;
-import xyz.fz.weibo.service.exception.InvalidRequestException;
 
 @WebMvcTest(AnalysisController.class)
 class AnalysisControllerTest {
