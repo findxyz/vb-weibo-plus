@@ -173,5 +173,3 @@ npm test
 | `weibo.ai.system-prompt` | `WEIBO_AI_SYSTEM_PROMPT` | `请用中文回复分析结果。` |
 | `spring.servlet.multipart.max-file-size` | - | `20MB` |
 | `spring.servlet.multipart.max-request-size` | - | `21MB` |
-
-`weibo.ai.base-url` 留空即禁用 AI 分析；`weibo.chat.auto-sync-gids` 留空则不同步任何群。如需修改 `server.port`，请直接编辑 yml。
