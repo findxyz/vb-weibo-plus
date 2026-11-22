@@ -52,6 +52,8 @@ Checkstyle 仍会检查测试方法命名、注释和格式化后仍超长的行
 
 该配置是项目适配版，并非原样的 Google Java Style。所有构建统一使用此配置，违规级别设置为 error，确保检查实际阻断构建。
 
+Swagger 的 `@Parameter` 禁止设置 `description`。请求参数的用法说明写在 `raws/` 下对应的 HTTP 示例中。
+
 ## PMD
 
 使用 Maven PMD 插件 3.28.0（内置 PMD 7.17.0），引用官方分类 `category/java/bestpractices.xml`，仅排除 `UnitTestContainsTooManyAsserts`，允许同一测试验证多个结果，不启用其他分类。源码按 Java 21 解析。

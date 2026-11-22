@@ -82,6 +82,14 @@
       <property name="query" value="/COMPACT_COMPILATION_UNIT"/>
       <message key="matchxpath.match" value="Compact source file is not allowed."/>
     </module>
+    <module name="MatchXpath">
+      <property name="id" value="SwaggerParameterDescriptionNotAllowed"/>
+      <property name="query" value="//ANNOTATION[ANNOTATION_MEMBER_VALUE_PAIR/IDENT[@text='description']]
+          [(DOT | self::ANNOTATION[IDENT[@text='Parameter']]/ancestor::COMPILATION_UNIT/IMPORT/DOT)
+            [IDENT[@text='Parameter']]/DOT[IDENT[@text='annotations']]/DOT[IDENT[@text='oas']]
+            /DOT[IDENT[@text='v3']]/DOT[IDENT[1][@text='io'] and IDENT[2][@text='swagger']]]"/>
+      <message key="matchxpath.match" value="Swagger parameter descriptions are not allowed."/>
+    </module>
     <module name="AvoidStarImport"/>
     <module name="AvoidModuleImport"/>
     <module name="OneTopLevelClass"/>
