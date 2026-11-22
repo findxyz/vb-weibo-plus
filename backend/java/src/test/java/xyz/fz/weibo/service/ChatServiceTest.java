@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,7 @@ import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.api.GroupPushApi;
 import xyz.fz.weibo.api.LongTextApi;
+import xyz.fz.weibo.api.PostDetailApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
 import xyz.fz.weibo.client.exception.WeiboRateLimitException;
@@ -103,6 +105,8 @@ class ChatServiceTest {
     @Mock private GroupPushApi pushApi;
 
     @Mock private LongTextApi longTextApi;
+    @Mock private PostDetailApi postDetailApi;
+    @Mock private ImageProxyService imageProxyService;
 
     private ChatService chatService;
 
@@ -119,7 +123,9 @@ class ChatServiceTest {
                         new HeicConverter("ffmpeg"),
                         videoProbe,
                         pushApi,
-                        longTextApi);
+                        longTextApi,
+                        postDetailApi,
+                        imageProxyService);
     }
 
     @Test
@@ -1220,7 +1226,8 @@ class ChatServiceTest {
                                         "HTML 正文", "完整正文。\n\n评论区可看论文全文。", false, null),
                                 1));
 
-        assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("完整正文。\n\n评论区可看论文全文。");
+        assertThat(chatService.queryMessageWeiboText(1, 100, false))
+                .isEqualTo("完整正文。\n\n评论区可看论文全文。");
         verifyNoInteractions(groupMessagesApi);
         verify(messageRepository, never()).insertAllIfAbsent(any());
     }
@@ -1235,7 +1242,7 @@ class ChatServiceTest {
                                         "<b>第一段。</b><br>第二段。&amp;", null, false, null),
                                 1));
 
-        assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("第一段。\n第二段。&");
+        assertThat(chatService.queryMessageWeiboText(1, 100, false)).isEqualTo("第一段。\n第二段。&");
     }
 
     @Test
@@ -1250,7 +1257,7 @@ class ChatServiceTest {
                                 new LongTextResponse.LongTextData("", "", false, null), 1));
 
         for (int attempt = 0; attempt < 4; attempt++) {
-            assertThatThrownBy(() -> chatService.queryMessageWeiboText(1, 100))
+            assertThatThrownBy(() -> chatService.queryMessageWeiboText(1, 100, false))
                     .isInstanceOf(WeiboException.class)
                     .hasMessage("微博全文暂不可用。");
         }
@@ -1260,7 +1267,7 @@ class ChatServiceTest {
     void shared_weibo_text_rejects_another_group_before_calling_upstream() {
         stubSharedWeibo(Map.of("idstr", "5357643507961089", "isLongText", true));
 
-        assertThatThrownBy(() -> chatService.queryMessageWeiboText(2, 100))
+        assertThatThrownBy(() -> chatService.queryMessageWeiboText(2, 100, false))
                 .isInstanceOf(ResourceNotFoundException.class);
         verifyNoInteractions(longTextApi);
     }
@@ -1269,7 +1276,7 @@ class ChatServiceTest {
     void shared_weibo_text_returns_saved_short_posts_without_calling_upstream() {
         stubSharedWeibo(Map.of("isLongText", false, "text", "完整短微博。"));
 
-        assertThat(chatService.queryMessageWeiboText(1, 100)).isEqualTo("完整短微博。");
+        assertThat(chatService.queryMessageWeiboText(1, 100, false)).isEqualTo("完整短微博。");
         verifyNoInteractions(longTextApi);
     }
 
@@ -1277,9 +1284,51 @@ class ChatServiceTest {
     void shared_weibo_text_rejects_messages_without_a_saved_weibo_reference() {
         stubSharedWeibo(Map.of("isLongText", true));
 
-        assertThatThrownBy(() -> chatService.queryMessageWeiboText(1, 100))
+        assertThatThrownBy(() -> chatService.queryMessageWeiboText(1, 100, false))
                 .isInstanceOf(ResourceNotFoundException.class);
         verifyNoInteractions(longTextApi);
+    }
+
+    @Test
+    void shared_weibo_text_fetches_the_original_weibo_by_its_own_id() {
+        stubSharedWeibo(
+                Map.of(
+                        "text",
+                        "转发评论。",
+                        "retweeted_status",
+                        Map.of("idstr", "123", "isLongText", true)));
+        when(longTextApi.longText(new LongTextRequest("123")))
+                .thenReturn(
+                        new LongTextResponse(
+                                new LongTextResponse.LongTextData("", "原微博全文。", false, null), 1));
+
+        assertThat(chatService.queryMessageWeiboText(1, 100, false)).isEqualTo("转发评论。");
+        assertThat(chatService.queryMessageWeiboText(1, 100, true)).isEqualTo("原微博全文。");
+        verify(longTextApi).longText(new LongTextRequest("123"));
+    }
+
+    @Test
+    void shared_weibo_cover_downloads_the_original_cover_once_without_repeating_it_on_the_repost() {
+        stubSharedWeibo(Map.of("idstr", "456", "retweeted_status", Map.of("idstr", "123")));
+        String url = "https://wx2.sinaimg.cn/cover.jpg";
+        var mapper = new ObjectMapper();
+        var page = Map.of("page_info", Map.of("object_type", "video", "page_pic", url));
+        when(postDetailApi.query("123")).thenReturn(mapper.valueToTree(page));
+        when(postDetailApi.query("456"))
+                .thenReturn(
+                        mapper.valueToTree(
+                                Map.of(
+                                        "page_info",
+                                        page.get("page_info"),
+                                        "retweeted_status",
+                                        page)));
+        var image = new MediaBinary(new byte[] {1, 2}, "image/jpeg");
+        when(imageProxyService.fetch(url)).thenReturn(image);
+
+        assertThat(chatService.queryMessageWeiboCover(1, 100, true)).isEqualTo(image);
+        assertThatThrownBy(() -> chatService.queryMessageWeiboCover(1, 100, false))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(imageProxyService).fetch(url);
     }
 
     private void stubSharedWeibo(Map<String, Object> status) {

@@ -27,23 +27,22 @@ public class PostLikeApi {
     private final WeiboHttpClient client;
     private final WeiboCookieHolder credential;
     private final ObjectMapper objectMapper;
+    private final PostDetailApi postDetailApi;
 
     public PostLikeApi(
-            WeiboHttpClient client, WeiboCookieHolder credential, ObjectMapper objectMapper) {
+            WeiboHttpClient client,
+            WeiboCookieHolder credential,
+            ObjectMapper objectMapper,
+            PostDetailApi postDetailApi) {
         this.client = client;
         this.credential = credential;
         this.objectMapper = objectMapper;
+        this.postDetailApi = postDetailApi;
     }
 
     public PostLikeState query(long id) {
         requireId(id);
-        Map<String, String> params = new LinkedHashMap<>();
-        params.put("id", Long.toString(id));
-        params.put("locale", "zh-CN");
-        JsonNode body =
-                requireSuccess(
-                        client.getForString(
-                                STATUS_URL + "show", params, WeiboConstants.HEADERS_AJAX, true));
+        JsonNode body = requireSuccess(postDetailApi.get(Long.toString(id)));
         JsonNode status = body.path("attitudes_status");
         JsonNode count = body.path("attitudes_count");
         if (!Long.toString(id).equals(body.path("idstr").asText())

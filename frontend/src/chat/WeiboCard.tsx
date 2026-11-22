@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import MessageText from './MessageText';
-import { fetchMessageWeiboText } from './api';
+import { fetchMessageWeiboCover, fetchMessageWeiboText } from './api';
 import type { ImageSelection } from './ImageViewer';
 
 type WeiboStatus = {
@@ -18,6 +19,8 @@ type WeiboStatus = {
   original_pic?: string | null;
   bmiddle_pic?: string | null;
   thumbnail_pic?: string | null;
+  page_info?: { object_type?: string | null; type?: number | string | null; media_info?: unknown } | null;
+  extend_info?: { video_summary?: { video_oid?: string | null } | null } | null;
   retweeted_status?: WeiboStatus | null;
 };
 
@@ -27,9 +30,60 @@ export type WeiboUrlObject = {
   info?: { url_long?: string | null } | null;
 };
 
-function WeiboContent({ status, text, onOpenImage }: {
-  status: WeiboStatus; text: string; onOpenImage: (selection: ImageSelection) => void;
+type WeiboReference = { gid: number; mid: number; retweeted: boolean };
+
+function WeiboVideoCover({ id, gid, mid, retweeted }: WeiboReference & { id: string }) {
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    const target = anchor.current?.parentElement;
+    if (!target) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setVisible(true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  const { data: cover } = useQuery({
+    queryKey: ['chat', 'weibo-cover', id, retweeted],
+    queryFn: ({ signal }) => fetchMessageWeiboCover(gid, mid, retweeted, signal),
+    enabled: visible,
+    retry: false,
+    staleTime: Infinity,
+  });
+  useEffect(() => {
+    if (!cover) return;
+    const url = URL.createObjectURL(cover);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [cover]);
+
+  return cover && src
+    ? <img className="weibo-card-video-cover" src={src} alt="视频封面" onError={() => setSrc('')} />
+    : <span ref={anchor} aria-hidden="true" />;
+}
+
+function WeiboContent({ status, gid, mid, retweeted, onOpenImage }: WeiboReference & {
+  status: WeiboStatus; onOpenImage: (selection: ImageSelection) => void;
 }) {
+  const id = status.idstr || '';
+  const needsLongText = Boolean(status.isLongText);
+  const longText = useQuery({
+    queryKey: ['chat', 'weibo-text', id || `${gid}:${mid}:${retweeted}`],
+    queryFn: ({ signal }) => fetchMessageWeiboText(gid, mid, signal, retweeted),
+    enabled: needsLongText,
+    staleTime: Infinity,
+  });
+  const preview = (status.text ?? '').replace(/<[^>]+>/g, '').trim();
+  const text = needsLongText ? longText.data ?? preview : preview;
+  const hasVideoHint = status.page_info?.object_type === 'video' || Boolean(status.page_info?.media_info)
+    || String(status.page_info?.type) === '5' || Boolean(status.extend_info?.video_summary?.video_oid)
+    || /https?:\/\/t\.cn\/[a-z0-9]+/i.test(preview);
   const author = status.user?.screen_name?.trim() ?? '';
   const avatar = status.user?.avatar_hd || status.user?.avatar_large || status.user?.profile_image_url;
   const firstPicture = status.original_pic || status.bmiddle_pic || status.thumbnail_pic || '';
@@ -49,6 +103,12 @@ function WeiboContent({ status, text, onOpenImage }: {
       <div className="weibo-card-author">{author}</div>
     </div>}
     {text && <div className="weibo-card-summary"><MessageText text={text} /></div>}
+    {needsLongText && longText.isFetching && <div role="status">正在加载微博全文……</div>}
+    {needsLongText && longText.isError && <div role="alert">
+      微博全文加载失败，当前仅显示预览。
+      <button type="button" className="weibo-card-retry" onClick={() => { void longText.refetch(); }}>重试加载全文</button>
+    </div>}
+    {id && hasVideoHint && <WeiboVideoCover key={id} id={id} gid={gid} mid={mid} retweeted={retweeted} />}
     {pictures.length > 0 && <div className="weibo-card-pictures">
       {images.map((image, index) => <button key={image.url} type="button" className="weibo-card-picture"
         aria-label={`查看微博图片 ${index + 1}`}
@@ -63,31 +123,14 @@ export default function WeiboCard({ urlObject, gid, mid, onOpenImage }: {
   urlObject: WeiboUrlObject; gid: number; mid: number; onOpenImage: (selection: ImageSelection) => void;
 }) {
   const status = urlObject.status ?? {};
-  const id = status.idstr ?? '';
-  const needsLongText = Boolean(status.isLongText);
-  const longText = useQuery({
-    queryKey: ['chat', 'weibo-text', id || `${gid}:${mid}`],
-    queryFn: ({ signal }) => fetchMessageWeiboText(gid, mid, signal),
-    enabled: needsLongText,
-    staleTime: Infinity,
-  });
-  const preview = (status.text ?? '').replace(/<[^>]+>/g, '').trim();
-  const text = needsLongText ? longText.data ?? preview : preview;
   const link = urlObject.url_ori || urlObject.info?.url_long || '';
   const href = /^https?:\/\//i.test(link) ? link : '';
 
   return (
     <div className="bubble weibo-card">
-      <WeiboContent status={status} text={text} onOpenImage={onOpenImage} />
-      {needsLongText && longText.isFetching && <div role="status">正在加载微博全文……</div>}
-      {needsLongText && longText.isError && <div role="alert">
-        微博全文加载失败，当前仅显示预览。
-        <button type="button" className="weibo-card-retry" onClick={() => { void longText.refetch(); }}>重试加载全文</button>
-      </div>}
+      <WeiboContent status={status} gid={gid} mid={mid} retweeted={false} onOpenImage={onOpenImage} />
       {status.retweeted_status && <div className="weibo-card-retweet">
-        <WeiboContent status={status.retweeted_status}
-          text={(status.retweeted_status.text ?? '').replace(/<[^>]+>/g, '').trim()}
-          onOpenImage={onOpenImage} />
+        <WeiboContent status={status.retweeted_status} gid={gid} mid={mid} retweeted onOpenImage={onOpenImage} />
       </div>}
       {href && (
         <a className="weibo-card-link" href={href} target="_blank" rel="noopener noreferrer">查看微博</a>

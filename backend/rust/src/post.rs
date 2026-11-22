@@ -962,20 +962,7 @@ fn positive_post(id: i64) -> ApiResult<()> {
 
 async fn query_like(state: &AppState, id: i64) -> ApiResult<Value> {
     positive_post(id)?;
-    let query = [("id", id.to_string()), ("locale", "zh-CN".to_owned())];
-    let body = like_success(
-        weibo::request(
-            state,
-            Method::GET,
-            &format!("{STATUSES_URL}/show"),
-            HeaderProfile::Ajax,
-            true,
-            Retry::RateLimit,
-            |request| request.query(&query),
-        )
-        .await?,
-    )
-    .await?;
+    let body = like_success(status_show(state, &id.to_string()).await?).await?;
     let status = body["attitudes_status"].as_i64();
     let count = body["attitudes_count"].as_i64();
     if integer(&body["idstr"]) != Some(id)
@@ -985,6 +972,30 @@ async fn query_like(state: &AppState, id: i64) -> ApiResult<Value> {
         return Err(upstream_error("微博点赞状态不完整，请重试。"));
     }
     Ok(json!({"liked":status == Some(1), "count":count}))
+}
+
+async fn status_show(state: &AppState, id: &str) -> ApiResult<reqwest::Response> {
+    let query = [("id", id), ("locale", "zh-CN")];
+    weibo::request(
+        state,
+        Method::GET,
+        &format!("{STATUSES_URL}/show"),
+        HeaderProfile::Ajax,
+        true,
+        Retry::RateLimit,
+        |request| request.query(&query),
+    )
+    .await
+}
+
+pub(crate) async fn post_detail(state: &AppState, id: &str) -> ApiResult<Value> {
+    let response = status_show(state, id).await?;
+    let status = response.status();
+    let body: Value = weibo::json(response).await?;
+    if !status.is_success() || to_int(&body["ok"]) <= 0 || body["idstr"].as_str() != Some(id) {
+        return Err(upstream_error("微博详情暂不可用。"));
+    }
+    Ok(body)
 }
 
 async fn write_like(state: &AppState, id: i64, liked: bool) -> ApiResult<StatusCode> {

@@ -1,7 +1,12 @@
 ### 变量
-@host = http://localhost:8080
+@host = http://localhost:18080
 @videoGid = 5046020575330655
 @videoMid = 5137543554664280
+# 将下列示例值替换为本地群聊列表返回的 gid 和对应消息的 mid。
+@sharedWeiboGid = 1
+@sharedVideoMid = 1
+@retweetedVideoMid = 2
+@retweetedLongTextMid = 3
 
 ### 从微博同步群聊列表到本地
 POST {{host}}/chat/groups/sync
@@ -30,8 +35,13 @@ GET {{host}}/chat/messages?gid=4761715839862414&page=2&size=100
 ### 使用游标查询群聊的最新一批本地消息
 GET {{host}}/chat/messages/cursor?gid=4761715839862414&size=100
 
-### 查询本地群消息分享的微博正文（长文按需从上游读取）
+### 查询群聊分享的外层微博正文（长文按需从微博读取）
+# 省略 retweeted 时查询外层，响应为 {"text":"…"}。
 GET {{host}}/chat/messages/weiboText?gid=4761715839862414&mid=5357859137126491
+
+### 查询群聊转发的原微博全文
+# 选择内层原微博为长文的分享消息，mid 始终是群消息 ID。
+GET {{host}}/chat/messages/weiboText?gid={{sharedWeiboGid}}&mid={{retweetedLongTextMid}}&retweeted=true
 
 ### 向上查询：使用上一批响应中的复合游标继续查询更早消息
 # beforeCreatedAt 和 beforeMid 分别取上一批响应中的 nextBeforeCreatedAt 和 nextBeforeMid。
@@ -66,6 +76,14 @@ GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=origin
 
 ### 视频消息封面预览（视频消息不支持 original）
 GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=preview
+
+### 群聊分享的外层微博视频封面
+# 对应微博有封面时返回图片字节，无封面时返回 404。
+GET {{host}}/chat/media?gid={{sharedWeiboGid}}&mid={{sharedVideoMid}}&variant=weiboCover
+
+### 群聊转发的内层原微博视频封面
+# 详情和图片按需读取，需要可用的微博登录态。
+GET {{host}}/chat/media?gid={{sharedWeiboGid}}&mid={{retweetedVideoMid}}&variant=weiboCover&retweeted=true
 
 ### 查询含视频消息（视频项返回 previewUrl 和 videoUrl）
 GET {{host}}/chat/messages?gid={{videoGid}}&page=1&size=100

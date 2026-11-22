@@ -851,6 +851,16 @@ h1 {
   margin-bottom: 8px;
 }
 
+.weibo-card-video-cover {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 8px;
+  border: 1px solid var(--media-border);
+  border-radius: var(--radius-md);
+}
+
 .weibo-card-picture {
   display: grid;
   place-items: center;

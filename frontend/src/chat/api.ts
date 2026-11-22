@@ -144,11 +144,23 @@ export function fetchAttitudes(gid: number, mids: number[], signal: AbortSignal)
   return getJson<Record<string, Attitude[]>>(`/chat/attitudes?${query}`, signal);
 }
 
-export async function fetchMessageWeiboText(gid: number, mid: number, signal: AbortSignal) {
+export async function fetchMessageWeiboText(gid: number, mid: number, signal: AbortSignal, retweeted = false) {
   const query = new URLSearchParams({ gid: String(gid), mid: String(mid) });
+  if (retweeted) query.set('retweeted', 'true');
   const result = await getJson<{ text: string }>(`/chat/messages/weiboText?${query}`,
     AbortSignal.any([signal, AbortSignal.timeout(15000)]));
   return result.text;
+}
+
+export async function fetchMessageWeiboCover(gid: number, mid: number, retweeted: boolean, signal: AbortSignal) {
+  const query = new URLSearchParams({ gid: String(gid), mid: String(mid), variant: 'weiboCover' });
+  if (retweeted) query.set('retweeted', 'true');
+  const response = await fetch(`/chat/media?${query}`, {
+    signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new HttpError(await readError(response), response.status);
+  return response.blob();
 }
 
 export async function fetchLoginStatus(signal: AbortSignal) {

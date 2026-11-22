@@ -75,14 +75,30 @@ class ChatControllerTest {
     @Test
     void shared_weibo_text_uses_the_group_message_reference_and_returns_business_json()
             throws Exception {
-        when(chatService.queryMessageWeiboText(1, 100)).thenReturn("完整正文。\n\n结尾。");
+        when(chatService.queryMessageWeiboText(1, 100, false)).thenReturn("完整正文。\n\n结尾。");
 
         mockMvc.perform(get("/chat/messages/weiboText").param("gid", "1").param("mid", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.text").value("完整正文。\n\n结尾。"))
                 .andExpect(jsonPath("$.data").doesNotExist())
                 .andExpect(jsonPath("$.ok").doesNotExist());
-        verify(chatService).queryMessageWeiboText(1, 100);
+        verify(chatService).queryMessageWeiboText(1, 100, false);
+    }
+
+    @Test
+    void shared_weibo_cover_returns_the_original_image_as_media() throws Exception {
+        when(chatService.queryMessageWeiboCover(1, 100, true))
+                .thenReturn(new MediaBinary(new byte[] {1, 2}, "image/jpeg"));
+
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "1")
+                                .param("mid", "100")
+                                .param("variant", "weiboCover")
+                                .param("retweeted", "true"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/jpeg"))
+                .andExpect(content().bytes(new byte[] {1, 2}));
     }
 
     @Test
@@ -559,7 +575,8 @@ class ChatControllerTest {
         when(response.getOutputStream()).thenReturn(output);
 
         assertThatCode(() ->
-                        chatController.queryMessageMedia(101, 100, "video", "bytes=0-1", response))
+                        chatController.queryMessageMedia(
+                                101, 100, "video", false, "bytes=0-1", response))
                 .doesNotThrowAnyException();
     }
 
@@ -599,7 +616,8 @@ class ChatControllerTest {
         when(response.getOutputStream()).thenReturn(output);
 
         assertThatCode(() ->
-                        chatController.queryMessageMedia(101, 100, "video", "bytes=0-3", response))
+                        chatController.queryMessageMedia(
+                                101, 100, "video", false, "bytes=0-3", response))
                 .doesNotThrowAnyException();
     }
 

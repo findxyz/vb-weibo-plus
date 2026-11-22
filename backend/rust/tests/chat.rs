@@ -1,10 +1,76 @@
 use axum::{
+    Json, Router,
     body::{Body, to_bytes},
+    extract::Query,
     http::{Request, StatusCode},
+    routing::get,
 };
 use serde_json::{Value, json};
+use std::collections::HashMap;
 use tower::ServiceExt;
 use weibo_plus::{AppState, Config, app};
+
+#[tokio::test]
+async fn shared_weibo_routes_resolve_the_original_and_keep_missing_covers_out_of_the_card() {
+    let upstream = Router::new()
+        .route(
+            "/ajax/statuses/longtext",
+            get(|Query(query): Query<HashMap<String, String>>| async move {
+                assert_eq!(query["id"], "123");
+                Json(json!({"ok": 1, "data": {"longTextContent_raw": "原微博全文。"}}))
+            }),
+        )
+        .route(
+            "/ajax/statuses/show",
+            get(|Query(query): Query<HashMap<String, String>>| async move {
+                assert_eq!(query["id"], "123");
+                Json(json!({"ok": 1, "idstr": "123", "page_info": {"page_pic": "https://example.com/not-a-video.jpg"}}))
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, upstream).await.unwrap() });
+    let directory = tempfile::tempdir().unwrap();
+    let state = AppState::new(Config {
+        database_path: directory.path().join("weibo.db"),
+        cookie_file: directory.path().join(".weibo_cookie.txt"),
+        weibo_origin: Some(origin),
+        ..Config::default()
+    })
+    .await
+    .unwrap();
+    state.credential.set(Some("SUB=fixture".into())).unwrap();
+    state.db.run(|db| {
+        let urls = json!([{"status": {"text": "转发评论。", "retweeted_status": {"idstr": "123", "isLongText": true}}}]);
+        db.execute(
+            "INSERT INTO messages (mid, gid, media_type, url_objects, created_at, saved_at) VALUES (7, 3, 14, ?, 10, 20)",
+            [urls.to_string()],
+        )
+    }).await.unwrap();
+    let router = app(state);
+    assert_eq!(
+        response(&router, "/chat/messages/weiboText?gid=3&mid=7").await,
+        json!({"text": "转发评论。"}),
+    );
+    assert_eq!(
+        response(
+            &router,
+            "/chat/messages/weiboText?gid=3&mid=7&retweeted=true"
+        )
+        .await,
+        json!({"text": "原微博全文。"}),
+    );
+    let cover = router
+        .oneshot(
+            Request::get("/chat/media?gid=3&mid=7&variant=weiboCover&retweeted=true")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(cover.status(), StatusCode::NOT_FOUND);
+    server.abort();
+}
 
 #[tokio::test]
 async fn preserved_messages_are_paginated_in_both_directions_without_duplicate_boundaries() {

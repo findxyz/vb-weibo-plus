@@ -1,5 +1,6 @@
 package xyz.fz.weibo.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -31,6 +32,7 @@ import xyz.fz.weibo.api.GroupMediaApi;
 import xyz.fz.weibo.api.GroupMessagesApi;
 import xyz.fz.weibo.api.GroupPushApi;
 import xyz.fz.weibo.api.LongTextApi;
+import xyz.fz.weibo.api.PostDetailApi;
 import xyz.fz.weibo.client.DigestUtils;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
 import xyz.fz.weibo.client.exception.WeiboException;
@@ -89,6 +91,8 @@ public class ChatService {
     private final VideoProbe videoProbe;
     private final GroupPushApi pushApi;
     private final LongTextApi longTextApi;
+    private final PostDetailApi postDetailApi;
+    private final ImageProxyService imageProxyService;
     private final ReentrantLock saveBySinceLock = new ReentrantLock();
 
     public ChatService(
@@ -101,7 +105,9 @@ public class ChatService {
             HeicConverter heicConverter,
             VideoProbe videoProbe,
             GroupPushApi pushApi,
-            LongTextApi longTextApi) {
+            LongTextApi longTextApi,
+            PostDetailApi postDetailApi,
+            ImageProxyService imageProxyService) {
         this.groupListApi = groupListApi;
         this.groupMessagesApi = groupMessagesApi;
         this.groupMediaApi = groupMediaApi;
@@ -112,6 +118,8 @@ public class ChatService {
         this.videoProbe = videoProbe;
         this.pushApi = pushApi;
         this.longTextApi = longTextApi;
+        this.postDetailApi = postDetailApi;
+        this.imageProxyService = imageProxyService;
     }
 
     public void openWebSocket() {
@@ -521,21 +529,12 @@ public class ChatService {
         return new PageCapture(inserted, ignored + (collected.size() - inserted), reached);
     }
 
-    public String queryMessageWeiboText(long gid, long mid) {
-        validateGid(gid);
-        MessageRecord message = requireLocalMessage(gid, mid);
-        if (message.mediaType() != 14
-                || message.urlObjects().isEmpty()
-                || !(message.urlObjects().getFirst().get("status") instanceof Map<?, ?> status)) {
-            throw new InvalidRequestException("该消息不是微博分享。");
-        }
+    public String queryMessageWeiboText(long gid, long mid, boolean retweeted) {
+        Map<?, ?> status = requireSharedWeibo(gid, mid, retweeted);
         if (!Boolean.TRUE.equals(status.get("isLongText"))) {
             return Objects.toString(status.get("text"), "");
         }
-        String id = Objects.toString(status.get("idstr"), "");
-        if (id.isBlank()) {
-            throw new ResourceNotFoundException("本地微博分享缺少微博 ID。");
-        }
+        String id = requireSharedWeiboId(status);
         var response = longTextApi.longText(new LongTextRequest(id));
         if (response == null || response.ok() != 1 || response.data() == null) {
             throw new WeiboException("微博全文暂不可用。", -1);
@@ -554,6 +553,52 @@ public class ChatService {
             throw new WeiboException("微博全文暂不可用。", -1);
         }
         return text;
+    }
+
+    public MediaBinary queryMessageWeiboCover(long gid, long mid, boolean retweeted) {
+        String id = requireSharedWeiboId(requireSharedWeibo(gid, mid, retweeted));
+        JsonNode detail = postDetailApi.query(id);
+        String cover = videoCover(detail);
+        if (cover.isBlank()
+                || (!retweeted && cover.equals(videoCover(detail.path("retweeted_status"))))) {
+            throw new ResourceNotFoundException("该微博没有视频封面。");
+        }
+        return imageProxyService.fetch(cover);
+    }
+
+    private Map<?, ?> requireSharedWeibo(long gid, long mid, boolean retweeted) {
+        validateGid(gid);
+        MessageRecord message = requireLocalMessage(gid, mid);
+        if (message.mediaType() != 14
+                || message.urlObjects().isEmpty()
+                || !(message.urlObjects().getFirst().get("status") instanceof Map<?, ?> status)) {
+            throw new InvalidRequestException("该消息不是微博分享。");
+        }
+        if (!retweeted) {
+            return status;
+        }
+        if (status.get("retweeted_status") instanceof Map<?, ?> original) {
+            return original;
+        }
+        throw new ResourceNotFoundException("本地微博分享缺少原微博。");
+    }
+
+    private String requireSharedWeiboId(Map<?, ?> status) {
+        String id = Objects.toString(status.get("idstr"), "");
+        if (id.isBlank()) {
+            throw new ResourceNotFoundException("本地微博分享缺少微博 ID。");
+        }
+        return id;
+    }
+
+    private String videoCover(JsonNode status) {
+        JsonNode page = status.path("page_info");
+        if ("video".equals(page.path("object_type").asText())
+                || "5".equals(page.path("type").asText())
+                || page.path("media_info").isObject()) {
+            return page.path("page_pic").asText("");
+        }
+        return "";
     }
 
     public MediaBinary queryMessageMedia(long gid, long mid, String variant) {

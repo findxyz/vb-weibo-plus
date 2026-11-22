@@ -125,8 +125,10 @@ public class ChatController {
 
     @GetMapping("/messages/weiboText")
     public Map<String, String> queryMessageWeiboText(
-            @RequestParam long gid, @RequestParam long mid) {
-        return Map.of("text", chatService.queryMessageWeiboText(gid, mid));
+            @RequestParam long gid,
+            @RequestParam long mid,
+            @RequestParam(defaultValue = "false") boolean retweeted) {
+        return Map.of("text", chatService.queryMessageWeiboText(gid, mid, retweeted));
     }
 
     @GetMapping("/attitudes")
@@ -156,6 +158,7 @@ public class ChatController {
             @RequestParam long gid,
             @RequestParam long mid,
             @RequestParam String variant,
+            @RequestParam(defaultValue = "false") boolean retweeted,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
             HttpServletResponse response)
             throws IOException {
@@ -195,7 +198,10 @@ public class ChatController {
             response.getOutputStream().write(file.content());
             return;
         }
-        MediaBinary media = chatService.queryMessageMedia(gid, mid, variant);
+        MediaBinary media =
+                "weiboCover".equals(variant)
+                        ? chatService.queryMessageWeiboCover(gid, mid, retweeted)
+                        : chatService.queryMessageMedia(gid, mid, variant);
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(media.contentType());
         response.setContentLength(media.content().length);

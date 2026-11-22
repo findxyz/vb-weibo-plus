@@ -28,6 +28,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.client.RestTemplate;
+import xyz.fz.weibo.api.PostDetailApi;
 import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.client.WeiboCookieHolder;
 import xyz.fz.weibo.client.WeiboHttpClient;
@@ -81,7 +82,8 @@ class PostLikeIntegrationTest {
                         new PostMapper(mapper),
                         null,
                         posts,
-                        new PostLikeApi(client, credential, mapper));
+                        new PostLikeApi(
+                                client, credential, mapper, new PostDetailApi(client, mapper)));
         mvc =
                 MockMvcBuilders.standaloneSetup(new PostController(service))
                         .setControllerAdvice(new WeiboExceptionHandler())

@@ -53,6 +53,8 @@ pub(super) struct SinceQuery {
 pub(super) struct MessageKey {
     gid: i64,
     mid: i64,
+    #[serde(default)]
+    retweeted: bool,
 }
 
 #[derive(Deserialize)]
@@ -211,18 +213,19 @@ pub(super) async fn attitudes(
     Ok(Json(Value::Object(result)))
 }
 
-pub(super) async fn weibo_text(
-    State(state): State<AppState>,
-    query: Result<Query<MessageKey>, QueryRejection>,
-) -> Result<Json<Value>, WeiboError> {
-    let query = query_value(query)?;
-    validate_gid(query.gid)?;
+async fn shared_weibo(
+    state: &AppState,
+    gid: i64,
+    mid: i64,
+    retweeted: bool,
+) -> Result<Value, WeiboError> {
+    validate_gid(gid)?;
     let local = state
         .db
         .run(move |db| {
             db.query_row(
                 "SELECT media_type, url_objects FROM messages WHERE gid=? AND mid=?",
-                [query.gid, query.mid],
+                [gid, mid],
                 |row| {
                     Ok((
                         row.get::<_, i64>(0)?,
@@ -235,13 +238,25 @@ pub(super) async fn weibo_text(
         .await
         .map_err(database)?
         .ok_or_else(|| WeiboError::new(StatusCode::NOT_FOUND, "本地群消息不存在。"))?;
-    let status = &local.1[0]["status"];
+    let status = local.1[0]["status"].clone();
     if local.0 != 14 || !status.is_object() {
         return Err(bad_request("该消息不是微博分享。"));
     }
-    if status["isLongText"].as_bool() != Some(true) {
-        return Ok(Json(json!({"text": string(&status["text"])})));
+    if !retweeted {
+        return Ok(status);
     }
+    let mut status = status;
+    let original = status["retweeted_status"].take();
+    if !original.is_object() {
+        return Err(WeiboError::new(
+            StatusCode::NOT_FOUND,
+            "本地微博分享缺少原微博。",
+        ));
+    }
+    Ok(original)
+}
+
+fn shared_weibo_id(status: &Value) -> Result<String, WeiboError> {
     let id = string(&status["idstr"]);
     if id.trim().is_empty() {
         return Err(WeiboError::new(
@@ -249,6 +264,51 @@ pub(super) async fn weibo_text(
             "本地微博分享缺少微博 ID。",
         ));
     }
+    Ok(id)
+}
+
+pub(crate) async fn shared_weibo_cover(
+    state: &AppState,
+    gid: i64,
+    mid: i64,
+    retweeted: bool,
+) -> Result<String, WeiboError> {
+    let status = shared_weibo(state, gid, mid, retweeted).await?;
+    let id = shared_weibo_id(&status)?;
+    let detail = post::post_detail(state, &id).await?;
+    let cover = video_cover(&detail);
+    if cover.trim().is_empty() || (!retweeted && cover == video_cover(&detail["retweeted_status"]))
+    {
+        return Err(WeiboError::new(
+            StatusCode::NOT_FOUND,
+            "该微博没有视频封面。",
+        ));
+    }
+    Ok(cover.to_owned())
+}
+
+fn video_cover(status: &Value) -> &str {
+    let page = &status["page_info"];
+    if page["object_type"].as_str() == Some("video")
+        || page["type"].as_str() == Some("5")
+        || page["type"].as_i64() == Some(5)
+        || page["media_info"].is_object()
+    {
+        return page["page_pic"].as_str().unwrap_or_default();
+    }
+    ""
+}
+
+pub(super) async fn weibo_text(
+    State(state): State<AppState>,
+    query: Result<Query<MessageKey>, QueryRejection>,
+) -> Result<Json<Value>, WeiboError> {
+    let query = query_value(query)?;
+    let status = shared_weibo(&state, query.gid, query.mid, query.retweeted).await?;
+    if status["isLongText"].as_bool() != Some(true) {
+        return Ok(Json(json!({"text": string(&status["text"])})));
+    }
+    let id = shared_weibo_id(&status)?;
     let response = post::long_text(&state, &id).await?;
     if number(&response["ok"]) != Some(1) || !response["data"].is_object() {
         return Err(upstream("微博全文暂不可用。"));

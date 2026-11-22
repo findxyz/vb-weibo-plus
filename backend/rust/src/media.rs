@@ -189,7 +189,11 @@ async fn raw_response(response: reqwest::Response) -> ApiResult<Response> {
 }
 
 async fn chat_image(Query(query): Query<MediaUrl>) -> ApiResult<Response> {
-    let url = Url::parse(&query.url).map_err(|_| bad("图片 URL 格式不正确。"))?;
+    chat_image_response(&query.url, false).await
+}
+
+async fn chat_image_response(url: &str, cached: bool) -> ApiResult<Response> {
+    let url = Url::parse(url).map_err(|_| bad("图片 URL 格式不正确。"))?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err(bad("图片 URL 仅支持 HTTP 或 HTTPS。"));
     }
@@ -233,7 +237,7 @@ async fn chat_image(Query(query): Query<MediaUrl>) -> ApiResult<Response> {
         .bytes()
         .await
         .map_err(|_| WeiboError::upstream("图片获取失败。"))?;
-    byte_response(StatusCode::OK, kind, bytes, false)
+    byte_response(StatusCode::OK, kind, bytes, cached)
 }
 
 fn public_ip(ip: IpAddr) -> bool {
@@ -265,6 +269,8 @@ struct ChatMedia {
     gid: i64,
     mid: i64,
     variant: String,
+    #[serde(default)]
+    retweeted: bool,
 }
 
 struct LocalMedia {
@@ -295,6 +301,10 @@ async fn chat_media(
 ) -> ApiResult<Response> {
     if query.gid <= 0 {
         return Err(bad("gid 必须大于 0。"));
+    }
+    if query.variant == "weiboCover" {
+        let url = chat::shared_weibo_cover(&state, query.gid, query.mid, query.retweeted).await?;
+        return chat_image_response(&url, true).await;
     }
     if !matches!(
         query.variant.as_str(),

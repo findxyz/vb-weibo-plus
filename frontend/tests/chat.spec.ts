@@ -1168,6 +1168,45 @@ test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({
   expect(rawWeiboRequests).toEqual([]);
 });
 
+test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', async ({ page }) => {
+  const items = makeMessages(1, 3, '分享微博');
+  for (const item of items) item.mediaType = 14;
+  const original = { idstr: '5357643507961089', isLongText: true, text: '内层预览 http://t.cn/example' };
+  items[0].urlObjects = [{ status: { idstr: '11', text: '外层评论', retweeted_status: original } }];
+  items[1].urlObjects = [{ status: { idstr: '12', text: '重复转发', retweeted_status: original } }];
+  items[2].urlObjects = [{ status: { idstr: '13', text: '视频分享', extend_info: { video_summary: { video_oid: 'video-id' } } } }];
+  messagesByGid.set(1, items);
+  const coverRequests: URL[] = [];
+  const textRequests: URL[] = [];
+  await page.route('**/chat/messages/weiboText?*', async route => {
+    textRequests.push(new URL(route.request().url()));
+    await route.fulfill(textRequests.length === 1
+      ? { status: 503, json: { msg: '微博全文暂不可用。' } }
+      : { json: { text: '内层完整正文。' } });
+  });
+  await page.route('**/chat/media?*', async route => {
+    coverRequests.push(new URL(route.request().url()));
+    await route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"/>' });
+  });
+  await openChat(page);
+
+  const card = page.locator('[data-mid="1"] .weibo-card');
+  const retweet = card.locator('.weibo-card-retweet');
+  await expect(card.locator(':scope > .weibo-card-summary')).toHaveText('外层评论');
+  await expect(retweet.getByRole('alert')).toHaveCount(1);
+  await expect(retweet.locator('.weibo-card-summary')).toHaveText(original.text);
+  await retweet.getByRole('button', { name: '重试加载全文' }).click();
+  await expect(retweet.locator('.weibo-card-summary')).toHaveText('内层完整正文。');
+  expect(textRequests.map(url => url.searchParams.get('retweeted'))).toEqual(['true', 'true']);
+  for (const mid of [1, 2]) {
+    await expect(page.locator(`[data-mid="${mid}"] .weibo-card-retweet img[alt="视频封面"]`)).toBeVisible();
+  }
+  await expect(card.locator(':scope > img[alt="视频封面"]')).toHaveCount(0);
+  await expect(page.locator('[data-mid="3"] .weibo-card > img[alt="视频封面"]')).toBeVisible();
+  expect(coverRequests.map(url => [url.searchParams.get('variant'), url.searchParams.get('retweeted')]).sort())
+    .toEqual([['weiboCover', null], ['weiboCover', 'true']]);
+});
+
 test('chat_renders_shared_weibo_full_text_as_literal_text', async ({ page }) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;
