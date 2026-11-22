@@ -160,7 +160,13 @@ export async function fetchMessageWeiboCover(gid: number, mid: number, retweeted
   });
   if (response.status === 404) return null;
   if (!response.ok) throw new HttpError(await readError(response), response.status);
-  return response.blob();
+  return { image: await response.blob(), pageUrl: response.headers.get('X-Weibo-Video-Url') };
+}
+
+export function messageWeiboVideoUrl(gid: number, mid: number, retweeted: boolean) {
+  const query = new URLSearchParams({ gid: String(gid), mid: String(mid), variant: 'weiboVideo' });
+  if (retweeted) query.set('retweeted', 'true');
+  return `/chat/media?${query}`;
 }
 
 export async function fetchLoginStatus(signal: AbortSignal) {

@@ -10,10 +10,15 @@ export function sanitizedContent(content: string) {
     if (href.startsWith('//')) anchor.setAttribute('href', `https:${href}`);
     else if (href.startsWith('/')) anchor.setAttribute('href', `https://weibo.com${href}`);
     const imageHref = anchor.getAttribute('href') || '';
-    if (anchor.hasAttribute('data-pid') && /^https?:\/\//i.test(imageHref) && URL.canParse(imageHref)) {
+    if (/^https?:\/\//i.test(imageHref) && URL.canParse(imageHref)) {
       const imageUrl = new URL(imageHref);
-      if (imageUrl.hostname.endsWith('.sinaimg.cn')) {
+      const imageLink = anchor.hasAttribute('data-pid')
+        || (anchor.textContent?.trim() === '查看图片' && /\.(?:jpe?g|png|gif|webp|avif|bmp|hei[cf])$/i.test(imageUrl.pathname));
+      if (imageLink && imageUrl.hostname.endsWith('.sinaimg.cn') && !imageUrl.username && !imageUrl.password) {
         anchor.setAttribute('href', `/chat/image?${new URLSearchParams({ url: imageHref })}`);
+        anchor.setAttribute('aria-haspopup', 'dialog');
+        anchor.removeAttribute('target');
+        continue;
       }
     }
     anchor.setAttribute('target', '_blank');

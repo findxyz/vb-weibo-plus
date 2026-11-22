@@ -155,7 +155,14 @@ public class WeiboHttpClient {
             Map<String, String> headers,
             boolean withCredential,
             ResponseExtractor<T> responseExtractor) {
-        URI uri = buildUri(url, params);
+        return getForStream(buildUri(url, params), headers, withCredential, responseExtractor);
+    }
+
+    public <T> T getForStream(
+            URI uri,
+            Map<String, String> headers,
+            boolean withCredential,
+            ResponseExtractor<T> responseExtractor) {
         @SuppressWarnings("PMD.LooseCoupling")
         HttpHeaders httpHeaders = buildHeaders(headers, withCredential);
         return withRateLimitRetry(

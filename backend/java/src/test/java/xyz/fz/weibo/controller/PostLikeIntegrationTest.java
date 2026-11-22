@@ -73,6 +73,7 @@ class PostLikeIntegrationTest {
                                         99,
                                         100,
                                         200)));
+        PostDetailApi detail = new PostDetailApi(client, mapper);
         PostService service =
                 new PostService(
                         null,
@@ -82,8 +83,8 @@ class PostLikeIntegrationTest {
                         new PostMapper(mapper),
                         null,
                         posts,
-                        new PostLikeApi(
-                                client, credential, mapper, new PostDetailApi(client, mapper)));
+                        new PostLikeApi(client, credential, mapper, detail),
+                        detail);
         mvc =
                 MockMvcBuilders.standaloneSetup(new PostController(service))
                         .setControllerAdvice(new WeiboExceptionHandler())

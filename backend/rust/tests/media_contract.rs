@@ -2,12 +2,90 @@ use axum::body::{Body, Bytes, to_bytes};
 use axum::http::{HeaderMap, Request, StatusCode, header};
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Query, State},
     routing::{get, post},
 };
 use serde_json::json;
+use std::collections::HashMap;
 use tower::ServiceExt;
 use weibo_plus::{AppState, Config, app};
+
+#[tokio::test]
+async fn shared_and_post_videos_stream_original_weibo_ranges_without_forwarding_credentials() {
+    let upstream = Router::new()
+        .route(
+            "/ajax/statuses/show",
+            get(|Query(params): Query<HashMap<String, String>>| async move {
+                assert_eq!(params["id"], "123");
+                Json(
+                    json!({"ok":1,"idstr":"123","page_info":{"media_info":{"playback_list":[
+                        {"play_info":{"url":"https://video.weibocdn.com.evil.test/wrong.mp4"}},
+                        {"play_info":{"url":"https://video.weibocdn.com/clip.mp4?token=a%2Bb"}}
+                    ]}}}),
+                )
+            }),
+        )
+        .route(
+            "/clip.mp4",
+            get(
+                |headers: HeaderMap, Query(params): Query<HashMap<String, String>>| async move {
+                    assert_eq!(params["token"], "a+b");
+                    assert!(headers.get(header::COOKIE).is_none());
+                    assert_eq!(headers[header::REFERER], "https://weibo.com/");
+                    assert_eq!(headers[header::RANGE], "bytes=1-2");
+                    (
+                        StatusCode::PARTIAL_CONTENT,
+                        [
+                            (header::CONTENT_RANGE, "bytes 1-2/5"),
+                            (header::CONTENT_TYPE, "video/mp4"),
+                        ],
+                        "bc",
+                    )
+                },
+            ),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, upstream).await.unwrap() });
+    let temp = tempfile::tempdir().unwrap();
+    let state = AppState::new(Config {
+        database_path: temp.path().join("weibo.db"),
+        cookie_file: temp.path().join("cookie"),
+        weibo_origin: Some(origin),
+        ..Config::default()
+    })
+    .await
+    .unwrap();
+    state.credential.set(Some("SUB=fixture".into())).unwrap();
+    state
+        .db
+        .run(|db| {
+            db.execute_batch(
+                r#"INSERT INTO messages(mid,gid,media_type,url_objects,created_at,saved_at)
+             VALUES (7,3,14,'[{"status":{"idstr":"456","retweeted_status":{"idstr":"123"}}}]',1,2);
+           INSERT INTO posts(mblogid,post_id,uid,retweeted_json,created_at,saved_at)
+             VALUES ('share',456,7,'{"post_id":123}',1,2);"#,
+            )
+        })
+        .await
+        .unwrap();
+    let router = app(state);
+    for route in [
+        "/chat/media?gid=3&mid=7&variant=weiboVideo&retweeted=true",
+        "/post/video?mblogId=share&retweeted=true",
+    ] {
+        let request = Request::get(route)
+            .header(header::RANGE, "bytes=1-2")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes 1-2/5");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
+        assert_eq!(&to_bytes(response.into_body(), 2).await.unwrap()[..], b"bc");
+    }
+    server.abort();
+}
 
 #[tokio::test]
 async fn group_video_range_checks_content_range_and_supports_suffix() {

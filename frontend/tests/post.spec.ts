@@ -1952,14 +1952,12 @@ for (const width of [1280, 1600]) {
   });
 }
 
-test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ page, context }) => {
+test('video_card_plays_in_place_with_native_controls', async ({ page, context }) => {
   posts.items[0].video = { coverUrl: '/post/videoCover?mblogId=local-1', pageUrl: 'https://video.example.test/watch/outer' };
   await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));
   await page.goto(`${baseUrl}post/index.html`);
-  const link = page.getByRole('link', { name: '播放微博视频', exact: true });
+  const link = page.getByRole('button', { name: '播放微博视频', exact: true });
   await expect(link).toBeVisible();
-  await expect(link).toHaveAttribute('target', '_blank');
-  await expect(link).toHaveAttribute('rel', 'noopener');
   await expect(link.locator('img')).toHaveAttribute('loading', 'lazy');
   await expect(link.locator('img')).toHaveAttribute('decoding', 'async');
   await expect.poll(() => link.locator('img').evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(300);
@@ -1968,16 +1966,18 @@ test('video_card_reads_cover_and_opens_the_video_page_with_no_opener', async ({ 
   const play = (await link.locator('.post-video-play').boundingBox())!;
   expect(play.x + play.width / 2).toBeCloseTo(cover.x + cover.width / 2, 1);
   expect(play.y + play.height / 2).toBeCloseTo(cover.y + cover.height / 2, 1);
-  const opened = page.waitForEvent('popup');
+  await page.route('**/post/video?*', route => route.fulfill({
+    path: 'tests/fixtures/history-video.mp4', contentType: 'video/mp4',
+  }));
   await link.click();
-  const popup = await opened;
-  await popup.waitForLoadState();
-  await expect(popup).toHaveURL(posts.items[0].video.pageUrl!);
-  expect(await popup.evaluate(() => window.opener)).toBeNull();
-  await popup.close();
+  const player = page.locator('.post-card video');
+  await expect(player).toHaveAttribute('src', '/post/video?mblogId=local-1');
+  await expect(player).toHaveAttribute('controls', '');
+  await expect.poll(() => player.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeGreaterThan(0);
+  expect(context.pages()).toEqual([page]);
   await expect(page).toHaveURL(`${baseUrl}post/index.html`);
   await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
-  await expect(page.locator('video, iframe, .image-viewer')).toHaveCount(0);
+  await expect(page.locator('iframe, .image-viewer')).toHaveCount(0);
   expect(requests.filter(value => value.startsWith('GET /post/videoCover'))).toEqual(['GET /post/videoCover?mblogId=local-1']);
 });
 
@@ -1985,7 +1985,7 @@ test('video_retweets_deduplicate_only_the_same_playable_page_and_keep_pure_layou
   posts.items[0].video = { coverUrl: '/post/videoCover?mblogId=local-1', pageUrl: 'https://video.example.test/same' };
   posts.items[0].retweeted = { screenName: '原作者', content: '转发视频', video: { coverUrl: '/post/videoCover?mblogId=local-1&retweeted=true', pageUrl: 'https://video.example.test/same' } };
   await page.goto(`${baseUrl}post/index.html`);
-  await expect(page.getByRole('link', { name: '播放转发视频', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '播放转发视频', exact: true })).toBeVisible();
   await expect(page.locator('.post-body > .post-video')).toHaveCount(0);
   await expect(page.locator('.post-retweet .post-video img')).toHaveAttribute('src', '/post/videoCover?mblogId=local-1&retweeted=true');
   expect(requests.filter(value => value.startsWith('GET /post/videoCover'))).toEqual(['GET /post/videoCover?mblogId=local-1&retweeted=true']);
@@ -2005,22 +2005,20 @@ test('failed_video_cover_keeps_a_visible_clickable_and_keyboard_accessible_place
   posts.items[0].video = { coverUrl: '/post/videoCover?mblogId=broken-video', pageUrl: 'https://video.example.test/fallback' };
   await context.route('https://video.example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<h1>Video fixture</h1>' }));
   await page.goto(`${baseUrl}post/index.html`);
-  const link = page.getByRole('link', { name: '播放微博视频', exact: true });
+  const link = page.getByRole('button', { name: '播放微博视频', exact: true });
   await expect(link.locator('img[hidden]')).toHaveCount(1);
   await expect(link).toBeVisible();
   const rectangle = (await link.boundingBox())!;
   expect(rectangle.width).toBe(320);
   expect(rectangle.height).toBe(240);
-  for (const method of ['click', 'Enter']) {
-    const opened = page.waitForEvent('popup');
-    if (method === 'click') await link.click();
-    else { await link.focus(); await page.keyboard.press('Enter'); }
-    const popup = await opened;
-    await popup.waitForLoadState();
-    await expect(popup).toHaveURL(posts.items[0].video.pageUrl!);
-    expect(await popup.evaluate(() => window.opener)).toBeNull();
-    await popup.close();
-  }
+  await page.route('**/post/video?*', route => route.fulfill({
+    path: 'tests/fixtures/history-video.mp4', contentType: 'video/mp4',
+  }));
+  await link.press('Enter');
+  const player = page.locator('.post-card video');
+  await expect(player).toBeVisible();
+  await expect.poll(() => player.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeGreaterThan(0);
+  expect(context.pages()).toEqual([page]);
   await expect(page.locator('.post-avatar')).toBeVisible();
   await expect(page).toHaveURL(`${baseUrl}post/index.html`);
 });
@@ -2045,7 +2043,7 @@ test('video_cards_skip_incomplete_or_unsafe_sources_and_do_not_hide_a_valid_oute
   posts.items[0].video = { pageUrl: 'https://video.example.test/valid', coverUrl: `${process.env.API_PROXY_TARGET}/post/videoCover?mblogId=local-1` };
   posts.items[0].retweeted!.video = { pageUrl: 'https://video.example.test/valid', coverUrl: 'javascript:window.videoAttack=3' };
   await page.reload();
-  await expect(page.getByRole('link', { name: '播放微博视频', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '播放微博视频', exact: true })).toBeVisible();
   await expect(page.locator('.post-retweet .post-video')).toHaveCount(0);
 });
 
@@ -2055,7 +2053,7 @@ test('video_and_image_cards_keep_their_own_interactions_and_reading_order', asyn
   await page.goto(`${baseUrl}post/index.html`);
   const image = page.getByRole('img', { name: '微博图片', exact: true });
   await expect(image).toBeVisible();
-  const video = page.getByRole('link', { name: '播放微博视频', exact: true });
+  const video = page.getByRole('button', { name: '播放微博视频', exact: true });
   await expect(video).toBeVisible();
   expect((await video.boundingBox())!.y).toBeGreaterThan((await image.boundingBox())!.y);
   await image.click();
@@ -2561,10 +2559,11 @@ for (const mode of ['single', 'multiple', 'retweet'] as const) {
   });
 }
 
-test('inline_picture_links_open_through_proxy_when_cdn_rejects_browser_navigation', async ({ page, context }) => {
+test('inline_picture_links_open_the_viewer_on_the_same_page_through_the_proxy', async ({ page, context }) => {
   const outer = 'https://wx3.sinaimg.cn/large/outer.jpg?size=large&key=a%2Bb';
   const retweeted = 'https://wx4.sinaimg.cn/large/retweeted.jpg';
-  posts.items[0].content = `<a href="${outer.replaceAll('&', '&amp;')}" data-pid="outer">查看图片</a>`;
+  posts.items[0].content = '正文<br>'.repeat(35)
+    + `<a href="${outer.replaceAll('&', '&amp;')}" target="_blank"><span>查看图片</span></a>`;
   posts.items[0].retweeted = { screenName: '原作者', content: '<a href="//wx4.sinaimg.cn/large/retweeted.jpg" data-pid="retweeted">查看图片</a>' };
   const directReads: string[] = [];
   await context.route('https://*.sinaimg.cn/**', route => {
@@ -2572,21 +2571,27 @@ test('inline_picture_links_open_through_proxy_when_cdn_rejects_browser_navigatio
     return route.fulfill({ status: 403, contentType: 'text/html', body: '<h1>403 Forbidden</h1>' });
   });
   await page.goto(`${baseUrl}post/index.html`);
+  const pane = page.locator('.posts');
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
   for (const [selector, url] of [['.post-content', outer], ['.post-retweet-content', retweeted]]) {
     const link = page.locator(selector).getByRole('link', { name: '查看图片' });
     const proxyPath = `/chat/image?${new URLSearchParams({ url })}`;
     await expect(link).toHaveAttribute('href', proxyPath);
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', 'noopener');
-    await link.focus();
-    const opening = page.waitForEvent('popup');
-    await page.keyboard.press('Enter');
-    const popup = await opening;
-    await popup.waitForLoadState();
-    await expect(popup).toHaveURL(`${baseUrl.slice(0, -1)}${proxyPath}`);
-    await expect.poll(() => popup.locator('svg').evaluateAll(images => images.length)).toBe(1);
-    expect(await popup.evaluate(() => window.opener)).toBeNull();
-    await popup.close();
+    await expect(link).toHaveAttribute('aria-haspopup', 'dialog');
+    await link.scrollIntoViewIfNeeded();
+    const before = await pane.evaluate(el => el.scrollTop);
+    expect(before).toBeGreaterThan(0);
+    if (url === outer) await link.locator('span').click();
+    else await link.press('Enter');
+    await expect(viewer).toBeVisible();
+    const image = viewer.getByAltText('微博原图');
+    await expect(image).toHaveAttribute('src', proxyPath);
+    await expect(image).toBeVisible();
+    expect(context.pages()).toEqual([page]);
+    await page.keyboard.press('Escape');
+    await expect(viewer).toHaveCount(0);
+    await expect(link).toBeFocused();
+    expect(await pane.evaluate(el => el.scrollTop)).toBe(before);
     await expect(page).toHaveURL(`${baseUrl}post/index.html`);
     await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute('aria-label', '2026-08-05');
   }

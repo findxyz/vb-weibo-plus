@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import MessageText from './MessageText';
-import { fetchMessageWeiboCover, fetchMessageWeiboText } from './api';
+import { fetchMessageWeiboCover, fetchMessageWeiboText, messageWeiboVideoUrl } from './api';
 import type { ImageSelection } from './ImageViewer';
 
 type WeiboStatus = {
@@ -32,12 +32,17 @@ export type WeiboUrlObject = {
 
 type WeiboReference = { gid: number; mid: number; retweeted: boolean };
 
-function WeiboVideoCover({ id, gid, mid, retweeted }: WeiboReference & { id: string }) {
-  const anchor = useRef<HTMLSpanElement>(null);
+function WeiboVideoCover({ id, gid, mid, retweeted, knownVideo }: WeiboReference & {
+  id: string; knownVideo: boolean;
+}) {
+  const frame = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [src, setSrc] = useState('');
+  const [loadedSrc, setLoadedSrc] = useState('');
+  const [playing, setPlaying] = useState(false);
+  const [playFailed, setPlayFailed] = useState(false);
   useEffect(() => {
-    const target = anchor.current?.parentElement;
+    const target = frame.current;
     if (!target) return;
     const observer = new IntersectionObserver(entries => {
       if (entries.some(entry => entry.isIntersecting)) {
@@ -49,7 +54,7 @@ function WeiboVideoCover({ id, gid, mid, retweeted }: WeiboReference & { id: str
     return () => observer.disconnect();
   }, []);
 
-  const { data: cover } = useQuery({
+  const { data: cover, isError } = useQuery({
     queryKey: ['chat', 'weibo-cover', id, retweeted],
     queryFn: ({ signal }) => fetchMessageWeiboCover(gid, mid, retweeted, signal),
     enabled: visible,
@@ -58,14 +63,31 @@ function WeiboVideoCover({ id, gid, mid, retweeted }: WeiboReference & { id: str
   });
   useEffect(() => {
     if (!cover) return;
-    const url = URL.createObjectURL(cover);
+    const url = URL.createObjectURL(cover.image);
     setSrc(url);
     return () => URL.revokeObjectURL(url);
   }, [cover]);
 
-  return cover && src
-    ? <img className="weibo-card-video-cover" src={src} alt="视频封面" onError={() => setSrc('')} />
-    : <span ref={anchor} aria-hidden="true" />;
+  if (!knownVideo && (cover === null || isError)) return null;
+  const videoUrl = cover?.pageUrl;
+  const href = videoUrl && /^https?:\/\//i.test(videoUrl) && URL.canParse(videoUrl)
+    ? videoUrl
+    : `https://weibo.com/detail/${encodeURIComponent(id)}`;
+
+  return <>
+    <div ref={frame} className="weibo-card-video-cover">
+      {playing ? <video src={messageWeiboVideoUrl(gid, mid, retweeted)} controls autoPlay playsInline
+        onError={() => { setPlaying(false); setPlayFailed(true); }} />
+        : (cover || knownVideo) && <button type="button" className="video-preview"
+          aria-label={retweeted ? '播放原微博视频' : '播放微博视频'}
+          onClick={() => { setPlayFailed(false); setPlaying(true); }}>
+          {src && <img src={src} alt="视频封面" data-loaded={loadedSrc === src}
+            onLoad={() => setLoadedSrc(src)} onError={() => setSrc('')} />}
+          <span aria-hidden="true">▶</span>
+        </button>}
+    </div>
+    {playFailed && <div role="status">视频播放失败。<a href={href} target="_blank" rel="noopener noreferrer">在浏览器打开</a></div>}
+  </>;
 }
 
 function WeiboContent({ status, gid, mid, retweeted, onOpenImage }: WeiboReference & {
@@ -81,9 +103,9 @@ function WeiboContent({ status, gid, mid, retweeted, onOpenImage }: WeiboReferen
   });
   const preview = (status.text ?? '').replace(/<[^>]+>/g, '').trim();
   const text = needsLongText ? longText.data ?? preview : preview;
-  const hasVideoHint = status.page_info?.object_type === 'video' || Boolean(status.page_info?.media_info)
-    || String(status.page_info?.type) === '5' || Boolean(status.extend_info?.video_summary?.video_oid)
-    || /https?:\/\/t\.cn\/[a-z0-9]+/i.test(preview);
+  const knownVideo = status.page_info?.object_type === 'video' || Boolean(status.page_info?.media_info)
+    || String(status.page_info?.type) === '5' || Boolean(status.extend_info?.video_summary?.video_oid);
+  const hasVideoHint = knownVideo || /https?:\/\/t\.cn\/[a-z0-9]+/i.test(preview);
   const author = status.user?.screen_name?.trim() ?? '';
   const avatar = status.user?.avatar_hd || status.user?.avatar_large || status.user?.profile_image_url;
   const firstPicture = status.original_pic || status.bmiddle_pic || status.thumbnail_pic || '';
@@ -108,7 +130,8 @@ function WeiboContent({ status, gid, mid, retweeted, onOpenImage }: WeiboReferen
       微博全文加载失败，当前仅显示预览。
       <button type="button" className="weibo-card-retry" onClick={() => { void longText.refetch(); }}>重试加载全文</button>
     </div>}
-    {id && hasVideoHint && <WeiboVideoCover key={id} id={id} gid={gid} mid={mid} retweeted={retweeted} />}
+    {id && hasVideoHint && <WeiboVideoCover key={id} id={id} gid={gid} mid={mid}
+      retweeted={retweeted} knownVideo={knownVideo} />}
     {pictures.length > 0 && <div className="weibo-card-pictures">
       {images.map((image, index) => <button key={image.url} type="button" className="weibo-card-picture"
         aria-label={`查看微博图片 ${index + 1}`}

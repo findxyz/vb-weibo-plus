@@ -2,6 +2,7 @@ package xyz.fz.weibo.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.net.URI;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -555,7 +556,15 @@ public class ChatService {
         return text;
     }
 
-    public MediaBinary queryMessageWeiboCover(long gid, long mid, boolean retweeted) {
+    public record WeiboVideoCover(MediaBinary image, String pageUrl) {}
+
+    public <T> T streamMessageWeiboVideo(
+            long gid, long mid, boolean retweeted, String range, ResponseExtractor<T> extractor) {
+        String id = requireSharedWeiboId(requireSharedWeibo(gid, mid, retweeted));
+        return postDetailApi.streamVideo(id, range, extractor);
+    }
+
+    public WeiboVideoCover queryMessageWeiboCover(long gid, long mid, boolean retweeted) {
         String id = requireSharedWeiboId(requireSharedWeibo(gid, mid, retweeted));
         JsonNode detail = postDetailApi.query(id);
         String cover = videoCover(detail);
@@ -563,7 +572,30 @@ public class ChatService {
                 || (!retweeted && cover.equals(videoCover(detail.path("retweeted_status"))))) {
             throw new ResourceNotFoundException("该微博没有视频封面。");
         }
-        return imageProxyService.fetch(cover);
+        return new WeiboVideoCover(
+                imageProxyService.fetch(cover), videoPageUrl(detail.path("page_info")));
+    }
+
+    private String videoPageUrl(JsonNode page) {
+        String pageUrl = validVideoPageUrl(page.path("page_url").asText());
+        return pageUrl.isEmpty()
+                ? validVideoPageUrl(page.path("media_info").path("h5_url").asText())
+                : pageUrl;
+    }
+
+    private String validVideoPageUrl(String candidate) {
+        try {
+            URI uri = URI.create(candidate);
+            if (("http".equalsIgnoreCase(uri.getScheme())
+                            || "https".equalsIgnoreCase(uri.getScheme()))
+                    && uri.getHost() != null
+                    && uri.getUserInfo() == null) {
+                return uri.toASCIIString();
+            }
+        } catch (IllegalArgumentException ignored) {
+            return "";
+        }
+        return "";
     }
 
     private Map<?, ?> requireSharedWeibo(long gid, long mid, boolean retweeted) {

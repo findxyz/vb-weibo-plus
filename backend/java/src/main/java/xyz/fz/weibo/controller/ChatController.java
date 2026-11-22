@@ -162,6 +162,15 @@ public class ChatController {
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
             HttpServletResponse response)
             throws IOException {
+        if ("weiboVideo".equals(variant)) {
+            chatService.streamMessageWeiboVideo(
+                    gid,
+                    mid,
+                    retweeted,
+                    rangeHeader,
+                    upstream -> WeiboVideoResponse.write(upstream, response));
+            return;
+        }
         if ("video".equals(variant)) {
             if (rangeHeader != null) {
                 streamMessageVideoRange(gid, mid, rangeHeader, response);
@@ -198,10 +207,16 @@ public class ChatController {
             response.getOutputStream().write(file.content());
             return;
         }
-        MediaBinary media =
-                "weiboCover".equals(variant)
-                        ? chatService.queryMessageWeiboCover(gid, mid, retweeted)
-                        : chatService.queryMessageMedia(gid, mid, variant);
+        MediaBinary media;
+        if ("weiboCover".equals(variant)) {
+            var cover = chatService.queryMessageWeiboCover(gid, mid, retweeted);
+            media = cover.image();
+            if (!cover.pageUrl().isBlank()) {
+                response.setHeader("X-Weibo-Video-Url", cover.pageUrl());
+            }
+        } else {
+            media = chatService.queryMessageMedia(gid, mid, variant);
+        }
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(media.contentType());
         response.setContentLength(media.content().length);

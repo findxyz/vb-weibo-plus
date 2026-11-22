@@ -31,6 +31,7 @@ import org.springframework.http.ResponseEntity;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostDetailApi;
 import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
@@ -78,6 +79,7 @@ class PostServiceTest {
     @Mock private PostRepository postRepository;
 
     @Mock private PostLikeApi postLikeApi;
+    @Mock private PostDetailApi postDetailApi;
 
     private PostService postService;
 
@@ -93,7 +95,8 @@ class PostServiceTest {
                         postMapper,
                         bloggerRepository,
                         postRepository,
-                        postLikeApi);
+                        postLikeApi,
+                        postDetailApi);
     }
 
     @Test

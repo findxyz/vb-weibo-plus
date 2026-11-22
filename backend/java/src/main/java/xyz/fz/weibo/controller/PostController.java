@@ -1,6 +1,7 @@
 package xyz.fz.weibo.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -68,6 +70,19 @@ public class PostController {
     public ResponseEntity<byte[]> queryPostVideoCover(
             @RequestParam String mblogId, @RequestParam(defaultValue = "false") boolean retweeted) {
         return mediaResponse(postService.queryPostVideoCover(mblogId, retweeted));
+    }
+
+    @GetMapping("/video")
+    public void streamPostVideo(
+            @RequestParam String mblogId,
+            @RequestParam(defaultValue = "false") boolean retweeted,
+            @RequestHeader(value = HttpHeaders.RANGE, required = false) String range,
+            HttpServletResponse response) {
+        postService.streamPostVideo(
+                mblogId,
+                retweeted,
+                range,
+                upstream -> WeiboVideoResponse.write(upstream, response));
     }
 
     @GetMapping("/bloggers")

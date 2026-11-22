@@ -1,5 +1,5 @@
 ### 变量
-@host = http://localhost:8080
+@host = http://localhost:18080
 
 ### 增量保存博主微博（uid 为博主用户 ID）
 POST {{host}}/post/incremental?uid=1795308214
@@ -55,3 +55,11 @@ GET {{host}}/post/videoCover?mblogId=R6yVCj1kg
 
 ### 转发微博视频封面
 GET {{host}}/post/videoCover?mblogId=R7Z6IgXO5&retweeted=true
+
+### 在页内播放微博视频
+GET {{host}}/post/video?mblogId=R6yVCj1kg
+Range: bytes=0-1048575
+
+### 在页内播放转发的原微博视频
+GET {{host}}/post/video?mblogId=R7Z6IgXO5&retweeted=true
+Range: bytes=0-1048575

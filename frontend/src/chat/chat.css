@@ -852,13 +852,54 @@ h1 {
 }
 
 .weibo-card-video-cover {
-  display: block;
+  position: relative;
+  overflow: hidden;
   width: 240px;
   max-width: 100%;
-  height: auto;
+  aspect-ratio: 4 / 3;
   margin-bottom: 8px;
   border: 1px solid var(--media-border);
   border-radius: var(--radius-md);
+  background: var(--media-bg);
+}
+
+.weibo-card-video-cover button {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.weibo-card-video-cover button:focus-visible {
+  outline-offset: -3px;
+}
+
+.weibo-card-video-cover img,
+.weibo-card-video-cover video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.weibo-card-video-cover img {
+  opacity: 0;
+}
+
+.weibo-card-video-cover img[data-loaded="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .weibo-card-video-cover img {
+    transition: opacity 160ms ease-out;
+  }
 }
 
 .weibo-card-picture {

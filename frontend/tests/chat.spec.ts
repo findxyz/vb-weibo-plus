@@ -1177,6 +1177,10 @@ test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', asy
   items[2].urlObjects = [{ status: { idstr: '13', text: '视频分享', extend_info: { video_summary: { video_oid: 'video-id' } } } }];
   messagesByGid.set(1, items);
   const coverRequests: URL[] = [];
+  const originalVideoUrl = 'https://weibo.com/tv/show/1034:123';
+  const sharedVideoUrl = 'https://weibo.com/tv/show/1034:456';
+  let releaseCover = () => {};
+  const coverReady = new Promise<void>(resolve => { releaseCover = resolve; });
   const textRequests: URL[] = [];
   await page.route('**/chat/messages/weiboText?*', async route => {
     textRequests.push(new URL(route.request().url()));
@@ -1185,13 +1189,35 @@ test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', asy
       : { json: { text: '内层完整正文。' } });
   });
   await page.route('**/chat/media?*', async route => {
-    coverRequests.push(new URL(route.request().url()));
-    await route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"/>' });
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('variant') === 'weiboVideo') {
+      await route.fulfill({ path: 'tests/fixtures/history-video.mp4', contentType: 'video/mp4' });
+      return;
+    }
+    coverRequests.push(url);
+    await coverReady;
+    await route.fulfill({
+      headers: {
+        'Content-Type': 'image/svg+xml',
+        'X-Weibo-Video-Url': url.searchParams.has('retweeted') ? originalVideoUrl : sharedVideoUrl,
+      },
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="600"/>',
+    });
   });
+  await page.context().route('https://weibo.com/tv/show/**', route => route.fulfill({ body: 'video' }));
   await openChat(page);
 
   const card = page.locator('[data-mid="1"] .weibo-card');
   const retweet = card.locator('.weibo-card-retweet');
+  const cover = retweet.locator('.weibo-card-video-cover');
+  let placeholderSize;
+  try {
+    await expect(cover).toBeVisible();
+    placeholderSize = await cover.evaluate(el => [el.clientWidth, el.clientHeight]);
+    expect(placeholderSize[1]).toBeGreaterThan(0);
+  } finally {
+    releaseCover();
+  }
   await expect(card.locator(':scope > .weibo-card-summary')).toHaveText('外层评论');
   await expect(retweet.getByRole('alert')).toHaveCount(1);
   await expect(retweet.locator('.weibo-card-summary')).toHaveText(original.text);
@@ -1199,12 +1225,52 @@ test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', asy
   await expect(retweet.locator('.weibo-card-summary')).toHaveText('内层完整正文。');
   expect(textRequests.map(url => url.searchParams.get('retweeted'))).toEqual(['true', 'true']);
   for (const mid of [1, 2]) {
-    await expect(page.locator(`[data-mid="${mid}"] .weibo-card-retweet img[alt="视频封面"]`)).toBeVisible();
+    const button = page.locator(`[data-mid="${mid}"] .weibo-card-retweet`)
+      .getByRole('button', { name: '播放原微博视频' });
+    await expect(button.locator('span')).toHaveText('▶');
+    const picture = button.locator('img');
+    await expect(picture).toHaveAttribute('data-loaded', 'true');
+    const frame = (await button.boundingBox())!;
+    const image = (await picture.boundingBox())!;
+    expect(image.y + image.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
   }
-  await expect(card.locator(':scope > img[alt="视频封面"]')).toHaveCount(0);
-  await expect(page.locator('[data-mid="3"] .weibo-card > img[alt="视频封面"]')).toBeVisible();
+  expect(await cover.evaluate(el => [el.clientWidth, el.clientHeight])).toEqual(placeholderSize);
+  await expect(card.getByRole('button', { name: '播放微博视频', exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-mid="3"] .weibo-card').getByRole('button', { name: '播放微博视频' })).toBeVisible();
+  const before = page.url();
+  await retweet.getByRole('button', { name: '播放原微博视频' }).press('Enter');
+  const player = retweet.locator('video');
+  await expect(player).toHaveAttribute('src', '/chat/media?gid=1&mid=1&variant=weiboVideo&retweeted=true');
+  await expect.poll(() => player.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeGreaterThan(0);
+  expect(page.context().pages()).toEqual([page]);
+  await expect(page).toHaveURL(before);
   expect(coverRequests.map(url => [url.searchParams.get('variant'), url.searchParams.get('retweeted')]).sort())
     .toEqual([['weiboCover', null], ['weiboCover', 'true']]);
+});
+
+test('chat_keeps_playback_available_when_a_known_weibo_video_has_no_cover', async ({ page }) => {
+  const items = makeMessages(1, 2, '分享微博');
+  for (const item of items) item.mediaType = 14;
+  items[0].urlObjects = [{ status: { idstr: '11', text: '没有封面的视频',
+    extend_info: { video_summary: { video_oid: 'video-id' } } } }];
+  items[1].urlObjects = [{ status: { idstr: '12', text: '普通短链 https://t.cn/example' } }];
+  messagesByGid.set(1, items);
+  let missingCovers = 0;
+  await page.route('**/chat/media?*', route => {
+    if (new URL(route.request().url()).searchParams.get('variant') === 'weiboVideo') {
+      return route.fulfill({ path: 'tests/fixtures/history-video.mp4', contentType: 'video/mp4' });
+    }
+    missingCovers += 1;
+    return route.fulfill({ status: 404 });
+  });
+  await openChat(page);
+
+  await expect.poll(() => missingCovers).toBe(2);
+  await expect(page.locator('[data-mid="2"] .weibo-card-video-cover')).toHaveCount(0);
+  const videoCard = page.locator('[data-mid="1"] .weibo-card');
+  await videoCard.getByRole('button', { name: '播放微博视频' }).click();
+  await expect.poll(() => videoCard.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(0);
 });
 
 test('chat_renders_shared_weibo_full_text_as_literal_text', async ({ page }) => {

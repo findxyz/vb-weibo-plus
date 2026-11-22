@@ -143,7 +143,8 @@ button:not(:disabled):not([aria-disabled="true"]):hover { filter: brightness(1.1
 .post-pics.one-image .post-pic img { width: auto; height: auto; max-width: 100%; max-height: 320px; object-fit: contain; }
 .post-retweet-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 100px)); gap: 4px; margin-top: 4px; }
 .post-retweet-pic { position: relative; display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1; padding: 0; overflow: hidden; border: 1px solid var(--text); border-radius: 0; background: var(--surface-alt); }
-.post-video { position: relative; display: inline-block; justify-self: start; max-width: 100%; margin-top: 4px; }
+.post-video { position: relative; display: inline-block; justify-self: start; max-width: 100%; margin-top: 4px; padding: 0; border: 0; background: transparent; }
+.post-video-player { display: block; width: 320px; max-width: 100%; max-height: 240px; aspect-ratio: 4 / 3; margin-top: 4px; object-fit: contain; background: var(--surface); }
 .post-video img { display: block; width: 320px; max-width: 100%; max-height: 240px; object-fit: cover; border: 1px solid var(--text); border-radius: 0; background: var(--surface); cursor: pointer; }
 .post-video img[hidden] { display: none; }
 .post-video.cover-failed { width: 320px; height: auto; aspect-ratio: 4 / 3; border: 1px solid var(--text); border-radius: 0; background: var(--surface); }

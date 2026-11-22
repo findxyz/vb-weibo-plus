@@ -74,24 +74,34 @@ GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=previe
 ### 图片消息原图
 GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=original
 
-### 视频消息封面预览（视频消息不支持 original）
+### 群聊直接发送的视频消息封面（使用 preview）
 GET {{host}}/chat/media?gid=4761715839862414&mid=5323911843550398&variant=preview
 
 ### 群聊分享的外层微博视频封面
 # 对应微博有封面时返回图片字节，无封面时返回 404。
+# 若响应带有 X-Weibo-Video-Url，它供页内播放失败后手动打开微博网页使用。
 GET {{host}}/chat/media?gid={{sharedWeiboGid}}&mid={{sharedVideoMid}}&variant=weiboCover
 
 ### 群聊转发的内层原微博视频封面
 # 详情和图片按需读取，需要可用的微博登录态。
 GET {{host}}/chat/media?gid={{sharedWeiboGid}}&mid={{retweetedVideoMid}}&variant=weiboCover&retweeted=true
 
-### 查询含视频消息（视频项返回 previewUrl 和 videoUrl）
+### 在页内播放群聊分享的微博视频
+# 播放器请求 weiboVideo 获取视频流。这里用 Range 手动测试分段读取。
+GET {{host}}/chat/media?gid={{sharedWeiboGid}}&mid={{sharedVideoMid}}&variant=weiboVideo
+Range: bytes=0-1048575
+
+### 在页内播放群聊转发的原微博视频
+GET {{host}}/chat/media?gid={{sharedWeiboGid}}&mid={{retweetedVideoMid}}&variant=weiboVideo&retweeted=true
+Range: bytes=0-1048575
+
+### 查询本地群消息（直接发送的视频消息返回 videoUrl，有封面时也返回 previewUrl）
 GET {{host}}/chat/messages?gid={{videoGid}}&page=1&size=100
 
-### 打开完整视频（gid、mid 来自同一视频项，或直接请求该项的 videoUrl）
+### 播放群聊直接发送的完整视频（gid、mid 来自同一视频消息）
 GET {{host}}/chat/media?gid={{videoGid}}&mid={{videoMid}}&variant=video
 
-### 按字节范围打开视频（用于测试 HTTP Range、206 和拖动播放）
+### 分段读取群聊直接发送的视频（用于测试 HTTP Range、206 和拖动播放）
 GET {{host}}/chat/media?gid={{videoGid}}&mid={{videoMid}}&variant=video
 Range: bytes=0-1048575
 

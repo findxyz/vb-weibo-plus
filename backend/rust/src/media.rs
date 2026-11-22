@@ -15,7 +15,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::weibo::{self, HeaderProfile, Retry, SOURCE, WeiboError};
-use crate::{AppState, chat};
+use crate::{AppState, chat, post as weibo_post};
 
 const MEDIA_URL: &str = "https://upload.api.weibo.com/2/mss/msget";
 const IMAGE_UPLOAD: &str = "https://api.weibo.com/webim/uploadx.json";
@@ -32,6 +32,7 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/chat/messages/sendVideo", post(send_video))
         .route("/post/image", get(post_image))
         .route("/post/videoCover", get(post_cover))
+        .route("/post/video", get(post_video))
         .route("/weibo/group/media", get(raw_media))
         .route("/weibo/media/image", get(raw_direct))
         .route("/weibo/media/video", get(raw_direct))
@@ -302,9 +303,19 @@ async fn chat_media(
     if query.gid <= 0 {
         return Err(bad("gid 必须大于 0。"));
     }
+    if query.variant == "weiboVideo" {
+        let source =
+            chat::shared_weibo_video_source(&state, query.gid, query.mid, query.retweeted).await?;
+        return stream_weibo_video(&state, source, headers.get(header::RANGE)).await;
+    }
     if query.variant == "weiboCover" {
-        let url = chat::shared_weibo_cover(&state, query.gid, query.mid, query.retweeted).await?;
-        return chat_image_response(&url, true).await;
+        let (image_url, page_url) =
+            chat::shared_weibo_cover(&state, query.gid, query.mid, query.retweeted).await?;
+        let mut response = chat_image_response(&image_url, true).await?;
+        if let Some(value) = page_url.and_then(|url| HeaderValue::from_str(url.as_str()).ok()) {
+            response.headers_mut().insert("x-weibo-video-url", value);
+        }
+        return Ok(response);
     }
     if !matches!(
         query.variant.as_str(),
@@ -508,13 +519,14 @@ struct PostImage {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PostCover {
+struct PostVideoQuery {
     mblog_id: String,
     #[serde(default)]
     retweeted: bool,
 }
 
 struct StoredPostMedia {
+    id: i64,
     pictures: Value,
     quoted: Value,
     cover: String,
@@ -525,13 +537,14 @@ async fn stored_post(state: &AppState, id: String) -> ApiResult<StoredPostMedia>
         .db
         .run(move |db| {
             db.query_row(
-        "SELECT coalesce(pics_json,''), coalesce(retweeted_json,''), coalesce(video_cover_url,'')
+        "SELECT coalesce(pics_json,''), coalesce(retweeted_json,''), coalesce(video_cover_url,''), post_id
          FROM posts WHERE mblogid=?",
         [id],
         |row| Ok(StoredPostMedia {
             pictures: serde_json::from_str(&row.get::<_, String>(0)?).unwrap_or_default(),
             quoted: serde_json::from_str(&row.get::<_, String>(1)?).unwrap_or_default(),
             cover: row.get(2)?,
+            id: row.get(3)?,
         }),
     ).optional()
         })
@@ -566,7 +579,7 @@ async fn post_image(
 
 async fn post_cover(
     State(state): State<AppState>,
-    Query(query): Query<PostCover>,
+    Query(query): Query<PostVideoQuery>,
 ) -> ApiResult<Response> {
     let post = stored_post(&state, query.mblog_id).await?;
     let reference = if query.retweeted {
@@ -578,6 +591,81 @@ async fn post_cover(
         &post.cover
     };
     post_media(&state, reference, false).await
+}
+
+async fn post_video(
+    State(state): State<AppState>,
+    Query(query): Query<PostVideoQuery>,
+    headers: HeaderMap,
+) -> ApiResult<Response> {
+    let post = stored_post(&state, query.mblog_id).await?;
+    let id = if query.retweeted {
+        post.quoted["post_id"]
+            .as_i64()
+            .filter(|id| *id > 0)
+            .ok_or_else(|| missing("本地转发微博不存在。"))?
+    } else {
+        post.id
+    };
+    let source = weibo_post::video_source(&state, &id.to_string()).await?;
+    stream_weibo_video(&state, source, headers.get(header::RANGE)).await
+}
+
+async fn stream_weibo_video(
+    state: &AppState,
+    source: Url,
+    range: Option<&HeaderValue>,
+) -> ApiResult<Response> {
+    let upstream = weibo::request(
+        state,
+        Method::GET,
+        source.as_str(),
+        HeaderProfile::Direct,
+        false,
+        Retry::RateLimit,
+        |request| {
+            let request = request.header(header::ACCEPT_ENCODING, "identity");
+            if let Some(range) = range {
+                request.header(header::RANGE, range)
+            } else {
+                request
+            }
+        },
+    )
+    .await?;
+    let status = upstream.status();
+    let content_range = upstream.headers().get(header::CONTENT_RANGE);
+    if status == StatusCode::RANGE_NOT_SATISFIABLE
+        && let Some(range) = content_range
+    {
+        return Response::builder()
+            .status(status)
+            .header(header::CONTENT_RANGE, range)
+            .body(Body::empty())
+            .map_err(|error| WeiboError::internal(error.to_string()));
+    }
+    if !(status == StatusCode::OK
+        || (status == StatusCode::PARTIAL_CONTENT && content_range.is_some()))
+        || content_type(&upstream)
+            .to_str()
+            .ok()
+            .and_then(|value| value.split(';').next())
+            .is_none_or(|value| !value.eq_ignore_ascii_case("video/mp4"))
+    {
+        return Err(WeiboError::upstream("微博视频响应不正确。"));
+    }
+    let mut builder = Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, "video/mp4")
+        .header(header::ACCEPT_RANGES, "bytes");
+    for name in [header::CONTENT_LENGTH, header::CONTENT_RANGE] {
+        if let Some(value) = upstream.headers().get(&name) {
+            builder = builder.header(name, value);
+        }
+    }
+    builder
+        .body(Body::from_stream(upstream.bytes_stream()))
+        .map_err(|error| WeiboError::internal(error.to_string()))
 }
 
 async fn post_media(state: &AppState, reference: &str, cached: bool) -> ApiResult<Response> {

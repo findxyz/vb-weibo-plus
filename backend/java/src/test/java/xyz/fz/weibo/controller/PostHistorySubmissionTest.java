@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostDetailApi;
 import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.model.response.SearchProfileResponse;
@@ -38,6 +39,7 @@ import xyz.fz.weibo.service.mapper.PostMapper;
             PostMapper.class,
             BloggerRepository.class,
             PostRepository.class,
+            PostDetailApi.class,
             PostLikeApi.class
         })
 class PostHistorySubmissionTest {

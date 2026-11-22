@@ -9,12 +9,20 @@ import PostVideo from './PostVideo';
 import { playableVideo } from './video';
 import PostLikeButton from './PostLikeButton';
 
-function PostContent({ content, className = 'post-content' }: { content: string; className?: string }) {
+function PostContent({ content, className = 'post-content', onOpenImage }: {
+  content: string; className?: string; onOpenImage: (src: string) => void;
+}) {
   try {
     // Only sanitized HTML reaches React's raw-HTML boundary.
     // https://github.com/cure53/DOMPurify#what-does-it-do
     const clean = sanitizedContent(content);
-    return <div className={className} dangerouslySetInnerHTML={{ __html: clean }} />;
+    return <div className={className} dangerouslySetInnerHTML={{ __html: clean }} onClick={event => {
+      if (!(event.target instanceof Element)) return;
+      const src = event.target.closest('a[href^="/chat/image?"]')?.getAttribute('href');
+      if (!src) return;
+      event.preventDefault();
+      onOpenImage(src);
+    }} />;
   } catch {
     return <div className={className}>{content}</div>;
   }
@@ -62,6 +70,7 @@ export default function PostFeed({ result, targetPostId, likeEnabled, likeSessio
     return () => { stopCentering(); clearTimeout(timer); };
   }, [targetPostId]);
   function openImages(images: GalleryImage[], index: number) { setViewer({ images, index }); }
+  function openInlineImage(src: string) { openImages([{ src, previewSrc: src }], 0); }
   return <>
     {result.items.length === 0 && <p role="status">该日无微博。</p>}
     {result.items.map(post => {
@@ -75,14 +84,14 @@ export default function PostFeed({ result, targetPostId, likeEnabled, likeSessio
           <header className="post-header">
             <strong className="post-author">{post.blogger?.screenName || '未知博主'}{post.blogger?.verified && <VerifiedBadge />}</strong>
           </header>
-          {post.content && <PostContent content={post.content} />}
+          {post.content && <PostContent content={post.content} onOpenImage={openInlineImage} />}
           {post.pics && <PostImages pics={post.pics} onOpen={openImages} />}
-          {video && video.pageUrl !== retweetVideo?.pageUrl && <PostVideo video={video} />}
+          {video && video.pageUrl !== retweetVideo?.pageUrl && <PostVideo video={video} mblogId={post.mblogId} />}
           {post.retweeted && <aside className="post-retweet" aria-label="转发正文">
             <strong className="post-retweet-author">@{post.retweeted.screenName || '未知用户'}</strong>
-            <PostContent content={post.retweeted.content ?? ''} className="post-retweet-content" />
+            <PostContent content={post.retweeted.content ?? ''} className="post-retweet-content" onOpenImage={openInlineImage} />
             {post.retweeted.pics && <PostImages pics={post.retweeted.pics} retweeted onOpen={openImages} />}
-            {retweetVideo && <PostVideo video={retweetVideo} retweeted />}
+            {retweetVideo && <PostVideo video={retweetVideo} mblogId={post.mblogId} retweeted />}
           </aside>}
           <div className="post-actions">
             <div className="post-meta">

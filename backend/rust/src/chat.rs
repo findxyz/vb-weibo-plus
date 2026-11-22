@@ -2,8 +2,8 @@ mod capture;
 mod push;
 mod store;
 
-pub(crate) use capture::shared_weibo_cover;
 pub use capture::{SaveResult, save_incremental};
+pub(crate) use capture::{shared_weibo_cover, shared_weibo_video_source};
 pub use push::start_background;
 
 use axum::{

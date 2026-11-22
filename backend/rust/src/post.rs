@@ -998,6 +998,37 @@ pub(crate) async fn post_detail(state: &AppState, id: &str) -> ApiResult<Value> 
     Ok(body)
 }
 
+pub(crate) async fn video_source(state: &AppState, id: &str) -> ApiResult<reqwest::Url> {
+    let detail = post_detail(state, id).await?;
+    std::iter::once(&detail["page_info"])
+        .chain(
+            detail["mix_media_info"]["items"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|item| item["type"].as_str() == Some("video"))
+                .map(|item| &item["data"]),
+        )
+        .flat_map(|page| {
+            page["media_info"]["playback_list"]
+                .as_array()
+                .into_iter()
+                .flatten()
+        })
+        .filter_map(|item| reqwest::Url::parse(item["play_info"]["url"].as_str()?).ok())
+        .find(|url| {
+            url.scheme() == "https"
+                && url
+                    .host_str()
+                    .is_some_and(|host| host.ends_with(".weibocdn.com"))
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.port_or_known_default() == Some(443)
+                && url.path().to_ascii_lowercase().ends_with(".mp4")
+        })
+        .ok_or_else(|| upstream_error("该微博没有可播放的视频。"))
+}
+
 async fn write_like(state: &AppState, id: i64, liked: bool) -> ApiResult<StatusCode> {
     positive_post(id)?;
     let current = state

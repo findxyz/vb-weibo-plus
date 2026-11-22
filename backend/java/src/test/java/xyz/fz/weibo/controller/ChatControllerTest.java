@@ -54,6 +54,7 @@ import xyz.fz.weibo.domain.SaveResult;
 import xyz.fz.weibo.exception.InvalidRequestException;
 import xyz.fz.weibo.model.response.GroupMessagesResponse;
 import xyz.fz.weibo.service.ChatService;
+import xyz.fz.weibo.service.ChatService.WeiboVideoCover;
 import xyz.fz.weibo.service.ImageProxyService;
 import xyz.fz.weibo.service.exception.MediaProcessingException;
 import xyz.fz.weibo.service.exception.MessageSentButSyncFailedException;
@@ -88,7 +89,10 @@ class ChatControllerTest {
     @Test
     void shared_weibo_cover_returns_the_original_image_as_media() throws Exception {
         when(chatService.queryMessageWeiboCover(1, 100, true))
-                .thenReturn(new MediaBinary(new byte[] {1, 2}, "image/jpeg"));
+                .thenReturn(
+                        new WeiboVideoCover(
+                                new MediaBinary(new byte[] {1, 2}, "image/jpeg"),
+                                "https://weibo.com/tv/show/1034:123"));
 
         mockMvc.perform(
                         get("/chat/media")
@@ -97,7 +101,37 @@ class ChatControllerTest {
                                 .param("variant", "weiboCover")
                                 .param("retweeted", "true"))
                 .andExpect(status().isOk())
+                .andExpect(
+                        header().string("X-Weibo-Video-Url", "https://weibo.com/tv/show/1034:123"))
                 .andExpect(content().contentType("image/jpeg"))
+                .andExpect(content().bytes(new byte[] {1, 2}));
+    }
+
+    @Test
+    void shared_weibo_video_stream_preserves_the_range_and_does_not_redirect() throws Exception {
+        when(chatService.streamMessageWeiboVideo(
+                        eq(1L), eq(100L), eq(true), eq("bytes=1-2"), any()))
+                .thenAnswer(invocation -> {
+                    ResponseExtractor<Void> extractor = invocation.getArgument(4);
+                    var upstream =
+                            new MockClientHttpResponse(
+                                    new byte[] {1, 2}, HttpStatus.PARTIAL_CONTENT);
+                    upstream.getHeaders().set(HttpHeaders.CONTENT_TYPE, "video/mp4");
+                    upstream.getHeaders().set(HttpHeaders.CONTENT_RANGE, "bytes 1-2/20");
+                    return extractor.extractData(upstream);
+                });
+
+        mockMvc.perform(
+                        get("/chat/media")
+                                .param("gid", "1")
+                                .param("mid", "100")
+                                .param("variant", "weiboVideo")
+                                .param("retweeted", "true")
+                                .header(HttpHeaders.RANGE, "bytes=1-2"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 1-2/20"))
+                .andExpect(header().doesNotExist(HttpHeaders.LOCATION))
+                .andExpect(content().contentType("video/mp4"))
                 .andExpect(content().bytes(new byte[] {1, 2}));
     }
 

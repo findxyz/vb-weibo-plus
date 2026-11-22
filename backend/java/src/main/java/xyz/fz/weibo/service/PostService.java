@@ -17,9 +17,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResponseExtractor;
 import xyz.fz.weibo.api.DirectMediaApi;
 import xyz.fz.weibo.api.LongTextApi;
 import xyz.fz.weibo.api.MyBlogApi;
+import xyz.fz.weibo.api.PostDetailApi;
 import xyz.fz.weibo.api.PostLikeApi;
 import xyz.fz.weibo.api.SearchProfileApi;
 import xyz.fz.weibo.client.exception.WeiboCookieExpiredException;
@@ -66,6 +68,7 @@ public class PostService {
     private final BloggerRepository bloggerRepository;
     private final PostRepository postRepository;
     private final PostLikeApi postLikeApi;
+    private final PostDetailApi postDetailApi;
     private final ReentrantLock saveByRangeLock = new ReentrantLock();
 
     public PostService(
@@ -76,7 +79,8 @@ public class PostService {
             PostMapper postMapper,
             BloggerRepository bloggerRepository,
             PostRepository postRepository,
-            PostLikeApi postLikeApi) {
+            PostLikeApi postLikeApi,
+            PostDetailApi postDetailApi) {
         this.myBlogApi = myBlogApi;
         this.searchProfileApi = searchProfileApi;
         this.longTextApi = longTextApi;
@@ -85,6 +89,7 @@ public class PostService {
         this.bloggerRepository = bloggerRepository;
         this.postRepository = postRepository;
         this.postLikeApi = postLikeApi;
+        this.postDetailApi = postDetailApi;
     }
 
     public PostLikeState queryLike(String mblogId) {
@@ -361,6 +366,19 @@ public class PostService {
                 "thumbnail".equals(variant) ? picture.thumbnail().url() : picture.original().url();
         requireMediaReference(reference);
         return downloadMedia(reference);
+    }
+
+    public <T> T streamPostVideo(
+            String mblogId, boolean retweeted, String range, ResponseExtractor<T> extractor) {
+        PostRecord post = findPost(mblogId);
+        long id = post.postId();
+        if (retweeted) {
+            if (post.retweeted() == null || post.retweeted().postId() <= 0) {
+                throw new ResourceNotFoundException("本地转发微博不存在。");
+            }
+            id = post.retweeted().postId();
+        }
+        return postDetailApi.streamVideo(Long.toString(id), range, extractor);
     }
 
     public MediaBinary queryPostVideoCover(String mblogId, boolean retweeted) {

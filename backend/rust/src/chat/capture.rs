@@ -3,7 +3,7 @@ use axum::{
     extract::{Query, Request, State, rejection::QueryRejection},
     http::StatusCode,
 };
-use reqwest::Method;
+use reqwest::{Method, Url};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -272,7 +272,7 @@ pub(crate) async fn shared_weibo_cover(
     gid: i64,
     mid: i64,
     retweeted: bool,
-) -> Result<String, WeiboError> {
+) -> Result<(String, Option<Url>), WeiboError> {
     let status = shared_weibo(state, gid, mid, retweeted).await?;
     let id = shared_weibo_id(&status)?;
     let detail = post::post_detail(state, &id).await?;
@@ -284,7 +284,27 @@ pub(crate) async fn shared_weibo_cover(
             "该微博没有视频封面。",
         ));
     }
-    Ok(cover.to_owned())
+    let page = &detail["page_info"];
+    let page_url = [&page["page_url"], &page["media_info"]["h5_url"]]
+        .into_iter()
+        .filter_map(Value::as_str)
+        .filter_map(|url| Url::parse(url).ok())
+        .find(|url| {
+            matches!(url.scheme(), "http" | "https")
+                && url.username().is_empty()
+                && url.password().is_none()
+        });
+    Ok((cover.to_owned(), page_url))
+}
+
+pub(crate) async fn shared_weibo_video_source(
+    state: &AppState,
+    gid: i64,
+    mid: i64,
+    retweeted: bool,
+) -> Result<Url, WeiboError> {
+    let status = shared_weibo(state, gid, mid, retweeted).await?;
+    post::video_source(state, &shared_weibo_id(&status)?).await
 }
 
 fn video_cover(status: &Value) -> &str {

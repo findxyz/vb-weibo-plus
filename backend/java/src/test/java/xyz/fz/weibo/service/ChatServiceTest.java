@@ -1311,8 +1311,20 @@ class ChatServiceTest {
     void shared_weibo_cover_downloads_the_original_cover_once_without_repeating_it_on_the_repost() {
         stubSharedWeibo(Map.of("idstr", "456", "retweeted_status", Map.of("idstr", "123")));
         String url = "https://wx2.sinaimg.cn/cover.jpg";
+        String pageUrl = "https://weibo.com/tv/show/1034:123";
         var mapper = new ObjectMapper();
-        var page = Map.of("page_info", Map.of("object_type", "video", "page_pic", url));
+        var page =
+                Map.of(
+                        "page_info",
+                        Map.of(
+                                "object_type",
+                                "video",
+                                "page_pic",
+                                url,
+                                "page_url",
+                                "sinaweibo://video",
+                                "media_info",
+                                Map.of("h5_url", pageUrl)));
         when(postDetailApi.query("123")).thenReturn(mapper.valueToTree(page));
         when(postDetailApi.query("456"))
                 .thenReturn(
@@ -1325,7 +1337,8 @@ class ChatServiceTest {
         var image = new MediaBinary(new byte[] {1, 2}, "image/jpeg");
         when(imageProxyService.fetch(url)).thenReturn(image);
 
-        assertThat(chatService.queryMessageWeiboCover(1, 100, true)).isEqualTo(image);
+        assertThat(chatService.queryMessageWeiboCover(1, 100, true))
+                .isEqualTo(new ChatService.WeiboVideoCover(image, pageUrl));
         assertThatThrownBy(() -> chatService.queryMessageWeiboCover(1, 100, false))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(imageProxyService).fetch(url);
