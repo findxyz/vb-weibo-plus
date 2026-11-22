@@ -1171,7 +1171,8 @@ test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({
 test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', async ({ page }) => {
   const items = makeMessages(1, 3, '分享微博');
   for (const item of items) item.mediaType = 14;
-  const original = { idstr: '5357643507961089', isLongText: true, text: '内层预览 http://t.cn/example' };
+  const original = { idstr: '5357643507961089', isLongText: true, text: '内层预览 http://t.cn/example',
+    page_info: { object_type: 'video' } };
   items[0].urlObjects = [{ status: { idstr: '11', text: '外层评论', retweeted_status: original } }];
   items[1].urlObjects = [{ status: { idstr: '12', text: '重复转发', retweeted_status: original } }];
   items[2].urlObjects = [{ status: { idstr: '13', text: '视频分享', extend_info: { video_summary: { video_oid: 'video-id' } } } }];
@@ -1265,7 +1266,7 @@ test('chat_keeps_playback_available_when_a_known_weibo_video_has_no_cover', asyn
   });
   await openChat(page);
 
-  await expect.poll(() => missingCovers).toBe(2);
+  await expect.poll(() => missingCovers).toBe(1);
   await expect(page.locator('[data-mid="2"] .weibo-card-video-cover')).toHaveCount(0);
   const videoCard = page.locator('[data-mid="1"] .weibo-card');
   await videoCard.getByRole('button', { name: '播放微博视频' }).click();

@@ -32,9 +32,7 @@ export type WeiboUrlObject = {
 
 type WeiboReference = { gid: number; mid: number; retweeted: boolean };
 
-function WeiboVideoCover({ id, gid, mid, retweeted, knownVideo }: WeiboReference & {
-  id: string; knownVideo: boolean;
-}) {
+function WeiboVideoCover({ id, gid, mid, retweeted }: WeiboReference & { id: string }) {
   const frame = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [src, setSrc] = useState('');
@@ -54,7 +52,7 @@ function WeiboVideoCover({ id, gid, mid, retweeted, knownVideo }: WeiboReference
     return () => observer.disconnect();
   }, []);
 
-  const { data: cover, isError } = useQuery({
+  const { data: cover } = useQuery({
     queryKey: ['chat', 'weibo-cover', id, retweeted],
     queryFn: ({ signal }) => fetchMessageWeiboCover(gid, mid, retweeted, signal),
     enabled: visible,
@@ -68,7 +66,6 @@ function WeiboVideoCover({ id, gid, mid, retweeted, knownVideo }: WeiboReference
     return () => URL.revokeObjectURL(url);
   }, [cover]);
 
-  if (!knownVideo && (cover === null || isError)) return null;
   const videoUrl = cover?.pageUrl;
   const href = videoUrl && /^https?:\/\//i.test(videoUrl) && URL.canParse(videoUrl)
     ? videoUrl
@@ -78,7 +75,7 @@ function WeiboVideoCover({ id, gid, mid, retweeted, knownVideo }: WeiboReference
     <div ref={frame} className="weibo-card-video-cover">
       {playing ? <video src={messageWeiboVideoUrl(gid, mid, retweeted)} controls autoPlay playsInline
         onError={() => { setPlaying(false); setPlayFailed(true); }} />
-        : (cover || knownVideo) && <button type="button" className="video-preview"
+        : <button type="button" className="video-preview"
           aria-label={retweeted ? '播放原微博视频' : '播放微博视频'}
           onClick={() => { setPlayFailed(false); setPlaying(true); }}>
           {src && <img src={src} alt="视频封面" data-loaded={loadedSrc === src}
@@ -105,7 +102,6 @@ function WeiboContent({ status, gid, mid, retweeted, onOpenImage }: WeiboReferen
   const text = needsLongText ? longText.data ?? preview : preview;
   const knownVideo = status.page_info?.object_type === 'video' || Boolean(status.page_info?.media_info)
     || String(status.page_info?.type) === '5' || Boolean(status.extend_info?.video_summary?.video_oid);
-  const hasVideoHint = knownVideo || /https?:\/\/t\.cn\/[a-z0-9]+/i.test(preview);
   const author = status.user?.screen_name?.trim() ?? '';
   const avatar = status.user?.avatar_hd || status.user?.avatar_large || status.user?.profile_image_url;
   const firstPicture = status.original_pic || status.bmiddle_pic || status.thumbnail_pic || '';
@@ -130,8 +126,8 @@ function WeiboContent({ status, gid, mid, retweeted, onOpenImage }: WeiboReferen
       微博全文加载失败，当前仅显示预览。
       <button type="button" className="weibo-card-retry" onClick={() => { void longText.refetch(); }}>重试加载全文</button>
     </div>}
-    {id && hasVideoHint && <WeiboVideoCover key={id} id={id} gid={gid} mid={mid}
-      retweeted={retweeted} knownVideo={knownVideo} />}
+    {id && knownVideo && <WeiboVideoCover key={id} id={id} gid={gid} mid={mid}
+      retweeted={retweeted} />}
     {pictures.length > 0 && <div className="weibo-card-pictures">
       {images.map((image, index) => <button key={image.url} type="button" className="weibo-card-picture"
         aria-label={`查看微博图片 ${index + 1}`}
