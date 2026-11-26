@@ -8,7 +8,6 @@ const SCHEMA: &str = include_str!("schema.sql");
 #[derive(Clone)]
 pub struct Db {
     path: PathBuf,
-    // Keep WAL files alive between operations while allowing each operation its own connection.
     _keepalive: Arc<Mutex<Connection>>,
 }
 

@@ -9,7 +9,7 @@ cargo test --locked
 cargo deny --locked --all-features check advisories
 ```
 
-`cargo test --locked` 包含模块依赖检查。`config`、`credential`、`db` 和 `shanghai` 是底层模块。群聊的 `chat::store` 可以使用上层的查询类型、空群组构造和字符串读取函数。这些模块的导入和限定路径禁止引用 Web 路由、HTTP 客户端和 WebSocket 客户端，允许用 `reqwest::Url` 解析 URL。编译器继续检查模块可见性。依赖扫描读取 Cargo 依赖图及锁文件。
+`cargo test --locked` 包含模块依赖边界、OpenAPI 路由一致性及源码零注释检查。`config`、`credential`、`db`、`shanghai` 和 `chat::store` 是底层模块，禁止引用 Web 路由、HTTP 客户端和 WebSocket 客户端（允许用 `reqwest::Url` 解析 URL）；`weibo`、`static_files`、`openapi`、`analysis`、`login`、`post`、`chat` 之间按单向分层隔离；`src/` 下的生产源码与 Java 后端一致，不允许保留注释；`/post/*` 与 `/chat/*` 路由须与 [backend/openapi.json](../../backend/openapi.json) 双向对齐。编译器继续检查模块可见性。依赖扫描读取 Cargo 依赖图及锁文件。
 
 在 Windows 本地检查桌面版时，先在 `frontend/` 执行 `npm ci` 和 `npm run build`，再为 Clippy 和测试命令加上 `--all-features`，覆盖桌面和内嵌前端代码。
 
