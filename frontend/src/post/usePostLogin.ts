@@ -12,7 +12,8 @@ export function usePostLogin() {
   const version = useRef(0);
   const status = useQuery({
     queryKey: ['post', 'login-status'],
-    queryFn: ({ signal }) => getJson<{ valid?: unknown }>('/weibo/login/status', signal, 15000, { cache: 'no-store' }),
+    queryFn: ({ signal }) =>
+      getJson<{ valid?: unknown }>('/weibo/login/status', signal, 15000, { cache: 'no-store' }),
   });
   const qr = useMutation({
     retry: false,
@@ -24,24 +25,42 @@ export function usePostLogin() {
     onSuccess: async () => {
       await client.cancelQueries({ queryKey: ['post', 'like'] });
       client.removeQueries({ queryKey: ['post', 'like'] });
-      setLikeSession(previous => previous + 1);
+      setLikeSession((previous) => previous + 1);
       const recovery = ++version.current;
       setExpired(false);
       setMessage('登录已失效');
-      void status.refetch().then(checked => {
-        if (recovery === version.current && checked.isSuccess) setExpired(checked.data?.valid !== true);
+      void status.refetch().then((checked) => {
+        if (recovery === version.current && checked.isSuccess)
+          setExpired(checked.data?.valid !== true);
       });
-      void client.refetchQueries({ type: 'active', predicate: query => query.queryKey[0] === 'post'
-        && ['bloggers', 'calendar', 'list'].includes(String(query.queryKey[1])) && isUnauthorized(query.state.error) });
+      void client.refetchQueries({
+        type: 'active',
+        predicate: (query) =>
+          query.queryKey[0] === 'post' &&
+          ['bloggers', 'calendar', 'list'].includes(String(query.queryKey[1])) &&
+          isUnauthorized(query.state.error),
+      });
     },
     onError: () => setMessage('扫码登录失败，请重新扫码。'),
-    onSettled: () => { pending.current = false; },
+    onSettled: () => {
+      pending.current = false;
+    },
   });
   useEffect(() => {
     if (status.isSuccess && !pending.current && status.data?.valid !== true) setExpired(true);
   }, [status.data, status.isSuccess]);
-  useEffect(() => () => { version.current++; controller.current?.abort(); }, []);
-  const expire = useCallback(() => { version.current++; setExpired(true); setMessage('登录已失效'); }, []);
+  useEffect(
+    () => () => {
+      version.current++;
+      controller.current?.abort();
+    },
+    [],
+  );
+  const expire = useCallback(() => {
+    version.current++;
+    setExpired(true);
+    setMessage('登录已失效');
+  }, []);
   function start() {
     if (pending.current) return;
     pending.current = true;
@@ -49,6 +68,14 @@ export function usePostLogin() {
     setMessage('登录已失效');
     qr.mutate();
   }
-  return { expired, expire, message, pending: qr.isPending, started: !qr.isIdle, start,
-    likeSession, likeEnabled: !expired && !qr.isPending && status.isSuccess && status.data?.valid === true };
+  return {
+    expired,
+    expire,
+    message,
+    pending: qr.isPending,
+    started: !qr.isIdle,
+    start,
+    likeSession,
+    likeEnabled: !expired && !qr.isPending && status.isSuccess && status.data?.valid === true,
+  };
 }

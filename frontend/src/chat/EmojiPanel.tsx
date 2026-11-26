@@ -8,7 +8,6 @@ type Props = {
   onInsert: (phrase: string) => void;
 };
 
-// 表情面板：首次打开时才按共享映射构建格子；外点与 Escape 关闭。
 export default function EmojiPanel({ open, triggerRef, onClose, onInsert }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [entries, setEntries] = useState<[string, string][] | null>(null);
@@ -46,8 +45,13 @@ export default function EmojiPanel({ open, triggerRef, onClose, onInsert }: Prop
     <div ref={panelRef} className="emoji-panel" role="dialog" aria-label="表情选择" hidden={!open}>
       <div className="emoji-panel-grid">
         {entries?.map(([phrase, url]) => (
-          <button key={phrase} type="button" className="emoji-cell" title={phrase}
-            onClick={() => onInsert(phrase)}>
+          <button
+            key={phrase}
+            type="button"
+            className="emoji-cell"
+            title={phrase}
+            onClick={() => onInsert(phrase)}
+          >
             <img src={url} alt={phrase} loading="lazy" />
           </button>
         ))}

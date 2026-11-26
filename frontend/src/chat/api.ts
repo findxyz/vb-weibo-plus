@@ -1,5 +1,4 @@
-// chat 会话读取的接口层：路径与参数沿用旧页，排序口径全页只有 compareMessages 一处。
-import { toQueryDateTime, toQueryEndTime } from '../shared/date.js';
+import { toQueryDateTime, toQueryEndTime } from '../shared/date';
 
 export type ChatGroup = {
   gid: number;
@@ -38,7 +37,6 @@ export type ChatMessage = {
   originalUrl: string;
   videoUrl: string;
   fileUrl: string;
-  // 表态由 `/chat/attitudes` 按需补入，服务端消息本身不携带。
   attitudes?: Attitude[];
 };
 
@@ -59,7 +57,10 @@ export type MessagePage = {
 export const MESSAGE_PAGE_SIZE = 50;
 
 export class HttpError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message);
     this.name = 'HttpError';
   }
@@ -68,18 +69,16 @@ export class HttpError extends Error {
 async function readError(response: Response) {
   let message = `HTTP ${response.status}`;
   try {
-    const body = await response.json() as { msg?: unknown };
+    const body = (await response.json()) as { msg?: unknown };
     if (typeof body?.msg === 'string' && body.msg) message = body.msg;
-  } catch {
-    // 非 JSON 错误响应保留状态码文案。
-  }
+  } catch {}
   return message;
 }
 
 async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', signal });
   if (!response.ok) throw new HttpError(await readError(response), response.status);
-  return await response.json() as T;
+  return (await response.json()) as T;
 }
 
 export async function sendText(gid: number, content: string) {
@@ -119,7 +118,12 @@ export function fetchLatestMessages(gid: number, size: number, signal: AbortSign
   return getJson<MessagePage>(`/chat/messages/cursor?${query}`, signal);
 }
 
-export function fetchEarlierMessages(gid: number, size: number, cursor: MessageCursor, signal: AbortSignal) {
+export function fetchEarlierMessages(
+  gid: number,
+  size: number,
+  cursor: MessageCursor,
+  signal: AbortSignal,
+) {
   const query = new URLSearchParams({
     gid: String(gid),
     size: String(size),
@@ -129,7 +133,12 @@ export function fetchEarlierMessages(gid: number, size: number, cursor: MessageC
   return getJson<MessagePage>(`/chat/messages/cursor?${query}`, signal);
 }
 
-export function fetchNewerMessages(gid: number, size: number, cursor: MessageCursor, signal: AbortSignal) {
+export function fetchNewerMessages(
+  gid: number,
+  size: number,
+  cursor: MessageCursor,
+  signal: AbortSignal,
+) {
   const query = new URLSearchParams({
     gid: String(gid),
     size: String(size),
@@ -144,15 +153,27 @@ export function fetchAttitudes(gid: number, mids: number[], signal: AbortSignal)
   return getJson<Record<string, Attitude[]>>(`/chat/attitudes?${query}`, signal);
 }
 
-export async function fetchMessageWeiboText(gid: number, mid: number, signal: AbortSignal, retweeted = false) {
+export async function fetchMessageWeiboText(
+  gid: number,
+  mid: number,
+  signal: AbortSignal,
+  retweeted = false,
+) {
   const query = new URLSearchParams({ gid: String(gid), mid: String(mid) });
   if (retweeted) query.set('retweeted', 'true');
-  const result = await getJson<{ text: string }>(`/chat/messages/weiboText?${query}`,
-    AbortSignal.any([signal, AbortSignal.timeout(15000)]));
+  const result = await getJson<{ text: string }>(
+    `/chat/messages/weiboText?${query}`,
+    AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+  );
   return result.text;
 }
 
-export async function fetchMessageWeiboCover(gid: number, mid: number, retweeted: boolean, signal: AbortSignal) {
+export async function fetchMessageWeiboCover(
+  gid: number,
+  mid: number,
+  retweeted: boolean,
+  signal: AbortSignal,
+) {
   const query = new URLSearchParams({ gid: String(gid), mid: String(mid), variant: 'weiboCover' });
   if (retweeted) query.set('retweeted', 'true');
   const response = await fetch(`/chat/media?${query}`, {
@@ -175,7 +196,6 @@ export async function fetchLoginStatus(signal: AbortSignal) {
   return response.json() as Promise<{ valid?: unknown }>;
 }
 
-// 后端最多等待扫码 300 秒，额外留出群列表同步时间。
 export async function startQrLogin(signal: AbortSignal) {
   const response = await fetch('/weibo/login/qr', {
     method: 'POST',
@@ -224,9 +244,11 @@ function parseSseEvent(block: string) {
   return dataLines.length ? { event, data: dataLines.join('\n') } : null;
 }
 
-// 流式分析：逐段回调 delta，返回 done 事件里的完整视图。
 export async function streamAnalysis(
-  gid: number, date: string, prompt: string, signal: AbortSignal,
+  gid: number,
+  date: string,
+  prompt: string,
+  signal: AbortSignal,
   onDelta: (chunk: string) => void,
 ) {
   const response = await fetch('/chat/analyses/stream', {
@@ -262,7 +284,11 @@ export type HistoryFilters = { start: string; end: string; sender: string; keywo
 export type HistoryPage = { items: ChatMessage[]; page: number; size: number; total: number };
 
 export function queryHistoryMessages(
-  gid: number, filters: HistoryFilters, page: number, size: number, signal: AbortSignal,
+  gid: number,
+  filters: HistoryFilters,
+  page: number,
+  size: number,
+  signal: AbortSignal,
 ) {
   const params = new URLSearchParams({ gid: String(gid), page: String(page), size: String(size) });
   const start = toQueryDateTime(filters.start);
@@ -274,7 +300,6 @@ export function queryHistoryMessages(
   return getJson<HistoryPage>(`/chat/messages?${params}`, signal);
 }
 
-// /chat/since 成功时返回 204 无响应体，不解析 JSON。
 export async function syncHistory(gid: number, sinceTime: string, signal: AbortSignal) {
   const query = new URLSearchParams({ gid: String(gid), sinceTime });
   const response = await fetch(`/chat/since?${query}`, { method: 'POST', signal });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { sanitizedContent } from './content';
-import { formatDate } from '../shared/date.js';
+import { formatDate } from '../shared/date';
 import type { PostList } from './queries';
 import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import PostImages from './PostImages';
@@ -9,27 +9,48 @@ import PostVideo from './PostVideo';
 import { playableVideo } from './video';
 import PostLikeButton from './PostLikeButton';
 
-function PostContent({ content, className = 'post-content', onOpenImage }: {
-  content: string; className?: string; onOpenImage: (src: string) => void;
+function PostContent({
+  content,
+  className = 'post-content',
+  onOpenImage,
+}: {
+  content: string;
+  className?: string;
+  onOpenImage: (src: string) => void;
 }) {
   try {
-    // Only sanitized HTML reaches React's raw-HTML boundary.
-    // https://github.com/cure53/DOMPurify#what-does-it-do
     const clean = sanitizedContent(content);
-    return <div className={className} dangerouslySetInnerHTML={{ __html: clean }} onClick={event => {
-      if (!(event.target instanceof Element)) return;
-      const src = event.target.closest('a[href^="/chat/image?"]')?.getAttribute('href');
-      if (!src) return;
-      event.preventDefault();
-      onOpenImage(src);
-    }} />;
+    return (
+      <div
+        className={className}
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized by DOMPurify
+        dangerouslySetInnerHTML={{ __html: clean }}
+        onClick={(event) => {
+          if (!(event.target instanceof Element)) return;
+          const src = event.target.closest('a[href^="/chat/image?"]')?.getAttribute('href');
+          if (!src) return;
+          event.preventDefault();
+          onOpenImage(src);
+        }}
+      />
+    );
   } catch {
     return <div className={className}>{content}</div>;
   }
 }
 
-export default function PostFeed({ result, targetPostId, likeEnabled, likeSession, onUnauthorized }: {
-  result: PostList; targetPostId?: string; likeEnabled: boolean; likeSession: number; onUnauthorized: () => void;
+export default function PostFeed({
+  result,
+  targetPostId,
+  likeEnabled,
+  likeSession,
+  onUnauthorized,
+}: {
+  result: PostList;
+  targetPostId?: string;
+  likeEnabled: boolean;
+  likeSession: number;
+  onUnauthorized: () => void;
 }) {
   const [viewer, setViewer] = useState<{ images: GalleryImage[]; index: number } | null>(null);
   const [highlighted, setHighlighted] = useState(targetPostId);
@@ -39,16 +60,27 @@ export default function PostFeed({ result, targetPostId, likeEnabled, likeSessio
     const day = target?.parentElement;
     const pane = target?.closest('.posts');
     if (!target || !day || !pane) return;
-    const pendingImages = new Set(Array.from(day.querySelectorAll('img')).filter(image => !image.complete
-      && (target.contains(image) || image.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    const pendingImages = new Set(
+      Array.from(day.querySelectorAll('img')).filter(
+        (image) =>
+          !image.complete &&
+          (target.contains(image) ||
+            image.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING),
+      ),
+    );
     let frame = requestAnimationFrame(() => {
-      target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
+      target.scrollIntoView({
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        block: 'center',
+      });
     });
     const timer = setTimeout(() => setHighlighted(undefined), 1600);
     function mediaSettled(event: Event) {
       if (!pendingImages.delete(event.target as HTMLImageElement)) return;
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => target!.scrollIntoView({ behavior: 'instant', block: 'center' }));
+      frame = requestAnimationFrame(() =>
+        target!.scrollIntoView({ behavior: 'instant', block: 'center' }),
+      );
       if (!pendingImages.size) {
         day!.removeEventListener('load', mediaSettled, true);
         day!.removeEventListener('error', mediaSettled, true);
@@ -67,47 +99,105 @@ export default function PostFeed({ result, targetPostId, likeEnabled, likeSessio
     pane.addEventListener('wheel', stopCentering, { passive: true });
     pane.addEventListener('pointerdown', stopCentering);
     pane.addEventListener('keydown', stopCentering);
-    return () => { stopCentering(); clearTimeout(timer); };
+    return () => {
+      stopCentering();
+      clearTimeout(timer);
+    };
   }, [targetPostId]);
-  function openImages(images: GalleryImage[], index: number) { setViewer({ images, index }); }
-  function openInlineImage(src: string) { openImages([{ src, previewSrc: src }], 0); }
-  return <>
-    {result.items.length === 0 && <p role="status">该日无微博。</p>}
-    {result.items.map(post => {
-      const video = playableVideo(post.video);
-      const retweetVideo = playableVideo(post.retweeted?.video);
-      const postUrl = post.postUrl && /^https?:\/\//i.test(post.postUrl) && URL.canParse(post.postUrl) ? post.postUrl : null;
-      const pureRetweet = !post.content && !post.pics?.length && !(post.video?.pageUrl && post.video.coverUrl) && post.retweeted;
-      return <article ref={post.mblogId === targetPostId ? targetRef : null} className={`post-card${pureRetweet ? ' pure-retweet' : ''}${post.mblogId === highlighted ? ' flash-highlight' : ''}`} key={post.mblogId}>
-        {!pureRetweet && <BloggerAvatar blogger={post.blogger} className="post-avatar" linkToHomepage />}
-        <div className="post-body">
-          <header className="post-header">
-            <strong className="post-author">{post.blogger?.screenName || '未知博主'}{post.blogger?.verified && <VerifiedBadge />}</strong>
-          </header>
-          {post.content && <PostContent content={post.content} onOpenImage={openInlineImage} />}
-          {post.pics && <PostImages pics={post.pics} onOpen={openImages} />}
-          {video && video.pageUrl !== retweetVideo?.pageUrl && <PostVideo video={video} mblogId={post.mblogId} />}
-          {post.retweeted && <aside className="post-retweet" aria-label="转发正文">
-            <strong className="post-retweet-author">@{post.retweeted.screenName || '未知用户'}</strong>
-            <PostContent content={post.retweeted.content ?? ''} className="post-retweet-content" onOpenImage={openInlineImage} />
-            {post.retweeted.pics && <PostImages pics={post.retweeted.pics} retweeted onOpen={openImages} />}
-            {retweetVideo && <PostVideo video={retweetVideo} mblogId={post.mblogId} retweeted />}
-          </aside>}
-          <div className="post-actions">
-            <div className="post-meta">
-              <time className="post-time" dateTime={new Date(post.createdAt).toISOString()}>{formatDate(post.createdAt)}</time>
-              {post.region && <span className="post-region">{post.region}</span>}
-              {post.source && <span className="post-source">{post.source}</span>}
+  function openImages(images: GalleryImage[], index: number) {
+    setViewer({ images, index });
+  }
+  function openInlineImage(src: string) {
+    openImages([{ src, previewSrc: src }], 0);
+  }
+  return (
+    <>
+      {result.items.length === 0 && <p role="status">该日无微博。</p>}
+      {result.items.map((post) => {
+        const video = playableVideo(post.video);
+        const retweetVideo = playableVideo(post.retweeted?.video);
+        const postUrl =
+          post.postUrl && /^https?:\/\//i.test(post.postUrl) && URL.canParse(post.postUrl)
+            ? post.postUrl
+            : null;
+        const pureRetweet =
+          !post.content &&
+          !post.pics?.length &&
+          !(post.video?.pageUrl && post.video.coverUrl) &&
+          post.retweeted;
+        return (
+          <article
+            ref={post.mblogId === targetPostId ? targetRef : null}
+            className={`post-card${pureRetweet ? ' pure-retweet' : ''}${post.mblogId === highlighted ? ' flash-highlight' : ''}`}
+            key={post.mblogId}
+          >
+            {!pureRetweet && (
+              <BloggerAvatar blogger={post.blogger} className="post-avatar" linkToHomepage />
+            )}
+            <div className="post-body">
+              <header className="post-header">
+                <strong className="post-author">
+                  {post.blogger?.screenName || '未知博主'}
+                  {post.blogger?.verified && <VerifiedBadge />}
+                </strong>
+              </header>
+              {post.content && <PostContent content={post.content} onOpenImage={openInlineImage} />}
+              {post.pics && <PostImages pics={post.pics} onOpen={openImages} />}
+              {video && video.pageUrl !== retweetVideo?.pageUrl && (
+                <PostVideo video={video} mblogId={post.mblogId} />
+              )}
+              {post.retweeted && (
+                <aside className="post-retweet" aria-label="转发正文">
+                  <strong className="post-retweet-author">
+                    @{post.retweeted.screenName || '未知用户'}
+                  </strong>
+                  <PostContent
+                    content={post.retweeted.content ?? ''}
+                    className="post-retweet-content"
+                    onOpenImage={openInlineImage}
+                  />
+                  {post.retweeted.pics && (
+                    <PostImages pics={post.retweeted.pics} retweeted onOpen={openImages} />
+                  )}
+                  {retweetVideo && (
+                    <PostVideo video={retweetVideo} mblogId={post.mblogId} retweeted />
+                  )}
+                </aside>
+              )}
+              <div className="post-actions">
+                <div className="post-meta">
+                  <time className="post-time" dateTime={new Date(post.createdAt).toISOString()}>
+                    {formatDate(post.createdAt)}
+                  </time>
+                  {post.region && <span className="post-region">{post.region}</span>}
+                  {post.source && <span className="post-source">{post.source}</span>}
+                </div>
+                <div className="post-action-links">
+                  <PostLikeButton
+                    key={`${post.mblogId}:${likeSession}`}
+                    mblogId={post.mblogId}
+                    enabled={likeEnabled}
+                    session={likeSession}
+                    onUnauthorized={onUnauthorized}
+                  />
+                  {postUrl && (
+                    <a className="post-link" href={postUrl} target="_blank" rel="noopener">
+                      查看原文
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="post-action-links">
-              <PostLikeButton key={`${post.mblogId}:${likeSession}`} mblogId={post.mblogId}
-                enabled={likeEnabled} session={likeSession} onUnauthorized={onUnauthorized} />
-              {postUrl && <a className="post-link" href={postUrl} target="_blank" rel="noopener">查看原文</a>}
-            </div>
-          </div>
-        </div>
-      </article>;
-    })}
-    {viewer && <ImageViewer images={viewer.images} initialIndex={viewer.index} onClose={() => setViewer(null)} />}
-  </>;
+          </article>
+        );
+      })}
+      {viewer && (
+        <ImageViewer
+          images={viewer.images}
+          initialIndex={viewer.index}
+          onClose={() => setViewer(null)}
+        />
+      )}
+    </>
+  );
 }

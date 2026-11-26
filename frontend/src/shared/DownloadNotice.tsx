@@ -19,10 +19,14 @@ export default function DownloadNotice() {
     };
   }, []);
 
-  return <div aria-live="polite" aria-atomic="true">
-    {path && <div className="download-notice">
-      <strong>下载完成</strong>
-      <span>已保存到：{path}</span>
-    </div>}
-  </div>;
+  return (
+    <div aria-live="polite" aria-atomic="true">
+      {path && (
+        <div className="download-notice">
+          <strong>下载完成</strong>
+          <span>已保存到：{path}</span>
+        </div>
+      )}
+    </div>
+  );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { STORAGE_KEYS } from '../shared/storage-keys.js';
+import { STORAGE_KEYS } from '../shared/storage-keys';
 import Avatar from './Avatar';
 import AnalysisDialog from './AnalysisDialog';
 import Composer from './Composer';
@@ -37,15 +37,17 @@ export default function ChatPage() {
     },
     staleTime: Infinity,
     refetchOnMount: false,
-    // 失败按秒指数退避，封顶 30 秒；隐藏或登录失效时暂停，成功后恢复 1 秒。
-    refetchInterval: () => loginExpired ? false : Math.min(1000 * 2 ** groupFailuresRef.current, 30000),
+    refetchInterval: () =>
+      loginExpired ? false : Math.min(1000 * 2 ** groupFailuresRef.current, 30000),
     refetchIntervalInBackground: false,
   });
   const { refetch } = groupsQuery;
   const groups = groupsQuery.data ?? [];
 
   useEffect(() => {
-    const onFocus = () => { if (!loginExpired) void refetch(); };
+    const onFocus = () => {
+      if (!loginExpired) void refetch();
+    };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [refetch, loginExpired]);
@@ -56,7 +58,9 @@ export default function ChatPage() {
   });
   const [reloadToken, setReloadToken] = useState(0);
   const selectedGidRef = useRef(selectedGid);
-  useLayoutEffect(() => { selectedGidRef.current = selectedGid; }, [selectedGid]);
+  useLayoutEffect(() => {
+    selectedGidRef.current = selectedGid;
+  }, [selectedGid]);
   const [refreshToken, setRefreshToken] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
@@ -77,7 +81,6 @@ export default function ChatPage() {
   const statusControllerRef = useRef<AbortController | null>(null);
   const checkStatusRef = useRef<() => void>(() => {});
 
-  // 登录检测：进入页面一次，之后每 180 秒一次；扫码中或页面隐藏时跳过。
   useEffect(() => {
     const controller = new AbortController();
     statusControllerRef.current = controller;
@@ -85,13 +88,18 @@ export default function ChatPage() {
       const version = loginVersionRef.current;
       try {
         const result = await fetchLoginStatus(controller.signal);
-        if (controller.signal.aborted || qrPendingRef.current || version !== loginVersionRef.current) return;
+        if (
+          controller.signal.aborted ||
+          qrPendingRef.current ||
+          version !== loginVersionRef.current
+        )
+          return;
         setLoginExpired(result.valid !== true);
-      } catch {
-        // 登录检测失败不打扰用户。
-      }
+      } catch {}
     };
-    checkStatusRef.current = () => { void check(); };
+    checkStatusRef.current = () => {
+      void check();
+    };
     void check();
     const timer = window.setInterval(() => {
       if (!document.hidden && !qrPendingRef.current) void check();
@@ -102,27 +110,30 @@ export default function ChatPage() {
     };
   }, []);
 
-  useEffect(() => () => {
-    qrPendingRef.current = false;
-    qrControllerRef.current?.abort();
-    clearTimeout(qrTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      qrPendingRef.current = false;
+      qrControllerRef.current?.abort();
+      clearTimeout(qrTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!groups.length) return;
-    if (selectedGid == null || !groups.some(group => group.gid === selectedGid)) {
+    if (selectedGid == null || !groups.some((group) => group.gid === selectedGid)) {
       setSelectedGid(groups[0].gid);
     }
   }, [groups, selectedGid]);
 
   useEffect(() => {
-    if (selectedGid != null) localStorage.setItem(STORAGE_KEYS.CHAT_LAST_GROUP, String(selectedGid));
+    if (selectedGid != null)
+      localStorage.setItem(STORAGE_KEYS.CHAT_LAST_GROUP, String(selectedGid));
   }, [selectedGid]);
 
-  const selectedGroup = groups.find(group => group.gid === selectedGid) ?? null;
+  const selectedGroup = groups.find((group) => group.gid === selectedGid) ?? null;
   const title = selectedGroup ? `微博群聊 - ${groupName(selectedGroup)}` : '微博群聊';
 
-  // 消息数变化时让「+ N」闪一次：换 key 重新挂载以重启动画，切群时不闪。
   const lastSizeRef = useRef<{ gid: number; count: number } | null>(null);
   const [flashNonce, setFlashNonce] = useState(0);
   useEffect(() => {
@@ -130,24 +141,25 @@ export default function ChatPage() {
     const previous = lastSizeRef.current;
     lastSizeRef.current = { gid: selectedGroup.gid, count: selectedGroup.messageCount };
     if (!previous || previous.gid !== selectedGroup.gid) return;
-    if (previous.count !== selectedGroup.messageCount) setFlashNonce(value => value + 1);
+    if (previous.count !== selectedGroup.messageCount) setFlashNonce((value) => value + 1);
   }, [selectedGroup]);
 
   useEffect(() => {
     document.title = title;
   }, [title]);
 
-  // 重复点击当前群也重新载入并落底，与旧页「选群即重新打开」一致。
   function selectGroup(gid: number) {
     setHistoryOpen(false);
     setAnalysisOpen(false);
     setSelectedGid(gid);
-    setReloadToken(token => token + 1);
+    setReloadToken((token) => token + 1);
   }
 
   const memberMeta = selectedGroup ? groupMemberCount(selectedGroup) : '';
-  const messageCount = selectedGroup && typeof selectedGroup.messageCount === 'number'
-    ? selectedGroup.messageCount : null;
+  const messageCount =
+    selectedGroup && typeof selectedGroup.messageCount === 'number'
+      ? selectedGroup.messageCount
+      : null;
 
   function stopQrTimers(clearImage: boolean) {
     clearTimeout(qrTimerRef.current);
@@ -196,7 +208,7 @@ export default function ChatPage() {
       loginVersionRef.current += 1;
       setLoginExpired(false);
       await refetch();
-      setReloadToken(token => token + 1);
+      setReloadToken((token) => token + 1);
       checkStatusRef.current();
     } catch {
       if (!controller.signal.aborted) setQrError('扫码登录失败，请重新扫码。');
@@ -209,12 +221,20 @@ export default function ChatPage() {
 
   const loginPanel = loginExpired ? (
     <div className="login-expired" role="status">
-      {qrImage
-        ? <img src={qrImage} alt="扫码登录二维码" />
-        : qrLoading && <div className="qr-loading">{qrLoading}</div>}
+      {qrImage ? (
+        <img src={qrImage} alt="扫码登录二维码" />
+      ) : (
+        qrLoading && <div className="qr-loading">{qrLoading}</div>
+      )}
       <span className="panel-state">登录已失效</span>
       {qrError && <span className="panel-state">{qrError}</span>}
-      <button type="button" disabled={qrPending} onClick={() => { void startQrLogin(); }}>
+      <button
+        type="button"
+        disabled={qrPending}
+        onClick={() => {
+          void startQrLogin();
+        }}
+      >
         {qrPending ? '📱 扫码中…' : '📱 扫码登录'}
       </button>
     </div>
@@ -224,15 +244,25 @@ export default function ChatPage() {
     <div className="app">
       <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       <header className="titlebar">
-        <span className="title-logo" aria-hidden="true"><img src={weiboLogo} alt="" /></span>
+        <span className="title-logo" aria-hidden="true">
+          <img src={weiboLogo} alt="" />
+        </span>
         <h1>{title}</h1>
         <div className="window-controls">
-          <button type="button" className="window-control immersive" aria-pressed={immersive}
+          <button
+            type="button"
+            className="window-control immersive"
+            aria-pressed={immersive}
             aria-label={immersive ? '退出沉浸阅读' : '进入沉浸阅读'}
             title={immersive ? '退出沉浸阅读' : '进入沉浸阅读'}
-            onClick={() => setImmersive(value => !value)} />
-          <a className="window-control toggle" href="/post/index.html"
-            aria-label="切换到本地微博" title="切换到本地微博" />
+            onClick={() => setImmersive((value) => !value)}
+          />
+          <a
+            className="window-control toggle"
+            href="/post/index.html"
+            aria-label="切换到本地微博"
+            title="切换到本地微博"
+          />
         </div>
       </header>
       <div className="workspace">
@@ -242,13 +272,19 @@ export default function ChatPage() {
           pending={groupsQuery.isPending}
           failed={groupsQuery.isError && !groupsQuery.data}
           onSelect={selectGroup}
-          onRetry={() => { void groupsQuery.refetch(); }}
+          onRetry={() => {
+            void groupsQuery.refetch();
+          }}
           footer={loginPanel}
         />
         <section className={`conversation${immersive ? ' immersive' : ''}`}>
           {selectedGroup ? (
             <header className="group-header">
-              <Avatar className="main-group-avatar" name={selectedGroup.name} avatar={selectedGroup.avatar} />
+              <Avatar
+                className="main-group-avatar"
+                name={selectedGroup.name}
+                avatar={selectedGroup.avatar}
+              />
               <div className="group-summary">
                 <div className="group-title-line">
                   <h2>{groupName(selectedGroup)}</h2>
@@ -259,8 +295,12 @@ export default function ChatPage() {
                   {messageCount != null && (
                     <>
                       {' + '}
-                      <span key={flashNonce}
-                        className={`current-message-count${flashNonce ? ' size-flash' : ''}`}>{messageCount}</span>
+                      <span
+                        key={flashNonce}
+                        className={`current-message-count${flashNonce ? ' size-flash' : ''}`}
+                      >
+                        {messageCount}
+                      </span>
                       {' 条消息'}
                     </>
                   )}
@@ -269,7 +309,9 @@ export default function ChatPage() {
             </header>
           ) : (
             <header className="group-header empty-header">
-              <p className="group-number">{groupsQuery.isPending ? '正在加载群聊……' : '选择左侧群聊查看消息'}</p>
+              <p className="group-number">
+                {groupsQuery.isPending ? '正在加载群聊……' : '选择左侧群聊查看消息'}
+              </p>
             </header>
           )}
           <div className="messages-shell">
@@ -283,20 +325,36 @@ export default function ChatPage() {
                 onAuthExpired={markLoginExpired}
               />
             ) : (
-              <p className="messages-state">{groupsQuery.isPending ? '正在加载群聊……' : '暂无群聊。'}</p>
+              <p className="messages-state">
+                {groupsQuery.isPending ? '正在加载群聊……' : '暂无群聊。'}
+              </p>
             )}
           </div>
-          <Composer gid={selectedGroup?.gid ?? null} onSent={gid => {
-            if (gid === selectedGidRef.current) setRefreshToken(value => value + 1);
-          }} onAuthExpired={markLoginExpired}
+          <Composer
+            gid={selectedGroup?.gid ?? null}
+            onSent={(gid) => {
+              if (gid === selectedGidRef.current) setRefreshToken((value) => value + 1);
+            }}
+            onAuthExpired={markLoginExpired}
             onOpenHistory={() => setHistoryOpen(true)}
-            onOpenAnalysis={() => setAnalysisOpen(true)} />
+            onOpenAnalysis={() => setAnalysisOpen(true)}
+          />
         </section>
       </div>
-      <HistoryDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={historyOpen}
-        onClose={() => setHistoryOpen(false)} onAuthExpired={markLoginExpired} />
-      <AnalysisDialog gid={selectedGroup?.gid ?? null} group={selectedGroup} open={analysisOpen}
-        onClose={() => setAnalysisOpen(false)} onAuthExpired={markLoginExpired} />
+      <HistoryDialog
+        gid={selectedGroup?.gid ?? null}
+        group={selectedGroup}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onAuthExpired={markLoginExpired}
+      />
+      <AnalysisDialog
+        gid={selectedGroup?.gid ?? null}
+        group={selectedGroup}
+        open={analysisOpen}
+        onClose={() => setAnalysisOpen(false)}
+        onAuthExpired={markLoginExpired}
+      />
       <DreamLauncher gid={selectedGroup?.gid ?? null} />
     </div>
   );

@@ -1,9 +1,14 @@
 import { createServer as createHttpServer, type Server, type ServerResponse } from 'node:http';
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
-import { STORAGE_KEYS } from '../src/shared/storage-keys.js';
-import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../src/shared/date.js';
-import { compareMessages, type AnalysisView, type ChatGroup, type ChatMessage } from '../src/chat/api';
+import { STORAGE_KEYS } from '../src/shared/storage-keys';
+import { calendarMonthsAgo, localDateValue, shanghaiToday } from '../src/shared/date';
+import {
+  compareMessages,
+  type AnalysisView,
+  type ChatGroup,
+  type ChatMessage,
+} from '../src/chat/api';
 import { trimMessageCache } from '../src/chat/message-cache';
 
 const BASE_TIME = Date.parse('2026-08-05T00:00:00Z');
@@ -41,7 +46,13 @@ let syncStatus: number;
 let loginValid: boolean;
 let qrStatus: number;
 let qrHold: boolean;
-let analysisItems: { id: number; date: string; promptPreview: string; messageCount: number; createdAt: string }[];
+let analysisItems: {
+  id: number;
+  date: string;
+  promptPreview: string;
+  messageCount: number;
+  createdAt: string;
+}[];
 let analysisDetail: AnalysisView;
 let analysisDeltas: string[];
 let analysisDone: AnalysisView;
@@ -51,8 +62,19 @@ let analysisStreamDelay: number;
 
 function makeGroup(gid: number, name: string, extra: Partial<ChatGroup> = {}): ChatGroup {
   return {
-    gid, name, avatar: '', memberCount: 10, maxMember: 50, ownerId: 1, admins: [],
-    summary: '', groupType: 0, latestSenderName: '', latestMessage: '', messageCount: 0, ...extra,
+    gid,
+    name,
+    avatar: '',
+    memberCount: 10,
+    maxMember: 50,
+    ownerId: 1,
+    admins: [],
+    summary: '',
+    groupType: 0,
+    latestSenderName: '',
+    latestMessage: '',
+    messageCount: 0,
+    ...extra,
   };
 }
 
@@ -64,11 +86,27 @@ function makeMessages(gid: number, count: number, label: string): ChatMessage[] 
   return Array.from({ length: count }, (_, index) => {
     const mid = index + 1;
     return {
-      mid, gid, msgType: 1, msgTypeName: '文本', mediaType: 0,
-      senderId: 100 + (mid % 3), senderName: `成员${mid % 3}`, senderAvatar: '',
-      text: `${label} ${mid}`, urlObjects: null, picInfos: null, template: null, templateData: null,
-      recallMids: null, recallBy: null, createdAt: messageTime(mid), savedAt: messageTime(mid),
-      previewUrl: '', originalUrl: '', videoUrl: '', fileUrl: '',
+      mid,
+      gid,
+      msgType: 1,
+      msgTypeName: '文本',
+      mediaType: 0,
+      senderId: 100 + (mid % 3),
+      senderName: `成员${mid % 3}`,
+      senderAvatar: '',
+      text: `${label} ${mid}`,
+      urlObjects: null,
+      picInfos: null,
+      template: null,
+      templateData: null,
+      recallMids: null,
+      recallBy: null,
+      createdAt: messageTime(mid),
+      savedAt: messageTime(mid),
+      previewUrl: '',
+      originalUrl: '',
+      videoUrl: '',
+      fileUrl: '',
     };
   });
 }
@@ -84,15 +122,18 @@ function buildPage(url: URL, gid: number) {
   const beforeMid = url.searchParams.get('beforeMid');
   const afterMid = url.searchParams.get('afterMid');
   if (afterMid != null) {
-    const afterIndex = list.findIndex(message => message.mid > Number(afterMid));
+    const afterIndex = list.findIndex((message) => message.mid > Number(afterMid));
     const start = afterIndex < 0 ? list.length : afterIndex;
     const slice = list.slice(start, start + size);
     const last = slice[slice.length - 1];
     const hasMore = start + size < list.length;
     return {
-      group: groups.find(group => group.gid === gid) ?? null,
-      items: slice, size, hasMore,
-      nextBeforeCreatedAt: null, nextBeforeMid: null,
+      group: groups.find((group) => group.gid === gid) ?? null,
+      items: slice,
+      size,
+      hasMore,
+      nextBeforeCreatedAt: null,
+      nextBeforeMid: null,
       nextAfterCreatedAt: hasMore && last ? last.createdAt : null,
       nextAfterMid: hasMore && last ? last.mid : null,
     };
@@ -100,7 +141,7 @@ function buildPage(url: URL, gid: number) {
   let slice: ChatMessage[];
   let hasMore: boolean;
   if (beforeMid != null) {
-    const beforeIndex = list.findIndex(message => message.mid === Number(beforeMid));
+    const beforeIndex = list.findIndex((message) => message.mid === Number(beforeMid));
     const end = beforeIndex < 0 ? list.length : beforeIndex;
     slice = list.slice(Math.max(0, end - size), end);
     hasMore = end - size > 0;
@@ -110,17 +151,22 @@ function buildPage(url: URL, gid: number) {
   }
   const first = slice[0];
   return {
-    group: groups.find(group => group.gid === gid) ?? null,
-    items: slice, size, hasMore,
+    group: groups.find((group) => group.gid === gid) ?? null,
+    items: slice,
+    size,
+    hasMore,
     nextBeforeCreatedAt: hasMore && first ? first.createdAt : null,
     nextBeforeMid: hasMore && first ? first.mid : null,
-    nextAfterCreatedAt: null, nextAfterMid: null,
+    nextAfterCreatedAt: null,
+    nextAfterMid: null,
   };
 }
 
 function mediaBody() {
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180">'
-    + '<rect width="320" height="180" fill="#9cc7e8"/></svg>';
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180">' +
+    '<rect width="320" height="180" fill="#9cc7e8"/></svg>'
+  );
 }
 
 function parseQueryTime(value: string | null) {
@@ -129,16 +175,20 @@ function parseQueryTime(value: string | null) {
 
 async function openChat(page: Page, lastGid?: number) {
   if (lastGid != null) {
-    await page.addInitScript(([key, value]: [string, number]) => {
-      localStorage.setItem(key, String(value));
-    }, [STORAGE_KEYS.CHAT_LAST_GROUP, lastGid] as [string, number]);
+    await page.addInitScript(
+      ([key, value]: [string, number]) => {
+        localStorage.setItem(key, String(value));
+      },
+      [STORAGE_KEYS.CHAT_LAST_GROUP, lastGid] as [string, number],
+    );
   }
   await page.goto(`${baseUrl}chat/index.html`);
 }
 
 async function atBottom(page: Page) {
-  return page.locator('.messages').evaluate(element =>
-    element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
+  return page
+    .locator('.messages')
+    .evaluate((element) => element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
 }
 
 function releaseHeld() {
@@ -156,8 +206,16 @@ test.beforeAll(async () => {
     const path = url.pathname;
     requests.push(`${request.method} ${request.url}`);
     if (path === '/chat/groups') {
-      const send = () => sendJson(response, groupsStatus, groupsStatus === 200 ? groups : { msg: '本地群聊暂时不可用' });
-      if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      const send = () =>
+        sendJson(
+          response,
+          groupsStatus,
+          groupsStatus === 200 ? groups : { msg: '本地群聊暂时不可用' },
+        );
+      if (holdPredicate?.(url)) {
+        held.push({ url, send });
+        return;
+      }
       send();
       return;
     }
@@ -167,23 +225,34 @@ test.beforeAll(async () => {
     }
     if (path === '/chat/messages/weiboText') {
       const send = () => sendJson(response, 200, { text: LONG_WEIBO_TEXT });
-      if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      if (holdPredicate?.(url)) {
+        held.push({ url, send });
+        return;
+      }
       send();
       return;
     }
     if (request.method === 'POST' && path === '/weibo/login/qr') {
       const send = () => {
-        if (qrStatus === 200) { sendJson(response, 200, {}); return; }
+        if (qrStatus === 200) {
+          sendJson(response, 200, {});
+          return;
+        }
         sendJson(response, qrStatus, { msg: '扫码登录失败' });
       };
-      if (qrHold) { held.push({ url, send }); return; }
+      if (qrHold) {
+        held.push({ url, send });
+        return;
+      }
       send();
       return;
     }
     if (path === '/weibo/login/qr/image') {
       response.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
-      response.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">'
-        + '<rect width="180" height="180" fill="#ffffff"/></svg>');
+      response.end(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">' +
+          '<rect width="180" height="180" fill="#ffffff"/></svg>',
+      );
       return;
     }
     if (path === '/chat/analyses' && request.method === 'GET') {
@@ -191,16 +260,24 @@ test.beforeAll(async () => {
       const size = Number(url.searchParams.get('size')) || 20;
       const offset = (page - 1) * size;
       sendJson(response, 200, {
-        items: analysisItems.slice(offset, offset + size), page, size, total: analysisItems.length,
+        items: analysisItems.slice(offset, offset + size),
+        page,
+        size,
+        total: analysisItems.length,
       });
       return;
     }
     if (request.method === 'POST' && path === '/chat/analyses/stream') {
       let body = '';
-      request.on('data', chunk => { body += chunk; });
+      request.on('data', (chunk) => {
+        body += chunk;
+      });
       request.on('end', () => {
         analysisStreamBodies.push(body);
-        response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
+        response.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-store',
+        });
         if (analysisStreamError) {
           response.write(`event: error\ndata: ${analysisStreamError}\n\n`);
           response.end();
@@ -224,14 +301,22 @@ test.beforeAll(async () => {
     }
     if (request.method === 'GET' && path.startsWith('/chat/analyses/')) {
       const id = Number(path.slice('/chat/analyses/'.length));
-      if (!Number.isSafeInteger(id) || id <= 0) { sendJson(response, 404, { msg: '分析不存在' }); return; }
+      if (!Number.isSafeInteger(id) || id <= 0) {
+        sendJson(response, 404, { msg: '分析不存在' });
+        return;
+      }
       sendJson(response, 200, { ...analysisDetail, id });
       return;
     }
-    if (request.method === 'POST' && (path === '/chat/messages/sendImage' || path === '/chat/messages/sendVideo')) {
+    if (
+      request.method === 'POST' &&
+      (path === '/chat/messages/sendImage' || path === '/chat/messages/sendVideo')
+    ) {
       let body = '';
       const contentType = request.headers['content-type'] ?? '';
-      request.on('data', chunk => { body += chunk; });
+      request.on('data', (chunk) => {
+        body += chunk;
+      });
       request.on('end', () => {
         mediaSendBodies.push({ url: path, body, contentType });
         if (mediaSendStatus === 200) onSend?.();
@@ -241,22 +326,37 @@ test.beforeAll(async () => {
     }
     if (request.method === 'POST' && path === '/chat/messages/send') {
       let body = '';
-      request.on('data', chunk => { body += chunk; });
+      request.on('data', (chunk) => {
+        body += chunk;
+      });
       request.on('end', () => {
         sendBodies.push(body);
         if (sendStatus === 200) onSend?.();
-        sendJson(response, sendStatus, sendStatus === 200 ? {} : {
-          msg: sendStatus === 409 ? '已发出但本地同步失败' : '发送失败',
-        });
+        sendJson(
+          response,
+          sendStatus,
+          sendStatus === 200
+            ? {}
+            : {
+                msg: sendStatus === 409 ? '已发出但本地同步失败' : '发送失败',
+              },
+        );
       });
       return;
     }
     if (request.method === 'POST' && path === '/chat/since') {
       const send = () => {
-        if (syncStatus === 204) { response.writeHead(204); response.end(); return; }
+        if (syncStatus === 204) {
+          response.writeHead(204);
+          response.end();
+          return;
+        }
         sendJson(response, syncStatus, { msg: '同步失败' });
       };
-      if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      if (holdPredicate?.(url)) {
+        held.push({ url, send });
+        return;
+      }
       send();
       return;
     }
@@ -268,18 +368,28 @@ test.beforeAll(async () => {
       const end = parseQueryTime(url.searchParams.get('end'));
       const sender = url.searchParams.get('senderName');
       const keyword = url.searchParams.get('keyword');
-      const filtered = [...(messagesByGid.get(gid) ?? [])].sort(compareMessages).filter(message => {
-        if (start != null && message.createdAt < start) return false;
-        if (end != null && message.createdAt > end) return false;
-        if (sender && message.senderName !== sender) return false;
-        if (keyword && !(message.text ?? '').includes(keyword)) return false;
-        return true;
-      });
+      const filtered = [...(messagesByGid.get(gid) ?? [])]
+        .sort(compareMessages)
+        .filter((message) => {
+          if (start != null && message.createdAt < start) return false;
+          if (end != null && message.createdAt > end) return false;
+          if (sender && message.senderName !== sender) return false;
+          if (keyword && !(message.text ?? '').includes(keyword)) return false;
+          return true;
+        });
       const offset = (page - 1) * size;
-      const send = () => sendJson(response, 200, {
-        group: null, items: filtered.slice(offset, offset + size), page, size, total: filtered.length,
-      });
-      if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      const send = () =>
+        sendJson(response, 200, {
+          group: null,
+          items: filtered.slice(offset, offset + size),
+          page,
+          size,
+          total: filtered.length,
+        });
+      if (holdPredicate?.(url)) {
+        held.push({ url, send });
+        return;
+      }
       send();
       return;
     }
@@ -287,12 +397,21 @@ test.beforeAll(async () => {
       const gid = Number(url.searchParams.get('gid'));
       const status = messagesStatus.get(gid) ?? 200;
       const send = () => {
-        if (status !== 200) { sendJson(response, status, { msg: '本地消息暂时不可用' }); return; }
+        if (status !== 200) {
+          sendJson(response, status, { msg: '本地消息暂时不可用' });
+          return;
+        }
         sendJson(response, 200, buildPage(url, gid));
       };
-      if (holdPredicate?.(url)) { held.push({ url, send }); return; }
+      if (holdPredicate?.(url)) {
+        held.push({ url, send });
+        return;
+      }
       const isLatest = !url.searchParams.has('beforeMid') && !url.searchParams.has('afterMid');
-      if (isLatest && pollDelayMs > 0) { setTimeout(send, pollDelayMs); return; }
+      if (isLatest && pollDelayMs > 0) {
+        setTimeout(send, pollDelayMs);
+        return;
+      }
       send();
       return;
     }
@@ -300,28 +419,40 @@ test.beforeAll(async () => {
       const mids = (url.searchParams.get('mids') ?? '').split(',');
       const result: typeof attitudesPayload = {};
       for (const mid of mids) if (attitudesPayload[mid]) result[mid] = attitudesPayload[mid];
-      sendJson(response, attitudesStatus, attitudesStatus === 200 ? result : { msg: '表态读取失败' });
+      sendJson(
+        response,
+        attitudesStatus,
+        attitudesStatus === 200 ? result : { msg: '表态读取失败' },
+      );
       return;
     }
     if (path === '/chat/media') {
       const mid = Number(url.searchParams.get('mid'));
       const send = () => {
-        response.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'max-age=86400, private' });
+        response.writeHead(200, {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'max-age=86400, private',
+        });
         response.end(mediaBody());
       };
-      if (mediaHoldMids.has(mid)) { heldMedia.set(mid, send); return; }
+      if (mediaHoldMids.has(mid)) {
+        heldMedia.set(mid, send);
+        return;
+      }
       send();
       return;
     }
     if (path === '/chat/image') {
       response.writeHead(200, { 'Content-Type': 'image/svg+xml' });
-      response.end('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="#4ba7ec"/></svg>');
+      response.end(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="#4ba7ec"/></svg>',
+      );
       return;
     }
     response.writeHead(404);
     response.end();
   });
-  await new Promise<void>(resolve => backend.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => backend.listen(0, '127.0.0.1', resolve));
   const address = backend.address();
   if (!address || typeof address === 'string') throw new Error('Missing HTTP server address');
   process.env.API_PROXY_TARGET = `http://127.0.0.1:${address.port}`;
@@ -332,7 +463,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await vite?.close();
-  await new Promise<void>(resolve => backend?.close(() => resolve()));
+  await new Promise<void>((resolve) => backend?.close(() => resolve()));
   delete process.env.API_PROXY_TARGET;
 });
 
@@ -362,16 +493,21 @@ test.beforeEach(({ page }) => {
   qrHold = false;
   analysisItems = [];
   analysisDetail = {
-    id: 1, gid: 1, date: '2026-10-17', prompt: '总结今天群聊', result: '## 结论\n\n- 要点一\n- 要点二',
-    messageCount: 12, createdAt: '2026-10-17 09:00',
+    id: 1,
+    gid: 1,
+    date: '2026-10-17',
+    prompt: '总结今天群聊',
+    result: '## 结论\n\n- 要点一\n- 要点二',
+    messageCount: 12,
+    createdAt: '2026-10-17 09:00',
   };
   analysisDeltas = ['## 结论\n\n', '- 要点一\n', '- 要点二'];
   analysisDone = { ...analysisDetail, result: analysisDeltas.join('') };
   analysisStreamError = null;
   analysisStreamBodies = [];
   analysisStreamDelay = 60;
-  page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('request', request => {
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('request', (request) => {
     if (['GET', 'HEAD'].includes(request.method())) return;
     // 发送与历史采集是业务写操作，单独记录；其他写请求仍由 afterEach 拦截。
     if (request.method() === 'POST' && request.url().includes('/chat/messages/send')) return;
@@ -398,7 +534,9 @@ test('formal_chat_entry_refreshes_and_retires_the_preview_document', async ({ pa
   expect((await page.request.get(`${baseUrl}preview/chat/index.html`)).status()).toBe(404);
 });
 
-test('chat_selects_the_saved_group_and_lands_on_the_newest_messages', async ({ page }, testInfo) => {
+test('chat_selects_the_saved_group_and_lands_on_the_newest_messages', async ({
+  page,
+}, testInfo) => {
   messagesByGid.set(1, makeMessages(1, 60, '群一'));
   messagesByGid.set(2, makeMessages(2, 60, '群二'));
   await openChat(page, 2);
@@ -408,13 +546,22 @@ test('chat_selects_the_saved_group_and_lands_on_the_newest_messages', async ({ p
   await expect(page.locator('.message')).toHaveCount(50);
   await expect(page.locator('.message').last()).toContainText('群二 60');
   await expect.poll(() => atBottom(page)).toBe(true);
-  const polled = requests.filter(value => !value.includes('/weibo/login/status'));
-  expect(polled.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=2&size=50']);
+  const polled = requests.filter((value) => !value.includes('/weibo/login/status'));
+  expect(polled.slice(0, 2)).toEqual([
+    'GET /chat/groups',
+    'GET /chat/messages/cursor?gid=2&size=50',
+  ]);
 
   await page.waitForTimeout(2500);
-  const afterPoll = requests.filter(value => !value.includes('/weibo/login/status'));
-  expect(afterPoll.slice(2).every(value => value === 'GET /chat/groups'
-    || value === 'GET /chat/messages/cursor?gid=2&size=50')).toBe(true);
+  const afterPoll = requests.filter((value) => !value.includes('/weibo/login/status'));
+  expect(
+    afterPoll
+      .slice(2)
+      .every(
+        (value) =>
+          value === 'GET /chat/groups' || value === 'GET /chat/messages/cursor?gid=2&size=50',
+      ),
+  ).toBe(true);
   expect(afterPoll.length).toBeGreaterThanOrEqual(3);
 
   await page.reload();
@@ -432,35 +579,49 @@ test('chat_bounds_the_rendered_window_and_jumps_across_unloaded_messages', async
 
   // 连续向上翻页到 400 条，DOM 仍受 360 条窗口上限约束。
   for (let index = 1; index <= 7; index += 1) {
-    await page.locator('.messages').evaluate(element => { element.scrollTop = 0; });
-    await expect.poll(() => requests.filter(value => value.includes('beforeMid=')).length).toBe(index);
+    await page.locator('.messages').evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await expect
+      .poll(() => requests.filter((value) => value.includes('beforeMid=')).length)
+      .toBe(index);
     await page.waitForTimeout(150);
   }
   await expect(page.locator('.message')).toHaveCount(360);
   await expect(page.locator('.message').first()).toHaveAttribute('data-mid', '401');
 
   // 跳到末尾再跳回顶部：跨越整段未渲染区间仍能定位到目标消息。
-  await page.locator('.messages').evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await page.locator('.messages').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
   await expect(page.locator('[data-mid="800"]')).toBeInViewport();
   await expect(page.locator('.message')).toHaveCount(360);
   // 未渲染区间按实测高度回写占位：40 条已测消息的占位应小于按估算高度 112px 计的值。
-  const topSpacer = await page.locator('.messages .list-spacer').first()
-    .evaluate(element => Number.parseFloat((element as HTMLElement).style.height));
+  const topSpacer = await page
+    .locator('.messages .list-spacer')
+    .first()
+    .evaluate((element) => Number.parseFloat((element as HTMLElement).style.height));
   expect(topSpacer).toBeGreaterThan(0);
   expect(topSpacer).toBeLessThan(40 * 112);
-  await page.locator('.messages').evaluate(element => { element.scrollTop = 0; });
+  await page.locator('.messages').evaluate((element) => {
+    element.scrollTop = 0;
+  });
   await expect(page.locator('[data-mid="401"]')).toBeInViewport();
 });
 
 test('chat_loads_earlier_messages_at_the_anchor_without_duplicate_requests', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 120, '消息'));
-  holdPredicate = url => url.searchParams.has('beforeMid');
+  holdPredicate = (url) => url.searchParams.has('beforeMid');
   await openChat(page);
 
   await expect(page.locator('.message').last()).toContainText('消息 120');
-  await page.locator('.messages').evaluate(element => { element.scrollTop = 0; });
+  await page.locator('.messages').evaluate((element) => {
+    element.scrollTop = 0;
+  });
   await expect.poll(() => held.length).toBe(1);
-  const anchorTop = await page.locator('[data-mid="71"]').evaluate(element => element.getBoundingClientRect().top);
+  const anchorTop = await page
+    .locator('[data-mid="71"]')
+    .evaluate((element) => element.getBoundingClientRect().top);
 
   const request = held[0].url;
   expect(request.searchParams.get('gid')).toBe('1');
@@ -468,19 +629,25 @@ test('chat_loads_earlier_messages_at_the_anchor_without_duplicate_requests', asy
   expect(request.searchParams.get('beforeMid')).toBe('71');
   expect(Number(request.searchParams.get('beforeCreatedAt'))).toBe(messageTime(71));
 
-  await page.locator('.messages').evaluate(element => element.dispatchEvent(new Event('scroll')));
+  await page.locator('.messages').evaluate((element) => element.dispatchEvent(new Event('scroll')));
   await page.waitForTimeout(200);
   expect(held).toHaveLength(1);
 
   releaseHeld();
-  await expect.poll(async () => {
-    const top = await page.locator('[data-mid="71"]').evaluate(element => element.getBoundingClientRect().top);
-    return Math.abs(top - anchorTop);
-  }).toBeLessThanOrEqual(1);
+  await expect
+    .poll(async () => {
+      const top = await page
+        .locator('[data-mid="71"]')
+        .evaluate((element) => element.getBoundingClientRect().top);
+      return Math.abs(top - anchorTop);
+    })
+    .toBeLessThanOrEqual(1);
   await expect(page.locator('[data-mid="21"]')).toHaveCount(1);
 });
 
-test('chat_holds_the_true_bottom_while_images_load_and_stops_after_user_input', async ({ page }) => {
+test('chat_holds_the_true_bottom_while_images_load_and_stops_after_user_input', async ({
+  page,
+}) => {
   const items = makeMessages(1, 60, '消息');
   items[59].previewUrl = '/chat/media?gid=1&mid=60&variant=preview';
   items[49].previewUrl = '/chat/media?gid=1&mid=50&variant=preview';
@@ -493,19 +660,29 @@ test('chat_holds_the_true_bottom_while_images_load_and_stops_after_user_input', 
   await expect.poll(() => atBottom(page)).toBe(true);
 
   releaseMedia(60);
-  await expect.poll(() => page.locator('[data-mid="60"] img').evaluate(image =>
-    (image as HTMLImageElement).naturalWidth)).toBe(320);
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-mid="60"] img')
+        .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    )
+    .toBe(320);
   await expect.poll(() => atBottom(page)).toBe(true);
 
   await page.locator('.messages').hover();
   await page.mouse.wheel(0, -400);
   await page.waitForTimeout(120);
-  const pausedAt = await page.locator('.messages').evaluate(element => element.scrollTop);
+  const pausedAt = await page.locator('.messages').evaluate((element) => element.scrollTop);
 
   releaseMedia(50);
-  await expect.poll(() => page.locator('[data-mid="50"] img').evaluate(image =>
-    (image as HTMLImageElement).naturalWidth)).toBe(320);
-  const after = await page.locator('.messages').evaluate(element => element.scrollTop);
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-mid="50"] img')
+        .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    )
+    .toBe(320);
+  const after = await page.locator('.messages').evaluate((element) => element.scrollTop);
   // 收尾已结束：撑高不得把视口拽回底部（Chrome 的滚动锚定允许小幅补偿）。
   expect(after - pausedAt).toBeLessThan(200);
   await expect.poll(() => atBottom(page)).toBe(false);
@@ -517,8 +694,11 @@ test('chat_explains_an_empty_group_without_loading_earlier_pages', async ({ page
 
   await expect(page.locator('.message')).toHaveCount(0);
   await expect(page.locator('.messages').getByRole('status')).toHaveText('这个群还没有本地消息。');
-  const polled = requests.filter(value => !value.includes('/weibo/login/status'));
-  expect(polled.slice(0, 2)).toEqual(['GET /chat/groups', 'GET /chat/messages/cursor?gid=1&size=50']);
+  const polled = requests.filter((value) => !value.includes('/weibo/login/status'));
+  expect(polled.slice(0, 2)).toEqual([
+    'GET /chat/groups',
+    'GET /chat/messages/cursor?gid=1&size=50',
+  ]);
 });
 
 test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ page }) => {
@@ -531,9 +711,9 @@ test('chat_explains_an_empty_group_list_without_requesting_messages', async ({ p
   await expect(page.getByRole('button', { name: '😊 表情' })).toBeDisabled();
   await expect(page.getByRole('button', { name: /图片/ })).toBeDisabled();
   await expect(page.getByRole('button', { name: /视频/ })).toBeDisabled();
-  const groupRequests = requests.filter(value => !value.includes('/weibo/login/status'));
+  const groupRequests = requests.filter((value) => !value.includes('/weibo/login/status'));
   expect(groupRequests.length).toBeGreaterThanOrEqual(1);
-  expect(groupRequests.every(value => value === 'GET /chat/groups')).toBe(true);
+  expect(groupRequests.every((value) => value === 'GET /chat/groups')).toBe(true);
 });
 
 test('chat_plays_video_in_place_without_navigation', async ({ page }) => {
@@ -571,15 +751,18 @@ test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ pa
   const dialog = page.locator('.messages-shell dialog.image-viewer');
   await trigger.click();
   await expect(dialog).toHaveJSProperty('open', true);
-  await expect(dialog.locator('img')).toHaveAttribute('src', '/chat/media?gid=1&mid=1&variant=original');
+  await expect(dialog.locator('img')).toHaveAttribute(
+    'src',
+    '/chat/media?gid=1&mid=1&variant=original',
+  );
   await expect(dialog.locator('img')).toBeVisible();
   await expect(dialog.locator('.image-viewer-state')).toHaveText('');
-  const scrollTop = await page.locator('.messages').evaluate(element => element.scrollTop);
+  const scrollTop = await page.locator('.messages').evaluate((element) => element.scrollTop);
 
   await page.keyboard.press('Escape');
   await expect(dialog).not.toHaveJSProperty('open', true);
   await expect(trigger).toBeFocused();
-  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(scrollTop);
+  expect(await page.locator('.messages').evaluate((element) => element.scrollTop)).toBe(scrollTop);
 
   await trigger.click();
   await expect(dialog).toHaveJSProperty('open', true);
@@ -590,16 +773,23 @@ test('chat_opens_original_image_and_closes_with_escape_or_backdrop', async ({ pa
 
 test('chat_reserves_gif_sticker_space_before_the_image_loads', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  const gif = Buffer.from('474946383961c8006400800000ff000000ff002c00000000010001000002024401003b', 'hex');
+  const gif = Buffer.from(
+    '474946383961c8006400800000ff000000ff002c00000000010001000002024401003b',
+    'hex',
+  );
   const items = makeMessages(1, 2, '消息');
   items[0] = {
-    ...items[0], text: '[动画表情]', mediaType: 15,
+    ...items[0],
+    text: '[动画表情]',
+    mediaType: 15,
     previewUrl: '/chat/image?url=https%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Fslow-sticker.gif',
   };
   messagesByGid.set(1, items);
   let releaseGif!: () => void;
-  const pendingGif = new Promise<void>(resolve => { releaseGif = resolve; });
-  await page.route('**/chat/image?*slow-sticker.gif', async route => {
+  const pendingGif = new Promise<void>((resolve) => {
+    releaseGif = resolve;
+  });
+  await page.route('**/chat/image?*slow-sticker.gif', async (route) => {
     await pendingGif;
     await route.fulfill({ contentType: 'image/gif', body: gif });
   });
@@ -628,15 +818,17 @@ test('chat_reserves_gif_sticker_space_before_the_image_loads', async ({ page }) 
 
 test('chat_loops_a_gif_sticker_after_its_first_playback', async ({ page }) => {
   const gif = Buffer.from(
-    '47494638376101000100800000ff000000ff00'
-    + '21f90400140000002c0000000001000100000202440100'
-    + '21f90400140000002c00000000010001000002024c01003b',
+    '47494638376101000100800000ff000000ff00' +
+      '21f90400140000002c0000000001000100000202440100' +
+      '21f90400140000002c00000000010001000002024c01003b',
     'hex',
   );
   const url = '/chat/image?url=https%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Fsticker.gif';
   const [message] = makeMessages(1, 1, '[动画表情]');
   messagesByGid.set(1, [{ ...message, mediaType: 15, previewUrl: url, originalUrl: url }]);
-  await page.route('**/chat/image?*sticker.gif', route => route.fulfill({ contentType: 'image/gif', body: gif }));
+  await page.route('**/chat/image?*sticker.gif', (route) =>
+    route.fulfill({ contentType: 'image/gif', body: gif }),
+  );
   await openChat(page);
 
   async function expectLoop(image: Locator) {
@@ -644,9 +836,12 @@ test('chat_loops_a_gif_sticker_after_its_first_playback', async ({ page }) => {
     await expect(image).toHaveJSProperty('naturalWidth', 1);
     await page.waitForTimeout(500);
     const frame = await image.screenshot();
-    await expect.poll(async () => (await image.screenshot()).equals(frame), {
-      timeout: 2000, intervals: [50, 50, 50],
-    }).toBe(false);
+    await expect
+      .poll(async () => (await image.screenshot()).equals(frame), {
+        timeout: 2000,
+        intervals: [50, 50, 50],
+      })
+      .toBe(false);
   }
 
   const trigger = page.locator('article[data-mid="1"]').getByRole('button', { name: '查看原图' });
@@ -656,7 +851,9 @@ test('chat_loops_a_gif_sticker_after_its_first_playback', async ({ page }) => {
 });
 
 for (const context of ['messages', 'history'] as const) {
-  test(`chat_image_viewer_keeps_preview_until_original_is_decoded_in_${context}`, async ({ page }) => {
+  test(`chat_image_viewer_keeps_preview_until_original_is_decoded_in_${context}`, async ({
+    page,
+  }) => {
     const items = makeMessages(1, 1, '图片消息');
     items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
     items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
@@ -666,13 +863,18 @@ for (const context of ['messages', 'history'] as const) {
       const control = window as Window & { releaseImageDecode?: () => void };
       HTMLImageElement.prototype.decode = function () {
         if (!this.src.includes('variant=original')) return decode.call(this);
-        return new Promise<void>(resolve => {
-          control.releaseImageDecode = () => { void decode.call(this).then(resolve); };
+        return new Promise<void>((resolve) => {
+          control.releaseImageDecode = () => {
+            void decode.call(this).then(resolve);
+          };
         });
       };
     });
     await openChat(page);
-    const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+    const container =
+      context === 'messages'
+        ? page.locator('.messages-shell')
+        : page.locator('dialog.history-dialog');
     if (context === 'history') {
       await page.getByRole('button', { name: '📜 聊天记录' }).click();
       await container.getByLabel('开始日期').fill('2026-08-05');
@@ -680,31 +882,44 @@ for (const context of ['messages', 'history'] as const) {
       await container.getByRole('button', { name: '🔍 查询' }).click();
       await container.locator('.history-result').click();
     }
-    const response = page.waitForResponse(url => url.url().includes('variant=original'));
+    const response = page.waitForResponse((url) => url.url().includes('variant=original'));
     await container.locator('[data-mid="1"] button.media-preview').click();
     await response;
     const viewer = container.locator('dialog.image-viewer');
-    await expect.poll(() => viewer.getByAltText('消息原图').evaluate(image => (image as HTMLImageElement).complete)).toBe(true);
+    await expect
+      .poll(() =>
+        viewer.getByAltText('消息原图').evaluate((image) => (image as HTMLImageElement).complete),
+      )
+      .toBe(true);
     await expect(viewer.getByAltText('消息预览')).toBeVisible();
     await expect(viewer.getByAltText('消息原图')).toBeHidden();
-    await page.evaluate(() => (window as Window & { releaseImageDecode?: () => void }).releaseImageDecode?.());
+    await page.evaluate(() =>
+      (window as Window & { releaseImageDecode?: () => void }).releaseImageDecode?.(),
+    );
     await expect(viewer.getByAltText('消息原图')).toBeVisible();
     await expect(viewer.getByAltText('消息预览')).toHaveCount(0);
   });
 
-  test(`chat_image_viewer_shows_preview_while_original_is_pending_in_${context}`, async ({ page }) => {
+  test(`chat_image_viewer_shows_preview_while_original_is_pending_in_${context}`, async ({
+    page,
+  }) => {
     const items = makeMessages(1, 1, '图片消息');
     items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
     items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
     messagesByGid.set(1, items);
     let releaseOriginal!: () => void;
-    const pending = new Promise<void>(resolve => { releaseOriginal = resolve; });
-    await page.route(/\/chat\/media\?.*variant=original/, async route => {
+    const pending = new Promise<void>((resolve) => {
+      releaseOriginal = resolve;
+    });
+    await page.route(/\/chat\/media\?.*variant=original/, async (route) => {
       await pending;
       await route.fulfill({ contentType: 'image/svg+xml', body: mediaBody() });
     });
     await openChat(page);
-    const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+    const container =
+      context === 'messages'
+        ? page.locator('.messages-shell')
+        : page.locator('dialog.history-dialog');
     if (context === 'history') {
       await page.getByRole('button', { name: '📜 聊天记录' }).click();
       await container.getByLabel('开始日期').fill('2026-08-05');
@@ -713,7 +928,11 @@ for (const context of ['messages', 'history'] as const) {
       await container.locator('.history-result').click();
     }
     const trigger = container.locator('[data-mid="1"] button.media-preview');
-    await expect.poll(() => trigger.locator('img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await expect
+      .poll(() =>
+        trigger.locator('img').evaluate((image) => (image as HTMLImageElement).naturalWidth),
+      )
+      .toBeGreaterThan(0);
     const viewer = container.locator('dialog.image-viewer');
     try {
       await trigger.click();
@@ -733,12 +952,17 @@ for (const context of ['messages', 'history'] as const) {
     items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
     items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
     messagesByGid.set(1, items);
-    await page.route(/\/chat\/media\?.*variant=original/, route => route.fulfill({
-      contentType: 'image/svg+xml',
-      body: '<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="3600"><text x="30" y="80" font-size="48">群聊长图</text></svg>',
-    }));
+    await page.route(/\/chat\/media\?.*variant=original/, (route) =>
+      route.fulfill({
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="3600"><text x="30" y="80" font-size="48">群聊长图</text></svg>',
+      }),
+    );
     await openChat(page);
-    const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+    const container =
+      context === 'messages'
+        ? page.locator('.messages-shell')
+        : page.locator('dialog.history-dialog');
     if (context === 'history') {
       await page.getByRole('button', { name: '📜 聊天记录' }).click();
       await container.getByLabel('开始日期').fill('2026-08-05');
@@ -752,10 +976,12 @@ for (const context of ['messages', 'history'] as const) {
     const image = viewer.getByAltText('消息原图');
     await expect(image).toBeVisible();
     const initial = (await image.boundingBox())!;
-    const scrollTop = await page.locator('.messages').evaluate(element => element.scrollTop);
+    const scrollTop = await page.locator('.messages').evaluate((element) => element.scrollTop);
     await image.hover();
     await page.mouse.wheel(0, -400);
-    await expect.poll(async () => (await image.boundingBox())!.height).toBeGreaterThan(initial.height * 1.5);
+    await expect
+      .poll(async () => (await image.boundingBox())!.height)
+      .toBeGreaterThan(initial.height * 1.5);
     const zoomed = (await image.boundingBox())!;
     await page.mouse.down();
     await page.mouse.move(720, 500, { steps: 5 });
@@ -766,10 +992,14 @@ for (const context of ['messages', 'history'] as const) {
     await expect.poll(() => image.boundingBox()).toEqual(initial);
     await image.hover();
     await page.mouse.wheel(0, -400);
-    await expect.poll(async () => (await image.boundingBox())!.height).toBeGreaterThan(initial.height);
+    await expect
+      .poll(async () => (await image.boundingBox())!.height)
+      .toBeGreaterThan(initial.height);
     await page.keyboard.press('Escape');
     await expect(trigger).toBeFocused();
-    expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(scrollTop);
+    expect(await page.locator('.messages').evaluate((element) => element.scrollTop)).toBe(
+      scrollTop,
+    );
     await trigger.click();
     await expect.poll(() => image.boundingBox()).toEqual(initial);
     await page.mouse.click(5, 5);
@@ -792,14 +1022,22 @@ test('chat_cached_original_does_not_flash_a_preview_when_reopened', async ({ pag
   await page.evaluate(() => {
     const observed = window as Window & { previewFlashed?: boolean };
     observed.previewFlashed = false;
-    new MutationObserver(records => {
-      if (records.some(record => [...record.addedNodes].some(node =>
-        node instanceof HTMLImageElement && node.alt === '消息预览'))) observed.previewFlashed = true;
+    new MutationObserver((records) => {
+      if (
+        records.some((record) =>
+          [...record.addedNodes].some(
+            (node) => node instanceof HTMLImageElement && node.alt === '消息预览',
+          ),
+        )
+      )
+        observed.previewFlashed = true;
     }).observe(document.body, { childList: true, subtree: true });
   });
   await trigger.click();
   await expect(viewer.getByAltText('消息原图')).toBeVisible();
-  expect(await page.evaluate(() => (window as Window & { previewFlashed?: boolean }).previewFlashed)).toBe(false);
+  expect(
+    await page.evaluate(() => (window as Window & { previewFlashed?: boolean }).previewFlashed),
+  ).toBe(false);
 });
 
 test('chat_reuses_original_image_when_reopened_from_history', async ({ page }) => {
@@ -820,7 +1058,7 @@ test('chat_reuses_original_image_when_reopened_from_history', async ({ page }) =
   await history.locator('.history-result').click();
   await history.locator('[data-mid="1"] button.media-preview').click();
   await expect(history.locator('dialog.image-viewer').getByAltText('消息原图')).toBeVisible();
-  expect(requests.filter(request => request === `GET ${items[0].originalUrl}`)).toHaveLength(1);
+  expect(requests.filter((request) => request === `GET ${items[0].originalUrl}`)).toHaveLength(1);
 });
 
 for (const close of ['button', 'escape'] as const) {
@@ -837,13 +1075,18 @@ for (const close of ['button', 'escape'] as const) {
     await history.getByRole('button', { name: '🔍 查询' }).click();
     await history.locator('.history-result').click();
     await history.getByRole('button', { name: '播放视频' }).click();
-    const video = await history.locator('video').evaluateHandle(element => element as HTMLVideoElement);
-    await video.evaluate(element => { element.loop = true; return element.play(); });
-    await expect.poll(() => video.evaluate(element => element.paused)).toBe(false);
+    const video = await history
+      .locator('video')
+      .evaluateHandle((element) => element as HTMLVideoElement);
+    await video.evaluate((element) => {
+      element.loop = true;
+      return element.play();
+    });
+    await expect.poll(() => video.evaluate((element) => element.paused)).toBe(false);
     if (close === 'button') await history.getByRole('button', { name: '关闭聊天记录' }).click();
     else await page.keyboard.press('Escape');
     await expect(history).not.toHaveJSProperty('open', true);
-    await expect.poll(() => video.evaluate(element => element.paused)).toBe(true);
+    await expect.poll(() => video.evaluate((element) => element.paused)).toBe(true);
     await page.getByRole('button', { name: '📜 聊天记录' }).click();
     await expect(history.locator('video')).toHaveCount(0);
   });
@@ -854,9 +1097,13 @@ test('chat_shows_viewer_load_failure_and_can_reopen', async ({ page }) => {
   items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
   items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
   messagesByGid.set(1, items);
-  await page.route(/\/chat\/media\?.*variant=original/, route => route.fulfill({
-    status: 404, contentType: 'text/plain', body: 'missing',
-  }));
+  await page.route(/\/chat\/media\?.*variant=original/, (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'text/plain',
+      body: 'missing',
+    }),
+  );
   await openChat(page);
 
   const trigger = page.locator('[data-mid="1"] button.media-preview');
@@ -877,14 +1124,18 @@ test('chat_links_urls_and_renders_known_emoji', async ({ page }) => {
   items[0].text = '前文 https://example.com/a?b=1。后文 [doge] [不存在] [/abc.png]';
   items[1].text = '结尾 https://example.com/x.';
   messagesByGid.set(1, items);
-  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
-  }));
-  await page.route('https://img.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#086ce0"/></svg>',
-  }));
+  await page.route('https://face.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
+    }),
+  );
+  await page.route('https://img.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#086ce0"/></svg>',
+    }),
+  );
   await openChat(page);
 
   const first = page.locator('[data-mid="1"]');
@@ -901,7 +1152,10 @@ test('chat_links_urls_and_renders_known_emoji', async ({ page }) => {
   await expect(emojis.first()).toHaveAttribute('loading', 'lazy');
   await expect(emojis.first()).toHaveAttribute('src', /^https:\/\/face\.t\.sinajs\.cn\/.+/);
   await expect(emojis.last()).toHaveAttribute('alt', '[/abc.png]');
-  await expect(emojis.last()).toHaveAttribute('src', 'https://img.t.sinajs.cn/t4/appstyle/expression/emimage/abc.png');
+  await expect(emojis.last()).toHaveAttribute(
+    'src',
+    'https://img.t.sinajs.cn/t4/appstyle/expression/emimage/abc.png',
+  );
 
   const second = page.locator('[data-mid="2"]');
   await expect(second.locator('.bubble a')).toHaveAttribute('href', 'https://example.com/x');
@@ -914,13 +1168,17 @@ test('chat_renders_file_downloads_and_weibo_share_cards', async ({ page }) => {
   items[0].text = '说明.txt';
   items[1].mediaType = 14;
   items[1].text = '分享微博';
-  items[1].urlObjects = [{
-    status: { user: { screen_name: '原作者' }, text: `<b>正文</b>${'字'.repeat(120)}完整结尾。` },
-    url_ori: 'https://weibo.com/1/share',
-  }];
+  items[1].urlObjects = [
+    {
+      status: { user: { screen_name: '原作者' }, text: `<b>正文</b>${'字'.repeat(120)}完整结尾。` },
+      url_ori: 'https://weibo.com/1/share',
+    },
+  ];
   items[2].mediaType = 14;
   items[2].text = '分享微博';
-  items[2].urlObjects = [{ status: { user: { screen_name: '另一个人' }, text: '正文' }, url_ori: 'javascript:alert(1)' }];
+  items[2].urlObjects = [
+    { status: { user: { screen_name: '另一个人' }, text: '正文' }, url_ori: 'javascript:alert(1)' },
+  ];
   messagesByGid.set(1, items);
   await openChat(page);
 
@@ -933,7 +1191,10 @@ test('chat_renders_file_downloads_and_weibo_share_cards', async ({ page }) => {
   const card = page.locator('[data-mid="2"] .weibo-card');
   await expect(card.locator('.weibo-card-author')).toHaveText('原作者');
   await expect(card.locator('.weibo-card-summary')).toHaveText(`正文${'字'.repeat(120)}完整结尾。`);
-  await expect(card.locator('.weibo-card-link')).toHaveAttribute('href', 'https://weibo.com/1/share');
+  await expect(card.locator('.weibo-card-link')).toHaveAttribute(
+    'href',
+    'https://weibo.com/1/share',
+  );
   await expect(card.locator('.weibo-card-link')).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(card.locator('.weibo-card-link')).toHaveText('查看微博');
 
@@ -946,19 +1207,28 @@ test('chat_renders_shared_and_retweeted_weibo_emoji_like_group_messages', async 
   const text = '正文[嘻嘻][话筒][话筒][不存在] https://example.com/[话筒]';
   items[0].text = text;
   items[1].mediaType = 14;
-  items[1].urlObjects = [{ status: {
-    text: `<b>${text}</b>`, retweeted_status: { text },
-  } }];
+  items[1].urlObjects = [
+    {
+      status: {
+        text: `<b>${text}</b>`,
+        retweeted_status: { text },
+      },
+    },
+  ];
   messagesByGid.set(1, items);
-  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
-  }));
+  await page.route('https://face.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+    }),
+  );
   await openChat(page);
 
-  for (const body of [page.locator('[data-mid="1"] .bubble'),
+  for (const body of [
+    page.locator('[data-mid="1"] .bubble'),
     page.locator('[data-mid="2"] .weibo-card-summary').first(),
-    page.locator('.weibo-card-retweet .weibo-card-summary')]) {
+    page.locator('.weibo-card-retweet .weibo-card-summary'),
+  ]) {
     const emojis = body.locator('img.emoji');
     await expect(emojis).toHaveCount(3);
     await expect(emojis.first()).toHaveAttribute('alt', '[嘻嘻]');
@@ -974,18 +1244,24 @@ test('chat_renders_shared_and_retweeted_weibo_emoji_like_group_messages', async 
 test('chat_renders_emoji_when_shared_weibo_full_text_replaces_preview', async ({ page }) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;
-  items[0].urlObjects = [{ status: { idstr: '5357643507961089', isLongText: true, text: '预览[嘻嘻]' } }];
+  items[0].urlObjects = [
+    { status: { idstr: '5357643507961089', isLongText: true, text: '预览[嘻嘻]' } },
+  ];
   messagesByGid.set(1, items);
   let releaseResponse!: () => void;
-  const pendingResponse = new Promise<void>(resolve => { releaseResponse = resolve; });
-  await page.route('**/chat/messages/weiboText?*', async route => {
+  const pendingResponse = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  await page.route('**/chat/messages/weiboText?*', async (route) => {
     await pendingResponse;
     await route.fulfill({ json: { text: '完整正文[话筒][不存在]' } });
   });
-  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
-  }));
+  await page.route('https://face.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+    }),
+  );
   await openChat(page);
 
   const body = page.locator('.weibo-card-summary');
@@ -996,59 +1272,82 @@ test('chat_renders_emoji_when_shared_weibo_full_text_replaces_preview', async ({
     await expect(body).toContainText('[不存在]');
     await expect(body.locator('img.emoji')).toHaveAttribute('alt', '[话筒]');
     await expect(body.locator('img.emoji')).toHaveJSProperty('naturalWidth', 16);
-  } finally { releaseResponse(); }
+  } finally {
+    releaseResponse();
+  }
 });
 
 test('chat_shows_shared_weibo_avatar_and_all_pictures_with_original_viewer', async ({ page }) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;
-  items[0].urlObjects = [{
-    status: {
-      idstr: '5357643507961089', text: '带有两张图片的微博。',
-      user: { screen_name: '配图作者', avatar_large: 'https://tvax1.sinaimg.cn/author.jpg' },
-      pic_ids: ['first-picture', 'second-picture'],
-      original_pic: 'http://wx2.sinaimg.cn/large/first-picture.gif',
+  items[0].urlObjects = [
+    {
+      status: {
+        idstr: '5357643507961089',
+        text: '带有两张图片的微博。',
+        user: { screen_name: '配图作者', avatar_large: 'https://tvax1.sinaimg.cn/author.jpg' },
+        pic_ids: ['first-picture', 'second-picture'],
+        original_pic: 'http://wx2.sinaimg.cn/large/first-picture.gif',
+      },
     },
-  }];
+  ];
   messagesByGid.set(1, items);
   await openChat(page);
 
   const card = page.locator('[data-mid="1"] .weibo-card');
   const avatar = card.locator('.weibo-card-avatar img');
-  await expect(avatar).toHaveAttribute('src', '/chat/image?url=https%3A%2F%2Ftvax1.sinaimg.cn%2Fauthor.jpg');
+  await expect(avatar).toHaveAttribute(
+    'src',
+    '/chat/image?url=https%3A%2F%2Ftvax1.sinaimg.cn%2Fauthor.jpg',
+  );
   await expect(avatar).toHaveJSProperty('naturalWidth', 48);
   const pictures = card.getByRole('button', { name: /查看微博图片/ });
   await expect(pictures).toHaveCount(2);
-  await expect(pictures.nth(1).locator('img')).toHaveAttribute('src',
-    '/chat/image?url=http%3A%2F%2Fwx2.sinaimg.cn%2Fbmiddle%2Fsecond-picture.jpg');
+  await expect(pictures.nth(1).locator('img')).toHaveAttribute(
+    'src',
+    '/chat/image?url=http%3A%2F%2Fwx2.sinaimg.cn%2Fbmiddle%2Fsecond-picture.jpg',
+  );
   await expect(pictures.nth(1).locator('img')).toHaveJSProperty('naturalWidth', 48);
   await expect(pictures.nth(1)).toHaveCSS('width', '120px');
   await expect(pictures.nth(1)).toHaveCSS('height', '120px');
   await pictures.nth(1).click();
   const viewer = page.locator('.messages-shell dialog.image-viewer');
   await expect(viewer).toHaveJSProperty('open', true);
-  await expect(viewer.locator('img')).toHaveAttribute('src',
-    '/chat/image?url=http%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fsecond-picture.jpg');
+  await expect(viewer.locator('img')).toHaveAttribute(
+    'src',
+    '/chat/image?url=http%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fsecond-picture.jpg',
+  );
   await page.keyboard.press('Escape');
   await expect(pictures.nth(1)).toBeFocused();
-  expect(requests.filter(value => /weiboText|\/weibo\/blog\//.test(value))).toEqual([]);
+  expect(requests.filter((value) => /weiboText|\/weibo\/blog\//.test(value))).toEqual([]);
 });
 
 for (const context of ['messages', 'history'] as const) {
   test(`chat_shows_retweeted_weibo_avatar_and_pictures_in_${context}`, async ({ page }) => {
     const items = makeMessages(1, 1, '分享微博');
     items[0].mediaType = 14;
-    items[0].urlObjects = [{ status: {
-      text: '转发时的评论。', user: { screen_name: '转发者' },
-      retweeted_status: {
-        text: '<b>原微博正文。</b>',
-        user: { screen_name: '原作者', avatar_hd: 'https://tvax1.sinaimg.cn/original-author.jpg' },
-        original_pic: 'http://wx3.sinaimg.cn/large/original-picture.gif',
+    items[0].urlObjects = [
+      {
+        status: {
+          text: '转发时的评论。',
+          user: { screen_name: '转发者' },
+          retweeted_status: {
+            text: '<b>原微博正文。</b>',
+            user: {
+              screen_name: '原作者',
+              avatar_hd: 'https://tvax1.sinaimg.cn/original-author.jpg',
+            },
+            original_pic: 'http://wx3.sinaimg.cn/large/original-picture.gif',
+          },
+        },
       },
-    } }];
+    ];
     messagesByGid.set(1, items);
     await openChat(page);
-    const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+    const container =
+      context === 'messages'
+        ? page.locator('.messages-shell')
+        : page.locator('dialog.history-dialog');
     if (context === 'history') {
       await page.getByRole('button', { name: '📜 聊天记录' }).click();
       await container.getByLabel('开始日期').fill('2026-08-05');
@@ -1062,18 +1361,24 @@ for (const context of ['messages', 'history'] as const) {
     await expect(card.locator('.weibo-card-avatar').first()).toHaveText('转');
     const retweet = card.locator('.weibo-card-retweet');
     await expect(retweet.locator('.weibo-card-author')).toHaveText('原作者');
-    await expect(retweet.locator('.weibo-card-avatar img')).toHaveAttribute('src',
-      '/chat/image?url=https%3A%2F%2Ftvax1.sinaimg.cn%2Foriginal-author.jpg');
+    await expect(retweet.locator('.weibo-card-avatar img')).toHaveAttribute(
+      'src',
+      '/chat/image?url=https%3A%2F%2Ftvax1.sinaimg.cn%2Foriginal-author.jpg',
+    );
     await expect(retweet.locator('.weibo-card-summary')).toHaveText('原微博正文。');
     await expect(retweet.locator('.weibo-card-summary b')).toHaveCount(0);
     const picture = retweet.getByRole('button', { name: '查看微博图片 1', exact: true });
-    await expect(picture.locator('img')).toHaveAttribute('src',
-      '/chat/image?url=http%3A%2F%2Fwx3.sinaimg.cn%2Fbmiddle%2Foriginal-picture.gif');
+    await expect(picture.locator('img')).toHaveAttribute(
+      'src',
+      '/chat/image?url=http%3A%2F%2Fwx3.sinaimg.cn%2Fbmiddle%2Foriginal-picture.gif',
+    );
     await picture.click();
     const viewer = container.locator('dialog.image-viewer');
     await expect(viewer).toHaveJSProperty('open', true);
-    await expect(viewer.locator('img')).toHaveAttribute('src',
-      '/chat/image?url=http%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Foriginal-picture.gif');
+    await expect(viewer.locator('img')).toHaveAttribute(
+      'src',
+      '/chat/image?url=http%3A%2F%2Fwx3.sinaimg.cn%2Flarge%2Foriginal-picture.gif',
+    );
     await page.keyboard.press('Escape');
     await expect(picture).toBeFocused();
     if (context === 'history') await expect(container).toHaveJSProperty('open', true);
@@ -1082,14 +1387,21 @@ for (const context of ['messages', 'history'] as const) {
 
 for (const context of ['messages', 'history'] as const) {
   for (const retweeted of [false, true]) {
-    test(`chat_switches_shared_weibo_pictures_in_${context}_retweeted_${retweeted}`, async ({ page }, testInfo) => {
+    test(`chat_switches_shared_weibo_pictures_in_${context}_retweeted_${retweeted}`, async ({
+      page,
+    }, testInfo) => {
       const items = makeMessages(1, 1, '分享微博');
       items[0].mediaType = 14;
       const status = { text: '多图微博', pic_ids: ['first-picture', 'second-picture'] };
-      items[0].urlObjects = [{ status: retweeted ? { text: '转发', retweeted_status: status } : status }];
+      items[0].urlObjects = [
+        { status: retweeted ? { text: '转发', retweeted_status: status } : status },
+      ];
       messagesByGid.set(1, items);
       await openChat(page);
-      const container = context === 'messages' ? page.locator('.messages-shell') : page.locator('dialog.history-dialog');
+      const container =
+        context === 'messages'
+          ? page.locator('.messages-shell')
+          : page.locator('dialog.history-dialog');
       if (context === 'history') {
         await page.getByRole('button', { name: '📜 聊天记录' }).click();
         await container.getByLabel('开始日期').fill('2026-08-05');
@@ -1126,10 +1438,15 @@ for (const context of ['messages', 'history'] as const) {
 test('chat_keeps_deleted_retweeted_weibo_readable_without_author_or_pictures', async ({ page }) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;
-  items[0].urlObjects = [{ status: {
-    text: '转发评论。', user: { screen_name: '转发者' },
-    retweeted_status: { text: '抱歉，此微博已被删除。', user: null, pic_ids: null },
-  } }];
+  items[0].urlObjects = [
+    {
+      status: {
+        text: '转发评论。',
+        user: { screen_name: '转发者' },
+        retweeted_status: { text: '抱歉，此微博已被删除。', user: null, pic_ids: null },
+      },
+    },
+  ];
   messagesByGid.set(1, items);
   await openChat(page);
 
@@ -1140,29 +1457,45 @@ test('chat_keeps_deleted_retweeted_weibo_readable_without_author_or_pictures', a
 
 test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({ page }) => {
   const rawWeiboRequests: string[] = [];
-  page.on('request', request => {
-    if (new URL(request.url()).pathname.startsWith('/weibo/blog/')) rawWeiboRequests.push(request.url());
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/weibo/blog/'))
+      rawWeiboRequests.push(request.url());
   });
   const items = makeMessages(1, 3, '分享微博');
   for (const item of items) {
     item.mediaType = 14;
-    item.urlObjects = [{
-      status: { idstr: '5357643507961089', isLongText: item.mid !== 3, user: { screen_name: '原作者' }, text: '接口只返回了前半段。' },
-      url_ori: 'https://weibo.com/1/share',
-    }];
+    item.urlObjects = [
+      {
+        status: {
+          idstr: '5357643507961089',
+          isLongText: item.mid !== 3,
+          user: { screen_name: '原作者' },
+          text: '接口只返回了前半段。',
+        },
+        url_ori: 'https://weibo.com/1/share',
+      },
+    ];
   }
   messagesByGid.set(1, items);
-  holdPredicate = url => url.pathname === '/chat/messages/weiboText';
+  holdPredicate = (url) => url.pathname === '/chat/messages/weiboText';
   await openChat(page);
 
-  await expect(page.locator('[data-mid="1"] .weibo-card-summary')).toHaveText('接口只返回了前半段。');
-  await expect(page.locator('[data-mid="1"] .weibo-card').getByRole('status')).toHaveText('正在加载微博全文……');
+  await expect(page.locator('[data-mid="1"] .weibo-card-summary')).toHaveText(
+    '接口只返回了前半段。',
+  );
+  await expect(page.locator('[data-mid="1"] .weibo-card').getByRole('status')).toHaveText(
+    '正在加载微博全文……',
+  );
   releaseHeld();
   await expect(page.locator('[data-mid="1"] .weibo-card-summary')).toHaveText(LONG_WEIBO_TEXT);
   await expect(page.locator('[data-mid="2"] .weibo-card-summary')).toHaveText(LONG_WEIBO_TEXT);
-  await expect(page.locator('[data-mid="3"] .weibo-card-summary')).toHaveText('接口只返回了前半段。');
-  expect(await page.locator('[data-mid="1"] .weibo-card-summary').textContent()).toBe(LONG_WEIBO_TEXT);
-  expect(requests.filter(value => value.includes('/chat/messages/weiboText'))).toEqual([
+  await expect(page.locator('[data-mid="3"] .weibo-card-summary')).toHaveText(
+    '接口只返回了前半段。',
+  );
+  expect(await page.locator('[data-mid="1"] .weibo-card-summary').textContent()).toBe(
+    LONG_WEIBO_TEXT,
+  );
+  expect(requests.filter((value) => value.includes('/chat/messages/weiboText'))).toEqual([
     'GET /chat/messages/weiboText?gid=1&mid=1',
   ]);
   expect(rawWeiboRequests).toEqual([]);
@@ -1171,25 +1504,41 @@ test('chat_loads_shared_long_weibo_in_full_and_reuses_it_across_cards', async ({
 test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', async ({ page }) => {
   const items = makeMessages(1, 3, '分享微博');
   for (const item of items) item.mediaType = 14;
-  const original = { idstr: '5357643507961089', isLongText: true, text: '内层预览 http://t.cn/example',
-    page_info: { object_type: 'video' } };
+  const original = {
+    idstr: '5357643507961089',
+    isLongText: true,
+    text: '内层预览 http://t.cn/example',
+    page_info: { object_type: 'video' },
+  };
   items[0].urlObjects = [{ status: { idstr: '11', text: '外层评论', retweeted_status: original } }];
   items[1].urlObjects = [{ status: { idstr: '12', text: '重复转发', retweeted_status: original } }];
-  items[2].urlObjects = [{ status: { idstr: '13', text: '视频分享', extend_info: { video_summary: { video_oid: 'video-id' } } } }];
+  items[2].urlObjects = [
+    {
+      status: {
+        idstr: '13',
+        text: '视频分享',
+        extend_info: { video_summary: { video_oid: 'video-id' } },
+      },
+    },
+  ];
   messagesByGid.set(1, items);
   const coverRequests: URL[] = [];
   const originalVideoUrl = 'https://weibo.com/tv/show/1034:123';
   const sharedVideoUrl = 'https://weibo.com/tv/show/1034:456';
   let releaseCover = () => {};
-  const coverReady = new Promise<void>(resolve => { releaseCover = resolve; });
-  const textRequests: URL[] = [];
-  await page.route('**/chat/messages/weiboText?*', async route => {
-    textRequests.push(new URL(route.request().url()));
-    await route.fulfill(textRequests.length === 1
-      ? { status: 503, json: { msg: '微博全文暂不可用。' } }
-      : { json: { text: '内层完整正文。' } });
+  const coverReady = new Promise<void>((resolve) => {
+    releaseCover = resolve;
   });
-  await page.route('**/chat/media?*', async route => {
+  const textRequests: URL[] = [];
+  await page.route('**/chat/messages/weiboText?*', async (route) => {
+    textRequests.push(new URL(route.request().url()));
+    await route.fulfill(
+      textRequests.length === 1
+        ? { status: 503, json: { msg: '微博全文暂不可用。' } }
+        : { json: { text: '内层完整正文。' } },
+    );
+  });
+  await page.route('**/chat/media?*', async (route) => {
     const url = new URL(route.request().url());
     if (url.searchParams.get('variant') === 'weiboVideo') {
       await route.fulfill({ path: 'tests/fixtures/history-video.mp4', contentType: 'video/mp4' });
@@ -1205,16 +1554,18 @@ test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', asy
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="600"/>',
     });
   });
-  await page.context().route('https://weibo.com/tv/show/**', route => route.fulfill({ body: 'video' }));
+  await page
+    .context()
+    .route('https://weibo.com/tv/show/**', (route) => route.fulfill({ body: 'video' }));
   await openChat(page);
 
   const card = page.locator('[data-mid="1"] .weibo-card');
   const retweet = card.locator('.weibo-card-retweet');
   const cover = retweet.locator('.weibo-card-video-cover');
-  let placeholderSize;
+  let placeholderSize: [number, number];
   try {
     await expect(cover).toBeVisible();
-    placeholderSize = await cover.evaluate(el => [el.clientWidth, el.clientHeight]);
+    placeholderSize = await cover.evaluate((el) => [el.clientWidth, el.clientHeight]);
     expect(placeholderSize[1]).toBeGreaterThan(0);
   } finally {
     releaseCover();
@@ -1224,9 +1575,10 @@ test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', asy
   await expect(retweet.locator('.weibo-card-summary')).toHaveText(original.text);
   await retweet.getByRole('button', { name: '重试加载全文' }).click();
   await expect(retweet.locator('.weibo-card-summary')).toHaveText('内层完整正文。');
-  expect(textRequests.map(url => url.searchParams.get('retweeted'))).toEqual(['true', 'true']);
+  expect(textRequests.map((url) => url.searchParams.get('retweeted'))).toEqual(['true', 'true']);
   for (const mid of [1, 2]) {
-    const button = page.locator(`[data-mid="${mid}"] .weibo-card-retweet`)
+    const button = page
+      .locator(`[data-mid="${mid}"] .weibo-card-retweet`)
       .getByRole('button', { name: '播放原微博视频' });
     await expect(button.locator('span')).toHaveText('▶');
     const picture = button.locator('img');
@@ -1235,29 +1587,49 @@ test('chat_loads_the_original_weibo_text_and_video_cover_inside_the_repost', asy
     const image = (await picture.boundingBox())!;
     expect(image.y + image.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
   }
-  expect(await cover.evaluate(el => [el.clientWidth, el.clientHeight])).toEqual(placeholderSize);
+  expect(await cover.evaluate((el) => [el.clientWidth, el.clientHeight])).toEqual(placeholderSize);
   await expect(card.getByRole('button', { name: '播放微博视频', exact: true })).toHaveCount(0);
-  await expect(page.locator('[data-mid="3"] .weibo-card').getByRole('button', { name: '播放微博视频' })).toBeVisible();
+  await expect(
+    page.locator('[data-mid="3"] .weibo-card').getByRole('button', { name: '播放微博视频' }),
+  ).toBeVisible();
   const before = page.url();
   await retweet.getByRole('button', { name: '播放原微博视频' }).press('Enter');
   const player = retweet.locator('video');
-  await expect(player).toHaveAttribute('src', '/chat/media?gid=1&mid=1&variant=weiboVideo&retweeted=true');
-  await expect.poll(() => player.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeGreaterThan(0);
+  await expect(player).toHaveAttribute(
+    'src',
+    '/chat/media?gid=1&mid=1&variant=weiboVideo&retweeted=true',
+  );
+  await expect
+    .poll(() => player.evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(0);
   expect(page.context().pages()).toEqual([page]);
   await expect(page).toHaveURL(before);
-  expect(coverRequests.map(url => [url.searchParams.get('variant'), url.searchParams.get('retweeted')]).sort())
-    .toEqual([['weiboCover', null], ['weiboCover', 'true']]);
+  expect(
+    coverRequests
+      .map((url) => [url.searchParams.get('variant'), url.searchParams.get('retweeted')])
+      .sort(),
+  ).toEqual([
+    ['weiboCover', null],
+    ['weiboCover', 'true'],
+  ]);
 });
 
 test('chat_keeps_playback_available_when_a_known_weibo_video_has_no_cover', async ({ page }) => {
   const items = makeMessages(1, 2, '分享微博');
   for (const item of items) item.mediaType = 14;
-  items[0].urlObjects = [{ status: { idstr: '11', text: '没有封面的视频',
-    extend_info: { video_summary: { video_oid: 'video-id' } } } }];
+  items[0].urlObjects = [
+    {
+      status: {
+        idstr: '11',
+        text: '没有封面的视频',
+        extend_info: { video_summary: { video_oid: 'video-id' } },
+      },
+    },
+  ];
   items[1].urlObjects = [{ status: { idstr: '12', text: '普通短链 https://t.cn/example' } }];
   messagesByGid.set(1, items);
   let missingCovers = 0;
-  await page.route('**/chat/media?*', route => {
+  await page.route('**/chat/media?*', (route) => {
     if (new URL(route.request().url()).searchParams.get('variant') === 'weiboVideo') {
       return route.fulfill({ path: 'tests/fixtures/history-video.mp4', contentType: 'video/mp4' });
     }
@@ -1270,36 +1642,48 @@ test('chat_keeps_playback_available_when_a_known_weibo_video_has_no_cover', asyn
   await expect(page.locator('[data-mid="2"] .weibo-card-video-cover')).toHaveCount(0);
   const videoCard = page.locator('[data-mid="1"] .weibo-card');
   await videoCard.getByRole('button', { name: '播放微博视频' }).click();
-  await expect.poll(() => videoCard.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime))
+  await expect
+    .poll(() => videoCard.locator('video').evaluate((el: HTMLVideoElement) => el.currentTime))
     .toBeGreaterThan(0);
 });
 
 test('chat_renders_shared_weibo_full_text_as_literal_text', async ({ page }) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;
-  items[0].urlObjects = [{ status: { idstr: '5357643507961089', isLongText: true, text: '前半段。' } }];
+  items[0].urlObjects = [
+    { status: { idstr: '5357643507961089', isLongText: true, text: '前半段。' } },
+  ];
   messagesByGid.set(1, items);
-  const text = '<img src=x onerror="window.weiboAttack=1"><script>window.weiboAttack=2</script>完整结尾。';
-  await page.route('**/chat/messages/weiboText?*', route => route.fulfill({ json: { text } }));
+  const text =
+    '<img src=x onerror="window.weiboAttack=1"><script>window.weiboAttack=2</script>完整结尾。';
+  await page.route('**/chat/messages/weiboText?*', (route) => route.fulfill({ json: { text } }));
   await openChat(page);
 
   const body = page.locator('.weibo-card-summary');
   await expect(body).toHaveText(text);
   await expect(body.locator('img, script')).toHaveCount(0);
-  expect(await page.evaluate(() => (window as Window & { weiboAttack?: number }).weiboAttack)).toBeUndefined();
+  expect(
+    await page.evaluate(() => (window as Window & { weiboAttack?: number }).weiboAttack),
+  ).toBeUndefined();
 });
 
-test('chat_marks_shared_long_weibo_as_preview_after_failure_and_retries_on_click', async ({ page }) => {
+test('chat_marks_shared_long_weibo_as_preview_after_failure_and_retries_on_click', async ({
+  page,
+}) => {
   const items = makeMessages(1, 1, '分享微博');
   items[0].mediaType = 14;
-  items[0].urlObjects = [{ status: { idstr: '5357643507961089', isLongText: true, text: '接口只返回了前半段。' } }];
+  items[0].urlObjects = [
+    { status: { idstr: '5357643507961089', isLongText: true, text: '接口只返回了前半段。' } },
+  ];
   messagesByGid.set(1, items);
   let attempts = 0;
-  await page.route('**/chat/messages/weiboText?*', route => {
+  await page.route('**/chat/messages/weiboText?*', (route) => {
     attempts += 1;
-    return route.fulfill(attempts === 1
-      ? { status: 503, json: { msg: '微博全文暂不可用。' } }
-      : { json: { text: LONG_WEIBO_TEXT } });
+    return route.fulfill(
+      attempts === 1
+        ? { status: 503, json: { msg: '微博全文暂不可用。' } }
+        : { json: { text: LONG_WEIBO_TEXT } },
+    );
   });
   await openChat(page);
 
@@ -1322,7 +1706,9 @@ test('chat_keeps_markup_in_message_text_literal', async ({ page }) => {
   const bubble = page.locator('[data-mid="1"] .bubble');
   await expect(bubble).toContainText('<script>window.attack=1</script>');
   await expect(bubble.locator('script, img')).toHaveCount(0);
-  expect(await page.evaluate(() => (window as Window & { attack?: number }).attack)).toBeUndefined();
+  expect(
+    await page.evaluate(() => (window as Window & { attack?: number }).attack),
+  ).toBeUndefined();
 });
 
 test('chat_polls_new_messages_without_moving_the_viewport', async ({ page }) => {
@@ -1330,12 +1716,12 @@ test('chat_polls_new_messages_without_moving_the_viewport', async ({ page }) => 
   messagesByGid.set(1, items);
   await openChat(page);
   await expect(page.locator('.message').last()).toContainText('消息 60');
-  const before = await page.locator('.messages').evaluate(element => element.scrollTop);
+  const before = await page.locator('.messages').evaluate((element) => element.scrollTop);
 
   items.push(makeMessages(1, 61, '消息')[60]);
   const pill = page.locator('.new-messages-button');
   await expect(pill).toBeVisible({ timeout: 4000 });
-  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
+  expect(await page.locator('.messages').evaluate((element) => element.scrollTop)).toBe(before);
   await expect(page.locator('[data-mid="61"]')).toHaveCount(0);
 
   await pill.click();
@@ -1344,7 +1730,9 @@ test('chat_polls_new_messages_without_moving_the_viewport', async ({ page }) => 
   await expect.poll(() => atBottom(page)).toBe(true);
 });
 
-test('chat_starts_following_from_the_new_messages_button_and_stops_when_scrolling_up', async ({ page }) => {
+test('chat_starts_following_from_the_new_messages_button_and_stops_when_scrolling_up', async ({
+  page,
+}) => {
   const items = makeMessages(1, 60, '消息');
   messagesByGid.set(1, items);
   await openChat(page);
@@ -1358,7 +1746,10 @@ test('chat_starts_following_from_the_new_messages_button_and_stops_when_scrollin
   await expect(page.locator('[data-mid="61"]')).toBeInViewport();
 
   mediaHoldMids.add(62);
-  items.push({ ...makeMessages(1, 62, '消息')[61], previewUrl: '/chat/media?gid=1&mid=62&variant=preview' });
+  items.push({
+    ...makeMessages(1, 62, '消息')[61],
+    previewUrl: '/chat/media?gid=1&mid=62&variant=preview',
+  });
   await expect(page.locator('[data-mid="62"]')).toBeInViewport();
   await expect.poll(() => atBottom(page)).toBe(true);
   await expect(pill).toBeHidden();
@@ -1386,11 +1777,11 @@ test('chat_starts_following_when_the_user_scrolls_to_the_bottom', async ({ page 
   await messages.hover();
   await page.mouse.wheel(0, -400);
   await expect.poll(() => atBottom(page)).toBe(false);
-  const readingPosition = await messages.evaluate(element => element.scrollTop);
+  const readingPosition = await messages.evaluate((element) => element.scrollTop);
 
   items.push(makeMessages(1, 61, '消息')[60]);
   await expect(pill).toBeVisible();
-  expect(await messages.evaluate(element => element.scrollTop)).toBe(readingPosition);
+  expect(await messages.evaluate((element) => element.scrollTop)).toBe(readingPosition);
 
   await page.mouse.wheel(0, 1200);
   await expect(page.locator('[data-mid="61"]')).toBeInViewport();
@@ -1424,8 +1815,9 @@ test('chat_closes_following_when_hidden_before_a_poll_returns', async ({ page })
   await bottom.click();
   await expect(bottom).toHaveAccessibleDescription('正在跟随新消息');
   const messages = page.locator('.messages');
-  const readingPosition = await messages.evaluate(element => element.scrollTop);
-  holdPredicate = url => url.pathname === '/chat/messages/cursor' && !url.searchParams.has('beforeMid');
+  const readingPosition = await messages.evaluate((element) => element.scrollTop);
+  holdPredicate = (url) =>
+    url.pathname === '/chat/messages/cursor' && !url.searchParams.has('beforeMid');
   await expect.poll(() => held.length).toBe(1);
 
   await page.evaluate(() => {
@@ -1436,7 +1828,7 @@ test('chat_closes_following_when_hidden_before_a_poll_returns', async ({ page })
   holdPredicate = null;
   releaseHeld();
   await expect(page.getByRole('button', { name: '有新消息', exact: true })).toBeVisible();
-  expect(await messages.evaluate(element => element.scrollTop)).toBe(readingPosition);
+  expect(await messages.evaluate((element) => element.scrollTop)).toBe(readingPosition);
   await page.evaluate(() => {
     Reflect.deleteProperty(document, 'hidden');
     document.dispatchEvent(new Event('visibilitychange'));
@@ -1492,11 +1884,12 @@ test('chat_shows_a_follow_halo_and_respects_reduced_motion', async ({ page }) =>
   await openChat(page);
   await expect.poll(() => atBottom(page)).toBe(true);
   const bottom = page.getByRole('button', { name: '滚到最新消息', exact: true });
-  const halo = () => bottom.evaluate(element => {
-    const style = getComputedStyle(element, '::after');
-    return { visible: style.content !== 'none', animated: style.animationName !== 'none' };
-  });
-  const buttonColor = await bottom.evaluate(element => getComputedStyle(element).backgroundColor);
+  const halo = () =>
+    bottom.evaluate((element) => {
+      const style = getComputedStyle(element, '::after');
+      return { visible: style.content !== 'none', animated: style.animationName !== 'none' };
+    });
+  const buttonColor = await bottom.evaluate((element) => getComputedStyle(element).backgroundColor);
   await expect.poll(halo).toEqual({ visible: false, animated: false });
 
   await bottom.click();
@@ -1523,10 +1916,14 @@ test('chat_stops_following_when_scrolling_up_as_a_message_grows', async ({ page 
 
   const messages = page.locator('.messages');
   await messages.hover();
-  await messages.evaluate(container => {
-    container.addEventListener('scroll', () => {
-      container.querySelector<HTMLElement>('[data-mid="60"]')!.style.minHeight = '300px';
-    }, { capture: true, once: true });
+  await messages.evaluate((container) => {
+    container.addEventListener(
+      'scroll',
+      () => {
+        container.querySelector<HTMLElement>('[data-mid="60"]')!.style.minHeight = '300px';
+      },
+      { capture: true, once: true },
+    );
   });
   await page.mouse.wheel(0, -400);
 
@@ -1539,7 +1936,7 @@ test('chat_catches_up_after_returning_without_moving_the_viewport', async ({ pag
   messagesByGid.set(1, items);
   await openChat(page);
   await expect(page.locator('.message').last()).toContainText('消息 60');
-  const before = await page.locator('.messages').evaluate(element => element.scrollTop);
+  const before = await page.locator('.messages').evaluate((element) => element.scrollTop);
   pollDelayMs = 2000;
 
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
@@ -1547,8 +1944,8 @@ test('chat_catches_up_after_returning_without_moving_the_viewport', async ({ pag
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
   await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 6000 });
-  expect(requests.some(value => value.includes('afterMid='))).toBe(true);
-  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
+  expect(requests.some((value) => value.includes('afterMid='))).toBe(true);
+  expect(await page.locator('.messages').evaluate((element) => element.scrollTop)).toBe(before);
 });
 
 test('chat_preserves_the_last_read_message_after_a_large_return_catch_up', async ({ page }) => {
@@ -1556,40 +1953,44 @@ test('chat_preserves_the_last_read_message_after_a_large_return_catch_up', async
   await openChat(page);
   await expect.poll(() => atBottom(page)).toBe(true);
   const lastRead = page.locator('[data-mid="60"]');
-  const before = await lastRead.evaluate(element => element.getBoundingClientRect().top);
+  const before = await lastRead.evaluate((element) => element.getBoundingClientRect().top);
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   messagesByGid.set(1, makeMessages(1, 660, '消息'));
-  const completed = page.waitForResponse(response => response.url().includes('afterMid=610'));
+  const completed = page.waitForResponse((response) => response.url().includes('afterMid=610'));
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await completed;
   await expect(page.locator('.new-messages-button')).toBeVisible();
   await page.waitForTimeout(300);
   await expect(lastRead).toBeInViewport();
-  const after = await lastRead.evaluate(element => element.getBoundingClientRect().top);
+  const after = await lastRead.evaluate((element) => element.getBoundingClientRect().top);
   expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
 });
 
 for (const initialCount of [3, 60]) {
-test(`chat_keeps_the_reading_position_while_unfocused_from_${initialCount}_messages`, async ({ page }) => {
-  messagesByGid.set(1, makeMessages(1, initialCount, '消息'));
-  await openChat(page);
-  await expect.poll(() => atBottom(page)).toBe(true);
-  const lastRead = page.locator(`[data-mid="${initialCount}"]`);
-  const before = await lastRead.evaluate(element => element.getBoundingClientRect().top);
-  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-  for (let batch = 1; batch <= 3; batch += 1) {
-    const count = initialCount + batch * 100;
-    messagesByGid.set(1, makeMessages(1, count, '消息'));
-    const completed = page.waitForResponse(response => response.url().includes('/chat/messages/cursor?'));
-    await completed;
-    await page.waitForTimeout(100);
-  }
-  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await page.waitForTimeout(300);
-  await expect(lastRead).toBeInViewport();
-  const after = await lastRead.evaluate(element => element.getBoundingClientRect().top);
-  expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
-});
+  test(`chat_keeps_the_reading_position_while_unfocused_from_${initialCount}_messages`, async ({
+    page,
+  }) => {
+    messagesByGid.set(1, makeMessages(1, initialCount, '消息'));
+    await openChat(page);
+    await expect.poll(() => atBottom(page)).toBe(true);
+    const lastRead = page.locator(`[data-mid="${initialCount}"]`);
+    const before = await lastRead.evaluate((element) => element.getBoundingClientRect().top);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    for (let batch = 1; batch <= 3; batch += 1) {
+      const count = initialCount + batch * 100;
+      messagesByGid.set(1, makeMessages(1, count, '消息'));
+      const completed = page.waitForResponse((response) =>
+        response.url().includes('/chat/messages/cursor?'),
+      );
+      await completed;
+      await page.waitForTimeout(100);
+    }
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.waitForTimeout(300);
+    await expect(lastRead).toBeInViewport();
+    const after = await lastRead.evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
+  });
 }
 
 test('chat_retries_a_failed_poll_and_recovers', async ({ page }) => {
@@ -1642,16 +2043,22 @@ test('chat_refreshes_group_metadata_without_losing_selection', async ({ page }) 
   await expect(page.locator('.group-size')).toContainText('+ 3 条消息');
   await expect(page.locator('.current-message-count')).toHaveText('3');
   await expect(page.locator('.current-message-count')).not.toHaveClass(/size-flash/);
-  const before = await page.locator('.messages').evaluate(element => element.scrollTop);
+  const before = await page.locator('.messages').evaluate((element) => element.scrollTop);
 
-  groups[0] = makeGroup(1, '第一群', { latestSenderName: '成员B', latestMessage: '新内容', messageCount: 7 });
-  await expect(page.locator('.group-row').first()).toContainText('成员B：新内容', { timeout: 4000 });
+  groups[0] = makeGroup(1, '第一群', {
+    latestSenderName: '成员B',
+    latestMessage: '新内容',
+    messageCount: 7,
+  });
+  await expect(page.locator('.group-row').first()).toContainText('成员B：新内容', {
+    timeout: 4000,
+  });
   await expect(page.locator('.group-size')).toContainText('+ 7 条消息');
   await expect(page.locator('.current-message-count')).toHaveText('7');
   // 消息数变化时数字闪一次，与旧页 size-flash 一致。
   await expect(page.locator('.current-message-count')).toHaveClass(/size-flash/);
   await expect(page.locator('.group-row').first()).toHaveAttribute('aria-current', 'true');
-  expect(await page.locator('.messages').evaluate(element => element.scrollTop)).toBe(before);
+  expect(await page.locator('.messages').evaluate((element) => element.scrollTop)).toBe(before);
   await expect(page.locator('.message').last()).toContainText('消息 5');
 });
 
@@ -1755,10 +2162,12 @@ test('chat_keeps_the_text_when_sending_fails', async ({ page }) => {
 
 test('chat_inserts_emoji_at_the_cursor_and_closes_the_panel', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
-  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
-  }));
+  await page.route('https://face.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
+    }),
+  );
   await openChat(page);
 
   const input = page.getByRole('textbox', { name: '输入消息' });
@@ -1801,7 +2210,9 @@ test('chat_sends_an_image_attachment_and_refreshes', async ({ page }) => {
   };
   await openChat(page);
   await page.locator('input[accept="image/*"]').setInputFiles({
-    name: 'pic.png', mimeType: 'image/png', buffer: PNG_BYTES,
+    name: 'pic.png',
+    mimeType: 'image/png',
+    buffer: PNG_BYTES,
   });
 
   await expect(page.locator('.composer-attachment img')).toHaveCount(1);
@@ -1830,7 +2241,9 @@ test('chat_sends_a_video_attachment', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
   await page.locator('input[accept="video/mp4"]').setInputFiles({
-    name: 'clip.mp4', mimeType: 'video/mp4', buffer: MP4_BYTES,
+    name: 'clip.mp4',
+    mimeType: 'video/mp4',
+    buffer: MP4_BYTES,
   });
 
   await expect(page.locator('.composer-attachment video')).toHaveCount(1);
@@ -1846,7 +2259,9 @@ test('chat_removes_a_pending_attachment', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
   await page.locator('input[accept="image/*"]').setInputFiles({
-    name: 'pic.png', mimeType: 'image/png', buffer: PNG_BYTES,
+    name: 'pic.png',
+    mimeType: 'image/png',
+    buffer: PNG_BYTES,
   });
   await expect(page.locator('.composer-attachment')).toHaveCount(1);
 
@@ -1862,18 +2277,24 @@ test('chat_validates_attachment_type_and_size', async ({ page }) => {
   const hint = page.locator('.composer-hint');
 
   await page.locator('input[accept="image/*"]').setInputFiles({
-    name: 'note.txt', mimeType: 'text/plain', buffer: Buffer.from('x'),
+    name: 'note.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('x'),
   });
   await expect(hint).toHaveText('仅支持图片文件。');
   await expect(page.locator('.composer-attachment')).toHaveCount(0);
 
   await page.locator('input[accept="image/*"]').setInputFiles({
-    name: 'huge.png', mimeType: 'image/png', buffer: Buffer.alloc(20 * 1024 * 1024 + 1),
+    name: 'huge.png',
+    mimeType: 'image/png',
+    buffer: Buffer.alloc(20 * 1024 * 1024 + 1),
   });
   await expect(hint).toHaveText('图片不能超过 20MB。');
 
   await page.locator('input[accept="video/mp4"]').setInputFiles({
-    name: 'clip.mp4', mimeType: 'image/png', buffer: PNG_BYTES,
+    name: 'clip.mp4',
+    mimeType: 'image/png',
+    buffer: PNG_BYTES,
   });
   await expect(hint).toHaveText('仅支持 MP4 视频文件。');
 });
@@ -1882,7 +2303,9 @@ test('chat_keeps_the_attachment_when_media_send_fails', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
   await page.locator('input[accept="image/*"]').setInputFiles({
-    name: 'pic.png', mimeType: 'image/png', buffer: PNG_BYTES,
+    name: 'pic.png',
+    mimeType: 'image/png',
+    buffer: PNG_BYTES,
   });
   mediaSendStatus = 500;
   await page.locator('.composer-attachment').press('Enter');
@@ -1897,7 +2320,9 @@ test('chat_pastes_an_image_into_the_attachment_flow', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: '输入消息' })).toBeEnabled();
   await page.evaluate(() => {
     const data = new DataTransfer();
-    data.items.add(new File([new Uint8Array([137, 80, 78, 71])], 'paste.png', { type: 'image/png' }));
+    data.items.add(
+      new File([new Uint8Array([137, 80, 78, 71])], 'paste.png', { type: 'image/png' }),
+    );
     const textarea = document.querySelector('.composer textarea') as HTMLTextAreaElement;
     textarea.focus();
     const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
@@ -1912,23 +2337,28 @@ test('chat_pastes_an_image_into_the_attachment_flow', async ({ page }) => {
 test('chat_loads_attitudes_only_after_enabling_the_toggle', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 5, '消息'));
   attitudesPayload = {
-    '1': [{ name: 'doge', count: 3 }, { name: '赞', count: 1, selected: true }],
+    '1': [
+      { name: 'doge', count: 3 },
+      { name: '赞', count: 1, selected: true },
+    ],
     '2': [{ name: '未知表情', count: 2 }],
     '3': [{ name: 'doge', count: 0 }],
   };
-  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
-  }));
+  await page.route('https://face.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f4a51d"/></svg>',
+    }),
+  );
   await openChat(page);
 
   const toggle = page.locator('.attitudes-toggle');
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-  expect(requests.some(value => value.includes('/chat/attitudes'))).toBe(false);
+  expect(requests.some((value) => value.includes('/chat/attitudes'))).toBe(false);
 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  const attitudeRequest = requests.find(value => value.includes('/chat/attitudes'));
+  const attitudeRequest = requests.find((value) => value.includes('/chat/attitudes'));
   expect(attitudeRequest).toBeTruthy();
   const query = new URLSearchParams(attitudeRequest!.split('?')[1]);
   expect(query.get('gid')).toBe('1');
@@ -1947,10 +2377,12 @@ test('chat_persists_attitudes_and_stops_requesting_after_turning_it_off', async 
   const items = makeMessages(1, 5, '消息');
   messagesByGid.set(1, items);
   attitudesPayload = { '1': [{ name: 'doge', count: 2 }] };
-  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
-  }));
+  await page.route('https://face.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+    }),
+  );
   await openChat(page);
 
   const toggle = page.locator('.attitudes-toggle');
@@ -1964,28 +2396,30 @@ test('chat_persists_attitudes_and_stops_requesting_after_turning_it_off', async 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('[data-mid="1"] .attitude-chip')).toHaveCount(1);
-  const requestCount = requests.filter(value => value.includes('/chat/attitudes')).length;
+  const requestCount = requests.filter((value) => value.includes('/chat/attitudes')).length;
   items.push(makeMessages(1, 6, '消息')[5]);
   await expect(page.locator('.new-messages-button')).toBeVisible({ timeout: 4000 });
   await page.waitForTimeout(400);
-  expect(requests.filter(value => value.includes('/chat/attitudes')).length).toBe(requestCount);
+  expect(requests.filter((value) => value.includes('/chat/attitudes')).length).toBe(requestCount);
 });
 
 test('chat_loads_attitudes_for_new_messages', async ({ page }) => {
   const items = makeMessages(1, 5, '消息');
   messagesByGid.set(1, items);
   attitudesPayload = { '6': [{ name: 'doge', count: 1 }] };
-  await page.route('https://face.t.sinajs.cn/**', route => route.fulfill({
-    contentType: 'image/svg+xml',
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
-  }));
+  await page.route('https://face.t.sinajs.cn/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>',
+    }),
+  );
   await openChat(page);
   await page.locator('.attitudes-toggle').click();
 
   items.push(makeMessages(1, 6, '消息')[5]);
   const pill = page.locator('.new-messages-button');
   await expect(pill).toBeVisible({ timeout: 4000 });
-  await expect.poll(() => requests.some(value => value.includes('mids=6'))).toBe(true);
+  await expect.poll(() => requests.some((value) => value.includes('mids=6'))).toBe(true);
   await pill.click();
   await expect(page.locator('[data-mid="6"] .attitude-chip')).toHaveCount(1);
 });
@@ -2011,7 +2445,9 @@ test('chat_opens_history_with_shanghai_defaults', async ({ page }) => {
 
   const today = shanghaiToday();
   const anchor = new Date(`${today}T12:00:00`);
-  await expect(dialog.getByLabel('开始日期')).toHaveValue(localDateValue(calendarMonthsAgo(anchor, 3)));
+  await expect(dialog.getByLabel('开始日期')).toHaveValue(
+    localDateValue(calendarMonthsAgo(anchor, 3)),
+  );
   await expect(dialog.getByLabel('结束日期')).toHaveValue(today);
   await expect(dialog.locator('.history-empty')).toHaveText('设置筛选条件后点击查询');
 
@@ -2032,7 +2468,9 @@ test('chat_searches_history_with_shanghai_bounds_and_highlights', async ({ page 
   await dialog.getByRole('button', { name: '🔍 查询' }).click();
 
   await expect(dialog.locator('.history-result')).toHaveCount(1);
-  const request = requests.find(value => value.includes('/chat/messages?') && value.includes('keyword='));
+  const request = requests.find(
+    (value) => value.includes('/chat/messages?') && value.includes('keyword='),
+  );
   expect(request).toBeTruthy();
   const params = new URLSearchParams(request!.split('?')[1]);
   expect(params.get('gid')).toBe('1');
@@ -2046,7 +2484,7 @@ test('chat_searches_history_with_shanghai_bounds_and_highlights', async ({ page 
   await expect(dialog.locator('.history-result-summary')).toContainText('这里有关键词');
   await expect(dialog.locator('.history-pagination')).toContainText('第 1 / 1 页，共 1 条');
 
-  const styles = await dialog.evaluate(element => ({
+  const styles = await dialog.evaluate((element) => ({
     title: getComputedStyle(element.querySelector('#history-title')!).fontSize,
     label: getComputedStyle(element.querySelector('.history-filters label')!).fontSize,
     summary: getComputedStyle(element.querySelector('.history-result-summary')!).fontSize,
@@ -2066,7 +2504,12 @@ test('chat_pages_history_results_and_labels_media', async ({ page }) => {
   items[2].previewUrl = '/chat/media?gid=1&mid=3&variant=preview';
   items[2].videoUrl = '/chat/media?gid=1&mid=3&variant=video';
   items[3].mediaType = 14;
-  items[3].urlObjects = [{ status: { user: { screen_name: '作者' }, text: '卡片正文' }, url_ori: 'https://weibo.com/1/x' }];
+  items[3].urlObjects = [
+    {
+      status: { user: { screen_name: '作者' }, text: '卡片正文' },
+      url_ori: 'https://weibo.com/1/x',
+    },
+  ];
   messagesByGid.set(1, items);
   await openChat(page);
   await page.getByRole('button', { name: '📜 聊天记录' }).click();
@@ -2092,7 +2535,9 @@ test('chat_pages_history_results_and_labels_media', async ({ page }) => {
   await expect(dialog.locator('.history-pagination')).toContainText('第 2 / 2 页，共 25 条');
   await expect(next).toBeDisabled();
   await expect(previous).toBeEnabled();
-  const pageTwo = requests.filter(value => value.includes('/chat/messages?') && value.includes('page=2')).pop();
+  const pageTwo = requests
+    .filter((value) => value.includes('/chat/messages?') && value.includes('page=2'))
+    .pop();
   expect(new URLSearchParams(pageTwo!.split('?')[1]).get('start')).toBe('2026-08-05 00:00:00');
 });
 
@@ -2106,7 +2551,8 @@ test('chat_history_pagination_keeps_results_while_loading', async ({ page }) => 
   await dialog.getByRole('button', { name: '🔍 查询' }).click();
   await expect(dialog.locator('.history-result')).toHaveCount(20);
 
-  holdPredicate = url => url.pathname === '/chat/messages' && url.searchParams.get('page') === '2';
+  holdPredicate = (url) =>
+    url.pathname === '/chat/messages' && url.searchParams.get('page') === '2';
   await dialog.getByRole('button', { name: '下一页 ➡️' }).click();
   await expect.poll(() => held.length).toBe(1);
   // 加载下一页期间保留第一页，列表不闪成空白。
@@ -2135,18 +2581,19 @@ test('chat_opens_history_context_and_pages_both_ways', async ({ page }) => {
 
   await expect(dialog.locator('.history-context')).toBeVisible();
   await expect(dialog.locator('[data-mid="60"]')).toHaveClass(/target-message/);
-  const targetLayout = () => dialog.evaluate(element => {
-    const container = element.querySelector('.history-messages') as HTMLElement;
-    const target = element.querySelector('[data-mid="60"]') as HTMLElement;
-    const cr = container.getBoundingClientRect();
-    const tr = target.getBoundingClientRect();
-    return {
-      scrollTop: container.scrollTop,
-      clientHeight: container.clientHeight,
-      relTop: tr.top - cr.top,
-      targetHeight: tr.height,
-    };
-  });
+  const targetLayout = () =>
+    dialog.evaluate((element) => {
+      const container = element.querySelector('.history-messages') as HTMLElement;
+      const target = element.querySelector('[data-mid="60"]') as HTMLElement;
+      const cr = container.getBoundingClientRect();
+      const tr = target.getBoundingClientRect();
+      return {
+        scrollTop: container.scrollTop,
+        clientHeight: container.clientHeight,
+        relTop: tr.top - cr.top,
+        targetHeight: tr.height,
+      };
+    });
   const centered = (layout: { relTop: number; targetHeight: number; clientHeight: number }) =>
     Math.abs(layout.relTop + layout.targetHeight / 2 - layout.clientHeight / 2);
 
@@ -2159,24 +2606,31 @@ test('chat_opens_history_context_and_pages_both_ways', async ({ page }) => {
   const settled = await targetLayout();
   expect(centered(settled)).toBeLessThan(80);
 
-  expect(requests.filter(value => value.includes('beforeMid=60')).length).toBe(1);
-  expect(requests.filter(value => value.includes('afterMid=60')).length).toBe(1);
+  expect(requests.filter((value) => value.includes('beforeMid=60')).length).toBe(1);
+  expect(requests.filter((value) => value.includes('afterMid=60')).length).toBe(1);
   await expect(dialog.locator('.history-edge-state').first()).toHaveText('向上滚动加载更早消息');
   await expect(dialog.locator('.history-edge-state').last()).toHaveText('向下滚动加载更新消息');
 
-  await dialog.locator('.history-messages').evaluate(element => {
+  await dialog.locator('.history-messages').evaluate((element) => {
     element.scrollTop = 0;
     element.dispatchEvent(new Event('scroll'));
   });
-  await expect.poll(() => requests.filter(value =>
-    value.includes('beforeMid=') && !value.includes('beforeMid=60')).length).toBe(1);
+  await expect
+    .poll(
+      () =>
+        requests.filter((value) => value.includes('beforeMid=') && !value.includes('beforeMid=60'))
+          .length,
+    )
+    .toBe(1);
 
   await dialog.getByRole('button', { name: '🚩 返回搜索结果' }).click();
   await expect(dialog.locator('.history-result')).toHaveCount(1);
   await expect(dialog.locator('.history-pagination')).toContainText('第 1 / 1 页，共 1 条');
 });
 
-test('chat_history_stops_recentering_after_the_user_scrolls_away_from_the_target', async ({ page }) => {
+test('chat_history_stops_recentering_after_the_user_scrolls_away_from_the_target', async ({
+  page,
+}) => {
   const items = makeMessages(1, 120, '消息');
   for (const mid of [58, 59]) {
     items[mid - 1].mediaType = 1;
@@ -2193,11 +2647,14 @@ test('chat_history_stops_recentering_after_the_user_scrolls_away_from_the_target
   await history.getByRole('button', { name: '🔍 查询' }).click();
   await history.locator('.history-result').click();
   const messages = history.locator('.history-messages');
-  const distanceFromCenter = () => messages.evaluate(element => {
-    const target = element.querySelector('[data-mid="60"]')!;
-    const rect = target.getBoundingClientRect();
-    return rect.top + rect.height / 2 - element.getBoundingClientRect().top - element.clientHeight / 2;
-  });
+  const distanceFromCenter = () =>
+    messages.evaluate((element) => {
+      const target = element.querySelector('[data-mid="60"]')!;
+      const rect = target.getBoundingClientRect();
+      return (
+        rect.top + rect.height / 2 - element.getBoundingClientRect().top - element.clientHeight / 2
+      );
+    });
   try {
     await expect.poll(() => heldMedia.size).toBe(2);
     await expect.poll(async () => Math.abs(await distanceFromCenter())).toBeLessThan(5);
@@ -2206,8 +2663,13 @@ test('chat_history_stops_recentering_after_the_user_scrolls_away_from_the_target
     await expect.poll(distanceFromCenter).toBeGreaterThan(100);
     for (const mid of [58, 59]) {
       releaseMedia(mid);
-      await expect.poll(() => messages.locator(`[data-mid="${mid}"] .media-preview img`).evaluate(image =>
-        (image as HTMLImageElement).naturalWidth)).toBe(320);
+      await expect
+        .poll(() =>
+          messages
+            .locator(`[data-mid="${mid}"] .media-preview img`)
+            .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+        )
+        .toBe(320);
       await expect.poll(distanceFromCenter).toBeGreaterThan(100);
     }
     await page.waitForTimeout(750);
@@ -2241,13 +2703,17 @@ test('chat_syncs_history_from_the_dialog', async ({ page }) => {
   await expect(dialog.getByLabel('同步历史至')).toHaveValue(expectedDate);
 
   await dialog.getByRole('button', { name: '⬇️ 同步历史' }).click();
-  await expect.poll(() => requests.filter(value => value.includes('/chat/since?')).length).toBe(1);
-  const request = requests.find(value => value.includes('/chat/since?'))!;
+  await expect
+    .poll(() => requests.filter((value) => value.includes('/chat/since?')).length)
+    .toBe(1);
+  const request = requests.find((value) => value.includes('/chat/since?'))!;
   const params = new URLSearchParams(request.split('?')[1]);
   expect(params.get('gid')).toBe('1');
   expect(params.get('sinceTime')).toBe(`${expectedDate} 00:00:00`);
   expect(params.has('beforeMid')).toBe(false);
-  await expect(dialog.locator('.history-empty')).toHaveText('已开始同步更早的历史消息，稍后请手动刷新查看。');
+  await expect(dialog.locator('.history-empty')).toHaveText(
+    '已开始同步更早的历史消息，稍后请手动刷新查看。',
+  );
   await expect(dialog.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
 });
 
@@ -2260,7 +2726,7 @@ test('chat_validates_the_sync_date_and_reports_failure', async ({ page }) => {
   await dialog.getByLabel('同步历史至').fill('');
   await dialog.getByRole('button', { name: '⬇️ 同步历史' }).click();
   await expect(dialog.locator('.history-empty')).toHaveText('请先选择要同步到的历史日期。');
-  expect(requests.some(value => value.includes('/chat/since'))).toBe(false);
+  expect(requests.some((value) => value.includes('/chat/since'))).toBe(false);
 
   await dialog.getByLabel('同步历史至').fill('2026-08-05');
   syncStatus = 500;
@@ -2278,7 +2744,7 @@ test('chat_disables_sync_while_in_flight_and_hides_results', async ({ page }) =>
   await dialog.getByRole('button', { name: '🔍 查询' }).click();
   await expect(dialog.locator('.history-result')).toHaveCount(20);
 
-  holdPredicate = url => url.pathname === '/chat/since';
+  holdPredicate = (url) => url.pathname === '/chat/since';
   await dialog.getByRole('button', { name: '⬇️ 同步历史' }).click();
   await expect.poll(() => held.length).toBe(1);
   await expect(dialog.getByRole('button', { name: '⬇️ 同步历史' })).toBeDisabled();
@@ -2286,7 +2752,9 @@ test('chat_disables_sync_while_in_flight_and_hides_results', async ({ page }) =>
   await expect(dialog.locator('.history-result')).toHaveCount(0);
 
   releaseHeld();
-  await expect(dialog.locator('.history-empty')).toHaveText('已开始同步更早的历史消息，稍后请手动刷新查看。');
+  await expect(dialog.locator('.history-empty')).toHaveText(
+    '已开始同步更早的历史消息，稍后请手动刷新查看。',
+  );
   await expect(dialog.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
 });
 
@@ -2302,11 +2770,13 @@ test('chat_shows_login_expired_and_pauses_polling', async ({ page }) => {
   await expect(page.locator('.message')).toHaveCount(3);
 
   await page.waitForTimeout(300);
-  const cursorCount = requests.filter(value => value.includes('/chat/messages/cursor')).length;
-  const groupsCount = requests.filter(value => value === 'GET /chat/groups').length;
+  const cursorCount = requests.filter((value) => value.includes('/chat/messages/cursor')).length;
+  const groupsCount = requests.filter((value) => value === 'GET /chat/groups').length;
   await page.waitForTimeout(1400);
-  expect(requests.filter(value => value.includes('/chat/messages/cursor')).length).toBe(cursorCount);
-  expect(requests.filter(value => value === 'GET /chat/groups').length).toBe(groupsCount);
+  expect(requests.filter((value) => value.includes('/chat/messages/cursor')).length).toBe(
+    cursorCount,
+  );
+  expect(requests.filter((value) => value === 'GET /chat/groups').length).toBe(groupsCount);
 });
 
 test('chat_scans_qr_and_reinitializes', async ({ page }) => {
@@ -2323,16 +2793,20 @@ test('chat_scans_qr_and_reinitializes', async ({ page }) => {
   await expect(button).toHaveText('📱 扫码中…');
 
   await expect(page.locator('.login-expired img')).toBeVisible({ timeout: 6000 });
-  const groupsBefore = requests.filter(value => value === 'GET /chat/groups').length;
+  const groupsBefore = requests.filter((value) => value === 'GET /chat/groups').length;
   loginValid = true;
   releaseHeld();
   await expect(page.locator('.login-expired')).toHaveCount(0);
-  await expect.poll(() => requests.filter(value => value === 'GET /chat/groups').length).toBeGreaterThan(groupsBefore);
+  await expect
+    .poll(() => requests.filter((value) => value === 'GET /chat/groups').length)
+    .toBeGreaterThan(groupsBefore);
   await expect(page.locator('.message')).toHaveCount(3);
 
-  const cursorBefore = requests.filter(value => value.includes('/chat/messages/cursor')).length;
+  const cursorBefore = requests.filter((value) => value.includes('/chat/messages/cursor')).length;
   await page.waitForTimeout(1500);
-  expect(requests.filter(value => value.includes('/chat/messages/cursor')).length).toBeGreaterThan(cursorBefore);
+  expect(
+    requests.filter((value) => value.includes('/chat/messages/cursor')).length,
+  ).toBeGreaterThan(cursorBefore);
 });
 
 test('chat_retries_unready_qr_images_quickly_and_stops_after_login', async ({ page }) => {
@@ -2341,10 +2815,16 @@ test('chat_retries_unready_qr_images_quickly_and_stops_after_login', async ({ pa
   qrHold = true;
   let imageStatus = 204;
   let imageRequests = 0;
-  await page.route('**/weibo/login/qr/image?*', route => {
+  await page.route('**/weibo/login/qr/image?*', (route) => {
     imageRequests++;
-    return route.fulfill({ status: imageStatus, contentType: 'image/svg+xml',
-      body: imageStatus === 200 ? '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"/>' : '' });
+    return route.fulfill({
+      status: imageStatus,
+      contentType: 'image/svg+xml',
+      body:
+        imageStatus === 200
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"/>'
+          : '',
+    });
   });
   await openChat(page);
   const panel = page.locator('.login-expired');
@@ -2374,7 +2854,7 @@ test('chat_retries_unready_qr_images_quickly_and_stops_after_login', async ({ pa
   const stoppedCount = imageRequests;
   await page.clock.runFor(30000);
   expect(imageRequests).toBe(stoppedCount);
-  expect(requests.filter(value => value === 'POST /weibo/login/qr')).toHaveLength(1);
+  expect(requests.filter((value) => value === 'POST /weibo/login/qr')).toHaveLength(1);
 });
 
 test('chat_reports_qr_login_failure_and_restores_the_button', async ({ page }) => {
@@ -2400,8 +2880,20 @@ test('chat_does_not_show_login_panel_when_valid', async ({ page }) => {
 
 test('chat_opens_analysis_with_defaults_and_history', async ({ page }) => {
   analysisItems = [
-    { id: 3, date: '2026-10-17', promptPreview: '总结今天群聊', messageCount: 12, createdAt: '2026-10-17 09:00' },
-    { id: 2, date: '2026-10-16', promptPreview: '昨天讨论了什么', messageCount: 7, createdAt: '2026-10-16 21:30' },
+    {
+      id: 3,
+      date: '2026-10-17',
+      promptPreview: '总结今天群聊',
+      messageCount: 12,
+      createdAt: '2026-10-17 09:00',
+    },
+    {
+      id: 2,
+      date: '2026-10-16',
+      promptPreview: '昨天讨论了什么',
+      messageCount: 7,
+      createdAt: '2026-10-16 21:30',
+    },
   ];
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
@@ -2412,7 +2904,9 @@ test('chat_opens_analysis_with_defaults_and_history', async ({ page }) => {
   await expect(dialog.getByLabel('分析日期')).toHaveValue(shanghaiToday());
   await expect(dialog.getByLabel('提示词')).toHaveValue('请总结今天群聊的主要讨论话题和参与者');
 
-  const request = requests.find(value => value.includes('/chat/analyses?') && value.includes('page=1'));
+  const request = requests.find(
+    (value) => value.includes('/chat/analyses?') && value.includes('page=1'),
+  );
   expect(request).toBeTruthy();
   const params = new URLSearchParams(request!.split('?')[1]);
   expect(params.get('gid')).toBe('1');
@@ -2423,10 +2917,22 @@ test('chat_opens_analysis_with_defaults_and_history', async ({ page }) => {
 });
 
 test('chat_shows_analysis_detail_with_markdown', async ({ page }) => {
-  analysisItems = [{ id: 5, date: '2026-10-17', promptPreview: '总结', messageCount: 12, createdAt: '2026-10-17 09:00' }];
+  analysisItems = [
+    {
+      id: 5,
+      date: '2026-10-17',
+      promptPreview: '总结',
+      messageCount: 12,
+      createdAt: '2026-10-17 09:00',
+    },
+  ];
   analysisDetail = {
-    ...analysisDetail, id: 5,
-    prompt: '分析下 tk 说的是哪个微博【这就是为什么我很讨厌别人把我在群里的话单独摘出来发到别的地方。因为没看到上下文的人不会知道我为什么那样说。】'.repeat(3),
+    ...analysisDetail,
+    id: 5,
+    prompt:
+      '分析下 tk 说的是哪个微博【这就是为什么我很讨厌别人把我在群里的话单独摘出来发到别的地方。因为没看到上下文的人不会知道我为什么那样说。】'.repeat(
+        3,
+      ),
     result: `## 结论\n\n- 要点一\n\n> ${'这是一段很长的引用文字，'.repeat(20)}`,
   };
   await openChat(page);
@@ -2440,9 +2946,9 @@ test('chat_shows_analysis_detail_with_markdown', async ({ page }) => {
   await expect(dialog.locator('.analysis-detail-content h2')).toHaveText('结论');
   await expect(dialog.getByRole('button', { name: '⬇️ 下载 Markdown' })).toBeEnabled();
   await expect(dialog.locator('.analysis-meta-copy')).toBeVisible();
-  await expect.poll(() => requests.some(value => value.includes('/chat/analyses/5'))).toBe(true);
+  await expect.poll(() => requests.some((value) => value.includes('/chat/analyses/5'))).toBe(true);
 
-  const layout = await dialog.evaluate(element => {
+  const layout = await dialog.evaluate((element) => {
     const meta = element.querySelector('.analysis-detail-meta')!;
     const content = element.querySelector('.analysis-detail-content')!;
     const detail = element.querySelector('.analysis-detail')!;
@@ -2472,10 +2978,14 @@ test('chat_streams_analysis_and_shows_done', async ({ page }) => {
 
   const pending = dialog.locator('.analysis-pending');
   await expect(pending).toHaveText('正在分析，请稍候…');
-  const spinner = await pending.evaluate(element => getComputedStyle(element, '::before').animationName);
+  const spinner = await pending.evaluate(
+    (element) => getComputedStyle(element, '::before').animationName,
+  );
   expect(spinner).toBe('analysis-spin');
   await expect(dialog.getByRole('button', { name: /分析中/ })).toBeDisabled();
-  await expect(dialog.locator('.analysis-detail-content')).toContainText('要点一', { timeout: 3000 });
+  await expect(dialog.locator('.analysis-detail-content')).toContainText('要点一', {
+    timeout: 3000,
+  });
   await expect.poll(() => analysisStreamBodies.length).toBe(1);
   const body = new URLSearchParams(analysisStreamBodies[0]);
   expect(body.get('gid')).toBe('1');
@@ -2489,11 +2999,14 @@ test('chat_streams_analysis_and_shows_done', async ({ page }) => {
 });
 
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {
-test(`chat_analysis_spinner_keeps_spinning_with_motion_${reducedMotion.replace('-', '_')}`, async ({ page }) => {
-  await page.emulateMedia({ reducedMotion });
-  analysisStreamDelay = 2000;
-  await openChat(page);
-  await page.addStyleTag({ content: `
+  test(`chat_analysis_spinner_keeps_spinning_with_motion_${reducedMotion.replace('-', '_')}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    analysisStreamDelay = 2000;
+    await openChat(page);
+    await page.addStyleTag({
+      content: `
     .analysis-detail-content {
       scroll-behavior: smooth;
       animation: panel-blink 1.5s ease-in-out infinite;
@@ -2503,38 +3016,63 @@ test(`chat_analysis_spinner_keeps_spinning_with_motion_${reducedMotion.replace('
       content: '';
       animation: panel-blink 1.5s ease-in-out infinite;
     }
-  ` });
-  await page.getByRole('button', { name: '🤖 群聊分析' }).click();
-  const dialog = page.locator('dialog.analysis-dialog');
-  await dialog.getByRole('button', { name: '🤖 分析' }).click();
+  `,
+    });
+    await page.getByRole('button', { name: '🤖 群聊分析' }).click();
+    const dialog = page.locator('dialog.analysis-dialog');
+    await dialog.getByRole('button', { name: '🤖 分析' }).click();
 
-  const pending = dialog.locator('.analysis-pending');
-  const animation = await pending.evaluate(element => {
-    const style = getComputedStyle(element, '::before');
-    return { name: style.animationName, duration: style.animationDuration, iterations: style.animationIterationCount };
-  });
-  expect(animation).toEqual({ name: 'analysis-spin', duration: '0.8s', iterations: 'infinite' });
-  const transform = await pending.evaluate(element => getComputedStyle(element, '::before').transform);
-  await expect.poll(() => pending.evaluate(element => getComputedStyle(element, '::before').transform))
-    .not.toBe(transform);
+    const pending = dialog.locator('.analysis-pending');
+    const animation = await pending.evaluate((element) => {
+      const style = getComputedStyle(element, '::before');
+      return {
+        name: style.animationName,
+        duration: style.animationDuration,
+        iterations: style.animationIterationCount,
+      };
+    });
+    expect(animation).toEqual({ name: 'analysis-spin', duration: '0.8s', iterations: 'infinite' });
+    const transform = await pending.evaluate(
+      (element) => getComputedStyle(element, '::before').transform,
+    );
+    await expect
+      .poll(() => pending.evaluate((element) => getComputedStyle(element, '::before').transform))
+      .not.toBe(transform);
 
-  const styles = await dialog.locator('.analysis-detail-content').evaluate(element => {
-    const style = getComputedStyle(element);
-    const pseudo = getComputedStyle(element, '::after');
-    return {
-      scroll: style.scrollBehavior, duration: style.animationDuration,
-      iterations: style.animationIterationCount, transition: style.transitionDuration,
-      pseudoDuration: pseudo.animationDuration, pseudoIterations: pseudo.animationIterationCount,
-    };
+    const styles = await dialog.locator('.analysis-detail-content').evaluate((element) => {
+      const style = getComputedStyle(element);
+      const pseudo = getComputedStyle(element, '::after');
+      return {
+        scroll: style.scrollBehavior,
+        duration: style.animationDuration,
+        iterations: style.animationIterationCount,
+        transition: style.transitionDuration,
+        pseudoDuration: pseudo.animationDuration,
+        pseudoIterations: pseudo.animationIterationCount,
+      };
+    });
+    expect(styles).toEqual(
+      reducedMotion === 'reduce'
+        ? {
+            scroll: 'auto',
+            duration: '1e-05s',
+            iterations: '1',
+            transition: '1e-05s',
+            pseudoDuration: '1e-05s',
+            pseudoIterations: '1',
+          }
+        : {
+            scroll: 'smooth',
+            duration: '1.5s',
+            iterations: 'infinite',
+            transition: '1s',
+            pseudoDuration: '1.5s',
+            pseudoIterations: 'infinite',
+          },
+    );
+    await expect(dialog.locator('.analysis-detail-meta')).toContainText('12 条', { timeout: 5000 });
+    await expect(dialog.locator('.analysis-pending')).toHaveCount(0);
   });
-  expect(styles).toEqual(reducedMotion === 'reduce'
-    ? { scroll: 'auto', duration: '1e-05s', iterations: '1', transition: '1e-05s',
-      pseudoDuration: '1e-05s', pseudoIterations: '1' }
-    : { scroll: 'smooth', duration: '1.5s', iterations: 'infinite', transition: '1s',
-      pseudoDuration: '1.5s', pseudoIterations: 'infinite' });
-  await expect(dialog.locator('.analysis-detail-meta')).toContainText('12 条', { timeout: 5000 });
-  await expect(dialog.locator('.analysis-pending')).toHaveCount(0);
-});
 }
 
 test('chat_reports_analysis_stream_error', async ({ page }) => {
@@ -2550,8 +3088,11 @@ test('chat_reports_analysis_stream_error', async ({ page }) => {
 
 test('chat_pages_analysis_history_and_reports_empty', async ({ page }) => {
   analysisItems = Array.from({ length: 25 }, (_, index) => ({
-    id: index + 1, date: '2026-10-17', promptPreview: `提示 ${index + 1}`,
-    messageCount: index, createdAt: '2026-10-17 09:00',
+    id: index + 1,
+    date: '2026-10-17',
+    promptPreview: `提示 ${index + 1}`,
+    messageCount: index,
+    createdAt: '2026-10-17 09:00',
   }));
   await openChat(page);
   await page.getByRole('button', { name: '🤖 群聊分析' }).click();
@@ -2573,9 +3114,12 @@ test('chat_has_no_return_celebration_even_with_saved_settings', async ({ page })
   const items = makeMessages(1, 3, '消息');
   messagesByGid.set(1, items);
   await page.addInitScript(() => {
-    localStorage.setItem('weibo-chat:celebration-roster', JSON.stringify({
-      '1': { '101': { name: '成员1', avatar: '', interval: 1 } },
-    }));
+    localStorage.setItem(
+      'weibo-chat:celebration-roster',
+      JSON.stringify({
+        '1': { '101': { name: '成员1', avatar: '', interval: 1 } },
+      }),
+    );
   });
   await openChat(page);
   await expect(page.locator('.message')).toHaveCount(3);
@@ -2586,26 +3130,27 @@ test('chat_has_no_return_celebration_even_with_saved_settings', async ({ page })
   await page.getByRole('button', { name: '有新消息', exact: true }).click();
   await expect(page.locator('.messages')).toContainText('新的消息');
   await expect(page.locator('[class*="celebration"]')).toHaveCount(0);
-  expect(requests.some(request => request.includes('/chat/assets/monster/'))).toBe(false);
+  expect(requests.some((request) => request.includes('/chat/assets/monster/'))).toBe(false);
 });
 
 test('chat_uses_one_close_button_style_across_windows', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
 
-  const read = (selector: string) => page.locator(selector).evaluate(button => {
-    const style = getComputedStyle(button);
-    const icon = getComputedStyle(button, '::before');
-    return {
-      width: style.width,
-      height: style.height,
-      radius: style.borderRadius,
-      shadow: style.boxShadow,
-      background: style.backgroundImage,
-      icon: icon.content,
-      iconSize: icon.width,
-    };
-  });
+  const read = (selector: string) =>
+    page.locator(selector).evaluate((button) => {
+      const style = getComputedStyle(button);
+      const icon = getComputedStyle(button, '::before');
+      return {
+        width: style.width,
+        height: style.height,
+        radius: style.borderRadius,
+        shadow: style.boxShadow,
+        background: style.backgroundImage,
+        icon: icon.content,
+        iconSize: icon.width,
+      };
+    });
 
   await page.getByRole('button', { name: '📜 聊天记录' }).click();
   const history = await read('.history-close');
@@ -2638,44 +3183,63 @@ test('chat_toggles_immersive_reading', async ({ page }) => {
   expect(await page.evaluate(() => localStorage.getItem('weibo-chat:immersive'))).toBe('0');
 });
 
-for (const viewport of [{ width: 1280, height: 800 }, { width: 900, height: 560 }]) {
-test(`chat_opens_the_dream_game_from_a_member_avatar_at_${viewport.width}`, async ({ page }, testInfo) => {
-  await page.setViewportSize(viewport);
-  messagesByGid.set(1, makeMessages(1, 3, '消息'));
-  messagesByGid.get(1)![0].senderId = 1176117365;
-  await openChat(page);
-  await page.locator('[data-sender-id="1176117365"]').first().hover();
+for (const viewport of [
+  { width: 1280, height: 800 },
+  { width: 900, height: 560 },
+]) {
+  test(`chat_opens_the_dream_game_from_a_member_avatar_at_${viewport.width}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    messagesByGid.set(1, makeMessages(1, 3, '消息'));
+    messagesByGid.get(1)![0].senderId = 1176117365;
+    await openChat(page);
+    await page.locator('[data-sender-id="1176117365"]').first().hover();
 
-  const popover = page.locator('.dream-popover');
-  await expect(popover).toBeVisible({ timeout: 6000 });
-  await expect(popover.getByRole('heading', { name: '盗梦空间' })).toBeVisible();
-  await expect(popover).toContainText('是否进入盗梦空间？');
-  const avatarBounds = (await page.locator('[data-sender-id="1176117365"]').first().boundingBox())!;
-  const popoverBounds = (await popover.boundingBox())!;
-  expect(popoverBounds.y + popoverBounds.height).toBeLessThanOrEqual(avatarBounds.y);
-  expect(popoverBounds.x + popoverBounds.width / 2).toBeCloseTo(avatarBounds.x + avatarBounds.width / 2, 0);
-  await popover.screenshot({ path: testInfo.outputPath('dream-entry.png') });
-  await popover.getByRole('button', { name: '🌀 进入盗梦空间' }).click();
+    const popover = page.locator('.dream-popover');
+    await expect(popover).toBeVisible({ timeout: 6000 });
+    await expect(popover.getByRole('heading', { name: '盗梦空间' })).toBeVisible();
+    await expect(popover).toContainText('是否进入盗梦空间？');
+    const avatarBounds = (await page
+      .locator('[data-sender-id="1176117365"]')
+      .first()
+      .boundingBox())!;
+    const popoverBounds = (await popover.boundingBox())!;
+    expect(popoverBounds.y + popoverBounds.height).toBeLessThanOrEqual(avatarBounds.y);
+    expect(popoverBounds.x + popoverBounds.width / 2).toBeCloseTo(
+      avatarBounds.x + avatarBounds.width / 2,
+      0,
+    );
+    await popover.screenshot({ path: testInfo.outputPath('dream-entry.png') });
+    await popover.getByRole('button', { name: '🌀 进入盗梦空间' }).click();
 
-  const dialog = page.locator('dialog.dream-dialog');
-  await expect(dialog).toHaveJSProperty('open', true);
-  await expect(dialog.locator('iframe')).toHaveAttribute('src', /\/chat\/dream\/1176117365\.html\?v=\d+/);
-  const geometry = await dialog.evaluate(element => {
-    const frame = element.querySelector('iframe')!.getBoundingClientRect();
-    const stage = element.querySelector('.dream-stage')!.getBoundingClientRect();
-    const bounds = element.getBoundingClientRect();
-    return { frameWidth: frame.width, frameHeight: frame.height, bottomGap: bounds.bottom - frame.bottom,
-      stageHeight: stage.height, dialogHeight: bounds.height };
+    const dialog = page.locator('dialog.dream-dialog');
+    await expect(dialog).toHaveJSProperty('open', true);
+    await expect(dialog.locator('iframe')).toHaveAttribute(
+      'src',
+      /\/chat\/dream\/1176117365\.html\?v=\d+/,
+    );
+    const geometry = await dialog.evaluate((element) => {
+      const frame = element.querySelector('iframe')!.getBoundingClientRect();
+      const stage = element.querySelector('.dream-stage')!.getBoundingClientRect();
+      const bounds = element.getBoundingClientRect();
+      return {
+        frameWidth: frame.width,
+        frameHeight: frame.height,
+        bottomGap: bounds.bottom - frame.bottom,
+        stageHeight: stage.height,
+        dialogHeight: bounds.height,
+      };
+    });
+    expect(geometry.frameHeight).toBeCloseTo((geometry.frameWidth * 480) / 512, 0);
+    expect(Math.abs(geometry.bottomGap - 2)).toBeLessThanOrEqual(1);
+    expect(geometry.stageHeight).toBeCloseTo(geometry.frameHeight, 0);
+    await expect(dialog.locator('iframe').contentFrame().locator('#game')).toBeVisible();
+    await dialog.screenshot({ path: testInfo.outputPath('dream-window.png') });
+    await dialog.getByRole('button', { name: '关闭盗梦空间' }).click();
+    await expect(dialog).not.toHaveJSProperty('open', true);
+    await expect.poll(() => dialog.locator('iframe').getAttribute('src')).toBe('about:blank');
   });
-  expect(geometry.frameHeight).toBeCloseTo(geometry.frameWidth * 480 / 512, 0);
-  expect(Math.abs(geometry.bottomGap - 2)).toBeLessThanOrEqual(1);
-  expect(geometry.stageHeight).toBeCloseTo(geometry.frameHeight, 0);
-  await expect(dialog.locator('iframe').contentFrame().locator('#game')).toBeVisible();
-  await dialog.screenshot({ path: testInfo.outputPath('dream-window.png') });
-  await dialog.getByRole('button', { name: '关闭盗梦空间' }).click();
-  await expect(dialog).not.toHaveJSProperty('open', true);
-  await expect.poll(() => dialog.locator('iframe').getAttribute('src')).toBe('about:blank');
-});
 }
 
 test('chat_has_a_keyboard_accessible_switch_to_the_formal_post_page', async ({ page }) => {
@@ -2683,10 +3247,16 @@ test('chat_has_a_keyboard_accessible_switch_to_the_formal_post_page', async ({ p
   const control = page.getByRole('link', { name: '切换到本地微博', exact: true });
   await expect(control).toBeVisible();
   await expect(control).toHaveAttribute('href', '/post/index.html');
-  expect(await control.evaluate(element => getComputedStyle(element, '::before').backgroundImage)).toContain('svg');
-  await page.route('**/post/index.html', route => route.fulfill({
-    status: 200, contentType: 'text/html', body: '<html><body>本地微博</body></html>',
-  }));
+  expect(
+    await control.evaluate((element) => getComputedStyle(element, '::before').backgroundImage),
+  ).toContain('svg');
+  await page.route('**/post/index.html', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<html><body>本地微博</body></html>',
+    }),
+  );
   await control.focus();
   await control.press('Enter');
   await expect(page).toHaveURL(/\/post\/index\.html$/);
@@ -2713,7 +3283,7 @@ test('chat_skips_avatars_without_a_dream_page', async ({ page }) => {
 test('chat_switch_group_ignores_the_late_response_of_the_previous_group', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '旧群'));
   messagesByGid.set(2, makeMessages(2, 3, '新群'));
-  holdPredicate = url => url.searchParams.get('gid') === '1';
+  holdPredicate = (url) => url.searchParams.get('gid') === '1';
   await openChat(page);
 
   await expect(page.locator('.messages').getByRole('status')).toHaveText('正在加载消息……');
@@ -2732,12 +3302,14 @@ test('chat_switch_group_discards_the_previous_groups_earlier_page_and_image', as
   messagesByGid.set(1, previous);
   messagesByGid.set(2, makeMessages(2, 3, '新群'));
   mediaHoldMids = new Set([60]);
-  holdPredicate = url => url.searchParams.get('gid') === '1' && url.searchParams.has('beforeMid');
+  holdPredicate = (url) => url.searchParams.get('gid') === '1' && url.searchParams.has('beforeMid');
   await openChat(page);
 
   await expect(page.locator('.message').last()).toContainText('旧群 60');
   await expect.poll(() => heldMedia.size).toBe(1);
-  await page.locator('.messages').evaluate(element => { element.scrollTop = 0; });
+  await page.locator('.messages').evaluate((element) => {
+    element.scrollTop = 0;
+  });
   await expect.poll(() => held.length).toBe(1);
 
   await page.locator('.group-row', { hasText: '第二群' }).click();
@@ -2784,9 +3356,15 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
     const messages = document.querySelector('.messages')!;
     const composer = getComputedStyle(document.querySelector('.composer textarea')!);
     const search = getComputedStyle(document.querySelector('.search-box input')!);
-    const historyButton = document.querySelector('.composer-tools .history-open')!.getBoundingClientRect();
-    const videoButton = document.querySelectorAll('.composer-tools button')[2].getBoundingClientRect();
-    const lastButton = document.querySelector('.composer-tools button:last-of-type')!.getBoundingClientRect();
+    const historyButton = document
+      .querySelector('.composer-tools .history-open')!
+      .getBoundingClientRect();
+    const videoButton = document
+      .querySelectorAll('.composer-tools button')[2]
+      .getBoundingClientRect();
+    const lastButton = document
+      .querySelector('.composer-tools button:last-of-type')!
+      .getBoundingClientRect();
     const tools = document.querySelector('.composer-tools')!.getBoundingClientRect();
     return {
       titlebarHeight: titlebar.height,
@@ -2823,8 +3401,8 @@ test('chat_shell_keeps_the_blue_skeuomorphic_geometry_at_minimum_window', async 
 
 test('chat_trims_message_and_height_caches_to_the_legacy_limit', () => {
   const items = makeMessages(1, 20001, '压力消息');
-  const messages = new Map(items.map(item => [item.mid, item]));
-  const heights = new Map(items.map(item => [item.mid, 96]));
+  const messages = new Map(items.map((item) => [item.mid, item]));
+  const heights = new Map(items.map((item) => [item.mid, 96]));
   const retained = trimMessageCache(items, messages, heights);
   expect(retained).toHaveLength(18000);
   expect(retained[0].mid).toBe(2002);
@@ -2837,7 +3415,7 @@ test('chat_trims_message_and_height_caches_to_the_legacy_limit', () => {
 
 test('chat_does_not_trim_before_exceeding_the_legacy_limit', () => {
   const items = makeMessages(1, 20000, '压力消息');
-  const messages = new Map(items.map(item => [item.mid, item]));
+  const messages = new Map(items.map((item) => [item.mid, item]));
   const heights = new Map([[1, 96]]);
   expect(trimMessageCache(items, messages, heights)).toBe(items);
   expect(messages.size).toBe(20000);
@@ -2849,8 +3427,9 @@ test('chat_trims_after_a_large_catch_up_and_rejects_late_older_messages', async 
   messagesByGid.set(1, makeMessages(1, 100, '压力消息'));
   await openChat(page);
   await expect(page.locator('.message').last()).toContainText('压力消息 100');
-  holdPredicate = url => url.pathname === '/chat/messages/cursor' && url.searchParams.has('beforeMid');
-  await page.locator('.messages').evaluate(element => {
+  holdPredicate = (url) =>
+    url.pathname === '/chat/messages/cursor' && url.searchParams.has('beforeMid');
+  await page.locator('.messages').evaluate((element) => {
     element.scrollTop = 0;
     element.dispatchEvent(new Event('scroll'));
   });
@@ -2858,16 +3437,19 @@ test('chat_trims_after_a_large_catch_up_and_rejects_late_older_messages', async 
   try {
     await page.evaluate(() => window.dispatchEvent(new Event('blur')));
     messagesByGid.set(1, makeMessages(1, 5000, '压力消息'));
-    const firstCatchUp = page.waitForResponse(response => response.url().includes('afterMid=4950'));
+    const firstCatchUp = page.waitForResponse((response) =>
+      response.url().includes('afterMid=4950'),
+    );
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await firstCatchUp;
     await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
     await expect(page.locator('.message').last()).toContainText('压力消息 5000');
     await expect.poll(() => atBottom(page)).toBe(true);
-    const anchor = await page.locator('.messages').evaluate(container => {
+    const anchor = await page.locator('.messages').evaluate((container) => {
       const top = container.getBoundingClientRect().top;
-      const element = [...container.querySelectorAll<HTMLElement>('[data-mid]')]
-        .find(item => item.getBoundingClientRect().bottom > top)!;
+      const element = [...container.querySelectorAll<HTMLElement>('[data-mid]')].find(
+        (item) => item.getBoundingClientRect().bottom > top,
+      )!;
       return { mid: element.dataset.mid!, top: element.getBoundingClientRect().top };
     });
     await page.evaluate(() => {
@@ -2875,25 +3457,29 @@ test('chat_trims_after_a_large_catch_up_and_rejects_late_older_messages', async 
       document.dispatchEvent(new Event('visibilitychange'));
     });
     messagesByGid.set(1, makeMessages(1, 20101, '压力消息'));
-    const completed = page.waitForResponse(response => response.url().includes('afterMid=20100'));
+    const completed = page.waitForResponse((response) => response.url().includes('afterMid=20100'));
     await page.evaluate(() => {
       Reflect.deleteProperty(document, 'hidden');
       document.dispatchEvent(new Event('visibilitychange'));
     });
     await completed;
-    await expect(page.getByRole('status').filter({ hasText: '收到 1 条新消息' })).toHaveText('收到 1 条新消息');
-    const anchorTop = await page.locator(`[data-mid="${anchor.mid}"]`).evaluate(element => element.getBoundingClientRect().top);
+    await expect(page.getByRole('status').filter({ hasText: '收到 1 条新消息' })).toHaveText(
+      '收到 1 条新消息',
+    );
+    const anchorTop = await page
+      .locator(`[data-mid="${anchor.mid}"]`)
+      .evaluate((element) => element.getBoundingClientRect().top);
     expect(Math.abs(anchorTop - anchor.top)).toBeLessThanOrEqual(1);
     releaseHeld();
     await page.getByRole('button', { name: '滚到最新消息', exact: true }).click();
     await expect(page.locator('.message').last()).toContainText('压力消息 20101');
-    await page.locator('.messages').evaluate(element => {
+    await page.locator('.messages').evaluate((element) => {
       element.scrollTop = 0;
       element.dispatchEvent(new Event('scroll'));
     });
     await expect(page.locator('.message').first()).toHaveAttribute('data-mid', '2101');
     expect(await page.locator('.message').count()).toBeLessThanOrEqual(360);
-    expect(requests.filter(request => request.includes('beforeMid=')).length).toBe(1);
+    expect(requests.filter((request) => request.includes('beforeMid=')).length).toBe(1);
   } finally {
     releaseHeld();
   }
@@ -2909,12 +3495,19 @@ test('chat_announces_new_arrivals_without_making_the_message_list_live', async (
   await expect(announcement).toHaveText('收到 1 条新消息');
   await expect(announcement).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('.messages')).not.toHaveAttribute('aria-live');
-  const repeated = announcement.evaluate(element => new Promise<string>(resolve => {
-    const finish = (value: string) => { observer.disconnect(); clearTimeout(timer); resolve(value); };
-    const observer = new MutationObserver(() => finish(element.textContent ?? ''));
-    observer.observe(element, { subtree: true, childList: true, characterData: true });
-    const timer = setTimeout(() => finish('没有新的通报'), 4000);
-  }));
+  const repeated = announcement.evaluate(
+    (element) =>
+      new Promise<string>((resolve) => {
+        const finish = (value: string) => {
+          observer.disconnect();
+          clearTimeout(timer);
+          resolve(value);
+        };
+        const observer = new MutationObserver(() => finish(element.textContent ?? ''));
+        observer.observe(element, { subtree: true, childList: true, characterData: true });
+        const timer = setTimeout(() => finish('没有新的通报'), 4000);
+      }),
+  );
   items.push({ ...items[0], mid: 1000, createdAt: messageTime(1000), text: '第二条新消息' });
   expect(await repeated).toBe('收到 1 条新消息');
 });
@@ -2925,7 +3518,9 @@ test('chat_respects_reduced_motion_for_login_feedback', async ({ page }) => {
   await openChat(page);
   const state = page.locator('.login-expired .panel-state').first();
   await expect(state).toBeVisible();
-  const duration = await state.evaluate(element => parseFloat(getComputedStyle(element).animationDuration));
+  const duration = await state.evaluate((element) =>
+    parseFloat(getComputedStyle(element).animationDuration),
+  );
   expect(duration).toBeLessThan(0.001);
 });
 
@@ -2940,8 +3535,10 @@ test('chat_business_401_opens_login_recovery', async ({ page }) => {
 
 test('chat_does_not_let_a_late_valid_status_hide_a_business_401', async ({ page }) => {
   let release!: () => void;
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/weibo/login/status', async route => {
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/weibo/login/status', async (route) => {
     await gate;
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"valid":true}' });
   });
@@ -2949,7 +3546,7 @@ test('chat_does_not_let_a_late_valid_status_hide_a_business_401', async ({ page 
   messagesStatus.set(1, 401);
   await openChat(page);
   await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
-  const response = page.waitForResponse(item => item.url().endsWith('/weibo/login/status'));
+  const response = page.waitForResponse((item) => item.url().endsWith('/weibo/login/status'));
   release();
   await response;
   await page.waitForTimeout(150);
@@ -2973,7 +3570,7 @@ test('chat_backs_off_group_failures_and_resets_after_recovery', async ({ page })
   await openChat(page);
   await expect(page.locator('.messages')).toContainText('消息 3');
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
-  const reads = () => requests.filter(request => request === 'GET /chat/groups').length;
+  const reads = () => requests.filter((request) => request === 'GET /chat/groups').length;
   groupsStatus = 500;
   const before = reads();
   await page.clock.runFor(1000);
@@ -3001,33 +3598,36 @@ test('chat_expired_login_does_not_refresh_groups_on_focus', async ({ page }) => 
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
   await expect(page.getByRole('button', { name: '📱 扫码登录' })).toBeVisible();
-  const before = requests.filter(request => request === 'GET /chat/groups').length;
+  const before = requests.filter((request) => request === 'GET /chat/groups').length;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.waitForTimeout(250);
-  expect(requests.filter(request => request === 'GET /chat/groups').length).toBe(before);
+  expect(requests.filter((request) => request === 'GET /chat/groups').length).toBe(before);
 });
 
 test('chat_an_old_group_send_does_not_refresh_the_new_group', async ({ page }) => {
   await page.clock.install();
   let release!: () => void;
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/chat/messages/send', async route => {
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/chat/messages/send', async (route) => {
     await gate;
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
   messagesByGid.set(1, makeMessages(1, 3, '旧群'));
   messagesByGid.set(2, makeMessages(2, 3, '新群'));
   await openChat(page);
-  const sending = page.waitForRequest(request => request.url().endsWith('/chat/messages/send'));
+  const sending = page.waitForRequest((request) => request.url().endsWith('/chat/messages/send'));
   await page.getByRole('textbox', { name: '输入消息', exact: true }).fill('本地替身消息');
   await page.getByRole('textbox', { name: '输入消息', exact: true }).press('Enter');
   await sending;
   await page.locator('.group-row', { hasText: '第二群' }).click();
   await expect(page.locator('.messages')).toContainText('新群 3');
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
-  const reads = () => requests.filter(request => request.includes('/chat/messages/cursor?gid=2')).length;
+  const reads = () =>
+    requests.filter((request) => request.includes('/chat/messages/cursor?gid=2')).length;
   const before = reads();
-  const response = page.waitForResponse(item => item.url().endsWith('/chat/messages/send'));
+  const response = page.waitForResponse((item) => item.url().endsWith('/chat/messages/send'));
   release();
   await response;
   await expect(page.locator('.composer-hint')).toContainText('按下 Enter');
@@ -3037,12 +3637,15 @@ test('chat_an_old_group_send_does_not_refresh_the_new_group', async ({ page }) =
 
 test('chat_analysis_abort_does_not_leave_a_false_failure', async ({ page }) => {
   analysisItems = Array.from({ length: 25 }, (_, index) => ({
-    id: index + 1, date: '2026-10-18', promptPreview: `分析 ${index + 1}`,
-    messageCount: 10, createdAt: '2026-10-18 09:00',
+    id: index + 1,
+    date: '2026-10-18',
+    promptPreview: `分析 ${index + 1}`,
+    messageCount: 10,
+    createdAt: '2026-10-18 09:00',
   }));
-  await page.route('**/chat/analyses?*', async route => {
+  await page.route('**/chat/analyses?*', async (route) => {
     if (new URL(route.request().url()).searchParams.get('page') === '2') {
-      await new Promise(resolve => setTimeout(resolve, 750));
+      await new Promise((resolve) => setTimeout(resolve, 750));
     }
     await route.continue().catch(() => {});
   });
@@ -3051,12 +3654,18 @@ test('chat_analysis_abort_does_not_leave_a_false_failure', async ({ page }) => {
   await page.getByRole('button', { name: '🤖 群聊分析' }).click();
   const dialog = page.locator('dialog.analysis-dialog');
   await expect(dialog.locator('.analysis-item')).toHaveCount(20);
-  const request = page.waitForRequest(item => item.url().includes('/chat/analyses?')
-    && new URL(item.url()).searchParams.get('page') === '2');
+  const request = page.waitForRequest(
+    (item) =>
+      item.url().includes('/chat/analyses?') &&
+      new URL(item.url()).searchParams.get('page') === '2',
+  );
   await dialog.getByRole('button', { name: '下一页 ➡️' }).click();
   await request;
-  const response = page.waitForResponse(item => item.url().includes('/chat/analyses?')
-    && new URL(item.url()).searchParams.get('page') === '1');
+  const response = page.waitForResponse(
+    (item) =>
+      item.url().includes('/chat/analyses?') &&
+      new URL(item.url()).searchParams.get('page') === '1',
+  );
   await dialog.getByRole('button', { name: '⬅️ 上一页' }).click();
   await response;
   await expect(dialog.locator('.analysis-item')).toHaveCount(20);
@@ -3077,120 +3686,152 @@ test('chat_dream_can_rehover_after_an_interrupted_hover', async ({ page }) => {
 
 test('chat_scrolling_cancels_a_pending_dream_probe', async ({ page }) => {
   let release!: () => void;
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/chat/dream/1176117365.html', async route => {
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/chat/dream/1176117365.html', async (route) => {
     await gate;
     await route.fulfill({ status: 200, contentType: 'text/html', body: '<html>dream</html>' });
   });
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   messagesByGid.get(1)![0].senderId = 1176117365;
   await openChat(page);
-  const probe = page.waitForRequest(request => request.url().endsWith('/chat/dream/1176117365.html'));
+  const probe = page.waitForRequest((request) =>
+    request.url().endsWith('/chat/dream/1176117365.html'),
+  );
   await page.locator('[data-sender-id="1176117365"]').first().hover();
   await probe;
-  await page.locator('.messages').evaluate(element => element.dispatchEvent(new Event('scroll')));
+  await page.locator('.messages').evaluate((element) => element.dispatchEvent(new Event('scroll')));
   release();
   await page.waitForTimeout(150);
   await expect(page.locator('.dream-popover')).toHaveCount(0);
 });
 
-for (const viewport of [{ width: 900, height: 560 }, { width: 1280, height: 800 }, { width: 1600, height: 900 }]) {
-test(`chat_acceptance_combines_history_media_analysis_and_reading_at_${viewport.width}`, async ({ page }, testInfo) => {
-  await page.setViewportSize(viewport);
-  const items = makeMessages(1, 60, '组合消息');
-  items[59].text = '验收图片';
-  items[59].previewUrl = '/chat/media?gid=1&mid=60&variant=preview';
-  items[59].originalUrl = '/chat/media?gid=1&mid=60&variant=original';
-  messagesByGid.set(1, items);
-  analysisItems = [{ id: 1, date: '2026-10-17', promptPreview: '验收分析', messageCount: 12, createdAt: '2026-10-17 09:00' }];
-  await openChat(page);
-  await expect(page.locator('.messages [data-mid="60"]')).toBeVisible();
-  await expect.poll(() => atBottom(page)).toBe(true);
-  await page.getByRole('searchbox', { name: '搜索群聊' }).fill('第一');
-  await page.getByRole('textbox', { name: '输入消息' }).fill('保留的草稿');
-  const scrollTop = await page.locator('.messages').evaluate(element => element.scrollTop);
+for (const viewport of [
+  { width: 900, height: 560 },
+  { width: 1280, height: 800 },
+  { width: 1600, height: 900 },
+]) {
+  test(`chat_acceptance_combines_history_media_analysis_and_reading_at_${viewport.width}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const items = makeMessages(1, 60, '组合消息');
+    items[59].text = '验收图片';
+    items[59].previewUrl = '/chat/media?gid=1&mid=60&variant=preview';
+    items[59].originalUrl = '/chat/media?gid=1&mid=60&variant=original';
+    messagesByGid.set(1, items);
+    analysisItems = [
+      {
+        id: 1,
+        date: '2026-10-17',
+        promptPreview: '验收分析',
+        messageCount: 12,
+        createdAt: '2026-10-17 09:00',
+      },
+    ];
+    await openChat(page);
+    await expect(page.locator('.messages [data-mid="60"]')).toBeVisible();
+    await expect.poll(() => atBottom(page)).toBe(true);
+    await page.getByRole('searchbox', { name: '搜索群聊' }).fill('第一');
+    await page.getByRole('textbox', { name: '输入消息' }).fill('保留的草稿');
+    const scrollTop = await page.locator('.messages').evaluate((element) => element.scrollTop);
 
-  const historyTrigger = page.getByRole('button', { name: '📜 聊天记录' });
-  await historyTrigger.focus();
-  await page.keyboard.press('Enter');
-  const history = page.locator('dialog.history-dialog');
-  await history.getByLabel('开始日期').fill('2026-08-05');
-  await history.getByLabel('结束日期').fill('2026-08-07');
-  await history.getByLabel('内容', { exact: true }).fill('验收图片');
-  await history.getByRole('button', { name: '🔍 查询' }).click();
-  await expect(history.locator('.history-result')).toHaveCount(1);
-  await history.locator('.history-result').click();
-  const imageTrigger = history.locator('[data-mid="60"]').getByRole('button', { name: '查看原图' });
-  await imageTrigger.click();
-  const viewer = history.locator('dialog.image-viewer');
-  await expect(viewer.getByAltText('消息原图')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(viewer).not.toHaveJSProperty('open', true);
-  await expect(history).toHaveJSProperty('open', true);
-  await expect(imageTrigger).toBeFocused();
-  await history.screenshot({ path: testInfo.outputPath('history-context.png') });
-  await page.keyboard.press('Escape');
-  await expect(historyTrigger).toBeFocused();
+    const historyTrigger = page.getByRole('button', { name: '📜 聊天记录' });
+    await historyTrigger.focus();
+    await page.keyboard.press('Enter');
+    const history = page.locator('dialog.history-dialog');
+    await history.getByLabel('开始日期').fill('2026-08-05');
+    await history.getByLabel('结束日期').fill('2026-08-07');
+    await history.getByLabel('内容', { exact: true }).fill('验收图片');
+    await history.getByRole('button', { name: '🔍 查询' }).click();
+    await expect(history.locator('.history-result')).toHaveCount(1);
+    await history.locator('.history-result').click();
+    const imageTrigger = history
+      .locator('[data-mid="60"]')
+      .getByRole('button', { name: '查看原图' });
+    await imageTrigger.click();
+    const viewer = history.locator('dialog.image-viewer');
+    await expect(viewer.getByAltText('消息原图')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(viewer).not.toHaveJSProperty('open', true);
+    await expect(history).toHaveJSProperty('open', true);
+    await expect(imageTrigger).toBeFocused();
+    await history.screenshot({ path: testInfo.outputPath('history-context.png') });
+    await page.keyboard.press('Escape');
+    await expect(historyTrigger).toBeFocused();
 
-  const analysisTrigger = page.getByRole('button', { name: '🤖 群聊分析' });
-  await analysisTrigger.click();
-  const analysis = page.locator('dialog.analysis-dialog');
-  await analysis.locator('.analysis-item').click();
-  await expect(analysis.locator('.analysis-detail-content h2')).toHaveText('结论');
-  await analysis.screenshot({ path: testInfo.outputPath('analysis-detail.png') });
-  await page.keyboard.press('Escape');
-  await expect(analysisTrigger).toBeFocused();
-  await expect(page.getByRole('textbox', { name: '输入消息' })).toHaveValue('保留的草稿');
-  await expect(page.getByRole('searchbox', { name: '搜索群聊' })).toHaveValue('第一');
-  expect(Math.abs(await page.locator('.messages').evaluate(element => element.scrollTop) - scrollTop)).toBeLessThanOrEqual(1);
+    const analysisTrigger = page.getByRole('button', { name: '🤖 群聊分析' });
+    await analysisTrigger.click();
+    const analysis = page.locator('dialog.analysis-dialog');
+    await analysis.locator('.analysis-item').click();
+    await expect(analysis.locator('.analysis-detail-content h2')).toHaveText('结论');
+    await analysis.screenshot({ path: testInfo.outputPath('analysis-detail.png') });
+    await page.keyboard.press('Escape');
+    await expect(analysisTrigger).toBeFocused();
+    await expect(page.getByRole('textbox', { name: '输入消息' })).toHaveValue('保留的草稿');
+    await expect(page.getByRole('searchbox', { name: '搜索群聊' })).toHaveValue('第一');
+    expect(
+      Math.abs(
+        (await page.locator('.messages').evaluate((element) => element.scrollTop)) - scrollTop,
+      ),
+    ).toBeLessThanOrEqual(1);
 
-  await page.getByRole('button', { name: '进入沉浸阅读' }).click();
-  await expect(page.locator('.composer')).toBeHidden();
-  await page.getByRole('button', { name: '退出沉浸阅读' }).click();
-  await expect(page.getByRole('textbox', { name: '输入消息' })).toHaveValue('保留的草稿');
-  const geometry = await page.evaluate(() => ({
-    width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
-    innerWidth, innerHeight,
-  }));
-  expect(geometry.width).toBeLessThanOrEqual(geometry.innerWidth);
-  expect(geometry.height).toBeLessThanOrEqual(geometry.innerHeight);
-  expect(sendBodies).toEqual([]);
-  expect(requests.some(value => value.startsWith('POST '))).toBe(false);
-  await page.screenshot({ path: testInfo.outputPath('chat-combined.png') });
-});
+    await page.getByRole('button', { name: '进入沉浸阅读' }).click();
+    await expect(page.locator('.composer')).toBeHidden();
+    await page.getByRole('button', { name: '退出沉浸阅读' }).click();
+    await expect(page.getByRole('textbox', { name: '输入消息' })).toHaveValue('保留的草稿');
+    const geometry = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth,
+      height: document.documentElement.scrollHeight,
+      innerWidth,
+      innerHeight,
+    }));
+    expect(geometry.width).toBeLessThanOrEqual(geometry.innerWidth);
+    expect(geometry.height).toBeLessThanOrEqual(geometry.innerHeight);
+    expect(sendBodies).toEqual([]);
+    expect(requests.some((value) => value.startsWith('POST '))).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath('chat-combined.png') });
+  });
 }
 
 for (const operation of ['query', 'capture']) {
-test(`chat_acceptance_closing_history_cancels_pending_${operation}`, async ({ page }) => {
-  messagesByGid.set(1, makeMessages(1, 3, '消息'));
-  await openChat(page);
-  await page.getByRole('button', { name: '📜 聊天记录' }).click();
-  const history = page.locator('dialog.history-dialog');
-  const path = operation === 'query' ? '/chat/messages' : '/chat/since';
-  const aborted: string[] = [];
-  page.on('requestfailed', request => {
-    if (new URL(request.url()).pathname === path) aborted.push(request.url());
+  test(`chat_acceptance_closing_history_cancels_pending_${operation}`, async ({ page }) => {
+    messagesByGid.set(1, makeMessages(1, 3, '消息'));
+    await openChat(page);
+    await page.getByRole('button', { name: '📜 聊天记录' }).click();
+    const history = page.locator('dialog.history-dialog');
+    const path = operation === 'query' ? '/chat/messages' : '/chat/since';
+    const aborted: string[] = [];
+    page.on('requestfailed', (request) => {
+      if (new URL(request.url()).pathname === path) aborted.push(request.url());
+    });
+    holdPredicate = (url) => url.pathname === path;
+    await history
+      .getByRole('button', { name: operation === 'query' ? '🔍 查询' : '⬇️ 同步历史' })
+      .click();
+    await expect.poll(() => held.length).toBe(1);
+    await history.getByRole('button', { name: '关闭聊天记录' }).click();
+    await expect(history).not.toHaveJSProperty('open', true);
+    try {
+      await expect.poll(() => aborted.length, { timeout: 2000 }).toBe(1);
+    } finally {
+      releaseHeld();
+    }
+    await page.getByRole('button', { name: '📜 聊天记录' }).click();
+    await expect(history.locator('.history-empty')).toHaveText('设置筛选条件后点击查询');
+    await expect(history.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
   });
-  holdPredicate = url => url.pathname === path;
-  await history.getByRole('button', { name: operation === 'query' ? '🔍 查询' : '⬇️ 同步历史' }).click();
-  await expect.poll(() => held.length).toBe(1);
-  await history.getByRole('button', { name: '关闭聊天记录' }).click();
-  await expect(history).not.toHaveJSProperty('open', true);
-  try {
-    await expect.poll(() => aborted.length, { timeout: 2000 }).toBe(1);
-  } finally {
-    releaseHeld();
-  }
-  await page.getByRole('button', { name: '📜 聊天记录' }).click();
-  await expect(history.locator('.history-empty')).toHaveText('设置筛选条件后点击查询');
-  await expect(history.getByRole('button', { name: '⬇️ 同步历史' })).toBeEnabled();
-});
 }
 
 test('chat_acceptance_preserves_the_window_logo_and_favicon', async ({ page }) => {
   await openChat(page);
   await expect(page.locator('.title-logo img')).toBeVisible();
-  await expect.poll(() => page.locator('.title-logo img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  await expect
+    .poll(() =>
+      page.locator('.title-logo img').evaluate((img: HTMLImageElement) => img.naturalWidth),
+    )
+    .toBeGreaterThan(0);
   await expect(page.locator('head link[rel="icon"]')).toHaveAttribute('type', 'image/svg+xml');
   const href = await page.locator('head link[rel="icon"]').getAttribute('href');
   const response = await page.request.get(new URL(href!, page.url()).href);

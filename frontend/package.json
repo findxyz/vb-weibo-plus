@@ -9,8 +9,10 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "format": "biome format --write .",
+    "lint": "biome check . && node scripts/check-boundaries.mjs",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run lint && npm run typecheck && vite build",
     "test": "playwright test"
   },
   "dependencies": {
@@ -21,6 +23,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.9",
     "@playwright/test": "1.64.0",
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",

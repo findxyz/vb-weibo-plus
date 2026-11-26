@@ -1,4 +1,4 @@
-import { WEIBO_EMOJI_MAP } from './emoji-map.js';
+import { WEIBO_EMOJI_MAP } from './emoji-map';
 
 const IMAGE_PHRASE_RE = /^\[(\/[0-9a-z]+\.png)\]$/i;
 const IMAGE_BASE = 'https://img.t.sinajs.cn/t4/appstyle/expression/emimage';

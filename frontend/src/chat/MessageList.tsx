@@ -1,14 +1,23 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  compareMessages, fetchAttitudes, fetchEarlierMessages, fetchLatestMessages, fetchNewerMessages,
-  HttpError, MESSAGE_PAGE_SIZE, nextAfterCursor, nextBeforeCursor, type Attitude, type ChatMessage, type MessageCursor,
+  compareMessages,
+  fetchAttitudes,
+  fetchEarlierMessages,
+  fetchLatestMessages,
+  fetchNewerMessages,
+  HttpError,
+  MESSAGE_PAGE_SIZE,
+  nextAfterCursor,
+  nextBeforeCursor,
+  type Attitude,
+  type ChatMessage,
+  type MessageCursor,
 } from './api';
-import { STORAGE_KEYS } from '../shared/storage-keys.js';
+import { STORAGE_KEYS } from '../shared/storage-keys';
 import MessageItem from './MessageItem';
 import ImageViewer, { type ImageSelection } from './ImageViewer';
 import { trimMessageCache } from './message-cache';
 
-// 窗口尺寸取自旧 sessions.js：DOM 只保留视口上下各约 180 条，视口外按估算高度占位。
 const WINDOW_CHUNK = 60;
 const KEEP_ABOVE = 180;
 const KEEP_BELOW = 180;
@@ -41,7 +50,11 @@ type Props = {
 };
 
 export default function MessageList({
-  gid, admins, refreshToken = 0, pollingEnabled = true, onAuthExpired,
+  gid,
+  admins,
+  refreshToken = 0,
+  pollingEnabled = true,
+  onAuthExpired,
 }: Props) {
   const [ordered, setOrdered] = useState<ChatMessage[]>([]);
   const [windowMids, setWindowMids] = useState<{ start: number; end: number } | null>(null);
@@ -51,8 +64,9 @@ export default function MessageList({
   const [newMessagesVisible, setNewMessagesVisible] = useState(false);
   const [announcement, setAnnouncement] = useState({ serial: 0, text: '' });
   const [following, setFollowing] = useState(false);
-  const [attitudesEnabled, setAttitudesEnabled] = useState(() =>
-    localStorage.getItem(STORAGE_KEYS.CHAT_ATTITUDES) === '1');
+  const [attitudesEnabled, setAttitudesEnabled] = useState(
+    () => localStorage.getItem(STORAGE_KEYS.CHAT_ATTITUDES) === '1',
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const topSpacerRef = useRef<HTMLDivElement>(null);
@@ -68,7 +82,11 @@ export default function MessageList({
   const followingRef = useRef(false);
   const scrollPositionRef = useRef({ top: 0, height: 0 });
   const pendingAnchorRef = useRef<Anchor | null>(null);
-  const pendingCompensationRef = useRef<{ mids: number[]; apply: boolean; estimated: number } | null>(null);
+  const pendingCompensationRef = useRef<{
+    mids: number[];
+    apply: boolean;
+    estimated: number;
+  } | null>(null);
   const pendingJumpRef = useRef<number | null>(null);
   const frameRef = useRef(0);
   const pendingScrollRef = useRef(false);
@@ -85,29 +103,32 @@ export default function MessageList({
     initializingRef.current = true;
     setStatus('loading');
     setErrorText('');
-    fetchLatestMessages(gid, MESSAGE_PAGE_SIZE, controller.signal).then(page => {
-      if (controller.signal.aborted) return;
-      const items = page.items.toSorted(compareMessages);
-      beforeCursorRef.current = nextBeforeCursor(page);
-      hasMoreRef.current = page.hasMore;
-      heightsRef.current.clear();
-      messagesRef.current = new Map(items.map(message => [message.mid, message]));
-      setOrdered(items);
-      if (items.length === 0) {
-        setWindowMids(null);
-      } else {
-        showLatest(items, 'once');
-      }
-      setStatus('ready');
-      void loadAttitudes(items);
-    }).catch(error => {
-      if (controller.signal.aborted) return;
-      if (error instanceof HttpError && error.status === 401) onAuthExpired();
-      setStatus('error');
-      setErrorText(error instanceof Error ? error.message : '消息加载失败');
-    }).finally(() => {
-      if (!controller.signal.aborted) initializingRef.current = false;
-    });
+    fetchLatestMessages(gid, MESSAGE_PAGE_SIZE, controller.signal)
+      .then((page) => {
+        if (controller.signal.aborted) return;
+        const items = page.items.toSorted(compareMessages);
+        beforeCursorRef.current = nextBeforeCursor(page);
+        hasMoreRef.current = page.hasMore;
+        heightsRef.current.clear();
+        messagesRef.current = new Map(items.map((message) => [message.mid, message]));
+        setOrdered(items);
+        if (items.length === 0) {
+          setWindowMids(null);
+        } else {
+          showLatest(items, 'once');
+        }
+        setStatus('ready');
+        void loadAttitudes(items);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        if (error instanceof HttpError && error.status === 401) onAuthExpired();
+        setStatus('error');
+        setErrorText(error instanceof Error ? error.message : '消息加载失败');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) initializingRef.current = false;
+      });
     return () => controller.abort();
   }, [gid]);
 
@@ -117,16 +138,20 @@ export default function MessageList({
 
   const indexByMid = useMemo(() => {
     const index = new Map<number, number>();
-    ordered.forEach((message, position) => index.set(message.mid, position));
+    ordered.forEach((message, position) => {
+      index.set(message.mid, position);
+    });
     return index;
   }, [ordered]);
 
   const startIndex = windowMids
-    ? indexByMid.get(windowMids.start) ?? Math.max(0, ordered.length - WINDOW_CAP) : 0;
-  const endIndex = windowMids ? indexByMid.get(windowMids.end) ?? ordered.length - 1 : ordered.length - 1;
+    ? (indexByMid.get(windowMids.start) ?? Math.max(0, ordered.length - WINDOW_CAP))
+    : 0;
+  const endIndex = windowMids
+    ? (indexByMid.get(windowMids.end) ?? ordered.length - 1)
+    : ordered.length - 1;
   const adminIds = useMemo(() => new Set(admins), [admins]);
 
-  // 渲染后同步实测高度与占位高度，再处理落底、翻页锚点、窗口补偿和跳转。
   useLayoutEffect(() => {
     const container = containerRef.current;
     const topSpacer = topSpacerRef.current;
@@ -147,7 +172,11 @@ export default function MessageList({
     if (anchor) {
       pendingAnchorRef.current = null;
       const element = container.querySelector<HTMLElement>(`[data-mid="${anchor.mid}"]`);
-      if (element) setScrollTop(container, container.scrollTop + element.getBoundingClientRect().top - anchor.top);
+      if (element)
+        setScrollTop(
+          container,
+          container.scrollTop + element.getBoundingClientRect().top - anchor.top,
+        );
     }
     const compensation = pendingCompensationRef.current;
     if (compensation) {
@@ -164,7 +193,12 @@ export default function MessageList({
       const target = ordered[jumpIndex];
       const element = target && container.querySelector<HTMLElement>(`[data-mid="${target.mid}"]`);
       if (element) {
-        setScrollTop(container, container.scrollTop + element.getBoundingClientRect().top - container.getBoundingClientRect().top);
+        setScrollTop(
+          container,
+          container.scrollTop +
+            element.getBoundingClientRect().top -
+            container.getBoundingClientRect().top,
+        );
       }
     }
     const bottomRequest = pendingBottomRef.current;
@@ -181,11 +215,10 @@ export default function MessageList({
     }
   });
 
-  // 跟随中或一次性落底收尾时，补偿图片和表态撑高。
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const observer = new ResizeObserver(entries => {
+    const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const element = entry.target as HTMLElement;
         const mid = Number(element.dataset.mid);
@@ -194,13 +227,16 @@ export default function MessageList({
         heightsRef.current.set(mid, height);
         const message = messagesRef.current.get(mid);
         const settle = settleRef.current;
-        if (followingRef.current
-          || (message && settle && compareMessages(message, settle.boundary) <= 0)) {
+        if (
+          followingRef.current ||
+          (message && settle && compareMessages(message, settle.boundary) <= 0)
+        ) {
           setScrollTop(container, container.scrollHeight);
         }
       }
     });
-    for (const element of container.querySelectorAll<HTMLElement>('[data-mid]')) observer.observe(element);
+    for (const element of container.querySelectorAll<HTMLElement>('[data-mid]'))
+      observer.observe(element);
     return () => observer.disconnect();
   });
 
@@ -210,8 +246,12 @@ export default function MessageList({
     refreshRef.current = refreshOnce;
     workRef.current = () => {
       const container = containerRef.current;
-      if (container && newMessagesVisible && !document.hidden
-        && container.scrollHeight - container.scrollTop - container.clientHeight < 80) {
+      if (
+        container &&
+        newMessagesVisible &&
+        !document.hidden &&
+        container.scrollHeight - container.scrollTop - container.clientHeight < 80
+      ) {
         setNewMessagesVisible(false);
       }
       void loadEarlierIfNeeded();
@@ -219,7 +259,6 @@ export default function MessageList({
     };
   });
 
-  // 轮询当前群；失败按 1 秒起指数退避封顶 30 秒，成功后归零。登录失效时暂停。
   useEffect(() => {
     let stopped = false;
     let running = false;
@@ -241,7 +280,10 @@ export default function MessageList({
         void loop();
         return;
       }
-      timer = window.setTimeout(loop, Math.min(POLL_BASE_MS * 2 ** pollFailuresRef.current, POLL_MAX_MS));
+      timer = window.setTimeout(
+        loop,
+        Math.min(POLL_BASE_MS * 2 ** pollFailuresRef.current, POLL_MAX_MS),
+      );
     };
     const wake = () => {
       if (stopped) return;
@@ -280,7 +322,6 @@ export default function MessageList({
     };
   }, [pollingEnabled]);
 
-  // 发送成功后立即补一次刷新，不必等下一秒轮询；仍走读取接口，不做乐观插入。
   useEffect(() => {
     if (!refreshToken) return;
     void refreshOnce();
@@ -296,7 +337,6 @@ export default function MessageList({
       scrollPositionRef.current = { top, height };
       const atBottom = height - top - container.clientHeight <= FOLLOW_BOTTOM_THRESHOLD;
       const leftBottom = followingRef.current && top < previous.top && !atBottom;
-      // 内容高度变化时，用户向上离开底部仍可关闭跟随。
       if ((height === previous.height || leftBottom) && top !== previous.top && !document.hidden) {
         updateFollowing(top > previous.top && atBottom);
         if (!followingRef.current) settleRef.current = null;
@@ -321,15 +361,15 @@ export default function MessageList({
     };
   }, []);
 
-  // 记录程序定位后的实际位置，避免其触发的滚动事件开启跟随。
   function setScrollTop(container: HTMLElement, top: number) {
     container.scrollTop = top;
     scrollPositionRef.current = { top: container.scrollTop, height: container.scrollHeight };
   }
 
   useEffect(() => {
-    // 页面内任一用户输入都结束落底收尾，包括在侧栏或页面其它区域的操作。
-    const release = () => { settleRef.current = null; };
+    const release = () => {
+      settleRef.current = null;
+    };
     const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
     for (const name of events) window.addEventListener(name, release, { passive: true });
     return () => {
@@ -362,13 +402,10 @@ export default function MessageList({
       hasMoreRef.current = items.length ? page.hasMore : false;
       if (!items.length) return;
       for (const message of items) messagesRef.current.set(message.mid, message);
-      // 锚点在插入前一刻采集，避免请求期间窗口滑动把旧位置当成插入基准；
-      // 新拉到的更早消息纳入窗口，保证刚翻到的内容可见，同时不越过 360 条上限。
       const anchor = captureAnchor(container);
       pendingAnchorRef.current = anchor;
-      // 以消息 Map 为准合并，避免表态等异步写入被旧的 ordered 快照覆盖。
       const merged = [...messagesRef.current.values()].sort(compareMessages);
-      const anchorIndex = anchor ? merged.findIndex(message => message.mid === anchor.mid) : 0;
+      const anchorIndex = anchor ? merged.findIndex((message) => message.mid === anchor.mid) : 0;
       const { start, end } = windowBounds(anchorIndex < 0 ? 0 : anchorIndex, merged.length);
       setOrdered(merged);
       setWindowMids({ start: merged[start].mid, end: merged[end].mid });
@@ -388,26 +425,25 @@ export default function MessageList({
     if (!container || !hasMoreRef.current || loadingEarlierRef.current) return;
     if (!beforeCursorRef.current) return;
     if (container.scrollTop > LOAD_EARLIER_THRESHOLD) return;
-    // 内容不足一屏时没有「更早」可翻，避免与落底互相触发。
     if (container.scrollHeight <= container.clientHeight) return;
     void loadEarlier();
   }
 
   function renderedElements(container: HTMLElement) {
     return [...container.children].filter(
-      (element): element is HTMLElement => element instanceof HTMLElement && Boolean(element.dataset.mid));
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement && Boolean(element.dataset.mid),
+    );
   }
 
-  // 跟随中落到最新；其余情况保留阅读位置并提示有新消息。
   function appendFresh(items: ChatMessage[]) {
     if (!items.length) return;
-    const freshCount = items.filter(message => !messagesRef.current.has(message.mid)).length;
+    const freshCount = items.filter((message) => !messagesRef.current.has(message.mid)).length;
     settleRef.current = null;
     for (const message of items) messagesRef.current.set(message.mid, message);
     const merged = [...messagesRef.current.values()].sort(compareMessages);
     const retained = trimMessageCache(merged, messagesRef.current, heightsRef.current);
     if (retained !== merged) {
-      // 裁剪只删除页面缓存；作废旧区间翻页，避免迟到请求重新放回已丢弃消息。
       cacheGenerationRef.current += 1;
       beforeCursorRef.current = null;
       hasMoreRef.current = false;
@@ -416,21 +452,30 @@ export default function MessageList({
       const anchor = containerRef.current && captureAnchor(containerRef.current);
       pendingAnchorRef.current = anchor && messagesRef.current.has(anchor.mid) ? anchor : null;
       if (anchor && !pendingAnchorRef.current) pendingJumpRef.current = 0;
-      setWindowMids(current => {
+      setWindowMids((current) => {
         if (current && messagesRef.current.has(current.end)) {
-          return { start: messagesRef.current.has(current.start) ? current.start : retained[0].mid, end: current.end };
+          return {
+            start: messagesRef.current.has(current.start) ? current.start : retained[0].mid,
+            end: current.end,
+          };
         }
-        return { start: retained[0].mid, end: retained[Math.min(WINDOW_CAP, retained.length) - 1].mid };
+        return {
+          start: retained[0].mid,
+          end: retained[Math.min(WINDOW_CAP, retained.length) - 1].mid,
+        };
       });
     }
     setOrdered(retained);
-    if (freshCount) setAnnouncement(previous => ({ serial: previous.serial + 1, text: `收到 ${freshCount} 条新消息` }));
+    if (freshCount)
+      setAnnouncement((previous) => ({
+        serial: previous.serial + 1,
+        text: `收到 ${freshCount} 条新消息`,
+      }));
     setNewMessagesVisible(true);
     if (followingRef.current) showLatest(retained, 'follow');
     void loadAttitudes(items);
   }
 
-  // 表态只写回当前群的消息对象；空数组同样落盘，用于清掉旧表态。
   function applyAttitudes(result: Record<string, Attitude[]>) {
     let changed = false;
     for (const [mid, attitudes] of Object.entries(result)) {
@@ -448,7 +493,7 @@ export default function MessageList({
   async function loadAttitudes(items: ChatMessage[]) {
     const controller = abortRef.current;
     if (!controller || !attitudesEnabledRef.current || !items.length) return;
-    const mids = [...new Set(items.map(message => message.mid))];
+    const mids = [...new Set(items.map((message) => message.mid))];
     try {
       const result = await fetchAttitudes(gid, mids, controller.signal);
       if (controller.signal.aborted) return;
@@ -480,7 +525,7 @@ export default function MessageList({
       if (document.hidden || signal.aborted) return false;
       const page = await fetchNewerMessages(gid, MESSAGE_PAGE_SIZE, cursor, signal);
       if (signal.aborted) return false;
-      const items = page.items.filter(message => !messagesRef.current.has(message.mid));
+      const items = page.items.filter((message) => !messagesRef.current.has(message.mid));
       if (items.length) appendFresh(items);
       const next = nextAfterCursor(page);
       if (!next) break;
@@ -492,7 +537,8 @@ export default function MessageList({
 
   async function refreshOnce() {
     const controller = abortRef.current;
-    if (!controller || refreshingRef.current || initializingRef.current || document.hidden) return true;
+    if (!controller || refreshingRef.current || initializingRef.current || document.hidden)
+      return true;
     refreshingRef.current = true;
     try {
       if (pendingCatchUpRef.current) {
@@ -502,7 +548,7 @@ export default function MessageList({
       }
       const page = await fetchLatestMessages(gid, MESSAGE_PAGE_SIZE, controller.signal);
       if (controller.signal.aborted) return true;
-      const fresh = page.items.filter(message => !messagesRef.current.has(message.mid));
+      const fresh = page.items.filter((message) => !messagesRef.current.has(message.mid));
       if (fresh.length) appendFresh(fresh);
       return true;
     } catch (error) {
@@ -529,7 +575,6 @@ export default function MessageList({
     setFollowing(next);
   }
 
-  // 两个跳到底部的按钮都会开启跟随，并立即补一次刷新。
   function jumpToLatest() {
     updateFollowing(true);
     showLatest(ordered, 'follow');
@@ -554,7 +599,6 @@ export default function MessageList({
     return count;
   }
 
-  // 滚动离开已渲染区间时按估算高度一次定位到目标附近，避免逐批物化沿途内容。
   function shiftWindow() {
     const container = containerRef.current;
     const topSpacer = topSpacerRef.current;
@@ -594,7 +638,6 @@ export default function MessageList({
     return Math.max(from, to - 1);
   }
 
-  // 以某条消息为中心夹取窗口：保留上方 180 条上下文，总数不超过 360 条。
   function windowBounds(center: number, length: number) {
     const start = Math.max(0, Math.min(center - KEEP_ABOVE, length - WINDOW_CAP));
     return { start, end: Math.min(length - 1, start + WINDOW_CAP - 1) };
@@ -622,18 +665,23 @@ export default function MessageList({
       newEnd = Math.min(ordered.length - 1, oldEnd + WINDOW_CHUNK);
       if (newEnd - newStart + 1 > WINDOW_CAP) newStart = newEnd - WINDOW_CAP + 1;
     }
-    const added = direction === 'up'
-      ? ordered.slice(newStart, oldStart)
-      : ordered.slice(oldEnd + 1, newEnd + 1);
-    const apply = direction === 'up'
-      || bottomSpacerRef.current!.getBoundingClientRect().top < container.getBoundingClientRect().bottom;
+    const added =
+      direction === 'up'
+        ? ordered.slice(newStart, oldStart)
+        : ordered.slice(oldEnd + 1, newEnd + 1);
+    const apply =
+      direction === 'up' ||
+      bottomSpacerRef.current!.getBoundingClientRect().top <
+        container.getBoundingClientRect().bottom;
     const anchor = captureAnchor(container);
     if (anchor) pendingAnchorRef.current = anchor;
-    pendingCompensationRef.current = anchor ? null : {
-      mids: added.map(message => message.mid),
-      apply,
-      estimated: sumHeights(heightsRef.current, added),
-    };
+    pendingCompensationRef.current = anchor
+      ? null
+      : {
+          mids: added.map((message) => message.mid),
+          apply,
+          estimated: sumHeights(heightsRef.current, added),
+        };
     setWindowMids({ start: ordered[newStart].mid, end: ordered[newEnd].mid });
   }
 
@@ -644,42 +692,78 @@ export default function MessageList({
       </span>
       <div className="messages" ref={containerRef}>
         <div className="list-spacer" ref={topSpacerRef} aria-hidden="true" />
-        {status === 'loading' && <p className="messages-state" role="status">正在加载消息……</p>}
+        {status === 'loading' && (
+          <p className="messages-state" role="status">
+            正在加载消息……
+          </p>
+        )}
         {status === 'error' && (
-          <p className="messages-state" role="alert">{`消息加载失败，点击左侧群聊重试。（${errorText}）`}</p>
+          <p
+            className="messages-state"
+            role="alert"
+          >{`消息加载失败，点击左侧群聊重试。（${errorText}）`}</p>
         )}
         {status === 'ready' && !ordered.length && (
-          <p className="messages-state" role="status">这个群还没有本地消息。</p>
+          <p className="messages-state" role="status">
+            这个群还没有本地消息。
+          </p>
         )}
-        {status === 'ready' && ordered.slice(startIndex, endIndex + 1).map(message => (
-          <MessageItem key={message.mid} message={message} isAdmin={adminIds.has(message.senderId)}
-            onOpenImage={setViewerImage} />
-        ))}
+        {status === 'ready' &&
+          ordered
+            .slice(startIndex, endIndex + 1)
+            .map((message) => (
+              <MessageItem
+                key={message.mid}
+                message={message}
+                isAdmin={adminIds.has(message.senderId)}
+                onOpenImage={setViewerImage}
+              />
+            ))}
         <div className="list-spacer" ref={bottomSpacerRef} aria-hidden="true" />
       </div>
-      <button type="button" className={`attitudes-toggle${attitudesEnabled ? ' active' : ''}`}
+      <button
+        type="button"
+        className={`attitudes-toggle${attitudesEnabled ? ' active' : ''}`}
         aria-pressed={attitudesEnabled}
         aria-label={attitudesEnabled ? '表态已打开，随每次查询实时刷新' : '是否打开表态'}
         title={attitudesEnabled ? '表态已打开，随每次查询实时刷新' : '是否打开表态'}
-        onClick={toggleAttitudes}>
-        <span className="attitudes-toggle-icon" aria-hidden="true">👍</span>
+        onClick={toggleAttitudes}
+      >
+        <span className="attitudes-toggle-icon" aria-hidden="true">
+          👍
+        </span>
         <svg className="attitudes-toggle-slash" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4.5 4.5 19.5 19.5" />
         </svg>
       </button>
-      <button type="button" className="scroll-bottom-button" aria-label="滚到最新消息"
+      <button
+        type="button"
+        className="scroll-bottom-button"
+        aria-label="滚到最新消息"
         aria-description={following ? '正在跟随新消息' : undefined}
         title={following ? '正在跟随新消息' : '滚到最新消息并跟随'}
-        data-following={following} onClick={jumpToLatest}>
+        data-following={following}
+        onClick={jumpToLatest}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 4v12" />
           <path d="m6.5 10.5 5.5 5.5 5.5-5.5" />
           <path d="M5 20h14" />
         </svg>
       </button>
-      <button type="button" className="new-messages-button" hidden={!newMessagesVisible}
-        onClick={jumpToLatest}>有新消息</button>
-      <ImageViewer selection={viewerImage} onChange={setViewerImage} onClose={() => setViewerImage(null)} />
+      <button
+        type="button"
+        className="new-messages-button"
+        hidden={!newMessagesVisible}
+        onClick={jumpToLatest}
+      >
+        有新消息
+      </button>
+      <ImageViewer
+        selection={viewerImage}
+        onChange={setViewerImage}
+        onClose={() => setViewerImage(null)}
+      />
     </>
   );
 }

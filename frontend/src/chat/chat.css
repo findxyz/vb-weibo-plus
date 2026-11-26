@@ -1,4 +1,3 @@
-/* 蔚蓝拟物皮肤：令牌取自 docs/design/DESIGN.md，勿与 post 页纸感皮肤混用。 */
 :root {
   color-scheme: light;
   --accent: #086ce0;
@@ -91,7 +90,12 @@ body,
 body {
   color: var(--text);
   background: var(--desktop-backdrop);
-  font: 15px/1.55 Tahoma, "Microsoft YaHei", "Microsoft JhengHei", SimSun, sans-serif;
+  font:
+    15px / 1.55 Tahoma,
+    "Microsoft YaHei",
+    "Microsoft JhengHei",
+    SimSun,
+    sans-serif;
 }
 
 .download-notice {
@@ -110,8 +114,13 @@ body {
   overflow-wrap: anywhere;
 }
 
-.download-notice strong { display: block; color: var(--accent-strong); }
-.download-notice span { color: var(--filter-text); }
+.download-notice strong {
+  display: block;
+  color: var(--accent-strong);
+}
+.download-notice span {
+  color: var(--filter-text);
+}
 
 button,
 input,
@@ -154,8 +163,15 @@ a:focus-visible {
   color: #ffffff;
   background:
     linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
-    linear-gradient(var(--titlebar-top) 0, var(--titlebar-upper) 28%, var(--titlebar-deep) 72%, var(--titlebar-bottom) 100%);
-  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+    linear-gradient(
+      var(--titlebar-top) 0,
+      var(--titlebar-upper) 28%,
+      var(--titlebar-deep) 72%,
+      var(--titlebar-bottom) 100%
+    );
+  box-shadow:
+    inset 0 -2px 3px rgb(0 48 145 / 58%),
+    inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .title-logo {
@@ -198,7 +214,9 @@ h1 {
   border-radius: 5px;
   color: #ffffff;
   background: linear-gradient(var(--window-from), var(--window-to) 72%);
-  box-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
+  box-shadow:
+    inset 0 0 0 1px rgb(6 69 157 / 45%),
+    0 1px 1px rgb(0 39 111 / 40%);
   cursor: pointer;
 }
 
@@ -308,8 +326,13 @@ h1 {
 }
 
 @keyframes panel-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .groups-heading h2 {
@@ -344,8 +367,10 @@ h1 {
   border-radius: var(--radius-sm);
   color: var(--text);
   background:
-    linear-gradient(45deg, transparent 46%, #6b8193 47% 54%, transparent 55%) 17px 19px / 8px 8px no-repeat,
-    radial-gradient(circle, transparent 46%, #6b8193 48% 62%, transparent 64%) 8px 8px / 14px 14px no-repeat,
+    linear-gradient(45deg, transparent 46%, #6b8193 47% 54%, transparent 55%) 17px 19px / 8px 8px
+    no-repeat,
+    radial-gradient(circle, transparent 46%, #6b8193 48% 62%, transparent 64%) 8px 8px / 14px 14px
+    no-repeat,
     var(--surface);
   box-shadow: inset 0 1px 2px rgb(35 77 110 / 12%);
 }
@@ -527,7 +552,6 @@ h1 {
   background: var(--surface-subtle);
 }
 
-/* 选中文件后程序化聚焦本区以支撑 Enter 发送，不显示容器自身的焦点环。 */
 .composer-attachment:focus-visible {
   outline: none;
 }
@@ -699,9 +723,15 @@ h1 {
 }
 
 @keyframes size-flash {
-  0% { background: rgb(199 255 184 / 0.65); }
-  96.67% { background: rgb(199 255 184 / 0.65); }
-  100% { background: transparent; }
+  0% {
+    background: rgb(199 255 184 / 0.65);
+  }
+  96.67% {
+    background: rgb(199 255 184 / 0.65);
+  }
+  100% {
+    background: transparent;
+  }
 }
 
 .messages-shell {
@@ -721,7 +751,6 @@ h1 {
   scrollbar-gutter: stable;
 }
 
-/* 滑动窗口占位：撑起未渲染消息的滚动高度。 */
 .list-spacer {
   flex: none;
   width: 100%;
@@ -759,7 +788,6 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
-/* 固定 5 列：表态多时按 5 个一行换行，避免一条消息拉出一长排。 */
 .message-attitudes {
   display: grid;
   grid-template-columns: repeat(5, max-content);
@@ -966,7 +994,8 @@ h1 {
 .system-message {
   display: flex;
   justify-content: center;
-}.system-message .bubble {
+}
+.system-message .bubble {
   max-width: min(720px, 80%);
   padding: 5px 14px;
   border: 0;
@@ -1124,8 +1153,12 @@ h1 {
   line-height: 1;
 }
 
-.image-viewer .viewer-prev { left: 16px; }
-.image-viewer .viewer-next { right: 16px; }
+.image-viewer .viewer-prev {
+  left: 16px;
+}
+.image-viewer .viewer-next {
+  right: 16px;
+}
 .image-viewer .viewer-counter {
   position: absolute;
   bottom: 16px;
@@ -1230,12 +1263,22 @@ h1 {
 }
 
 .scroll-bottom-button[data-following="true"]::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: conic-gradient(transparent 55%, var(--accent-soft) 68%, var(--accent) 92%, transparent);
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 1.25px), transparent 100%);
+  background: conic-gradient(
+    transparent 55%,
+    var(--accent-soft) 68%,
+    var(--accent) 92%,
+    transparent
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 3px),
+    #000 calc(100% - 1.25px),
+    transparent 100%
+  );
   pointer-events: none;
 }
 
@@ -1246,10 +1289,11 @@ h1 {
 }
 
 @keyframes follow-halo {
-  to { transform: rotate(1turn); }
+  to {
+    transform: rotate(1turn);
+  }
 }
 
-/* 聊天记录窗口：独立只读弹窗，沿用拟物标题栏与侧栏筛选。 */
 .history-dialog {
   width: min(1120px, calc(100vw - 64px));
   max-width: none;
@@ -1282,8 +1326,15 @@ h1 {
   color: #ffffff;
   background:
     linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
-    linear-gradient(var(--titlebar-top) 0, var(--titlebar-upper) 28%, var(--titlebar-deep) 72%, var(--titlebar-bottom) 100%);
-  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+    linear-gradient(
+      var(--titlebar-top) 0,
+      var(--titlebar-upper) 28%,
+      var(--titlebar-deep) 72%,
+      var(--titlebar-bottom) 100%
+    );
+  box-shadow:
+    inset 0 -2px 3px rgb(0 48 145 / 58%),
+    inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .history-titlebar h2 {
@@ -1312,7 +1363,9 @@ h1 {
   border-radius: 5px;
   color: #ffffff;
   background: linear-gradient(var(--close-from), var(--close-to) 72%);
-  box-shadow: inset 0 0 0 1px rgb(6 69 157 / 45%), 0 1px 1px rgb(0 39 111 / 40%);
+  box-shadow:
+    inset 0 0 0 1px rgb(6 69 157 / 45%),
+    0 1px 1px rgb(0 39 111 / 40%);
 }
 
 .history-close::before,
@@ -1323,7 +1376,9 @@ h1 {
   display: block;
   width: 12px;
   height: 12px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23fff' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23fff' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E")
+    center / contain no-repeat;
   filter: drop-shadow(0 1px #074b9a);
 }
 
@@ -1506,7 +1561,6 @@ h1 {
   box-shadow: inset 4px 0 0 var(--amber);
 }
 
-/* 群聊分析窗口：与聊天记录共用拟物窗口与筛选栏口径。 */
 .analysis-dialog {
   width: min(1120px, calc(100vw - 64px));
   max-width: none;
@@ -1539,8 +1593,15 @@ h1 {
   color: #ffffff;
   background:
     linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
-    linear-gradient(var(--titlebar-top) 0, var(--titlebar-upper) 28%, var(--titlebar-deep) 72%, var(--titlebar-bottom) 100%);
-  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+    linear-gradient(
+      var(--titlebar-top) 0,
+      var(--titlebar-upper) 28%,
+      var(--titlebar-deep) 72%,
+      var(--titlebar-bottom) 100%
+    );
+  box-shadow:
+    inset 0 -2px 3px rgb(0 48 145 / 58%),
+    inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .analysis-titlebar h2 {
@@ -1883,14 +1944,15 @@ h1 {
 }
 
 @keyframes analysis-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .analysis-error {
   color: var(--danger);
 }
 
-/* 盗梦空间：悬停头像 3 秒后的入口弹层与游戏弹窗。 */
 .dream-popover {
   position: fixed;
   z-index: 1000;
@@ -1914,8 +1976,15 @@ h1 {
   color: #ffffff;
   background:
     linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
-    linear-gradient(var(--titlebar-top) 0, var(--titlebar-upper) 28%, var(--titlebar-deep) 72%, var(--titlebar-bottom) 100%);
-  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+    linear-gradient(
+      var(--titlebar-top) 0,
+      var(--titlebar-upper) 28%,
+      var(--titlebar-deep) 72%,
+      var(--titlebar-bottom) 100%
+    );
+  box-shadow:
+    inset 0 -2px 3px rgb(0 48 145 / 58%),
+    inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .dream-popover-titlebar h2 {
@@ -1954,7 +2023,6 @@ h1 {
 }
 
 .dream-dialog {
-  /* 留出上下间距 32 px、标题栏 38 px 和边框 4 px，游戏保持原始宽高比。 */
   width: min(560px, calc(100vw - 32px), calc((100vh - 74px) * 512 / 480 + 4px));
   max-width: none;
   height: fit-content;
@@ -1986,8 +2054,15 @@ h1 {
   color: #ffffff;
   background:
     linear-gradient(180deg, rgb(255 255 255 / 38%), transparent 8px),
-    linear-gradient(var(--titlebar-top) 0, var(--titlebar-upper) 28%, var(--titlebar-deep) 72%, var(--titlebar-bottom) 100%);
-  box-shadow: inset 0 -2px 3px rgb(0 48 145 / 58%), inset 0 1px 0 rgb(255 255 255 / 55%);
+    linear-gradient(
+      var(--titlebar-top) 0,
+      var(--titlebar-upper) 28%,
+      var(--titlebar-deep) 72%,
+      var(--titlebar-bottom) 100%
+    );
+  box-shadow:
+    inset 0 -2px 3px rgb(0 48 145 / 58%),
+    inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .dream-titlebar h2 {

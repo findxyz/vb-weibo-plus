@@ -8,38 +8,79 @@ import type { ImageSelection } from './ImageViewer';
 import { useLoopingGif } from './useLoopingGif';
 
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
-  month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
 });
 
-// 表态贴图缺失时的近似符号，与旧页的 ATTITUDE_ICONS 同源。
 const ATTITUDE_ICONS: Record<string, string> = {
-  good: '👍', '点赞': '👍', '赞啊': '👍', '干杯': '🍺',
-  '心': '❤️', '给你小心心': '💗', '送花花': '💐', '爱慕': '😘', '憧憬': '😍',
-  '太开心': '😆', '哈哈': '😃', '嘻嘻': '😁', '哇': '🤩', '期待': '🤞',
-  '抱一抱': '🤗', '来抱抱': '🫂', '鼓掌': '👏', '求饶': '🙏', '打call': '🙌',
-  '彩虹屁': '🌈', '不愧是你': '💯', 'yeah': '🥳', '比耶': '✌️', '努力': '💪',
+  good: '👍',
+  点赞: '👍',
+  赞啊: '👍',
+  干杯: '🍺',
+  心: '❤️',
+  给你小心心: '💗',
+  送花花: '💐',
+  爱慕: '😘',
+  憧憬: '😍',
+  太开心: '😆',
+  哈哈: '😃',
+  嘻嘻: '😁',
+  哇: '🤩',
+  期待: '🤞',
+  抱一抱: '🤗',
+  来抱抱: '🫂',
+  鼓掌: '👏',
+  求饶: '🙏',
+  打call: '🙌',
+  彩虹屁: '🌈',
+  不愧是你: '💯',
+  yeah: '🥳',
+  比耶: '✌️',
+  努力: '💪',
 };
 
-// 与旧 message-view.js 一致：这些占位文案在媒体消息里不重复显示。
 const HIDDEN_CAPTIONS = new Set(['分享图片', '分享视频', '[动画表情]']);
 const SYSTEM_SENDER = '粉丝群';
 const WEIBO_CARD_TYPE = 14;
 
-function messageBody(message: ChatMessage, text: string, hideText: boolean, onOpenImage: (selection: ImageSelection) => void) {
+function messageBody(
+  message: ChatMessage,
+  text: string,
+  hideText: boolean,
+  onOpenImage: (selection: ImageSelection) => void,
+) {
   if (message.fileUrl) {
     return (
       <div className="bubble">
-        <a className="file-download" href={message.fileUrl} download={message.text || ''}
-          target="_blank" rel="noopener noreferrer">{message.text || '下载文件'}</a>
+        <a
+          className="file-download"
+          href={message.fileUrl}
+          download={message.text || ''}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {message.text || '下载文件'}
+        </a>
       </div>
     );
   }
-  const card = message.mediaType === WEIBO_CARD_TYPE
-    ? message.urlObjects?.[0] as WeiboUrlObject | undefined
-    : undefined;
-  if (card?.status) return <WeiboCard urlObject={card} gid={message.gid} mid={message.mid} onOpenImage={onOpenImage} />;
+  const card =
+    message.mediaType === WEIBO_CARD_TYPE
+      ? (message.urlObjects?.[0] as WeiboUrlObject | undefined)
+      : undefined;
+  if (card?.status)
+    return (
+      <WeiboCard urlObject={card} gid={message.gid} mid={message.mid} onOpenImage={onOpenImage} />
+    );
   if (hideText) return null;
-  return <div className="bubble"><MessageText text={text} /></div>;
+  return (
+    <div className="bubble">
+      <MessageText text={text} />
+    </div>
+  );
 }
 
 type Props = {
@@ -51,15 +92,21 @@ type Props = {
 
 function attitudeChips(attitudes: Attitude[]) {
   return attitudes
-    .filter(attitude => attitude?.name && (attitude.count ?? 0) > 0)
-    .map(attitude => {
+    .filter((attitude) => attitude?.name && (attitude.count ?? 0) > 0)
+    .map((attitude) => {
       const name = attitude.name as string;
       const sticker = emojiSource(`[${name}]`);
       return (
-        <span key={name} className={`attitude-chip${attitude.selected ? ' selected' : ''}`} title={name}>
-          {sticker
-            ? <img className="attitude-chip-icon" src={sticker} alt={name} loading="lazy" />
-            : <span aria-hidden="true">{ATTITUDE_ICONS[name] ?? name}</span>}
+        <span
+          key={name}
+          className={`attitude-chip${attitude.selected ? ' selected' : ''}`}
+          title={name}
+        >
+          {sticker ? (
+            <img className="attitude-chip-icon" src={sticker} alt={name} loading="lazy" />
+          ) : (
+            <span aria-hidden="true">{ATTITUDE_ICONS[name] ?? name}</span>
+          )}
           {attitude.count}
         </span>
       );
@@ -74,7 +121,11 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
   const hasVideo = Boolean(message.videoUrl) && Boolean(message.previewUrl);
   const hasImage = Boolean(message.previewUrl) && !hasVideo;
   const isSticker = message.mediaType === 15;
-  const imageSource = useLoopingGif(message.previewUrl, hasImage && !isSystem && isSticker, previewRef);
+  const imageSource = useLoopingGif(
+    message.previewUrl,
+    hasImage && !isSystem && isSticker,
+    previewRef,
+  );
   const hasMedia = hasVideo || hasImage;
   const text = message.text?.trim() ? message.text : `[${message.msgTypeName || '消息'}]`;
   const hideText = hasMedia && HIDDEN_CAPTIONS.has(message.text?.trim() ?? '');
@@ -83,13 +134,18 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
   if (isSystem) {
     return (
       <article className="message system-message" data-mid={message.mid}>
-        <div className="bubble"><MessageText text={text} /></div>
+        <div className="bubble">
+          <MessageText text={text} />
+        </div>
       </article>
     );
   }
 
   return (
-    <article className={`message${isAdmin ? ' admin-message' : ''}${highlighted ? ' target-message' : ''}`} data-mid={message.mid}>
+    <article
+      className={`message${isAdmin ? ' admin-message' : ''}${highlighted ? ' target-message' : ''}`}
+      data-mid={message.mid}
+    >
       <Avatar
         className="message-avatar"
         name={message.senderName}
@@ -103,27 +159,55 @@ export default function MessageItem({ message, isAdmin, onOpenImage, highlighted
         </div>
         {messageBody(message, text, hideText, onOpenImage)}
         {hasImage && (
-          <button ref={previewRef} type="button" className={isSticker ? 'media-preview sticker-preview' : 'media-preview'} aria-label="查看原图"
-            onClick={() => onOpenImage({
-              images: [{
-                url: message.originalUrl || message.previewUrl, previewUrl: message.previewUrl, loopGif: isSticker,
-              }], index: 0,
-            })}>
-            <img src={imageSource} alt="" loading="lazy"
-              data-loaded={isSticker ? Boolean(imageSource && loadedStickerSource === imageSource) : undefined}
-              onLoad={isSticker ? () => setLoadedStickerSource(imageSource) : undefined} />
+          <button
+            ref={previewRef}
+            type="button"
+            className={isSticker ? 'media-preview sticker-preview' : 'media-preview'}
+            aria-label="查看原图"
+            onClick={() =>
+              onOpenImage({
+                images: [
+                  {
+                    url: message.originalUrl || message.previewUrl,
+                    previewUrl: message.previewUrl,
+                    loopGif: isSticker,
+                  },
+                ],
+                index: 0,
+              })
+            }
+          >
+            <img
+              src={imageSource}
+              alt=""
+              loading="lazy"
+              data-loaded={
+                isSticker ? Boolean(imageSource && loadedStickerSource === imageSource) : undefined
+              }
+              onLoad={isSticker ? () => setLoadedStickerSource(imageSource) : undefined}
+            />
           </button>
         )}
         {hasVideo && !playing && (
-          <button type="button" className="media-preview video-preview" aria-label="播放视频"
-            onClick={() => setPlaying(true)}>
+          <button
+            type="button"
+            className="media-preview video-preview"
+            aria-label="播放视频"
+            onClick={() => setPlaying(true)}
+          >
             <img src={message.previewUrl} alt="" loading="lazy" />
             <span aria-hidden="true">▶</span>
           </button>
         )}
         {hasVideo && playing && (
-          <video className="message-video" src={message.videoUrl} controls preload="metadata"
-            aria-label="群聊视频" autoPlay />
+          <video
+            className="message-video"
+            src={message.videoUrl}
+            controls
+            preload="metadata"
+            aria-label="群聊视频"
+            autoPlay
+          />
         )}
         {attitudes.length > 0 && <div className="message-attitudes">{attitudes}</div>}
       </div>

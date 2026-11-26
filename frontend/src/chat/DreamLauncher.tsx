@@ -39,14 +39,21 @@ export default function DreamLauncher({ gid }: { gid: number | null }) {
     const avatar = entry.anchor.getBoundingClientRect();
     const popover = popoverRef.current.getBoundingClientRect();
     setPosition({
-      left: Math.max(8, Math.min(avatar.left + avatar.width / 2 - popover.width / 2, window.innerWidth - popover.width - 8)),
+      left: Math.max(
+        8,
+        Math.min(
+          avatar.left + avatar.width / 2 - popover.width / 2,
+          window.innerWidth - popover.width - 8,
+        ),
+      ),
       top: Math.max(8, avatar.top - popover.height - 8),
     });
   }, [entry]);
 
   useEffect(() => {
     const hoverable = (target: EventTarget | null) => {
-      const element = target instanceof Element ? target.closest<HTMLElement>('[data-sender-id]') : null;
+      const element =
+        target instanceof Element ? target.closest<HTMLElement>('[data-sender-id]') : null;
       if (!element || element.closest('dialog[open]')) return null;
       const uid = Number(element.dataset.senderId);
       return Number.isSafeInteger(uid) && uid > 0 ? element : null;
@@ -70,7 +77,8 @@ export default function DreamLauncher({ gid }: { gid: number | null }) {
           const controller = new AbortController();
           probeRef.current = controller;
           const page = await fetch(url, { signal: controller.signal }).catch(() => null);
-          if (controller.signal.aborted || anchorRef.current !== avatar || !avatar.isConnected) return;
+          if (controller.signal.aborted || anchorRef.current !== avatar || !avatar.isConnected)
+            return;
           if (!page?.ok) {
             openRef.current = false;
             setEntry(null);
@@ -113,26 +121,47 @@ export default function DreamLauncher({ gid }: { gid: number | null }) {
   return (
     <>
       {entry && (
-        <div ref={popoverRef} className="dream-popover" role="dialog" aria-label="盗梦空间入口"
-          style={{ left: position.left, top: position.top }}>
+        <div
+          ref={popoverRef}
+          className="dream-popover"
+          role="dialog"
+          aria-label="盗梦空间入口"
+          style={{ left: position.left, top: position.top }}
+        >
           <header className="dream-popover-titlebar">
-            <span className="dream-popover-icon" aria-hidden="true">🌀</span>
+            <span className="dream-popover-icon" aria-hidden="true">
+              🌀
+            </span>
             <h2>盗梦空间</h2>
             <button type="button" aria-label="关闭盗梦空间入口" onClick={hidePopover} />
           </header>
           <div className="dream-popover-body">
             <span>是否进入盗梦空间？</span>
-            <button type="button" onClick={openGame}>🌀 进入盗梦空间</button>
+            <button type="button" onClick={openGame}>
+              🌀 进入盗梦空间
+            </button>
           </div>
         </div>
       )}
-      <dialog ref={dialogRef} className="dream-dialog" aria-labelledby="dream-title"
-        onClose={() => { if (frameRef.current) frameRef.current.src = 'about:blank'; }}>
+      <dialog
+        ref={dialogRef}
+        className="dream-dialog"
+        aria-labelledby="dream-title"
+        onClose={() => {
+          if (frameRef.current) frameRef.current.src = 'about:blank';
+        }}
+      >
         <div className="dream-window">
           <header className="dream-titlebar">
-            <span className="dream-title-icon" aria-hidden="true">🌀</span>
+            <span className="dream-title-icon" aria-hidden="true">
+              🌀
+            </span>
             <h2 id="dream-title">盗梦空间 · 迷你米奇</h2>
-            <button type="button" aria-label="关闭盗梦空间" onClick={() => dialogRef.current?.close()} />
+            <button
+              type="button"
+              aria-label="关闭盗梦空间"
+              onClick={() => dialogRef.current?.close()}
+            />
           </header>
           <div className="dream-stage">
             <iframe ref={frameRef} title="迷你米奇游戏" allow="autoplay" />

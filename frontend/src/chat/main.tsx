@@ -15,5 +15,8 @@ const queryClient = new QueryClient({
 });
 
 createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}><ChatPage /><DownloadNotice /></QueryClientProvider>,
+  <QueryClientProvider client={queryClient}>
+    <ChatPage />
+    <DownloadNotice />
+  </QueryClientProvider>,
 );

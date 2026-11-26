@@ -1,10 +1,23 @@
 import DOMPurify from 'dompurify';
-import { URL_TEXT_RE, stripUrlTrailing } from '../shared/linkify.js';
+import { URL_TEXT_RE, stripUrlTrailing } from '../shared/linkify';
 
 export function sanitizedContent(content: string) {
-  const doc = new DOMParser().parseFromString(DOMPurify.sanitize(content, { USE_PROFILES: { html: true } }), 'text/html');
-  replaceText(doc.body, URL_TEXT_RE, match => stripUrlTrailing(match[0]), text => text);
-  replaceText(doc.body, /@[A-Za-z0-9_\-\u4e00-\u9fff]+(?=:)/g, match => match[0], text => `https://weibo.com/n/${text.slice(1)}`);
+  const doc = new DOMParser().parseFromString(
+    DOMPurify.sanitize(content, { USE_PROFILES: { html: true } }),
+    'text/html',
+  );
+  replaceText(
+    doc.body,
+    URL_TEXT_RE,
+    (match) => stripUrlTrailing(match[0]),
+    (text) => text,
+  );
+  replaceText(
+    doc.body,
+    /@[A-Za-z0-9_\-\u4e00-\u9fff]+(?=:)/g,
+    (match) => match[0],
+    (text) => `https://weibo.com/n/${text.slice(1)}`,
+  );
   for (const anchor of doc.querySelectorAll('a')) {
     const href = anchor.getAttribute('href') || '';
     if (href.startsWith('//')) anchor.setAttribute('href', `https:${href}`);
@@ -12,9 +25,16 @@ export function sanitizedContent(content: string) {
     const imageHref = anchor.getAttribute('href') || '';
     if (/^https?:\/\//i.test(imageHref) && URL.canParse(imageHref)) {
       const imageUrl = new URL(imageHref);
-      const imageLink = anchor.hasAttribute('data-pid')
-        || (anchor.textContent?.trim() === '查看图片' && /\.(?:jpe?g|png|gif|webp|avif|bmp|hei[cf])$/i.test(imageUrl.pathname));
-      if (imageLink && imageUrl.hostname.endsWith('.sinaimg.cn') && !imageUrl.username && !imageUrl.password) {
+      const imageLink =
+        anchor.hasAttribute('data-pid') ||
+        (anchor.textContent?.trim() === '查看图片' &&
+          /\.(?:jpe?g|png|gif|webp|avif|bmp|hei[cf])$/i.test(imageUrl.pathname));
+      if (
+        imageLink &&
+        imageUrl.hostname.endsWith('.sinaimg.cn') &&
+        !imageUrl.username &&
+        !imageUrl.password
+      ) {
         anchor.setAttribute('href', `/chat/image?${new URLSearchParams({ url: imageHref })}`);
         anchor.setAttribute('aria-haspopup', 'dialog');
         anchor.removeAttribute('target');
@@ -24,12 +44,18 @@ export function sanitizedContent(content: string) {
     anchor.setAttribute('target', '_blank');
     anchor.setAttribute('rel', 'noopener');
   }
-  // Re-sanitize the transformed tree before crossing React's raw-HTML boundary.
-  // https://github.com/cure53/DOMPurify#is-there-any-foot-gun-potential
-  return DOMPurify.sanitize(doc.body.innerHTML, { USE_PROFILES: { html: true }, ADD_ATTR: ['target'] });
+  return DOMPurify.sanitize(doc.body.innerHTML, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['target'],
+  });
 }
 
-function replaceText(root: HTMLElement, pattern: RegExp, textFor: (match: RegExpExecArray) => string, hrefFor: (text: string) => string) {
+function replaceText(
+  root: HTMLElement,
+  pattern: RegExp,
+  textFor: (match: RegExpExecArray) => string,
+  hrefFor: (text: string) => string,
+) {
   const doc = root.ownerDocument;
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -41,8 +67,7 @@ function replaceText(root: HTMLElement, pattern: RegExp, textFor: (match: RegExp
     const fragment = doc.createDocumentFragment();
     let end = 0;
     pattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(text))) {
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
       const label = textFor(match);
       if (!label) continue;
       fragment.append(doc.createTextNode(text.slice(end, match.index)));

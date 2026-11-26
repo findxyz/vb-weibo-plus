@@ -14,7 +14,13 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 type Hint = { text: string; level: 'default' | 'sending' | 'error' };
 type Attachment = { kind: 'image' | 'video'; file: File; url: string };
 
-export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, onOpenAnalysis }: {
+export default function Composer({
+  gid,
+  onSent,
+  onAuthExpired,
+  onOpenHistory,
+  onOpenAnalysis,
+}: {
   gid: number | null;
   onSent: (gid: number) => void;
   onAuthExpired: () => void;
@@ -38,12 +44,13 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
     if (gid == null) setEmojiOpen(false);
   }, [gid]);
 
-  // 附件替换或卸载时释放预览地址。
-  useEffect(() => () => {
-    if (attachment) URL.revokeObjectURL(attachment.url);
-  }, [attachment]);
+  useEffect(
+    () => () => {
+      if (attachment) URL.revokeObjectURL(attachment.url);
+    },
+    [attachment],
+  );
 
-  // 表情插入后把光标放到短语末尾；受控输入要等值更新后再设置选区。
   useEffect(() => {
     const caret = caretRef.current;
     if (caret == null || !inputRef.current) return;
@@ -106,7 +113,10 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
     } catch (error) {
       if (error instanceof HttpError && error.status === 401) onAuthExpired();
       const message = error instanceof Error ? error.message : '';
-      setHint({ text: message || (kind === 'image' ? HINT_IMAGE_FAILED : HINT_VIDEO_FAILED), level: 'error' });
+      setHint({
+        text: message || (kind === 'image' ? HINT_IMAGE_FAILED : HINT_VIDEO_FAILED),
+        level: 'error',
+      });
     } finally {
       setSending(false);
       attachmentRef.current?.focus();
@@ -131,9 +141,10 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
     } catch (error) {
       if (error instanceof HttpError && error.status === 401) onAuthExpired();
       const message = error instanceof Error ? error.message : '';
-      const hintText = error instanceof HttpError && error.status === 409
-        ? message || HINT_CONFLICT
-        : message || HINT_FAILED;
+      const hintText =
+        error instanceof HttpError && error.status === 409
+          ? message || HINT_CONFLICT
+          : message || HINT_FAILED;
       setHint({ text: hintText, level: 'error' });
     } finally {
       setSending(false);
@@ -146,12 +157,18 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
       if (item.kind !== 'file') continue;
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
-        if (file) { event.preventDefault(); accept('image', file); }
+        if (file) {
+          event.preventDefault();
+          accept('image', file);
+        }
         return;
       }
       if (item.type.startsWith('video/')) {
         const file = item.getAsFile();
-        if (file) { event.preventDefault(); accept('video', file); }
+        if (file) {
+          event.preventDefault();
+          accept('video', file);
+        }
         return;
       }
     }
@@ -160,7 +177,7 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
   function insert(phrase: string) {
     const input = inputRef.current;
     if (!input) {
-      setText(value => value + phrase);
+      setText((value) => value + phrase);
       return;
     }
     const start = input.selectionStart ?? input.value.length;
@@ -170,46 +187,93 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
     caretRef.current = start + phrase.length;
   }
 
-  const hintClass = hint.level === 'sending' ? ' is-sending' : hint.level === 'error' ? ' is-error' : '';
+  const hintClass =
+    hint.level === 'sending' ? ' is-sending' : hint.level === 'error' ? ' is-error' : '';
 
   return (
     <div className="composer" aria-label="消息编辑器">
       <div className="composer-tools">
-        <button ref={triggerRef} type="button" disabled={disabled || attachment != null}
-          aria-expanded={emojiOpen} onClick={() => setEmojiOpen(open => !open)}>😊 表情</button>
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={disabled || attachment != null}
+          aria-expanded={emojiOpen}
+          onClick={() => setEmojiOpen((open) => !open)}
+        >
+          😊 表情
+        </button>
         <button type="button" disabled={disabled} onClick={() => imageInputRef.current?.click()}>
-          <span className="composer-tool-emoji" aria-hidden="true">🖼️</span>图片
+          <span className="composer-tool-emoji" aria-hidden="true">
+            🖼️
+          </span>
+          图片
         </button>
-        <input ref={imageInputRef} type="file" accept="image/*" hidden
-          onChange={event => { accept('image', event.target.files?.[0] ?? null); event.target.value = ''; }} />
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(event) => {
+            accept('image', event.target.files?.[0] ?? null);
+            event.target.value = '';
+          }}
+        />
         <button type="button" disabled={disabled} onClick={() => videoInputRef.current?.click()}>
-          <span className="composer-tool-emoji" aria-hidden="true">🎬</span>视频
+          <span className="composer-tool-emoji" aria-hidden="true">
+            🎬
+          </span>
+          视频
         </button>
-        <input ref={videoInputRef} type="file" accept="video/mp4" hidden
-          onChange={event => { accept('video', event.target.files?.[0] ?? null); event.target.value = ''; }} />
-        <button type="button" className="history-open" disabled={disabled} onClick={onOpenHistory}>📜 聊天记录</button>
-        <button type="button" disabled={disabled} onClick={onOpenAnalysis}>🤖 群聊分析</button>
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/mp4"
+          hidden
+          onChange={(event) => {
+            accept('video', event.target.files?.[0] ?? null);
+            event.target.value = '';
+          }}
+        />
+        <button type="button" className="history-open" disabled={disabled} onClick={onOpenHistory}>
+          📜 聊天记录
+        </button>
+        <button type="button" disabled={disabled} onClick={onOpenAnalysis}>
+          🤖 群聊分析
+        </button>
       </div>
-      <EmojiPanel open={emojiOpen} triggerRef={triggerRef} onInsert={insert}
-        onClose={() => setEmojiOpen(false)} />
+      <EmojiPanel
+        open={emojiOpen}
+        triggerRef={triggerRef}
+        onInsert={insert}
+        onClose={() => setEmojiOpen(false)}
+      />
       {attachment && (
         <div
           ref={attachmentRef}
           className="composer-attachment"
           tabIndex={0}
           onPaste={handlePaste}
-          onKeyDown={event => {
+          onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
               event.preventDefault();
               void sendAttachment();
             }
           }}
         >
-          {attachment.kind === 'image'
-            ? <img className="composer-attachment-preview" src={attachment.url} alt="" />
-            : <video className="composer-attachment-preview-video" src={attachment.url} muted />}
-          <button type="button" className="composer-attachment-remove" aria-label="删除附件"
-            disabled={sending} onClick={clearAttachment}>✕</button>
+          {attachment.kind === 'image' ? (
+            <img className="composer-attachment-preview" src={attachment.url} alt="" />
+          ) : (
+            <video className="composer-attachment-preview-video" src={attachment.url} muted />
+          )}
+          <button
+            type="button"
+            className="composer-attachment-remove"
+            aria-label="删除附件"
+            disabled={sending}
+            onClick={clearAttachment}
+          >
+            ✕
+          </button>
         </div>
       )}
       {!attachment && (
@@ -220,9 +284,9 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
           value={text}
           disabled={gid == null}
           readOnly={sending}
-          onChange={event => changeText(event.target.value)}
+          onChange={(event) => changeText(event.target.value)}
           onPaste={sending ? undefined : handlePaste}
-          onKeyDown={event => {
+          onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
               event.preventDefault();
               if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -231,7 +295,9 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
           }}
         />
       )}
-      <span className={`composer-hint${hintClass}`} aria-hidden="true">{hint.text}</span>
+      <span className={`composer-hint${hintClass}`} aria-hidden="true">
+        {hint.text}
+      </span>
     </div>
   );
 }

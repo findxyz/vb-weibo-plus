@@ -1,11 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useIsMutating,
+  useMutation,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { getJson, isUnauthorized } from './queries';
 
 type LikeState = { liked: boolean; count: number };
 
-export default function PostLikeButton({ mblogId, enabled, session, onUnauthorized }: {
-  mblogId: string; enabled: boolean; session: number; onUnauthorized: () => void;
+export default function PostLikeButton({
+  mblogId,
+  enabled,
+  session,
+  onUnauthorized,
+}: {
+  mblogId: string;
+  enabled: boolean;
+  session: number;
+  onUnauthorized: () => void;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [hasBeenVisible, setHasBeenVisible] = useState(false);
@@ -17,33 +31,50 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
     getJson<LikeState>(`/post/like?${params}`, signal, 15000, { cache: 'no-store' });
   const latest = useMutationState({
     filters: { mutationKey: queryKey, exact: true },
-    select: mutation => ({ status: mutation.state.status, error: mutation.state.error,
-      target: mutation.state.variables as LikeState | undefined }),
+    select: (mutation) => ({
+      status: mutation.state.status,
+      error: mutation.state.error,
+      target: mutation.state.variables as LikeState | undefined,
+    }),
   }).at(-1);
   const state = useQuery({
-    queryKey, enabled: enabled && hasBeenVisible,
-    staleTime: 0, gcTime: 0,
+    queryKey,
+    enabled: enabled && hasBeenVisible,
+    staleTime: 0,
+    gcTime: 0,
     initialData: processing ? latest?.target : undefined,
     queryFn: load,
   });
   const confirmed = state.isError || state.isFetching ? undefined : state.data;
   const message = !processing && latest?.status === 'error' ? latest.error?.message : '';
   const operation = useMutation({
-    mutationKey: queryKey, retry: false,
-    onMutate: target => { client.setQueryData(queryKey, target); },
-    mutationFn: (target: LikeState) => getJson<void>('/post/like', new AbortController().signal, 15000, {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ mblogId, liked: String(target.liked) }),
-    }),
+    mutationKey: queryKey,
+    retry: false,
+    onMutate: (target) => {
+      client.setQueryData(queryKey, target);
+    },
+    mutationFn: (target: LikeState) =>
+      getJson<void>('/post/like', new AbortController().signal, 15000, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ mblogId, liked: String(target.liked) }),
+      }),
   });
 
   useEffect(() => {
     const button = buttonRef.current!;
-    const observer = new IntersectionObserver(entries => {
-      if (!entries.some(entry => entry.isIntersecting) || client.isMutating({ mutationKey: queryKey, exact: true })) return;
-      setHasBeenVisible(true);
-      observer.disconnect();
-    }, { root: button.closest('.posts') });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          !entries.some((entry) => entry.isIntersecting) ||
+          client.isMutating({ mutationKey: queryKey, exact: true })
+        )
+          return;
+        setHasBeenVisible(true);
+        observer.disconnect();
+      },
+      { root: button.closest('.posts') },
+    );
     observer.observe(button.closest('.post-card')!);
     return () => observer.disconnect();
   }, [client, queryKey]);
@@ -53,23 +84,52 @@ export default function PostLikeButton({ mblogId, enabled, session, onUnauthoriz
 
   function click() {
     if (!enabled || !confirmed || client.isMutating({ mutationKey: queryKey, exact: true })) return;
-    operation.mutate({ liked: !confirmed.liked,
-      count: Math.max(0, confirmed.count + (confirmed.liked ? -1 : 1)) });
+    operation.mutate({
+      liked: !confirmed.liked,
+      count: Math.max(0, confirmed.count + (confirmed.liked ? -1 : 1)),
+    });
   }
 
-  const label = state.isFetching ? '查询中…'
-    : !confirmed ? '状态未知' : confirmed.liked ? '已赞' : '点赞';
-  const name = state.isFetching ? '正在查询点赞状态'
-    : !confirmed ? '点赞状态未知' : confirmed.liked ? '取消点赞' : '点赞';
-  return <div className="post-like">
-    <button ref={buttonRef} type="button" className="post-like-button" aria-label={name}
-      aria-pressed={confirmed?.liked} disabled={!enabled || !confirmed} aria-disabled={processing || state.isFetching}
-      onClick={click} title={confirmed?.liked ? '取消点赞' : undefined}>
-      <span aria-hidden="true">👍</span>{label}
-    </button>
-    {confirmed && <span className="post-like-count" aria-label={`当前点赞数：${confirmed.count}`}>{confirmed.count}</span>}
-    {(message || state.isError) && <span className="post-like-error" role="status">
-      {message || `点赞状态查询失败：${state.error?.message}`}
-    </span>}
-  </div>;
+  const label = state.isFetching
+    ? '查询中…'
+    : !confirmed
+      ? '状态未知'
+      : confirmed.liked
+        ? '已赞'
+        : '点赞';
+  const name = state.isFetching
+    ? '正在查询点赞状态'
+    : !confirmed
+      ? '点赞状态未知'
+      : confirmed.liked
+        ? '取消点赞'
+        : '点赞';
+  return (
+    <div className="post-like">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="post-like-button"
+        aria-label={name}
+        aria-pressed={confirmed?.liked}
+        disabled={!enabled || !confirmed}
+        aria-disabled={processing || state.isFetching}
+        onClick={click}
+        title={confirmed?.liked ? '取消点赞' : undefined}
+      >
+        <span aria-hidden="true">👍</span>
+        {label}
+      </button>
+      {confirmed && (
+        <span className="post-like-count" aria-label={`当前点赞数：${confirmed.count}`}>
+          {confirmed.count}
+        </span>
+      )}
+      {(message || state.isError) && (
+        <span className="post-like-error" role="status">
+          {message || `点赞状态查询失败：${state.error?.message}`}
+        </span>
+      )}
+    </div>
+  );
 }

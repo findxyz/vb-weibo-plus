@@ -16,35 +16,65 @@ test.beforeAll(async () => {
   baseUrl = vite.resolvedUrls!.local[0];
 });
 
-test.afterAll(async () => { await vite?.close(); });
+test.afterAll(async () => {
+  await vite?.close();
+});
 
 test.beforeEach(async ({ page }) => {
   reads = [];
   writes = [];
   liked = false;
   count = 7;
-  posts = { items: [{ mblogId: 'outer-repost', content: '本地保存的转发微博',
-    createdAt: Date.parse('2026-10-31T00:00:00Z'), blogger: { uid: 1, screenName: '测试博主' },
-    postUrl: 'https://weibo.com/1/example',
-    retweeted: { screenName: '原作者', content: '内嵌原文' } }], page: 1, size: 9999, total: 1 };
-  await page.route('**/weibo/login/status', route => route.fulfill({ json: { valid: true } }));
-  await page.route(url => url.pathname === '/post/bloggers', route => route.fulfill({ json: [{ uid: 1, screenName: '测试博主' }] }));
-  await page.route(url => url.pathname === '/post/calendar', route => route.fulfill({ json: {
-    months: [{ month: '2026-10', count: 12, days: [{ date: '2026-10-31', count: 12 }] }],
-  } }));
-  await page.route(url => url.pathname === '/post/list', route => route.fulfill({ json: posts }));
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() === 'POST') {
-      writes.push(route.request().postData() ?? '');
-      liked = new URLSearchParams(route.request().postData() ?? '').get('liked') === 'true';
-      count += liked ? 1 : -1;
-      return route.fulfill({ status: 204 });
-    } else reads.push(new URL(route.request().url()).searchParams.get('mblogId')!);
-    await route.fulfill({ json: { liked, count } });
-  });
+  posts = {
+    items: [
+      {
+        mblogId: 'outer-repost',
+        content: '本地保存的转发微博',
+        createdAt: Date.parse('2026-10-31T00:00:00Z'),
+        blogger: { uid: 1, screenName: '测试博主' },
+        postUrl: 'https://weibo.com/1/example',
+        retweeted: { screenName: '原作者', content: '内嵌原文' },
+      },
+    ],
+    page: 1,
+    size: 9999,
+    total: 1,
+  };
+  await page.route('**/weibo/login/status', (route) => route.fulfill({ json: { valid: true } }));
+  await page.route(
+    (url) => url.pathname === '/post/bloggers',
+    (route) => route.fulfill({ json: [{ uid: 1, screenName: '测试博主' }] }),
+  );
+  await page.route(
+    (url) => url.pathname === '/post/calendar',
+    (route) =>
+      route.fulfill({
+        json: {
+          months: [{ month: '2026-10', count: 12, days: [{ date: '2026-10-31', count: 12 }] }],
+        },
+      }),
+  );
+  await page.route(
+    (url) => url.pathname === '/post/list',
+    (route) => route.fulfill({ json: posts }),
+  );
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() === 'POST') {
+        writes.push(route.request().postData() ?? '');
+        liked = new URLSearchParams(route.request().postData() ?? '').get('liked') === 'true';
+        count += liked ? 1 : -1;
+        return route.fulfill({ status: 204 });
+      } else reads.push(new URL(route.request().url()).searchParams.get('mblogId')!);
+      await route.fulfill({ json: { liked, count } });
+    },
+  );
 });
 
-test('selecting_or_reselecting_a_blogger_reads_current_like_state_without_page_reload', async ({ page }) => {
+test('selecting_or_reselecting_a_blogger_reads_current_like_state_without_page_reload', async ({
+  page,
+}) => {
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
   await expect(page.getByLabel('当前点赞数：7', { exact: true })).toBeVisible();
@@ -77,25 +107,38 @@ test('selecting_the_same_date_reads_current_like_state_again', async ({ page }) 
   expect(writes).toEqual([]);
 });
 
-test('like_updates_immediately_ignores_write_response_state_and_can_be_cancelled', async ({ page }) => {
+test('like_updates_immediately_ignores_write_response_state_and_can_be_cancelled', async ({
+  page,
+}) => {
   let release: (() => Promise<void>) | undefined;
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() !== 'POST' || writes.length) return route.fallback();
-    writes.push(route.request().postData()!);
-    await new Promise<void>(resolve => { release = async () => {
-      await route.fulfill({ json: { liked, count } });
-      resolve();
-    }; });
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() !== 'POST' || writes.length) return route.fallback();
+      writes.push(route.request().postData()!);
+      await new Promise<void>((resolve) => {
+        release = async () => {
+          await route.fulfill({ json: { liked, count } });
+          resolve();
+        };
+      });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   expect(writes).toEqual(['mblogId=outer-repost&liked=true']);
   await release!();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
-  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '取消点赞', exact: true }).click();
   await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
@@ -110,11 +153,14 @@ test('like_updates_immediately_ignores_write_response_state_and_can_be_cancelled
 });
 
 test('unknown_state_is_retried_on_page_reload_without_sending_a_like', async ({ page }) => {
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (reads.length) return route.fallback();
-    reads.push('outer-repost');
-    await route.fulfill({ status: 502, json: { msg: '微博状态暂时不可用' } });
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (reads.length) return route.fallback();
+      reads.push('outer-repost');
+      await route.fulfill({ status: 502, json: { msg: '微博状态暂时不可用' } });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   const unknown = page.getByRole('button', { name: '点赞状态未知' });
   await expect(unknown).toBeDisabled();
@@ -128,32 +174,48 @@ test('unknown_state_is_retried_on_page_reload_without_sending_a_like', async ({ 
   expect(writes).toEqual([]);
 });
 
-test('failed_write_keeps_clicked_state_and_displays_security_challenge_without_querying', async ({ page }) => {
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() !== 'POST') return route.fallback();
-    writes.push(route.request().postData()!);
-    await route.fulfill({ status: 502, json: { msg: '微博要求安全验证，请前往微博网页版完成验证后重试。' } });
-  });
+test('failed_write_keeps_clicked_state_and_displays_security_challenge_without_querying', async ({
+  page,
+}) => {
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      writes.push(route.request().postData()!);
+      await route.fulfill({
+        status: 502,
+        json: { msg: '微博要求安全验证，请前往微博网页版完成验证后重试。' },
+      });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.locator('.post-like-error')).toContainText('微博要求安全验证');
-  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   expect(writes).toHaveLength(1);
   expect(reads).toHaveLength(1);
 });
 
 test('timed_out_write_keeps_clicked_state_without_querying_or_resending', async ({ page }) => {
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() !== 'POST') return route.fallback();
-    writes.push(route.request().postData()!);
-    liked = true;
-    count = 8;
-    await new Promise(() => {});
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      writes.push(route.request().postData()!);
+      liked = true;
+      count = 8;
+      await new Promise(() => {});
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
-  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled({ timeout: 20000 });
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled({
+    timeout: 20000,
+  });
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   expect(writes).toHaveLength(1);
   expect(reads).toHaveLength(1);
@@ -161,13 +223,16 @@ test('timed_out_write_keeps_clicked_state_without_querying_or_resending', async 
 });
 
 test('failed_write_keeps_clicked_state_until_next_actual_query', async ({ page }) => {
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() === 'POST') {
-      writes.push(route.request().postData()!);
-      return route.abort('failed');
-    }
-    return route.fallback();
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() === 'POST') {
+        writes.push(route.request().postData()!);
+        return route.abort('failed');
+      }
+      return route.fallback();
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
@@ -181,8 +246,12 @@ test('failed_write_keeps_clicked_state_until_next_actual_query', async ({ page }
 });
 
 test('visible_posts_are_queried_once_and_reselection_reads_fresh_state', async ({ page }) => {
-  posts.items = Array.from({ length: 12 }, (_, index) => ({ ...posts.items[0],
-    mblogId: `post-${index}`, content: '正文<br>'.repeat(8), retweeted: null }));
+  posts.items = Array.from({ length: 12 }, (_, index) => ({
+    ...posts.items[0],
+    mblogId: `post-${index}`,
+    content: '正文<br>'.repeat(8),
+    retweeted: null,
+  }));
   posts.total = 12;
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-like-button').first()).toHaveAttribute('aria-pressed', 'false');
@@ -195,54 +264,72 @@ test('visible_posts_are_queried_once_and_reselection_reads_fresh_state', async (
   await page.getByRole('article').first().scrollIntoViewIfNeeded();
   await expect(page.locator('.post-like-button').first()).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('.post-like-count').first()).toHaveText('7');
-  expect(reads.filter(id => id === 'post-0')).toHaveLength(1);
-  expect(reads.filter(id => id === 'post-11')).toHaveLength(1);
+  expect(reads.filter((id) => id === 'post-0')).toHaveLength(1);
+  expect(reads.filter((id) => id === 'post-11')).toHaveLength(1);
 
   await page.getByRole('button', { name: '测试博主', exact: true }).click();
   await expect(page.locator('.post-like-button').first()).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.post-like-count').first()).toHaveText('92');
-  expect(reads.filter(id => id === 'post-0')).toHaveLength(2);
-  expect(reads.filter(id => id === 'post-11')).toHaveLength(1);
+  expect(reads.filter((id) => id === 'post-0')).toHaveLength(2);
+  expect(reads.filter((id) => id === 'post-11')).toHaveLength(1);
   expect(writes).toEqual([]);
 });
 
 test('scrolling up past a post with a failed like lookup keeps moving up', async ({ page }) => {
-  posts.items = Array.from({ length: 12 }, (_, index) => ({ ...posts.items[0],
-    mblogId: `post-${index}`, content: '正文<br>'.repeat(8), retweeted: null }));
+  posts.items = Array.from({ length: 12 }, (_, index) => ({
+    ...posts.items[0],
+    mblogId: `post-${index}`,
+    content: '正文<br>'.repeat(8),
+    retweeted: null,
+  }));
   let lookups = 0;
-  await page.route(url => url.pathname === '/post/like' && url.searchParams.get('mblogId') === 'post-0', async route => {
-    lookups++;
-    await route.fulfill({ status: 502, json: { msg: '微博状态暂时不可用' } });
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like' && url.searchParams.get('mblogId') === 'post-0',
+    async (route) => {
+      lookups++;
+      await route.fulfill({ status: 502, json: { msg: '微博状态暂时不可用' } });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   const feed = page.getByLabel('微博列表');
   const first = page.getByRole('article').first();
   await expect(first.locator('.post-like-error')).toBeVisible();
-  const edge = await feed.evaluate(element => {
+  const edge = await feed.evaluate((element) => {
     const bottom = element.querySelector('article')!.getBoundingClientRect().bottom;
     return element.scrollTop + bottom - element.getBoundingClientRect().top;
   });
   await feed.hover();
-  await feed.evaluate((element, top) => { element.scrollTop = top; }, edge + 5);
+  await feed.evaluate((element, top) => {
+    element.scrollTop = top;
+  }, edge + 5);
   await expect(first).not.toBeInViewport();
   await page.mouse.wheel(0, -14);
   await expect(first).toBeInViewport();
   await expect(first.locator('.post-like-error')).toContainText('微博状态暂时不可用');
-  await expect.poll(() => feed.evaluate(element => element.scrollTop)).toBeLessThan(edge - 5);
+  await expect.poll(() => feed.evaluate((element) => element.scrollTop)).toBeLessThan(edge - 5);
   expect(lookups).toBe(1);
 });
 
 test('scrolling away lets the first visible like lookup finish', async ({ page }) => {
-  posts.items = Array.from({ length: 12 }, (_, index) => ({ ...posts.items[0],
-    mblogId: `post-${index}`, content: '正文<br>'.repeat(8), retweeted: null }));
+  posts.items = Array.from({ length: 12 }, (_, index) => ({
+    ...posts.items[0],
+    mblogId: `post-${index}`,
+    content: '正文<br>'.repeat(8),
+    retweeted: null,
+  }));
   let release: (() => Promise<void>) | undefined;
-  await page.route(url => url.pathname === '/post/like' && url.searchParams.get('mblogId') === 'post-0', async route => {
-    reads.push('post-0');
-    await new Promise<void>(resolve => { release = async () => {
-      await route.fulfill({ json: { liked: true, count: 19 } });
-      resolve();
-    }; });
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like' && url.searchParams.get('mblogId') === 'post-0',
+    async (route) => {
+      reads.push('post-0');
+      await new Promise<void>((resolve) => {
+        release = async () => {
+          await route.fulfill({ json: { liked: true, count: 19 } });
+          resolve();
+        };
+      });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   const first = page.getByRole('article').first();
   const last = page.getByRole('article').last();
@@ -253,16 +340,19 @@ test('scrolling away lets the first visible like lookup finish', async ({ page }
   await expect(first.getByRole('button', { name: '取消点赞' })).toBeEnabled();
   await first.scrollIntoViewIfNeeded();
   await expect(first.getByLabel('当前点赞数：19')).toBeInViewport();
-  expect(reads.filter(id => id === 'post-0')).toHaveLength(1);
+  expect(reads.filter((id) => id === 'post-0')).toHaveLength(1);
 });
 
 test('logging_in_again_discards_previous_account_like_cache', async ({ page }) => {
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() !== 'POST') return route.fallback();
-    writes.push(route.request().postData()!);
-    await route.fulfill({ status: 401, json: { msg: '登录已失效' } });
-  });
-  await page.route('**/weibo/login/qr', route => route.fulfill({ json: {} }));
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      writes.push(route.request().postData()!);
+      await route.fulfill({ status: 401, json: { msg: '登录已失效' } });
+    },
+  );
+  await page.route('**/weibo/login/qr', (route) => route.fulfill({ json: {} }));
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.getByRole('button', { name: '扫码登录' })).toBeVisible();
@@ -277,23 +367,30 @@ test('logging_in_again_discards_previous_account_like_cache', async ({ page }) =
 
 test('switching_reading_scope_keeps_clicked_state_and_inflight_like_locked', async ({ page }) => {
   let release: (() => Promise<void>) | undefined;
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() !== 'POST') return route.fallback();
-    writes.push(route.request().postData()!);
-    liked = true;
-    count = 8;
-    await new Promise<void>(resolve => { release = async () => {
-      await route.fulfill({ json: { liked, count } });
-      resolve();
-    }; });
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      writes.push(route.request().postData()!);
+      liked = true;
+      count = 8;
+      await new Promise<void>((resolve) => {
+        release = async () => {
+          await route.fulfill({ json: { liked, count } });
+          resolve();
+        };
+      });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
   try {
     await page.getByRole('button', { name: '测试博主', exact: true }).click();
     await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
-  } finally { await release!(); }
+  } finally {
+    await release!();
+  }
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
   await expect(page.getByLabel('当前点赞数：8', { exact: true })).toBeVisible();
   expect(writes).toEqual(['mblogId=outer-repost&liked=true']);
@@ -302,14 +399,22 @@ test('switching_reading_scope_keeps_clicked_state_and_inflight_like_locked', asy
 
 test('switching_reading_scope_preserves_the_security_challenge_feedback', async ({ page }) => {
   let release: (() => Promise<void>) | undefined;
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() !== 'POST') return route.fallback();
-    writes.push(route.request().postData()!);
-    await new Promise<void>(resolve => { release = async () => {
-      await route.fulfill({ status: 502, json: { msg: '微博要求安全验证，请前往微博网页版完成验证后重试。' } });
-      resolve();
-    }; });
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      writes.push(route.request().postData()!);
+      await new Promise<void>((resolve) => {
+        release = async () => {
+          await route.fulfill({
+            status: 502,
+            json: { msg: '微博要求安全验证，请前往微博网页版完成验证后重试。' },
+          });
+          resolve();
+        };
+      });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
@@ -317,20 +422,28 @@ test('switching_reading_scope_preserves_the_security_challenge_feedback', async 
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();
   await release!();
   await expect(page.locator('.post-like-error')).toContainText('前往微博网页版完成验证');
-  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   expect(writes).toHaveLength(1);
 });
 
 test('login_expiring_after_navigation_opens_recovery_without_querying_state', async ({ page }) => {
   let release: (() => Promise<void>) | undefined;
-  await page.route(url => url.pathname === '/post/like', async route => {
-    if (route.request().method() !== 'POST') return route.fallback();
-    writes.push(route.request().postData()!);
-    await new Promise<void>(resolve => { release = async () => {
-      await route.fulfill({ status: 401, json: { msg: '登录已失效' } });
-      resolve();
-    }; });
-  });
+  await page.route(
+    (url) => url.pathname === '/post/like',
+    async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      writes.push(route.request().postData()!);
+      await new Promise<void>((resolve) => {
+        release = async () => {
+          await route.fulfill({ status: 401, json: { msg: '登录已失效' } });
+          resolve();
+        };
+      });
+    },
+  );
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '点赞', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeDisabled();

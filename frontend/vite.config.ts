@@ -16,9 +16,10 @@ export default defineConfig(({ mode }) => {
         '^/post/(?:bloggers|calendar|list|like|image|video|videoCover|range)(?:\\?.*)?$': {
           target: backendUrl,
         },
-        '^/chat/(?:groups|attitudes|since|analyses(?:/(?:stream|\\d+))?|messages(?:/(?:cursor|weiboText|send|sendImage|sendVideo))?|media|image)(?:\\?.*)?$': {
-          target: backendUrl,
-        },
+        '^/chat/(?:groups|attitudes|since|analyses(?:/(?:stream|\\d+))?|messages(?:/(?:cursor|weiboText|send|sendImage|sendVideo))?|media|image)(?:\\?.*)?$':
+          {
+            target: backendUrl,
+          },
       },
     },
     build: {

@@ -16,5 +16,8 @@ const queryClient = new QueryClient({
 });
 
 createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}><PostPage /><DownloadNotice /></QueryClientProvider>,
+  <QueryClientProvider client={queryClient}>
+    <PostPage />
+    <DownloadNotice />
+  </QueryClientProvider>,
 );

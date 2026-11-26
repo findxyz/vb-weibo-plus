@@ -18,7 +18,13 @@ function ViewerImage({ url, previewUrl, loopGif = false }: GalleryImage) {
   return (
     <>
       {state === 'loading' && showLoading && previewUrl && previewUrl !== url && (
-        <img src={previewUrl} alt="消息预览" onError={event => { event.currentTarget.hidden = true; }} />
+        <img
+          src={previewUrl}
+          alt="消息预览"
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+          }}
+        />
       )}
       <img
         {...zoom}
@@ -27,7 +33,7 @@ function ViewerImage({ url, previewUrl, loopGif = false }: GalleryImage) {
         decoding="async"
         fetchPriority="high"
         hidden={state !== 'loaded'}
-        onLoad={async event => {
+        onLoad={async (event) => {
           try {
             await event.currentTarget.decode();
             setState('loaded');
@@ -44,8 +50,11 @@ function ViewerImage({ url, previewUrl, loopGif = false }: GalleryImage) {
   );
 }
 
-// 全屏查看器：Escape、遮罩点击与关闭事件统一交回父组件，由父组件清空地址。
-export default function ImageViewer({ selection, onChange, onClose }: {
+export default function ImageViewer({
+  selection,
+  onChange,
+  onClose,
+}: {
   selection: ImageSelection | null;
   onChange: (selection: ImageSelection) => void;
   onClose: () => void;
@@ -70,7 +79,10 @@ export default function ImageViewer({ selection, onChange, onClose }: {
 
   function move(offset: number) {
     if (!selection) return;
-    onChange({ ...selection, index: (selection.index + offset + selection.images.length) % selection.images.length });
+    onChange({
+      ...selection,
+      index: (selection.index + offset + selection.images.length) % selection.images.length,
+    });
   }
 
   return (
@@ -78,22 +90,33 @@ export default function ImageViewer({ selection, onChange, onClose }: {
       ref={dialogRef}
       className="image-viewer"
       aria-label="查看原图"
-      onKeyDown={event => {
+      onKeyDown={(event) => {
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
           event.preventDefault();
           move(event.key === 'ArrowLeft' ? -1 : 1);
         }
       }}
-      onClick={event => {
+      onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       {image && <ViewerImage key={image.url} {...image} />}
-      {selection && selection.images.length > 1 && <>
-        <button type="button" className="viewer-prev" aria-label="上一张" onClick={() => move(-1)}>‹</button>
-        <button type="button" className="viewer-next" aria-label="下一张" onClick={() => move(1)}>›</button>
-        <span className="viewer-counter">{`${selection.index + 1} / ${selection.images.length}`}</span>
-      </>}
+      {selection && selection.images.length > 1 && (
+        <>
+          <button
+            type="button"
+            className="viewer-prev"
+            aria-label="上一张"
+            onClick={() => move(-1)}
+          >
+            ‹
+          </button>
+          <button type="button" className="viewer-next" aria-label="下一张" onClick={() => move(1)}>
+            ›
+          </button>
+          <span className="viewer-counter">{`${selection.index + 1} / ${selection.images.length}`}</span>
+        </>
+      )}
     </dialog>
   );
 }

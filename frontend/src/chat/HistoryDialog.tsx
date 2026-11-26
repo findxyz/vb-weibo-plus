@@ -1,10 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  compareMessages, fetchEarlierMessages, fetchNewerMessages, HttpError, nextAfterCursor, nextBeforeCursor,
-  queryHistoryMessages, syncHistory, type ChatGroup, type ChatMessage, type HistoryFilters,
-  type HistoryPage, type MessageCursor,
+  compareMessages,
+  fetchEarlierMessages,
+  fetchNewerMessages,
+  HttpError,
+  nextAfterCursor,
+  nextBeforeCursor,
+  queryHistoryMessages,
+  syncHistory,
+  type ChatGroup,
+  type ChatMessage,
+  type HistoryFilters,
+  type HistoryPage,
+  type MessageCursor,
 } from './api';
-import { calendarMonthsAgo, localDateValue, shanghaiToday, toQueryDateTime } from '../shared/date.js';
+import { calendarMonthsAgo, localDateValue, shanghaiToday, toQueryDateTime } from '../shared/date';
 import ImageViewer, { type ImageSelection } from './ImageViewer';
 import MessageItem from './MessageItem';
 
@@ -13,7 +23,12 @@ const CONTEXT_PAGE_SIZE = 50;
 const LOAD_THRESHOLD = 120;
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
 });
 
 type Context = {
@@ -24,14 +39,17 @@ type Context = {
 };
 
 function historySummary(message: ChatMessage) {
-  if (message.videoUrl || message.mediaType === 10
-    || (message.mediaType === 13 && !(message.text ?? '').includes('收到红包消息'))) return '[视频]';
+  if (
+    message.videoUrl ||
+    message.mediaType === 10 ||
+    (message.mediaType === 13 && !(message.text ?? '').includes('收到红包消息'))
+  )
+    return '[视频]';
   if (message.mediaType === 14) return '[微博]';
   if (message.mediaType === 1 || message.previewUrl) return '[图片]';
   return message.text?.trim() || `[${message.msgTypeName || '消息'}]`;
 }
 
-// 关键词高亮：大小写不敏感，命中片段包进 <mark>，始终按文本节点渲染。
 function Highlighted({ text, keyword }: { text: string; keyword?: string }) {
   const needle = keyword?.trim();
   if (!needle) return <>{text}</>;
@@ -60,7 +78,12 @@ type Props = {
 
 export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [filters, setFilters] = useState<HistoryFilters>({ start: '', end: '', sender: '', keyword: '' });
+  const [filters, setFilters] = useState<HistoryFilters>({
+    start: '',
+    end: '',
+    sender: '',
+    keyword: '',
+  });
   const [applied, setApplied] = useState<HistoryFilters | null>(null);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<HistoryPage | null>(null);
@@ -87,7 +110,10 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     const today = shanghaiToday();
     const anchor = new Date(`${today}T12:00:00`);
     setFilters({
-      start: localDateValue(calendarMonthsAgo(anchor, 3)), end: today, sender: '', keyword: '',
+      start: localDateValue(calendarMonthsAgo(anchor, 3)),
+      end: today,
+      sender: '',
+      keyword: '',
     });
     setSyncDate(localDateValue(calendarMonthsAgo(anchor, 24)));
     setSyncing(false);
@@ -136,12 +162,10 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     pendingAnchorRef.current = null;
     const container = messagesRef.current;
     const element = container?.querySelector<HTMLElement>(`[data-mid="${anchor.mid}"]`);
-    if (container && element) container.scrollTop += element.getBoundingClientRect().top - anchor.top;
+    if (container && element)
+      container.scrollTop += element.getBoundingClientRect().top - anchor.top;
   }, [context]);
 
-  // 新目标加载完成后在提交后的布局阶段居中；等 React 提交 DOM 再量位置，
-  // 不能用 requestAnimationFrame，否则可能量到尚未渲染的列表。目标上方的
-  // 图片稍后加载会改变高度，因此在图片加载期间再校正几次，用户操作后停止校正。
   useLayoutEffect(() => {
     if (!context || !contextReady) return;
     if (centeredTargetRef.current === context.targetMid) return;
@@ -152,14 +176,18 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     const center = () => {
       const containerRect = container.getBoundingClientRect();
       const targetRect = element.getBoundingClientRect();
-      container.scrollTop += targetRect.top - containerRect.top
-        - (container.clientHeight - targetRect.height) / 2;
+      container.scrollTop +=
+        targetRect.top - containerRect.top - (container.clientHeight - targetRect.height) / 2;
     };
     center();
     let cancelled = false;
-    const onLoad = () => { if (!cancelled) center(); };
-    const pending = [...container.querySelectorAll<HTMLImageElement>('img')].filter(image =>
-      !image.complete && image.getBoundingClientRect().top < element.getBoundingClientRect().top);
+    const onLoad = () => {
+      if (!cancelled) center();
+    };
+    const pending = [...container.querySelectorAll<HTMLImageElement>('img')].filter(
+      (image) =>
+        !image.complete && image.getBoundingClientRect().top < element.getBoundingClientRect().top,
+    );
     for (const image of pending) {
       image.addEventListener('load', onLoad);
       image.addEventListener('error', onLoad);
@@ -199,7 +227,13 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     setContext(null);
     setViewerImage(null);
     try {
-      const pageData = await queryHistoryMessages(gid, nextFilters, nextPage, SEARCH_PAGE_SIZE, controller.signal);
+      const pageData = await queryHistoryMessages(
+        gid,
+        nextFilters,
+        nextPage,
+        SEARCH_PAGE_SIZE,
+        controller.signal,
+      );
       if (version !== versionRef.current || controller.signal.aborted) return;
       setResult(pageData);
       setStatus('idle');
@@ -233,7 +267,11 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     setViewerImage(null);
     setFeedback('');
     try {
-      await syncHistory(gid, toQueryDateTime(syncDate) ?? `${syncDate} 00:00:00`, controller.signal);
+      await syncHistory(
+        gid,
+        toQueryDateTime(syncDate) ?? `${syncDate} 00:00:00`,
+        controller.signal,
+      );
       if (version !== versionRef.current || controller.signal.aborted) return;
       setFeedback('已开始同步更早的历史消息，稍后请手动刷新查看。');
     } catch (error) {
@@ -306,9 +344,10 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
     const container = messagesRef.current;
     const anchor = direction === 'before' && container ? captureAnchor(container) : null;
     try {
-      const pageData = direction === 'before'
-        ? await fetchEarlierMessages(gid, CONTEXT_PAGE_SIZE, cursor, controller.signal)
-        : await fetchNewerMessages(gid, CONTEXT_PAGE_SIZE, cursor, controller.signal);
+      const pageData =
+        direction === 'before'
+          ? await fetchEarlierMessages(gid, CONTEXT_PAGE_SIZE, cursor, controller.signal)
+          : await fetchNewerMessages(gid, CONTEXT_PAGE_SIZE, cursor, controller.signal);
       if (version !== versionRef.current || controller.signal.aborted) return;
       const items = pageData.items.toSorted(compareMessages);
       const beforeCursor = direction === 'before' ? nextBeforeCursor(pageData) : current.before;
@@ -365,43 +404,94 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
         <header className="history-titlebar">
           <span aria-hidden="true">📜</span>
           <h2 id="history-title">{title}</h2>
-          <button type="button" className="history-close" aria-label="关闭聊天记录" onClick={onClose} />
+          <button
+            type="button"
+            className="history-close"
+            aria-label="关闭聊天记录"
+            onClick={onClose}
+          />
         </header>
         <div className="history-layout">
           <form className="history-filters" onSubmit={submit}>
             <h3>筛选条件</h3>
             <label htmlFor="history-start">开始日期</label>
-            <input id="history-start" type="date" value={filters.start}
-              onChange={event => setFilters({ ...filters, start: event.target.value })} />
+            <input
+              id="history-start"
+              type="date"
+              value={filters.start}
+              onChange={(event) => setFilters({ ...filters, start: event.target.value })}
+            />
             <label htmlFor="history-end">结束日期</label>
-            <input id="history-end" type="date" value={filters.end}
-              onChange={event => setFilters({ ...filters, end: event.target.value })} />
+            <input
+              id="history-end"
+              type="date"
+              value={filters.end}
+              onChange={(event) => setFilters({ ...filters, end: event.target.value })}
+            />
             <label htmlFor="history-sender">用户</label>
-            <input id="history-sender" type="search" placeholder="精确昵称" value={filters.sender}
-              onChange={event => setFilters({ ...filters, sender: event.target.value })} />
+            <input
+              id="history-sender"
+              type="search"
+              placeholder="精确昵称"
+              value={filters.sender}
+              onChange={(event) => setFilters({ ...filters, sender: event.target.value })}
+            />
             <label htmlFor="history-keyword">内容</label>
-            <input id="history-keyword" type="search" placeholder="包含关键词" value={filters.keyword}
-              onChange={event => setFilters({ ...filters, keyword: event.target.value })} />
-            <button type="submit" disabled={status === 'loading'}>🔍 查询</button>
+            <input
+              id="history-keyword"
+              type="search"
+              placeholder="包含关键词"
+              value={filters.keyword}
+              onChange={(event) => setFilters({ ...filters, keyword: event.target.value })}
+            />
+            <button type="submit" disabled={status === 'loading'}>
+              🔍 查询
+            </button>
             <label htmlFor="history-sync-time">同步历史至</label>
-            <input id="history-sync-time" type="date" value={syncDate}
-              onChange={event => setSyncDate(event.target.value)} />
-            <button type="button" disabled={syncing} onClick={() => { void runSync(); }}>⬇️ 同步历史</button>
+            <input
+              id="history-sync-time"
+              type="date"
+              value={syncDate}
+              onChange={(event) => setSyncDate(event.target.value)}
+            />
+            <button
+              type="button"
+              disabled={syncing}
+              onClick={() => {
+                void runSync();
+              }}
+            >
+              ⬇️ 同步历史
+            </button>
           </form>
           <section className="history-content" aria-label="聊天记录查询结果">
             {initialHint && (
               <div className="history-empty">
-                {syncing ? '同步中…' : status === 'loading' ? '查询中…' : (feedback || '设置筛选条件后点击查询')}
+                {syncing
+                  ? '同步中…'
+                  : status === 'loading'
+                    ? '查询中…'
+                    : feedback || '设置筛选条件后点击查询'}
               </div>
             )}
             {result && !context && (
               <div className="history-results">
                 <div className="history-results-list">
-                  {result.items.map(message => (
-                    <button key={message.mid} type="button" className="history-result"
-                      onClick={() => { void openContext(message); }}>
-                      <span className="history-result-time">{dateTimeFormatter.format(new Date(message.createdAt))}</span>
-                      <span className="history-result-sender">{message.senderName || '未知成员'}</span>
+                  {result.items.map((message) => (
+                    <button
+                      key={message.mid}
+                      type="button"
+                      className="history-result"
+                      onClick={() => {
+                        void openContext(message);
+                      }}
+                    >
+                      <span className="history-result-time">
+                        {dateTimeFormatter.format(new Date(message.createdAt))}
+                      </span>
+                      <span className="history-result-sender">
+                        {message.senderName || '未知成员'}
+                      </span>
                       <span className="history-result-summary">
                         <Highlighted text={historySummary(message)} keyword={applied?.keyword} />
                       </span>
@@ -409,36 +499,69 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
                   ))}
                 </div>
                 <footer className="history-pagination">
-                  <button type="button" disabled={page <= 1}
-                    onClick={() => { void runQuery(page - 1, applied ?? filters); }}>⬅️ 上一页</button>
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => {
+                      void runQuery(page - 1, applied ?? filters);
+                    }}
+                  >
+                    ⬅️ 上一页
+                  </button>
                   <span>{`第 ${result.page} / ${pageCount} 页，共 ${result.total} 条`}</span>
-                  <button type="button" disabled={page >= pageCount}
-                    onClick={() => { void runQuery(page + 1, applied ?? filters); }}>下一页 ➡️</button>
+                  <button
+                    type="button"
+                    disabled={page >= pageCount}
+                    onClick={() => {
+                      void runQuery(page + 1, applied ?? filters);
+                    }}
+                  >
+                    下一页 ➡️
+                  </button>
                 </footer>
               </div>
             )}
             {context && (
               <div className="history-context">
                 <header className="history-context-toolbar">
-                  <button type="button" onClick={backToResults}>🚩 返回搜索结果</button>
+                  <button type="button" onClick={backToResults}>
+                    🚩 返回搜索结果
+                  </button>
                 </header>
                 <div className="history-messages-shell">
-                  <div className="history-edge-state" role="status">{earlierState}</div>
+                  <div className="history-edge-state" role="status">
+                    {earlierState}
+                  </div>
                   <div className="history-messages" ref={messagesRef} onScroll={handleScroll}>
-                    {context.messages.map(message => (
-                      <MessageItem key={message.mid} message={message} isAdmin={admins.has(message.senderId)}
-                        highlighted={message.mid === context.targetMid} onOpenImage={setViewerImage} />
+                    {context.messages.map((message) => (
+                      <MessageItem
+                        key={message.mid}
+                        message={message}
+                        isAdmin={admins.has(message.senderId)}
+                        highlighted={message.mid === context.targetMid}
+                        onOpenImage={setViewerImage}
+                      />
                     ))}
                   </div>
-                  <div className="history-edge-state" role="status">{newerState}</div>
+                  <div className="history-edge-state" role="status">
+                    {newerState}
+                  </div>
                 </div>
               </div>
             )}
-            {feedback && (result || context) && <div className="history-feedback" role="status">{feedback}</div>}
+            {feedback && (result || context) && (
+              <div className="history-feedback" role="status">
+                {feedback}
+              </div>
+            )}
           </section>
         </div>
       </div>
-      <ImageViewer selection={viewerImage} onChange={setViewerImage} onClose={() => setViewerImage(null)} />
+      <ImageViewer
+        selection={viewerImage}
+        onChange={setViewerImage}
+        onClose={() => setViewerImage(null)}
+      />
     </dialog>
   );
 }
