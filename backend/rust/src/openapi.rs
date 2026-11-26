@@ -27,7 +27,7 @@ pub(crate) fn routes(config: &Config) -> Router<AppState> {
 async fn document() -> Response {
     (
         [(header::CONTENT_TYPE, "application/json")],
-        include_str!("openapi.json"),
+        include_str!("../../openapi.json"),
     )
         .into_response()
 }
