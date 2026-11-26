@@ -225,6 +225,7 @@ export default function Composer({ gid, onSent, onAuthExpired, onOpenHistory, on
           onKeyDown={event => {
             if (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
               event.preventDefault();
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
               void send();
             }
           }}

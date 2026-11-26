@@ -122,3 +122,7 @@ This is a single-context repository. See `docs/agents/domain.md`.
 ### Design tokens
 
 前端样式改动以 `docs/design/DESIGN.md` 为唯一令牌依据：chat 页使用「蔚蓝拟物」皮肤令牌，post 页使用「星空微博」皮肤令牌，两套令牌不得混用；颜色、圆角、阴影等取值优先引用令牌，不要新造。组件实样可在浏览器打开 `docs/design/style-guide.html` 对照。`DESIGN-HANDOFF.md` 与 `DESIGN-MANIFEST.json` 仅为导出存档，不作为实现依据。
+
+### Browser support
+
+前端仅面向现代 Chromium（Microsoft Edge WebView2 Runtime 与现代 Chrome、Edge 桌面浏览器）；允许使用 Baseline Newly Available 及现代 Chromium 原生特性，不引入第三方 polyfill，必要时仅做轻量降级处理。

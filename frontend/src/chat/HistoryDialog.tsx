@@ -310,7 +310,7 @@ export default function HistoryDialog({ gid, group, open, onClose, onAuthExpired
         ? await fetchEarlierMessages(gid, CONTEXT_PAGE_SIZE, cursor, controller.signal)
         : await fetchNewerMessages(gid, CONTEXT_PAGE_SIZE, cursor, controller.signal);
       if (version !== versionRef.current || controller.signal.aborted) return;
-      const items = [...pageData.items].sort(compareMessages);
+      const items = pageData.items.toSorted(compareMessages);
       const beforeCursor = direction === 'before' ? nextBeforeCursor(pageData) : current.before;
       const afterCursor = direction === 'after' ? nextAfterCursor(pageData) : current.after;
       pendingAnchorRef.current = anchor;

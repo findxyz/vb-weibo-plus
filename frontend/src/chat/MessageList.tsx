@@ -87,7 +87,7 @@ export default function MessageList({
     setErrorText('');
     fetchLatestMessages(gid, MESSAGE_PAGE_SIZE, controller.signal).then(page => {
       if (controller.signal.aborted) return;
-      const items = [...page.items].sort(compareMessages);
+      const items = page.items.toSorted(compareMessages);
       beforeCursorRef.current = nextBeforeCursor(page);
       hasMoreRef.current = page.hasMore;
       heightsRef.current.clear();
@@ -357,7 +357,7 @@ export default function MessageList({
     try {
       const page = await fetchEarlierMessages(gid, MESSAGE_PAGE_SIZE, cursor, controller.signal);
       if (controller.signal.aborted || generation !== cacheGenerationRef.current) return;
-      const items = [...page.items].sort(compareMessages);
+      const items = page.items.toSorted(compareMessages);
       beforeCursorRef.current = items.length ? nextBeforeCursor(page) : null;
       hasMoreRef.current = items.length ? page.hasMore : false;
       if (!items.length) return;

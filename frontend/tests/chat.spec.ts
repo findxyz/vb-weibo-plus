@@ -1718,6 +1718,22 @@ test('chat_keeps_shift_enter_for_newlines_and_ignores_blank_text', async ({ page
   expect(sendBodies).toHaveLength(0);
 });
 
+test('chat_ignores_enter_while_composing_with_ime', async ({ page }) => {
+  messagesByGid.set(1, makeMessages(1, 3, '消息'));
+  await openChat(page);
+  const input = page.getByRole('textbox', { name: '输入消息' });
+
+  await input.fill('你好');
+  await input.dispatchEvent('keydown', { key: 'Enter', isComposing: true });
+  await input.dispatchEvent('keydown', { key: 'Enter', keyCode: 229 });
+  await page.waitForTimeout(200);
+  expect(sendBodies).toHaveLength(0);
+  await expect(input).toHaveValue('你好');
+
+  await input.press('Enter');
+  await expect.poll(() => sendBodies.length).toBe(1);
+});
+
 test('chat_keeps_the_text_when_sending_fails', async ({ page }) => {
   messagesByGid.set(1, makeMessages(1, 3, '消息'));
   await openChat(page);
