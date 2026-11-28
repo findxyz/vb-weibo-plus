@@ -120,7 +120,11 @@ export default function PostPage() {
             </div>
             <div className="blogger-tools">
               <AddBlogger onAdded={bloggerAdded} onUnauthorized={login.expire} />
-              <SyncHistory blogger={selectedBlogger} onUnauthorized={login.expire} />
+              <SyncHistory
+                blogger={selectedBlogger}
+                bloggers={bloggers.data}
+                onUnauthorized={login.expire}
+              />
             </div>
             <div className="bloggers-list">
               <button

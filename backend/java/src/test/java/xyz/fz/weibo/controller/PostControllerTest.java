@@ -51,6 +51,8 @@ class PostControllerTest {
 
     @Test
     void range_submits_required_shanghai_time_bounds_without_response_body() throws Exception {
+        when(postService.submitRange(1, 1783652523000L, 1783656184000L)).thenReturn(true);
+
         mockMvc.perform(
                         post("/post/range")
                                 .param("uid", "1")
@@ -59,7 +61,7 @@ class PostControllerTest {
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
 
-        verify(postService).saveByRangeAsync(1, 1783652523000L, 1783656184000L);
+        verify(postService).submitRange(1, 1783652523000L, 1783656184000L);
     }
 
     @Test
@@ -78,7 +80,7 @@ class PostControllerTest {
                                 .param("end", "2026-07-10 12:03:04"))
                 .andExpect(status().isBadRequest());
 
-        verify(postService, never()).saveByRangeAsync(anyLong(), anyLong(), anyLong());
+        verify(postService, never()).submitRange(anyLong(), anyLong(), anyLong());
     }
 
     @Test
@@ -96,7 +98,7 @@ class PostControllerTest {
                                 .param("end", "2026-07-10 11:02:03"))
                 .andExpect(status().isBadRequest());
 
-        verify(postService, never()).saveByRangeAsync(anyLong(), anyLong(), anyLong());
+        verify(postService, never()).submitRange(anyLong(), anyLong(), anyLong());
     }
 
     @Test

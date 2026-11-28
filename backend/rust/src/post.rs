@@ -3,9 +3,13 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use jiff::{Timestamp, civil::DateTime};
+use jiff::{
+    Timestamp,
+    civil::{Date, DateTime},
+};
 use reqwest::Method;
 use rusqlite::{OptionalExtension, Row, params, params_from_iter, types::Value as SqlValue};
+use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
@@ -21,7 +25,7 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/post/calendar", get(calendar))
         .route("/post/list", get(list))
         .route("/post/incremental", post(incremental))
-        .route("/post/range", post(range))
+        .route("/post/range", get(range_status).post(range))
         .route("/post/like", get(local_like).post(set_local_like))
         .route("/weibo/blog/like", get(raw_like).post(set_raw_like))
         .route("/weibo/blog/mymblog", get(raw_blog))
@@ -313,7 +317,6 @@ fn parse_time(value: &str) -> ApiResult<i64> {
 }
 
 const STATUSES_URL: &str = "https://weibo.com/ajax/statuses";
-static RANGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn required<T: std::str::FromStr>(query: &[(String, String)], name: &str) -> ApiResult<T> {
     parse_optional(query, name)?.ok_or_else(|| bad_request(format!("{name} 不能为空。")))
@@ -682,6 +685,41 @@ async fn capture_incremental(state: &AppState, uid: i64) -> ApiResult<Value> {
     Ok(json!({"fetchedCount":fetched,"insertedCount":inserted,"ignoredCount":fetched-inserted}))
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct HistoryStatus {
+    uid: i64,
+    start: String,
+    end: String,
+    phase: HistoryPhase,
+    current_date: Option<String>,
+    fetched_count: i64,
+    inserted_count: i64,
+    failure_reason: Option<&'static str>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum HistoryPhase {
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+}
+
+async fn range_status(State(state): State<AppState>) -> Response {
+    let status = state.post_history.lock().unwrap().clone();
+    let mut response = match status {
+        Some(task) => Json(task).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    };
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("no-store"),
+    );
+    response
+}
+
 async fn range(State(state): State<AppState>, request: Request) -> ApiResult<StatusCode> {
     let query = post_parameters(request).await?;
     let uid = positive_uid(required(&query, "uid")?)?;
@@ -690,23 +728,61 @@ async fn range(State(state): State<AppState>, request: Request) -> ApiResult<Sta
     if start > end {
         return Err(bad_request("start 不能晚于 end。"));
     }
-    tokio::spawn(async move {
-        let Ok(_guard) = RANGE_LOCK.try_lock() else {
-            return;
-        };
-        if let Err(error) = capture_range(&state, uid, start, end).await {
-            eprintln!("博主 {uid} 历史同步失败：{error}");
+    let to_local = |epoch| shanghai::local_time(epoch).map(|local| local.date());
+    let first_date = to_local(start).ok_or_else(|| bad_request("日期格式无效。"))?;
+    let final_date = to_local(end).ok_or_else(|| bad_request("日期格式无效。"))?;
+    let mut task = HistoryStatus {
+        uid,
+        start: first_date.to_string(),
+        end: final_date.to_string(),
+        phase: HistoryPhase::Pending,
+        current_date: None,
+        fetched_count: 0,
+        inserted_count: 0,
+        failure_reason: None,
+    };
+    {
+        let mut status = state.post_history.lock().unwrap();
+        if status
+            .as_ref()
+            .is_some_and(|task| matches!(task.phase, HistoryPhase::Pending | HistoryPhase::Running))
+        {
+            return Ok(StatusCode::CONFLICT);
         }
+        *status = Some(task.clone());
+    }
+    tokio::spawn(async move {
+        match capture_range(&state, &mut task, start, end, first_date, final_date).await {
+            Ok(()) => task.phase = HistoryPhase::Succeeded,
+            Err(error) => {
+                eprintln!("博主 {uid} 历史同步失败：{error}");
+                task.phase = HistoryPhase::Failed;
+                task.failure_reason = Some(match error.status {
+                    StatusCode::UNAUTHORIZED => "微博登录已失效。",
+                    StatusCode::TOO_MANY_REQUESTS => "微博请求过于频繁。",
+                    StatusCode::INTERNAL_SERVER_ERROR => "处理或保存微博失败。",
+                    _ => "微博请求失败。",
+                });
+            }
+        }
+        *state.post_history.lock().unwrap() = Some(task);
     });
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn capture_range(state: &AppState, uid: i64, start: i64, end: i64) -> ApiResult<()> {
-    let to_local = |epoch| shanghai::local_time(epoch).map(|local| local.date());
-    let mut date = to_local(start).ok_or_else(|| bad_request("日期格式无效。"))?;
-    let final_date = to_local(end).ok_or_else(|| bad_request("日期格式无效。"))?;
+async fn capture_range(
+    state: &AppState,
+    task: &mut HistoryStatus,
+    start: i64,
+    end: i64,
+    mut date: Date,
+    final_date: Date,
+) -> ApiResult<()> {
     let mut requested = false;
     loop {
+        task.phase = HistoryPhase::Running;
+        task.current_date = Some(date.to_string());
+        *state.post_history.lock().unwrap() = Some(task.clone());
         let next = date.tomorrow().map_err(|_| bad_request("日期格式无效。"))?;
         let lower = shanghai::start_of_day(date).unwrap_or(start).max(start);
         let upper = (shanghai::start_of_day(next).unwrap_or(end.saturating_add(1)) - 1).min(end);
@@ -718,7 +794,7 @@ async fn capture_range(state: &AppState, uid: i64, start: i64, end: i64) -> ApiR
             requested = true;
             let response = search(
                 state,
-                uid,
+                task.uid,
                 page,
                 lower.div_euclid(1000),
                 upper.div_euclid(1000),
@@ -729,7 +805,8 @@ async fn capture_range(state: &AppState, uid: i64, start: i64, end: i64) -> ApiR
             let captured = Timestamp::now().as_millisecond();
             save_blogger(state, &first["user"], captured).await?;
             for item in posts {
-                capture_post(state, item, captured).await?;
+                task.fetched_count += 1;
+                task.inserted_count += i64::from(capture_post(state, item, captured).await?);
             }
             page += 1;
         }

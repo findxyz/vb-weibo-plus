@@ -1,5 +1,6 @@
 package xyz.fz.weibo.controller;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
@@ -8,6 +9,7 @@ import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.CalendarView;
 import xyz.fz.weibo.domain.MediaBinary;
+import xyz.fz.weibo.domain.PostHistoryStatus;
 import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.SaveResult;
@@ -41,6 +44,8 @@ public class PostController {
         return postService.saveIncremental(uid);
     }
 
+    @ApiResponse(responseCode = "204", description = "已提交后台同步。")
+    @ApiResponse(responseCode = "409", description = "已有历史同步在运行。")
     @PostMapping("/range")
     public ResponseEntity<Void> saveByRange(
             @RequestParam long uid,
@@ -52,8 +57,21 @@ public class PostController {
         if (start.isAfter(end)) {
             throw new InvalidRequestException("start 不能晚于 end。");
         }
-        postService.saveByRangeAsync(uid, toEpochMillis(start), toEpochMillis(end));
+        if (!postService.submitRange(uid, toEpochMillis(start), toEpochMillis(end))) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
         return ResponseEntity.noContent().build();
+    }
+
+    @ApiResponse(responseCode = "200", description = "当前或最近一次历史同步状态。", useReturnTypeSchema = true)
+    @ApiResponse(responseCode = "204", description = "暂无历史同步状态。")
+    @GetMapping(value = "/range", produces = "application/json")
+    public ResponseEntity<PostHistoryStatus> rangeStatus() {
+        PostHistoryStatus task = postService.rangeStatus();
+        if (task == null) {
+            return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(task);
     }
 
     @GetMapping("/image")

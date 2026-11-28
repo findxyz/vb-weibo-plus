@@ -84,7 +84,8 @@ class PostLikeIntegrationTest {
                         null,
                         posts,
                         new PostLikeApi(client, credential, mapper, detail),
-                        detail);
+                        detail,
+                        Runnable::run);
         mvc =
                 MockMvcBuilders.standaloneSetup(new PostController(service))
                         .setControllerAdvice(new WeiboExceptionHandler())

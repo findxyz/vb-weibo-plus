@@ -41,6 +41,7 @@ import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.MediaSize;
 import xyz.fz.weibo.domain.PicInfo;
+import xyz.fz.weibo.domain.PostHistoryStatus.Phase;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.PostRecord;
 import xyz.fz.weibo.domain.PostView;
@@ -96,7 +97,8 @@ class PostServiceTest {
                         bloggerRepository,
                         postRepository,
                         postLikeApi,
-                        postDetailApi);
+                        postDetailApi,
+                        Runnable::run);
     }
 
     @Test
@@ -564,13 +566,20 @@ class PostServiceTest {
         when(postRepository.insertIfAbsent(firstEntity)).thenReturn(true, false);
         when(postRepository.insertIfAbsent(secondEntity)).thenReturn(true);
 
-        assertThatThrownBy(() -> postService.saveByRange(1, 1783652523000L, 1783702800000L))
-                .isInstanceOf(WeiboException.class);
+        assertThat(postService.submitRange(1, 1783652523000L, 1783702800000L)).isTrue();
+        var failure = postService.rangeStatus();
+        assertThat(failure.phase()).isEqualTo(Phase.FAILED);
+        assertThat(failure.currentDate()).hasToString("2026-07-11");
+        assertThat(failure.insertedCount()).isEqualTo(1);
+        assertThat(failure.failureReason()).isEqualTo("微博请求失败。");
         verify(postRepository).insertIfAbsent(firstEntity);
         verify(postRepository, never()).insertIfAbsent(secondEntity);
 
-        assertThat(postService.saveByRange(1, 1783652523000L, 1783702800000L))
-                .isEqualTo(new SaveResult(2, 1, 1));
+        assertThat(postService.submitRange(1, 1783652523000L, 1783702800000L)).isTrue();
+        var success = postService.rangeStatus();
+        assertThat(success.phase()).isEqualTo(Phase.SUCCEEDED);
+        assertThat(success.fetchedCount()).isEqualTo(2);
+        assertThat(success.insertedCount()).isEqualTo(1);
 
         verify(postRepository, times(2)).insertIfAbsent(firstEntity);
         verify(postRepository).insertIfAbsent(secondEntity);

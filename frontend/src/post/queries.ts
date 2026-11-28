@@ -55,6 +55,10 @@ export function isUnauthorized(error: unknown) {
   return error instanceof QueryError && error.status === 401;
 }
 
+export function isConflict(error: unknown) {
+  return error instanceof QueryError && error.status === 409;
+}
+
 export async function getJson<T>(
   url: string,
   signal: AbortSignal,

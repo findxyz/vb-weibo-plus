@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   calendarMonthsAgo,
   isDateRangeValid,
@@ -9,24 +9,81 @@ import {
   toQueryDateTime,
   toQueryEndTime,
 } from '../shared/date';
-import { getJson, isUnauthorized, type Blogger } from './queries';
+import { getJson, isConflict, isUnauthorized, type Blogger } from './queries';
+
+const historyStatusKey = ['post', 'history-status'] as const;
+const millisecondsPerDay = 86_400_000;
+const phaseLabels = {
+  PENDING: '等待同步',
+  RUNNING: '同步中',
+  SUCCEEDED: '同步成功',
+  FAILED: '同步失败',
+};
+
+type HistoryStatus = {
+  uid: number;
+  start: string;
+  end: string;
+  phase: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+  currentDate: string | null;
+  fetchedCount: number;
+  insertedCount: number;
+  failureReason: string | null;
+};
+
+function isRunning(task: HistoryStatus | null | undefined) {
+  return task?.phase === 'PENDING' || task?.phase === 'RUNNING';
+}
+
+function describeProgress(task: HistoryStatus) {
+  switch (task.phase) {
+    case 'PENDING':
+      return null;
+    case 'RUNNING':
+      return `正在处理 ${task.currentDate}`;
+    case 'SUCCEEDED':
+      return `拉取 ${task.fetchedCount} 条，新增 ${task.insertedCount} 条`;
+    case 'FAILED':
+      return [
+        task.currentDate && `失败日期 ${task.currentDate}`,
+        `已新增 ${task.insertedCount} 条`,
+        task.failureReason,
+      ]
+        .filter(Boolean)
+        .join('，');
+  }
+}
 
 export default function SyncHistory({
   blogger,
+  bloggers,
   onUnauthorized,
 }: {
   blogger?: Blogger;
+  bloggers?: Blogger[];
   onUnauthorized: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [validation, setValidation] = useState('');
-  const [tip, setTip] = useState<{ message: string; error?: boolean }>();
+  const [tip, setTip] = useState<string>();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const controller = useRef<AbortController>(null);
   const pending = useRef(false);
   const alive = useRef(true);
+  const queryClient = useQueryClient();
+  const history = useQuery({
+    queryKey: historyStatusKey,
+    queryFn: async ({ signal }) =>
+      (await getJson<HistoryStatus | undefined>('/post/range', signal)) ?? null,
+    refetchInterval: (query) => (isRunning(query.state.data) ? 2000 : 5000),
+  });
+  const task = history.data;
+  const running = isRunning(task);
+  const detail = task && describeProgress(task);
+  const taskBlogger = bloggers?.find((item) => item.uid === task?.uid);
+  const account = taskBlogger ? `@${taskBlogger.screenName}` : task && `博主 UID ${task.uid}`;
   const sync = useMutation({
     retry: false,
     mutationFn: (scope: { uid: number; start: string; end: string }) => {
@@ -40,15 +97,17 @@ export default function SyncHistory({
         method: 'POST',
       });
     },
-    onSuccess: () => {
-      if (alive.current) setTip({ message: '已提交后台同步，可继续浏览，稍后请手动刷新。' });
-    },
     onError: (error) => {
       if (!alive.current) return;
       if (isUnauthorized(error)) onUnauthorized();
-      else setTip({ message: `提交历史微博同步失败：${error.message}`, error: true });
+      else if (isConflict(error)) setTip('已有历史同步在运行。');
+      else setTip(`无法确认历史同步是否已提交：${error.message}`);
     },
-    onSettled: () => {
+    onSettled: async (_data, error) => {
+      if (alive.current && !isUnauthorized(error)) {
+        await queryClient.cancelQueries({ queryKey: historyStatusKey });
+        if (alive.current) await history.refetch();
+      }
       pending.current = false;
     },
   });
@@ -72,7 +131,7 @@ export default function SyncHistory({
   }, [open]);
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!blogger || pending.current) return;
+    if (!blogger || pending.current || running) return;
     if (!start || !end) {
       setValidation('请选择开始与结束日期。');
       return;
@@ -87,17 +146,18 @@ export default function SyncHistory({
     setOpen(false);
     sync.mutate({ uid: blogger.uid, start, end });
   }
+  const submitting = sync.isPending && !sync.error;
   return (
     <>
       <button
         type="button"
         className="search-open sync-history-open"
         aria-label="同步历史"
-        disabled={!blogger}
-        aria-disabled={!blogger || sync.isPending}
+        disabled={!blogger || running}
+        aria-disabled={!blogger || running || sync.isPending}
         title={!blogger ? '请先选择一位博主' : '同步历史微博'}
         onClick={() => {
-          if (!blogger || pending.current) return;
+          if (!blogger || pending.current || running) return;
           const today = shanghaiToday();
           setStart(localDateValue(calendarMonthsAgo(new Date(`${today}T12:00:00`), 24)));
           setEnd(today);
@@ -107,6 +167,34 @@ export default function SyncHistory({
       >
         同步历史
       </button>
+      {(task || submitting || history.isError) && (
+        <div className="sync-history-status" data-phase={task?.phase} role="status">
+          {task ? (
+            <>
+              <div className="sync-history-status-heading">
+                <strong>{phaseLabels[task.phase]}</strong>
+                <span title={account ?? undefined}>{account}</span>
+              </div>
+              {task.phase === 'RUNNING' && task.currentDate && (
+                <progress
+                  aria-label="已完成日期"
+                  max={1 + (Date.parse(task.end) - Date.parse(task.start)) / millisecondsPerDay}
+                  value={
+                    (Date.parse(task.currentDate) - Date.parse(task.start)) / millisecondsPerDay
+                  }
+                />
+              )}
+              {detail && <div className="sync-history-status-detail">{detail}</div>}
+              <div>
+                {task.start} 至 {task.end}
+              </div>
+            </>
+          ) : submitting ? (
+            <div>正在提交历史同步……</div>
+          ) : null}
+          {history.isError && <div>暂时无法读取同步状态，稍后重试。</div>}
+        </div>
+      )}
       {open &&
         blogger &&
         createPortal(
@@ -128,7 +216,7 @@ export default function SyncHistory({
               <form className="search-overlay-body" onSubmit={submit}>
                 <p className="search-overlay-tip">
                   按天拉取 <b>@{blogger.screenName}</b>{' '}
-                  在选定范围内的微博，已存在的会自动跳过。提交后弹窗自动关闭，同步在后台执行，可继续浏览；稍后请手动刷新页面查看，进度和结果可查看服务端日志。若已有同步任务在运行，本次请求会被跳过。
+                  在选定范围内的微博，已存在的会自动跳过。同步在后台执行，可在工具栏查看进度和结果。刷新页面可查看已保存的微博。
                 </p>
                 <label className="search-field">
                   开始日期
@@ -146,7 +234,12 @@ export default function SyncHistory({
                   {validation}
                 </p>
                 <div className="search-actions">
-                  <button type="submit" className="sync-submit" aria-label="开始同步">
+                  <button
+                    type="submit"
+                    className="sync-submit"
+                    aria-label="开始同步"
+                    disabled={running}
+                  >
                     开始同步
                   </button>
                 </div>
@@ -157,8 +250,8 @@ export default function SyncHistory({
         )}
       {tip &&
         createPortal(
-          <div className="global-tip" role={tip.error ? 'alert' : 'status'}>
-            {tip.message}
+          <div className="global-tip" role="alert">
+            {tip}
           </div>,
           document.body,
         )}

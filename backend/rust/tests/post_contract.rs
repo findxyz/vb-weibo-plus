@@ -3,7 +3,7 @@ use axum::http::{Request, StatusCode};
 use axum::response::Response;
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Query, State},
     http::HeaderMap,
     routing::{get, post},
 };
@@ -145,5 +145,113 @@ async fn captured_long_text_and_like_use_java_requests_without_replaying_writes(
         .unwrap();
     assert_eq!(write.status(), StatusCode::NO_CONTENT);
     assert_eq!(like_writes.load(Ordering::SeqCst), 1);
+    server.abort();
+}
+
+#[tokio::test]
+async fn history_range_reports_progress_conflict_partial_failure_and_zero_success() {
+    use std::{collections::HashMap, sync::Arc, time::Duration};
+    use tokio::sync::Notify;
+
+    let started = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let upstream = Router::new().route(
+        "/ajax/statuses/searchProfile",
+        get({
+            let (started, release) = (started.clone(), release.clone());
+            move |Query(query): Query<HashMap<String, String>>| {
+                let (started, release) = (started.clone(), release.clone());
+                async move {
+                    if query["uid"] == "7" && query["starttime"] == "1783612800" {
+                        if query["page"] == "1" {
+                            started.notify_one();
+                            release.notified().await;
+                            return Json(json!({"ok":1,"data":{"list":[{
+                                "id":512,"mblogid":"captured","user":{"id":7,"screen_name":"示例"},
+                                "created_at":"Fri Jul 10 08:00:00 +0800 2026","text":"已保存"
+                            }]}}));
+                        }
+                    } else if query["uid"] == "7" {
+                        return Json(json!({"ok":0,"msg":"模拟失败"}));
+                    }
+                    Json(json!({"ok":1,"data":{"list":[]}}))
+                }
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, upstream).await.unwrap() });
+    let temp = tempfile::tempdir().unwrap();
+    let config = Config {
+        database_path: temp.path().join("history.db"),
+        cookie_file: temp.path().join("cookie.txt"),
+        weibo_origin: Some(origin),
+        ..Config::default()
+    };
+    let state = AppState::new(config.clone()).await.unwrap();
+    state.credential.set(Some("SUB=fixture".into())).unwrap();
+    let router = app(state);
+    let status_request = || Request::get("/post/range").body(Body::empty()).unwrap();
+    let submit = |uid| {
+        Request::post(format!(
+            "/post/range?uid={uid}&start=2026-07-10%2000:00:00&end=2026-07-11%2023:59:59"
+        ))
+        .body(Body::empty())
+        .unwrap()
+    };
+
+    let idle = router.clone().oneshot(status_request()).await.unwrap();
+    assert_eq!(idle.status(), StatusCode::NO_CONTENT);
+    assert_eq!(idle.headers()["cache-control"], "no-store");
+    let accepted = router.clone().oneshot(submit(7)).await.unwrap();
+    assert_eq!(accepted.status(), StatusCode::NO_CONTENT);
+    tokio::time::timeout(Duration::from_secs(5), started.notified())
+        .await
+        .unwrap();
+    let (_, running) = json_response(router.clone(), "/post/range").await;
+    assert_eq!(running["phase"], "RUNNING");
+    assert_eq!(running["uid"], 7);
+    assert_eq!(running["start"], "2026-07-10");
+    assert_eq!(running["end"], "2026-07-11");
+    assert_eq!(running["currentDate"], "2026-07-10");
+    let conflict = router.clone().oneshot(submit(8)).await.unwrap();
+    assert_eq!(conflict.status(), StatusCode::CONFLICT);
+    release.notify_one();
+
+    let terminal = |router: axum::Router| async move {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let (_, task) = json_response(router.clone(), "/post/range").await;
+                if matches!(task["phase"].as_str(), Some("SUCCEEDED" | "FAILED")) {
+                    break task;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap()
+    };
+    let failure = terminal(router.clone()).await;
+    assert_eq!(failure["phase"], "FAILED");
+    assert_eq!(failure["uid"], 7);
+    assert_eq!(failure["currentDate"], "2026-07-11");
+    assert_eq!(failure["insertedCount"], 1);
+    assert_eq!(failure["failureReason"], "微博请求失败。");
+    let (_, list) = json_response(router.clone(), "/post/list?uids=7").await;
+    assert_eq!(list["items"][0]["mblogId"], "captured");
+
+    let accepted = router.clone().oneshot(submit(8)).await.unwrap();
+    assert_eq!(accepted.status(), StatusCode::NO_CONTENT);
+    let success = terminal(router).await;
+    assert_eq!(success["phase"], "SUCCEEDED");
+    assert_eq!(success["uid"], 8);
+    assert_eq!(success["insertedCount"], 0);
+    assert_eq!(success["fetchedCount"], 0);
+    let restarted = app(AppState::new(config).await.unwrap());
+    assert_eq!(
+        restarted.oneshot(status_request()).await.unwrap().status(),
+        StatusCode::NO_CONTENT
+    );
     server.abort();
 }

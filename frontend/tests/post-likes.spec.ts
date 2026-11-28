@@ -41,6 +41,7 @@ test.beforeEach(async ({ page }) => {
     total: 1,
   };
   await page.route('**/weibo/login/status', (route) => route.fulfill({ json: { valid: true } }));
+  await page.route('**/post/range', (route) => route.fulfill({ status: 204 }));
   await page.route(
     (url) => url.pathname === '/post/bloggers',
     (route) => route.fulfill({ json: [{ uid: 1, screenName: '测试博主' }] }),

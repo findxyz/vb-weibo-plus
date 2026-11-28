@@ -15,6 +15,8 @@ pub use config::Config;
 pub use credential::Credential;
 pub use db::{Db, DbError};
 
+use std::sync::{Arc, Mutex};
+
 use axum::{Router, extract::DefaultBodyLimit};
 
 #[derive(Clone)]
@@ -24,6 +26,7 @@ pub struct AppState {
     pub credential: Credential,
     pub http: reqwest::Client,
     pub(crate) ai_http: reqwest::Client,
+    pub(crate) post_history: Arc<Mutex<Option<post::HistoryStatus>>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -57,6 +60,7 @@ impl AppState {
             credential,
             http,
             ai_http,
+            post_history: Arc::default(),
         })
     }
 }

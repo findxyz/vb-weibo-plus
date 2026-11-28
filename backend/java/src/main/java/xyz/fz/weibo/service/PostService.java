@@ -9,13 +9,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResponseExtractor;
 import xyz.fz.weibo.api.DirectMediaApi;
@@ -31,6 +32,8 @@ import xyz.fz.weibo.domain.BloggerRecord;
 import xyz.fz.weibo.domain.CalendarView;
 import xyz.fz.weibo.domain.MediaBinary;
 import xyz.fz.weibo.domain.PicInfo;
+import xyz.fz.weibo.domain.PostHistoryStatus;
+import xyz.fz.weibo.domain.PostHistoryStatus.Phase;
 import xyz.fz.weibo.domain.PostLikeState;
 import xyz.fz.weibo.domain.PostQueryResult;
 import xyz.fz.weibo.domain.PostRecord;
@@ -69,7 +72,9 @@ public class PostService {
     private final PostRepository postRepository;
     private final PostLikeApi postLikeApi;
     private final PostDetailApi postDetailApi;
-    private final ReentrantLock saveByRangeLock = new ReentrantLock();
+    private final TaskExecutor taskExecutor;
+    private boolean rangeRunning;
+    private volatile PostHistoryStatus rangeStatus;
 
     public PostService(
             MyBlogApi myBlogApi,
@@ -80,7 +85,8 @@ public class PostService {
             BloggerRepository bloggerRepository,
             PostRepository postRepository,
             PostLikeApi postLikeApi,
-            PostDetailApi postDetailApi) {
+            PostDetailApi postDetailApi,
+            @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor) {
         this.myBlogApi = myBlogApi;
         this.searchProfileApi = searchProfileApi;
         this.longTextApi = longTextApi;
@@ -90,6 +96,7 @@ public class PostService {
         this.postRepository = postRepository;
         this.postLikeApi = postLikeApi;
         this.postDetailApi = postDetailApi;
+        this.taskExecutor = taskExecutor;
     }
 
     public PostLikeState queryLike(String mblogId) {
@@ -182,119 +189,210 @@ public class PostService {
         }
     }
 
-    @Async
-    public void saveByRangeAsync(long uid, long startMillis, long endMillis) {
-        saveByRange(uid, startMillis, endMillis);
+    public synchronized boolean submitRange(long uid, long startMillis, long endMillis) {
+        validateRange(uid, startMillis, endMillis);
+        if (!reserveRange()) {
+            return false;
+        }
+
+        PostHistoryStatus previous = rangeStatus;
+        rangeStatus =
+                new PostHistoryStatus(
+                        uid,
+                        rangeDate(startMillis),
+                        rangeDate(endMillis),
+                        Phase.PENDING,
+                        null,
+                        0,
+                        0,
+                        null);
+        try {
+            taskExecutor.execute(() -> captureRange(uid, startMillis, endMillis, true));
+            return true;
+        } catch (TaskRejectedException error) {
+            rangeStatus = previous;
+            rangeRunning = false;
+            throw error;
+        }
+    }
+
+    public PostHistoryStatus rangeStatus() {
+        return rangeStatus;
     }
 
     public SaveResult saveByRange(long uid, long startMillis, long endMillis) {
-        if (!saveByRangeLock.tryLock()) {
+        if (!reserveRange()) {
             log.warn("博主 {} 历史同步跳过：已有同步任务在运行。", uid);
             return new SaveResult(0, 0, 0);
         }
         try {
-            if (uid <= 0) {
-                throw new InvalidRequestException("uid 必须大于 0。");
-            }
-            if (startMillis > endMillis) {
-                throw new InvalidRequestException("start 不能晚于 end。");
-            }
-
-            int fetched = 0;
-            int inserted = 0;
-            int ignored = 0;
-            long oldestTime = Long.MAX_VALUE;
-            long newestTime = Long.MIN_VALUE;
-            boolean firstRequest = true;
-            LocalDate firstDate =
-                    Instant.ofEpochMilli(startMillis).atZone(REQUEST_TIME_ZONE).toLocalDate();
-            LocalDate lastDate =
-                    Instant.ofEpochMilli(endMillis).atZone(REQUEST_TIME_ZONE).toLocalDate();
-            log.info("博主 {} 历史同步开始：范围 {} ~ {}", uid, firstDate, lastDate);
-            try {
-                for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
-                    long dayStartMillis =
-                            date.equals(firstDate)
-                                    ? startMillis
-                                    : date.atStartOfDay(REQUEST_TIME_ZONE)
-                                            .toInstant()
-                                            .toEpochMilli();
-                    long dayEndMillis =
-                            date.equals(lastDate)
-                                    ? endMillis
-                                    : date.plusDays(1)
-                                                    .atStartOfDay(REQUEST_TIME_ZONE)
-                                                    .toInstant()
-                                                    .toEpochMilli()
-                                            - 1;
-                    int dayFetched = 0;
-                    int dayInserted = 0;
-                    int page = 1;
-                    while (true) {
-                        if (!firstRequest) {
-                            sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
-                        }
-                        firstRequest = false;
-                        SearchProfileResponse response =
-                                searchProfileApi.searchProfile(
-                                        new SearchProfileRequest(
-                                                uid,
-                                                page,
-                                                Math.floorDiv(dayStartMillis, 1000),
-                                                Math.floorDiv(dayEndMillis, 1000)));
-                        List<MblogResponse> posts = requirePosts(response);
-                        if (posts.isEmpty()) {
-                            break;
-                        }
-
-                        long capturedAt = System.currentTimeMillis();
-                        BloggerEntity blogger =
-                                postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
-                        bloggerRepository.upsertMetadata(blogger);
-                        for (MblogResponse post : posts) {
-                            fetched++;
-                            dayFetched++;
-                            long postTime = postMapper.parseCreatedAt(post.createdAt());
-                            oldestTime = Math.min(oldestTime, postTime);
-                            newestTime = Math.max(newestTime, postTime);
-                            if (capturePost(post, capturedAt)) {
-                                inserted++;
-                                dayInserted++;
-                            } else {
-                                ignored++;
-                            }
-                        }
-                        page++;
-                    }
-                    log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条", uid, date, dayFetched, dayInserted);
-                }
-                if (inserted > 0) {
-                    if (log.isInfoEnabled()) {
-                        log.info(
-                                "博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
-                                uid,
-                                fetched,
-                                inserted,
-                                ignored,
-                                formatTimestamp(oldestTime),
-                                formatTimestamp(newestTime));
-                    }
-                } else {
-                    log.info("博主 {} 历史同步完成：拉取 {} 条，无新增。", uid, fetched);
-                }
-                return new SaveResult(fetched, inserted, ignored);
-            } catch (RuntimeException e) {
-                log.atWarn()
-                        .setCause(e)
-                        .addArgument(uid)
-                        .addArgument(firstDate)
-                        .addArgument(lastDate)
-                        .addArgument(e::getMessage)
-                        .log("博主 {} 历史同步失败：范围 {} ~ {}，error = {}");
-                throw e;
-            }
+            validateRange(uid, startMillis, endMillis);
+            return captureRange(uid, startMillis, endMillis, false);
         } finally {
-            saveByRangeLock.unlock();
+            releaseRange();
+        }
+    }
+
+    private synchronized boolean reserveRange() {
+        if (rangeRunning) {
+            return false;
+        }
+        rangeRunning = true;
+        return true;
+    }
+
+    private synchronized void releaseRange() {
+        rangeRunning = false;
+    }
+
+    private static void validateRange(long uid, long startMillis, long endMillis) {
+        if (uid <= 0) {
+            throw new InvalidRequestException("uid 必须大于 0。");
+        }
+        if (startMillis > endMillis) {
+            throw new InvalidRequestException("start 不能晚于 end。");
+        }
+    }
+
+    private static LocalDate rangeDate(long millis) {
+        return Instant.ofEpochMilli(millis).atZone(REQUEST_TIME_ZONE).toLocalDate();
+    }
+
+    private void updateRange(
+            Phase phase, LocalDate date, int fetched, int inserted, String failureReason) {
+        PostHistoryStatus task = rangeStatus;
+        rangeStatus =
+                new PostHistoryStatus(
+                        task.uid(),
+                        task.start(),
+                        task.end(),
+                        phase,
+                        date,
+                        fetched,
+                        inserted,
+                        failureReason);
+    }
+
+    private synchronized void finishRange(
+            Phase phase, LocalDate date, int fetched, int inserted, String failureReason) {
+        updateRange(phase, date, fetched, inserted, failureReason);
+        rangeRunning = false;
+    }
+
+    private static String rangeFailureReason(RuntimeException error) {
+        if (error instanceof WeiboCookieExpiredException) {
+            return "微博登录已失效。";
+        }
+        if (error instanceof WeiboRateLimitException) {
+            return "微博请求过于频繁。";
+        }
+        if (error instanceof WeiboException) {
+            return "微博请求失败。";
+        }
+        return "处理或保存微博失败。";
+    }
+
+    private SaveResult captureRange(long uid, long startMillis, long endMillis, boolean tracked) {
+        int fetched = 0;
+        int inserted = 0;
+        int ignored = 0;
+        long oldestTime = Long.MAX_VALUE;
+        long newestTime = Long.MIN_VALUE;
+        boolean firstRequest = true;
+        LocalDate firstDate = rangeDate(startMillis);
+        LocalDate lastDate = rangeDate(endMillis);
+        LocalDate currentDate = null;
+        try {
+            log.info("博主 {} 历史同步开始：范围 {} ~ {}", uid, firstDate, lastDate);
+            for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
+                currentDate = date;
+                if (tracked) {
+                    updateRange(Phase.RUNNING, date, fetched, inserted, null);
+                }
+                long dayStartMillis =
+                        date.equals(firstDate)
+                                ? startMillis
+                                : date.atStartOfDay(REQUEST_TIME_ZONE).toInstant().toEpochMilli();
+                long dayEndMillis =
+                        date.equals(lastDate)
+                                ? endMillis
+                                : date.plusDays(1)
+                                                .atStartOfDay(REQUEST_TIME_ZONE)
+                                                .toInstant()
+                                                .toEpochMilli()
+                                        - 1;
+                int dayFetched = 0;
+                int dayInserted = 0;
+                int page = 1;
+                while (true) {
+                    if (!firstRequest) {
+                        sleep(ThreadLocalRandom.current().nextLong(200, 2_001));
+                    }
+                    firstRequest = false;
+                    SearchProfileResponse response =
+                            searchProfileApi.searchProfile(
+                                    new SearchProfileRequest(
+                                            uid,
+                                            page,
+                                            Math.floorDiv(dayStartMillis, 1000),
+                                            Math.floorDiv(dayEndMillis, 1000)));
+                    List<MblogResponse> posts = requirePosts(response);
+                    if (posts.isEmpty()) {
+                        break;
+                    }
+
+                    long capturedAt = System.currentTimeMillis();
+                    BloggerEntity blogger =
+                            postMapper.toBloggerEntity(posts.getFirst().user(), capturedAt);
+                    bloggerRepository.upsertMetadata(blogger);
+                    for (MblogResponse post : posts) {
+                        fetched++;
+                        dayFetched++;
+                        long postTime = postMapper.parseCreatedAt(post.createdAt());
+                        oldestTime = Math.min(oldestTime, postTime);
+                        newestTime = Math.max(newestTime, postTime);
+                        if (capturePost(post, capturedAt)) {
+                            inserted++;
+                            dayInserted++;
+                        } else {
+                            ignored++;
+                        }
+                    }
+                    page++;
+                }
+                log.info("博主 {} 历史同步进度：{} 拉取 {} 条，新增 {} 条", uid, date, dayFetched, dayInserted);
+            }
+            if (inserted > 0) {
+                if (log.isInfoEnabled()) {
+                    log.info(
+                            "博主 {} 历史同步：拉取 {} 条，新增 {} 条，忽略 {} 条，最旧 {}，最新 {}",
+                            uid,
+                            fetched,
+                            inserted,
+                            ignored,
+                            formatTimestamp(oldestTime),
+                            formatTimestamp(newestTime));
+                }
+            } else {
+                log.info("博主 {} 历史同步完成：拉取 {} 条，无新增。", uid, fetched);
+            }
+            if (tracked) {
+                finishRange(Phase.SUCCEEDED, currentDate, fetched, inserted, null);
+            }
+            return new SaveResult(fetched, inserted, ignored);
+        } catch (RuntimeException e) {
+            log.atWarn()
+                    .setCause(e)
+                    .addArgument(uid)
+                    .addArgument(firstDate)
+                    .addArgument(lastDate)
+                    .addArgument(e::getMessage)
+                    .log("博主 {} 历史同步失败：范围 {} ~ {}，error = {}");
+            if (tracked) {
+                finishRange(Phase.FAILED, currentDate, fetched, inserted, rangeFailureReason(e));
+                return new SaveResult(fetched, inserted, ignored);
+            }
+            throw e;
         }
     }
 
