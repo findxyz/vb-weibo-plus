@@ -1,6 +1,6 @@
 import { Button } from '@ui-sdk/react/button';
-import { Dialog, DialogBackdrop, DialogContent } from '@ui-sdk/react/dialog';
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
+import { Dialog, DialogBackdrop, DialogClose, DialogContent } from '@ui-sdk/react/dialog';
+import { ChevronLeftIcon, ChevronRightIcon, XIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useImageZoom } from '../shared/useImageZoom';
 
@@ -107,6 +107,9 @@ export default function ImageViewer({
         }}
       >
         <ViewerImage key={index} {...images[index]} />
+        <DialogClose className="viewer-close" aria-label="关闭原图">
+          <XIcon aria-hidden="true" />
+        </DialogClose>
         {images.length > 1 && (
           <>
             <Button

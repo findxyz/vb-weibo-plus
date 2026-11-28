@@ -1006,6 +1006,48 @@ for (const context of ['messages', 'history'] as const) {
     await expect(viewer).not.toHaveJSProperty('open', true);
     if (context === 'history') await expect(container).toHaveJSProperty('open', true);
   });
+
+  test(`chat_image_viewer_closes_from_top_right_button_in_${context}`, async ({ page }) => {
+    const items = makeMessages(1, 1, '带关闭按钮的原图');
+    items[0].previewUrl = '/chat/media?gid=1&mid=1&variant=preview';
+    items[0].originalUrl = '/chat/media?gid=1&mid=1&variant=original';
+    messagesByGid.set(1, items);
+    await openChat(page);
+    const container =
+      context === 'messages'
+        ? page.locator('.messages-shell')
+        : page.locator('dialog.history-dialog');
+    if (context === 'history') {
+      await page.getByRole('button', { name: '📜 聊天记录' }).click();
+      await container.getByLabel('开始日期').fill('2026-08-05');
+      await container.getByLabel('结束日期').fill('2026-08-07');
+      await container.getByRole('button', { name: '🔍 查询' }).click();
+      await container.locator('.history-result').click();
+    }
+    const trigger = container.locator('[data-mid="1"] button.media-preview');
+    const viewer = container.locator('dialog.image-viewer');
+    const closeButton = viewer.getByRole('button', { name: '关闭原图', exact: true });
+    await trigger.click();
+    const image = viewer.getByAltText('消息原图');
+    await expect(image).toBeVisible();
+    await expect(closeButton).toBeVisible();
+    const box = (await closeButton.boundingBox())!;
+    expect(box.y).toBeCloseTo(16, 0);
+    expect(box.x + box.width).toBeCloseTo(1280 - 16, 0);
+
+    await closeButton.click();
+    await expect(viewer).not.toHaveJSProperty('open', true);
+    await expect(trigger).toBeFocused();
+    if (context === 'history') await expect(container).toHaveJSProperty('open', true);
+
+    await trigger.click();
+    await expect(image).toBeVisible();
+    await image.hover();
+    await page.mouse.wheel(0, -400);
+    await closeButton.click();
+    await expect(viewer).not.toHaveJSProperty('open', true);
+    if (context === 'history') await expect(container).toHaveJSProperty('open', true);
+  });
 }
 
 test('chat_cached_original_does_not_flash_a_preview_when_reopened', async ({ page }) => {

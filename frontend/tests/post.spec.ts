@@ -3429,7 +3429,8 @@ test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focu
       viewer.locator('img').evaluate((element) => (element as HTMLImageElement).naturalWidth),
     )
     .toBe(300);
-  await expect(viewer.getByRole('button')).toHaveCount(0);
+  await expect(viewer.getByRole('button', { name: '关闭原图', exact: true })).toHaveCount(1);
+  await expect(viewer.locator('.viewer-prev, .viewer-next')).toHaveCount(0);
   await expect(viewer.locator('.viewer-counter')).toHaveCount(0);
   await viewer.locator('img').click();
   await expect(viewer).toBeVisible();
@@ -3632,7 +3633,9 @@ for (const viewport of [
     posts.items[0].pics = [imageFixture('v1'), imageFixture('v2')];
     const measure = () =>
       page
-        .locator('.image-viewer, .image-viewer img, .viewer-prev, .viewer-next, .viewer-counter')
+        .locator(
+          '.image-viewer, .image-viewer img, .viewer-close, .viewer-prev, .viewer-next, .viewer-counter',
+        )
         .evaluateAll((elements) =>
           elements.map((element) => {
             const rect = element.getBoundingClientRect();
@@ -3653,7 +3656,7 @@ for (const viewport of [
     await page.goto(`${baseUrl}post/index.html`);
     await page.getByRole('button', { name: '查看微博图片 2', exact: true }).click();
     await expect(page.locator('.image-viewer img')).toBeVisible();
-    const [viewer, image, prev, next, counter] = await measure();
+    const [viewer, image, closeButton, prev, next, counter] = await measure();
     expect({ x: viewer.x, y: viewer.y, width: viewer.width, height: viewer.height }).toEqual({
       x: 0,
       y: 0,
@@ -3665,6 +3668,10 @@ for (const viewport of [
     expect(image.height).toBeCloseTo(180, 0);
     expect(image.x + image.width / 2).toBeCloseTo(viewport.width / 2, 1);
     expect(image.y + image.height / 2).toBeCloseTo(viewport.height / 2, 1);
+    expect(closeButton.y).toBeCloseTo(16, 0);
+    expect(closeButton.x + closeButton.width).toBeCloseTo(viewport.width - 16, 0);
+    expect(closeButton.width).toBeCloseTo(40, 0);
+    expect(closeButton.height).toBeCloseTo(40, 0);
     expect(prev.x).toBeCloseTo(16, 0);
     expect(prev.width).toBeCloseTo(48, 0);
     expect(prev.height).toBeCloseTo(48, 0);
@@ -3684,6 +3691,33 @@ for (const viewport of [
     await page.keyboard.press('Escape');
   });
 }
+
+test('image_viewer_closes_from_top_right_button_for_single_and_zoomed_images', async ({ page }) => {
+  posts.items[0].pics = [imageFixture('single-close')];
+  await page.goto(`${baseUrl}post/index.html`);
+  const opener = page.getByRole('button', { name: '查看微博图片 1', exact: true });
+  await opener.click();
+  const viewer = page.getByRole('dialog', { name: '查看原图', exact: true });
+  const closeButton = viewer.getByRole('button', { name: '关闭原图', exact: true });
+  const image = viewer.getByAltText('微博原图');
+  await expect(image).toBeVisible();
+  await expect(closeButton).toBeVisible();
+  const box = (await closeButton.boundingBox())!;
+  expect(box.y).toBeCloseTo(16, 0);
+  expect(box.x + box.width).toBeCloseTo(1280 - 16, 0);
+
+  await closeButton.click();
+  await expect(viewer).toHaveCount(0);
+  await expect(opener).toBeFocused();
+
+  await opener.click();
+  await expect(image).toBeVisible();
+  await image.hover();
+  await page.mouse.wheel(0, -400);
+  await closeButton.click();
+  await expect(viewer).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
 
 test('single_post_image_preserves_ratio_and_uses_known_fallback_dimensions', async ({ page }) => {
   posts.items[0].pics = [

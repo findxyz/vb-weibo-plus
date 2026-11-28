@@ -101,6 +101,20 @@ export default function ImageViewer({
       }}
     >
       {image && <ViewerImage key={image.url} {...image} />}
+      <button type="button" className="viewer-close" aria-label="关闭原图" onClick={onClose}>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      </button>
       {selection && selection.images.length > 1 && (
         <>
           <button
