@@ -607,7 +607,7 @@ async fn find_blogger(state: &AppState, uid: i64) -> ApiResult<Option<Value>> {
 
 pub(crate) fn spawn_background(state: AppState) {
     tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         loop {
             if state.credential.get().is_some() {
                 let uids = state

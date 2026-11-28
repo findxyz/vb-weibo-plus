@@ -50,7 +50,7 @@ public class SyncTask implements CommandLineRunner {
         runSafely("启动时同步群列表", chatService::syncGroups);
     }
 
-    @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:1m}", initialDelay = 5_000)
+    @Scheduled(fixedDelayString = "${weibo.chat.sync-group-fixed-delay:1m}", initialDelay = 2_000)
     public void syncGroupMessages() {
         if (autoSyncGids.isEmpty()) {
             return;
@@ -67,7 +67,7 @@ public class SyncTask implements CommandLineRunner {
                 });
     }
 
-    @Scheduled(fixedDelay = 60_000, initialDelay = 5_000)
+    @Scheduled(fixedDelay = 60_000, initialDelay = 2_000)
     public void openWebSocket() {
         if (!autoSyncGids.isEmpty()) {
             runSafely("微博 WebSocket 初始化", chatService::openWebSocket);
@@ -87,7 +87,7 @@ public class SyncTask implements CommandLineRunner {
         runSafely("群消息推送后补拉：gid = " + gid, () -> chatService.saveIncremental(gid));
     }
 
-    @Scheduled(fixedDelay = 600_000, initialDelay = 5_000)
+    @Scheduled(fixedDelay = 600_000, initialDelay = 2_000)
     public void syncBloggerBlogs() {
         runSafely(
                 "博主微博增量同步",

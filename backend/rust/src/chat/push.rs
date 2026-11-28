@@ -26,7 +26,7 @@ use super::capture::save_incremental;
 
 const PROFILE_URL: &str = "https://api.weibo.com/webim/query_primary_info.json";
 const SOCKET_URL: &str = "wss://web.im.weibo.com/im";
-const INITIAL_DELAY: Duration = Duration::from_secs(5);
+const INITIAL_DELAY: Duration = Duration::from_secs(2);
 const RECONNECT_DELAY: Duration = Duration::from_secs(60);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const STALE_AFTER: Duration = Duration::from_secs(200);
@@ -411,8 +411,9 @@ mod tests {
             .credential
             .set(Some("SUB=offline-test".into()))
             .unwrap();
+        assert_eq!(INITIAL_DELAY, Duration::from_secs(2));
         start_background(state);
-        timeout(Duration::from_secs(9), async {
+        timeout(Duration::from_secs(4), async {
             while messages.lock().unwrap().is_empty() {
                 sleep(Duration::from_millis(50)).await;
             }

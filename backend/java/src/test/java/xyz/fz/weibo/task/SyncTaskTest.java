@@ -150,8 +150,19 @@ class SyncTaskTest {
         assertThat(scheduled).isNotNull();
         assertThat(scheduled.fixedDelayString())
                 .isEqualTo("${weibo.chat.sync-group-fixed-delay:1m}");
-        assertThat(scheduled.initialDelay()).isEqualTo(5_000);
+        assertThat(scheduled.initialDelay()).isEqualTo(2_000);
         assertThat(WeiboApplication.class).hasAnnotation(EnableScheduling.class);
+    }
+
+    @Test
+    void websocket_check_runs_every_minute() throws NoSuchMethodException {
+        Method method = SyncTask.class.getMethod("openWebSocket");
+
+        Scheduled scheduled = method.getAnnotation(Scheduled.class);
+
+        assertThat(scheduled).isNotNull();
+        assertThat(scheduled.fixedDelay()).isEqualTo(60_000);
+        assertThat(scheduled.initialDelay()).isEqualTo(2_000);
     }
 
     @Test
@@ -182,7 +193,7 @@ class SyncTaskTest {
 
         assertThat(scheduled).isNotNull();
         assertThat(scheduled.fixedDelay()).isEqualTo(600_000);
-        assertThat(scheduled.initialDelay()).isEqualTo(5_000);
+        assertThat(scheduled.initialDelay()).isEqualTo(2_000);
     }
 
     private GroupRecord group(long gid) {
