@@ -116,7 +116,7 @@ cargo run --locked --manifest-path backend/rust/Cargo.toml
 
 **打包 Windows x64 桌面版**
 
-将 Rust `x86_64-pc-windows-gnu` 工具链、MinGW-w64、Node.js ≥ 22.12、npm ≥ 10 和支持写入 7z 的 `tar.exe` 加入 `PATH`，然后在仓库根目录运行：
+将 Rust `x86_64-pc-windows-msvc` 工具链、Visual Studio C++ 构建工具、Node.js ≥ 22.12、npm ≥ 10 和支持写入 7z 的 `tar.exe` 加入 `PATH`，然后在仓库根目录运行：
 
 ```powershell
 & .\backend\rust\release\build.ps1
