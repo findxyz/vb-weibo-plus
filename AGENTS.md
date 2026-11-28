@@ -121,7 +121,11 @@ This is a single-context repository. See `docs/agents/domain.md`.
 
 ### Design tokens
 
-前端样式改动以 `docs/design/DESIGN.md` 为唯一令牌依据：chat 页使用「蔚蓝拟物」皮肤令牌，post 页使用「星空微博」皮肤令牌，两套令牌不得混用；颜色、圆角、阴影等取值优先引用令牌，不要新造。组件实样可在浏览器打开 `docs/design/style-guide.html` 对照。`DESIGN-HANDOFF.md` 与 `DESIGN-MANIFEST.json` 仅为导出存档，不作为实现依据。
+前端样式改动以 `docs/design/DESIGN.md` 为唯一令牌依据：chat 页使用「蔚蓝拟物」皮肤令牌，post 页使用「现代极简 shadcn/ui」皮肤令牌，两套令牌不得混用；颜色、圆角、阴影等取值优先引用令牌，不要新造。组件实样可在浏览器打开 `docs/design/style-guide.html` 对照。
+
+### UI SDK
+
+使用 `@ui-sdk/react` 或 `@ui-sdk/core` 前，优先遵循已安装的 `ui-sdk` 技能并阅读 `frontend/node_modules/@ui-sdk/react/docs/llms.txt`。如需自建新组件，再按标题检索 `frontend/node_modules/@ui-sdk/react/docs/core.md` 并阅读同目录下的 `rendering.md`。
 
 ### Browser support
 

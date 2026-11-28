@@ -3,8 +3,9 @@ version: alpha
 name: vb-weibo-plus
 description: >-
   微博辅助客户端 vb-weibo-plus 的双皮肤设计体系：「蔚蓝拟物」桌面窗格皮肤（chat.css）
-  与「星空微博」博文阅读皮肤（post.css）。chat 令牌沿用源码，post 依据已确认效果图更新，
-  作为后续界面扩展与一致性的唯一令牌依据。
+  与「现代极简 shadcn/ui」博文阅读皮肤（post.css）。chat 令牌沿用源码，post 采用
+  UI SDK 无样式组件与 shadcn/ui preset b1ZjA4vKa（base-lyra、taupe 暖灰中性色与蓝色主强调色）
+  浅色／深色 OKLCH 语义令牌，作为后续界面扩展与一致性的唯一令牌依据。
 colors:
   primary: "#086ce0"
   primary-strong: "#034fbf"
@@ -81,23 +82,56 @@ colors:
   error-bg: "#fdf4f3"
   filter-panel-from: "#e7f3fc"
   filter-panel-to: "#d1e6f7"
-  post-sky: "#087fb7"
-  post-surface: "#031b28"
-  post-surface-alt: "#072b42"
-  post-surface-raised: "#0b3853"
-  post-text: "#e4eef5"
-  post-muted: "#9ac9e0"
-  post-link: "#60cfff"
-  post-line: "#1c5069"
-  post-border: "#2986b4"
-  post-selected: "#155d89"
-  post-accent: "#009fee"
-  post-focus: "#8cddff"
-  post-verified: "#ffad19"
-  post-danger: "#ffb4a8"
-  post-mark: "#ffe4a2"
-  post-button-top: "#104468"
-  post-button-bottom: "#052438"
+  post-background: "oklch(1 0 0)"
+  post-sidebar: "oklch(0.986 0.002 67.8)"
+  post-card: "oklch(1 0 0)"
+  post-popover: "oklch(1 0 0)"
+  post-foreground: "oklch(0.147 0.004 49.3)"
+  post-primary: "oklch(0.488 0.243 264.376)"
+  post-primary-foreground: "oklch(0.97 0.014 254.604)"
+  post-primary-hover: "oklch(0.424 0.199 265.638)"
+  post-primary-soft: "oklch(0.955 0.028 258)"
+  post-sidebar-primary: "oklch(0.546 0.245 262.881)"
+  post-muted: "oklch(0.96 0.002 17.2)"
+  post-muted-foreground: "oklch(0.51 0.02 43.1)"
+  post-accent: "oklch(0.96 0.002 17.2)"
+  post-accent-foreground: "oklch(0.214 0.009 43.1)"
+  post-border: "oklch(0.922 0.005 34.3)"
+  post-border-strong: "oklch(0.84 0.008 38)"
+  post-ring: "oklch(0.546 0.245 262.881)"
+  post-link: "oklch(0.488 0.243 264.376)"
+  post-destructive: "oklch(0.577 0.245 27.325)"
+  post-destructive-soft: "oklch(0.971 0.013 17.38)"
+  post-destructive-border: "oklch(0.885 0.062 18.334)"
+  post-verified: "oklch(0.666 0.179 58.318)"
+  post-success: "oklch(0.527 0.154 150.069)"
+  post-mark-bg: "oklch(0.945 0.129 101.54)"
+  post-mark-fg: "oklch(0.147 0.004 49.3)"
+  post-highlight: "oklch(0.945 0.036 258)"
+  post-dark-background: "oklch(0.147 0.004 49.3)"
+  post-dark-sidebar: "oklch(0.214 0.009 43.1)"
+  post-dark-card: "oklch(0.214 0.009 43.1)"
+  post-dark-popover: "oklch(0.214 0.009 43.1)"
+  post-dark-foreground: "oklch(0.986 0.002 67.8)"
+  post-dark-primary: "oklch(0.424 0.199 265.638)"
+  post-dark-primary-foreground: "oklch(0.97 0.014 254.604)"
+  post-dark-primary-hover: "oklch(0.488 0.243 264.376)"
+  post-dark-primary-soft: "oklch(0.28 0.075 262)"
+  post-dark-sidebar-primary: "oklch(0.623 0.214 259.815)"
+  post-dark-muted: "oklch(0.268 0.011 36.5)"
+  post-dark-muted-foreground: "oklch(0.714 0.014 41.2)"
+  post-dark-accent: "oklch(0.268 0.011 36.5)"
+  post-dark-accent-foreground: "oklch(0.986 0.002 67.8)"
+  post-dark-border: "oklch(1 0 0 / 10%)"
+  post-dark-border-strong: "oklch(1 0 0 / 18%)"
+  post-dark-ring: "oklch(0.623 0.214 259.815)"
+  post-dark-link: "oklch(0.707 0.165 254.624)"
+  post-dark-destructive: "oklch(0.704 0.191 22.216)"
+  post-dark-destructive-soft: "oklch(0.24 0.06 20)"
+  post-dark-destructive-border: "oklch(0.42 0.12 22)"
+  post-dark-verified: "oklch(0.769 0.188 70.08)"
+  post-dark-success: "oklch(0.792 0.209 151.711)"
+  post-dark-highlight: "oklch(0.26 0.068 262)"
 
 typography:
   app-title:
@@ -129,17 +163,24 @@ typography:
     fontFamily: 'QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif'
     fontSize: 14px
     lineHeight: 24px
-  post-brand:
-    fontFamily: '"Microsoft YaHei", sans-serif'
-    fontSize: 36px
-    fontWeight: 700
+  post-ui:
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    fontWeight: 500
+  post-heading:
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 16px
+    fontWeight: 600
 rounded:
   sm: 3px
   md: 4px
   control: 5px
   pill: 999px
-  post-control: 3px
-  post-avatar: 1px
+  post-sm: 6px
+  post-md: 8px
+  post-lg: 10px
+  post-xl: 12px
+  post-avatar: 9999px
   post-feed: 0px
 spacing:
   xs: 4px
@@ -209,24 +250,29 @@ components:
     rounded: "{rounded.md}"
   post-card:
     backgroundColor: "transparent"
-    textColor: "{colors.post-text}"
+    textColor: "{colors.post-foreground}"
     typography: "{typography.post-content}"
     rounded: "{rounded.post-feed}"
   retweet-note:
-    backgroundColor: "{colors.post-surface-alt}"
-    textColor: "{colors.post-text}"
+    backgroundColor: "{colors.post-muted}"
+    textColor: "{colors.post-foreground}"
     typography: "{typography.retweet-content}"
-    rounded: "{rounded.post-control}"
+    rounded: "{rounded.post-lg}"
   post-button:
-    backgroundColor: "{colors.post-surface-raised}"
-    textColor: "{colors.post-text}"
+    backgroundColor: "{colors.post-background}"
+    textColor: "{colors.post-foreground}"
     height: 32px
-    rounded: "{rounded.post-control}"
-  post-input:
-    backgroundColor: "{colors.post-surface}"
-    textColor: "{colors.post-text}"
+    rounded: "{rounded.post-sm}"
+  post-button-primary:
+    backgroundColor: "{colors.post-primary}"
+    textColor: "{colors.post-primary-foreground}"
     height: 36px
-    rounded: "{rounded.post-control}"
+    rounded: "{rounded.post-sm}"
+  post-input:
+    backgroundColor: "{colors.post-background}"
+    textColor: "{colors.post-foreground}"
+    height: 36px
+    rounded: "{rounded.post-sm}"
 
 ---
 
@@ -235,77 +281,68 @@ components:
 两套独立皮肤互不混用：
 
 - **蔚蓝拟物（chat.css）**：沿用现有 Windows Aero 桌面窗格、蓝色高光渐变与浅色气泡。
-- **星空微博（post.css）**：根据用户确认的 2010 年微博效果图，使用星空背景、深蓝连续微博流、方形头像和右侧日历。它替代原来的纸感手绘皮肤。
-
-post 的背景素材为本次效果图派生的纯星空图，路径为 frontend/src/post/assets/starry-sky.png。由 ImageGen 去除效果图中的界面内容后生成，固定在页外背景使用；正文区域使用不透明底色，保持阅读对比度。素材生成提示为“纯蓝色星空，顶部深蓝星云与两侧青色星团，底部平滑过渡为蓝色，无界面、文字和前景”。
+- **现代极简 shadcn/ui（post.css）**：基于 `@ui-sdk/react` 无样式交互组件、`lucide-react` 图标与 shadcn/ui 预设 `b1ZjA4vKa`（`base-lyra`、`taupe` 暖灰底色 + Royal Blue 蓝色主强调色，OKLCH 浅色／深色语义令牌）构建的全视口三栏阅读工作台。默认浅色主题，支持右上角切换深色主题并持久化至本地存储。它替代原来的星空微博皮肤，不再使用星空背景图。
 
 ## Colors
 
-chat 继续使用 YAML 中原有拟物令牌。post 仅使用 post 前缀令牌，在 post.css 中映射为局部变量：
+chat 继续使用 YAML 中原有拟物令牌。post 仅使用 post 前缀令牌，在 `post.css` 中映射为自包含的 OKLCH 语义 CSS 变量（`:root` 定义浅色值，`:root[data-theme="dark"]` 覆盖深色值），色值源自 shadcn/ui 预设 `b1ZjA4vKa`：
 
-| CSS 变量 | DESIGN 令牌 | 用途 |
-|---|---|---|
-| --sky | post-sky | 星空图片下的背景底色 |
-| --surface | post-surface | 连续微博流、输入框、弹窗 |
-| --surface-alt | post-surface-alt | 右侧栏和转发区域 |
-| --surface-raised | post-surface-raised | 普通按钮、悬停与定位高亮 |
-| --text／--muted | post-text／post-muted | 正文与元信息 |
-| --link | post-link | 正文链接、转发作者、选中博主左侧标记 |
-| --line／--border | post-line／post-border | 条目分隔与控件描边 |
-| --selected／--accent | post-selected／post-accent | 博主与日期选中／保留强调色 |
-| --focus | post-focus | 键盘焦点环 |
-| --verified | post-verified | 认证标记 |
-| --danger／--mark | post-danger／post-mark | 错误提示与搜索命中 |
-| --button-top／--button-bottom | post-button-top／post-button-bottom | 历史按钮渐变令牌，当前控件使用纯色底 |
+| CSS 变量 | 浅色令牌 | 深色令牌 | 用途 |
+|---|---|---|---|
+| `--surface` | `post-background` | `post-dark-background` | 正文画布与输入框底色 |
+| `--bg` | `post-sidebar` | `post-dark-sidebar` | 左右侧栏暖灰底色 |
+| `--card`／`--popover` | `post-card`／`post-popover` | `post-dark-card`／`post-dark-popover` | 弹窗、浮层与状态卡片底色 |
+| `--text`／`--muted` | `post-foreground`／`post-muted-foreground` | `post-dark-foreground`／`post-dark-muted-foreground` | 主正文与次要元信息文字 |
+| `--primary`／`--primary-fg` | `post-primary`／`post-primary-foreground` | `post-dark-primary`／`post-dark-primary-foreground` | 蓝色主提交按钮、选中博主、日历选中日与点赞选中态 |
+| `--sidebar-primary`／`--primary-soft` | `post-sidebar-primary`／`post-primary-soft` | `post-dark-sidebar-primary`／`post-dark-primary-soft` | 进度条、日历内容圆点、转发左侧蓝线与柔和蓝悬停 |
+| `--surface-muted`／`--accent` | `post-muted`／`post-accent` | `post-dark-muted`／`post-dark-accent` | 转发底色、计数徽章与按钮悬停底 |
+| `--border`／`--border-strong` | `post-border`／`post-border-strong` | `post-dark-border`／`post-dark-border-strong` | 面板细分隔线与控件描边 |
+| `--ring`／`--link` | `post-ring`／`post-link` | `post-dark-ring`／`post-dark-link` | 蓝色键盘焦点环、正文链接与转发作者 |
+| `--destructive`／`--destructive-soft`／`--destructive-border` | `post-destructive` 系列 | `post-dark-destructive` 系列 | 错误提示、告警文字与登录失效卡片 |
+| `--verified`／`--success` | `post-verified`／`post-success` | `post-dark-verified`／`post-dark-success` | 认证图标与同步成功指示点 |
+| `--highlight-bg`／`--highlight-fg`／`--highlight-flash` | `post-mark-bg`／`post-mark-fg`／`post-highlight` | 对应深色令牌 | 搜索命中高亮与定位闪亮 |
 
-post 的正文、链接与次要文字在深色底上保持清晰。禁用按钮使用 45% 不透明度，并设置原生 disabled；进行中的采集按钮沿用 aria-disabled 与提交防重。
-
-博主列表与正文作者使用 post-text，正文链接保留 post-link。侧栏使用稳定的 post-surface-alt，普通按钮使用 post-surface-raised，控件描边使用 post-line；只在选中项和主要提交按钮上加强调，减少长时间阅读时的视觉干扰。
+所有正文与次要文字在浅色与深色两套底色上均满足 WCAG AA（≥ 4.5:1）对比度。禁用控件使用 50% 不透明度。
 
 ## Typography
 
-- post 的 UI、标题与昵称保留 Microsoft YaHei；中文不使用手写体或衬线体。
-- 正文沿用 QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif。
-- QuoteFallback 仅覆盖 U+2018-2019、U+201C-201D 引号，本机来源为 Georgia、SimSun。不下载字体。
-- 普通正文为 15px／24px，转发正文为 14px／24px；来源为 2026-10-17 对照的微博官网 CSS。
-- 元信息为 12px，并使用 tabular-nums。昵称为 16px／700，博主列表为 16px／700，面板标题为 19px／700。
+- post 的 UI、标题与昵称使用现代无衬线字体栈 `system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif`。
+- 正文沿用 `QuoteFallback, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif`。
+- `QuoteFallback` 仅覆盖 U+2018-2019、U+201C-201D 引号，本机来源为 Georgia、SimSun，不下载字体。
+- 普通正文保持 15px／24px，转发正文保持 14px／24px；元信息为 12px 并启用 `tabular-nums`。
+- 面板标题为 16px／600，正文作者与博主昵称为 15px／600（列表项 14px／500）。
 - chat 字体与字号保持原有定义。
 
 ## Layout
 
-- post 最小窗口为 900×560，居中外框最大宽度为 1120px；默认两侧总留白为 64px，顶部留白 32px。
-- 顶部不再有品牌 banner；群聊切换入口与高级搜索同排在正文标题栏右侧，紧邻日期面板。
-- 主体为三栏：左侧 240px 博主管理、中间自适应微博流、右侧 260px 日期面板。窗口宽度不超过 1100px 时，外侧总留白改为 32px，左栏 220px、右栏 240px。
-- 三栏顶部对齐；面板标题高不小于 72px，阅读标题下方另排日期与条数，右侧操作按钮保持同排。正文独立滚动；左右栏各自独立滚动，博主列表占满左栏剩余高度。
-- 右栏为日期选择。日历星期一开头，日期格高 36px、间距 4px，不画网格线；空日期不可点，有内容日期显示圆点。选中日期使用 post-selected 底色与 post-border 内描边。
-- 年月下拉支持直接选择，前后月按钮在数据范围边缘禁用。导航月份不发请求；选择有效日期才读取当日内容。
-- 添加博主与同步历史并排，按钮最小高 32px；同步按钮常驻，选中单个博主后可用。
-- 博文头像为 48px 方形，博主列表头像为 40px 方形。头像与正文间距 12px，正文容器左内边距 24px、右内边距 16px，条目上下内边距 24px，正文块间距 12px。窄窗口正文容器回落到左 12px、右 8px。博主行最小高 64px，列表左右留白 8px。
-- 元信息移至内容之后，与点赞按钮、当前点赞数及“查看原文”同行；长来源允许截断，空间不足时操作区换行。点赞仅操作外层微博，选中态使用 post-selected、post-link 与 post-border 令牌。
+- post 最小窗口为 900×560，全视口三栏布局（`100% × 100%`），无外层留白与背景壁纸。
+- 三栏默认宽度为左栏 256px（博主管理）、中栏自适应（博文流）、右栏 280px（日期面板）；视口宽度不超过 1100px 时收窄为 224px／自适应／248px。
+- 三栏顶部统一 64px 标题栏，由同一条 1px `--border` 底线贯穿对齐；左右侧栏与中间正文之间使用 1px `--border` 纵向分隔线。
+- 正文区域独立滚动，宽屏下居中限制内容最大宽度 760px 以保证中文阅读行宽；左右侧栏各自独立滚动，博主列表占满左栏剩余高度。
+- 右栏标题栏右侧放置浅色／深色主题切换图标按钮；中间标题栏右侧保留高级搜索与微博群聊按钮。
+- 博文头像为 40px 圆形，博主列表头像为 32px 圆形。元信息位于正文与媒体之后，与点赞开关、点赞数及“查看原文”同行。
 - chat 的标题栏 38px、侧栏 280px、工具栏 48px 与输入区 154px 保持不变。
 
 ## Elevation & Shapes
 
-- post 按钮、转发框和弹窗为 3px 圆角；头像为 1px 圆角；连续微博流为直角、无独立卡片投影。
-- 控件使用 1px post-line 描边；三栏面板靠背景色区分，阅读标题底部使用细分隔线；头像为 2px post-line 描边，图片为 1px 浅色描边。选中博主以 post-selected 为底，左侧使用 3px post-link 内侧标记。
-- 弹窗投影为 0 12px 36px rgb(0 12 28 / 55%)，弹窗遮罩为 rgb(0 12 28 / 65%)。
-- 原图查看器遮罩为 rgb(0 12 28 / 90%)，图片保留 3px 浅色边框。
-- 焦点环为 3px solid var(--focus)，外扩 2px。
-- chat 延续既有 inset 高光暗边与气泡、浮控、弹窗三级模糊投影，不受 post 影响。
+- 控件圆角：按钮与输入框 6px（`--radius-sm`），图片缩略图与列表项 8px（`--radius-md`），转发面板与状态卡 10px（`--radius-lg`），弹窗 12px（`--radius-xl`），头像 9999px 圆形；连续微博流为直角、无外层卡片投影。
+- 控件描边使用 1px `--input`，面板与条目分隔使用 1px `--border`。
+- 轻投影 `--shadow-xs`（`0 1px 2px rgb(9 9 11 / 5%)`）用于描边按钮与输入控件；浮层投影 `--shadow-md` 用于下拉菜单；弹窗投影 `--shadow-lg` 用于模态对话框；弹窗遮罩为 `rgb(9 9 11 / 50%)` 配合轻量背景模糊。
+- 原图查看器遮罩为 `rgb(9 9 11 / 90%)`，操作控件采用半透明深色圆形按钮与药丸计数器。
+- 键盘焦点环为 `2px solid var(--ring)`，外扩 2px。
+- chat 延续既有 inset 高光暗边与三级投影，不受 post 影响。
 
 ## Components
 
-- 星空背景只用于页面外层；正文使用稳定深色底。
-- 文字操作按钮统一使用左侧 emoji 图标，图标只作装饰，按钮可访问名称保持纯文字；按钮内文字左对齐。
-- 群聊切换使用透明底与次要文字色，高级搜索保留实色底；弹窗提交按钮使用 post-selected，帮助区分操作层级。输入框高 36px，标签与输入框间距 8px，弹窗表单项间距 16px。
-- 弹窗标题栏只保留标题与关闭按钮；关闭按钮无底色，悬停才显示背景。弹窗操作按钮与外部按钮同为 32px 高、14px 字号。
-- 年月下拉保留原生 select 交互，关闭态用自定义文字层显示，避免原生控件在窄栏或高缩放下裁切中文。
-- 微博条目连续排列，以细线分隔；转发为深蓝内嵌面板。
-- 日期格使用原生按钮和完整日期可访问名称；选中态、无内容禁用态与内容圆点分开表达。
-- 阅读列表在向下滚动接近底部时，追加前一个有微博日期的内容，跳过空日期；首次打开不自动预取。跨日以 13px 次要文字日期标题分隔，底部保留键盘可操作的加载按钮、加载状态、失败重试与最早日期提示。追加期间保留正文与阅读位置，标题显示已加载日期的合计条数，日历仍选中本次阅读的起始日。切换博主、点击日期或搜索定位时清空追加内容并取消旧请求；底部触发仅重新读取本地数据。
-- 搜索、添加、历史采集、扫码与图片查看器沿用现有交互，配色统一为星空皮肤。
-- 不混入米纸、铅笔点阵、斜纹填充、旋转按钮或硬偏移纸片阴影。
+- `post.css` 顶部声明 `@layer ui-sdk;`，所有交互组件使用 `@ui-sdk/react` 无样式原语并通过 `data-slot` 与状态属性（`data-open`、`data-selected`、`data-pressed`、`data-disabled`、`data-starting-style`、`data-ending-style`）着色。
+- 图标统一使用 `lucide-react` 矢量图标（`aria-hidden="true"`），不再使用系统彩色 emoji 作为按钮装饰。
+- 博主搜索框采用 `@ui-sdk/react/input` 的 `InputGroup`、`Input` 与 `InputClear`。
+- 博主头像采用 `@ui-sdk/react/avatar`，认证标记采用 `BadgeCheckIcon`。
+- 高级搜索、添加博主、同步历史与原图查看器统一采用 `@ui-sdk/react/dialog`，表单项采用 `@ui-sdk/react/field` 与 `@ui-sdk/react/input`，同步进度条采用 `@ui-sdk/react/progress`。
+- 右侧日期面板采用 `@ui-sdk/react/calendar` 网格与 `@ui-sdk/react/select` 自定义年月下拉，保留星期一开头、无内容日期不可选、有内容日期显示圆点、导航年月不发请求及重复点击当前日期重新读取本地数据的行为。
+- 点赞控件在状态已确认时采用 `@ui-sdk/react/toggle`，未知状态时采用禁用的 `@ui-sdk/react/button`（不输出 `aria-pressed`）。
+- 连续阅读追加前一个有微博日期、登录恢复、搜索定位、媒体代理与查看器缩放拖拽逻辑保持不变。
 
 ## Historical reference
 
-原纸感皮肤与三栏几何测量保留在 Git 历史和 frontend/tests/fixtures/post-geometry.json，仅作为迁移存档，不再作为 post 当前视觉验收依据。当前布局决策见 docs/adr/0009-post-starry-calendar-layout.md。
+原纸感皮肤与星空微博皮肤的视觉决策保留在 Git 历史、`docs/adr/0009-post-starry-calendar-layout.md`、`docs/adr/0010-post-starry-three-column-and-flat-header.md` 与 `frontend/tests/fixtures/post-geometry.json`，仅作为历史存档。当前布局与组件体系见 `docs/adr/0012-post-modern-shadcn-ui-sdk.md`。
