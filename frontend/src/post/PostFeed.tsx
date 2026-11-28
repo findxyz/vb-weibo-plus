@@ -1,3 +1,4 @@
+import { ExternalLinkIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { sanitizedContent } from './content';
 import { formatDate } from '../shared/date';
@@ -182,6 +183,7 @@ export default function PostFeed({
                   />
                   {postUrl && (
                     <a className="post-link" href={postUrl} target="_blank" rel="noopener">
+                      <ExternalLinkIcon aria-hidden="true" />
                       查看原文
                     </a>
                   )}

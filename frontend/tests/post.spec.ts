@@ -8,6 +8,15 @@ const approvedGeometry = JSON.parse(
   await readFile(new URL('./fixtures/post-geometry.json', import.meta.url), 'utf8'),
 );
 
+function calendarDay(page: Page, date: string) {
+  return page.getByRole('gridcell', { name: date, exact: true });
+}
+
+async function selectCalendarOption(page: Page, label: string, optionLabel: string) {
+  await page.getByLabel(label, { exact: true }).click();
+  await page.getByRole('option', { name: optionLabel, exact: true }).click();
+}
+
 let backend: Server;
 
 test('formal_post_entry_refreshes_without_preview_and_retires_preview_document', async ({
@@ -100,32 +109,26 @@ test('calendar_grid_navigates_months_without_querying_and_only_reads_days_with_p
     ],
   };
   await page.goto(`${baseUrl}post/index.html`);
-  await expect(page.getByRole('button', { name: '2026-10-18', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(calendarDay(page, '2026-10-18')).toHaveAttribute('aria-selected', 'true');
   const reads = requests.filter((value) => value.startsWith('GET /post/'));
-  await expect(page.getByRole('button', { name: '2026-10-01', exact: true })).toBeDisabled();
-  const firstDay = page.getByRole('button', { name: '2026-10-01', exact: true });
+  await expect(calendarDay(page, '2026-10-01')).toBeDisabled();
+  const firstDay = calendarDay(page, '2026-10-01');
   expect(
     await firstDay.evaluate((element) => [...element.parentElement!.children].indexOf(element)),
   ).toBe(3);
-  await page.getByLabel('选择年份', { exact: true }).selectOption('2024');
-  await page.getByLabel('选择月份', { exact: true }).selectOption('02');
-  await expect(page.getByRole('button', { name: '2024-02-29', exact: true })).toBeEnabled();
-  await expect(page.getByRole('button', { name: '2024-02-30', exact: true })).toHaveCount(0);
+  await selectCalendarOption(page, '选择年份', '2024 年');
+  await selectCalendarOption(page, '选择月份', '2 月');
+  await expect(calendarDay(page, '2024-02-29')).toBeEnabled();
+  await expect(calendarDay(page, '2024-02-30')).toHaveCount(0);
   expect(requests.filter((value) => value.startsWith('GET /post/'))).toEqual(reads);
-  await page.getByRole('button', { name: '2024-02-29', exact: true }).click();
+  await calendarDay(page, '2024-02-29').click();
   await expect.poll(() => requests.some((value) => value.includes('start=2024-02-29'))).toBe(true);
-  await expect(page.getByRole('button', { name: '2024-02-29', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(calendarDay(page, '2024-02-29')).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('button', { name: '下个月', exact: true }).click();
-  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('03');
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveText('3 月');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
-  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2026');
-  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('10');
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveText('2026 年');
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveText('10 月');
 });
 
 function imageFixture(pid: string, overrides: Partial<PostImage> = {}): PostImage {
@@ -346,8 +349,7 @@ for (const viewport of [
     expect(datesSidebar.x).toBeGreaterThan(feed.x + feed.width - 1);
     expect(calendar.y).toBe(feed.y);
     expect(bloggers.y).toBe(feed.y);
-    expect(feed.y).toBeGreaterThan(0);
-    expect(feed.y).toBeLessThan(96);
+    expect(feed.y).toBe(0);
     const search = (await page.locator('.feed-actions > .search-open').boundingBox())!;
     const chat = (await page
       .getByRole('button', { name: '切换到微博群聊', exact: true })
@@ -356,8 +358,8 @@ for (const viewport of [
     expect(chat.y).toBe(search.y);
     expect(chat.x + chat.width).toBeGreaterThan(feed.x + feed.width - 40);
     const app = (await page.locator('.app').boundingBox())!;
-    expect(app.width).toBe(1120);
-    expect(app.x).toBe((viewport.width - 1120) / 2);
+    expect(app.width).toBe(viewport.width);
+    expect(app.x).toBe(0);
     await expect(page.locator('.post-card')).toHaveCSS('border-radius', '0px');
     await expect(page.locator('.post-card')).toHaveCSS('box-shadow', 'none');
     await expect(page.locator('.post-content')).toHaveCSS('font-size', '15px');
@@ -606,12 +608,10 @@ for (const navigation of ['blogger', 'date']) {
     await expect.poll(() => Boolean(releaseResponse)).toBe(true);
     const releaseOld = releaseResponse!;
     holdResponse = false;
-    await page
-      .getByRole('button', {
-        name: navigation === 'blogger' ? '第二位' : '2026-08-05',
-        exact: true,
-      })
-      .click();
+    await (navigation === 'blogger'
+      ? page.getByRole('button', { name: '第二位', exact: true })
+      : calendarDay(page, '2026-08-05')
+    ).click();
     await expect
       .poll(() =>
         page.evaluate(() =>
@@ -724,7 +724,7 @@ test('acceptance_reading_announces_loaded_items_without_making_the_feed_live', a
   await expect(announcement).toHaveText('已加载 2 条微博');
   await expect(page.locator('.posts')).not.toHaveAttribute('aria-live', /.+/);
   holdResponse = true;
-  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await calendarDay(page, '2026-08-05').click();
   await expect(announcement).toBeEmpty();
   await expect.poll(() => Boolean(releaseResponse)).toBe(true);
   holdResponse = false;
@@ -734,7 +734,7 @@ test('acceptance_reading_announces_loaded_items_without_making_the_feed_live', a
   await page.clock.runFor(3000);
   expect(requests).toEqual(reads);
   listStatus = 500;
-  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await calendarDay(page, '2026-08-05').click();
   await expect(page.getByRole('alert')).toContainText('博文加载失败');
   await expect(announcement).toBeEmpty();
 });
@@ -832,10 +832,7 @@ for (const viewport of [
     await page.getByRole('button', { name: '搜索', exact: true }).click();
     await expect(page.locator('.search-result-snippet')).toHaveText('安全 <b>命中</b>');
     await page.locator('.search-result').press('Enter');
-    await expect(page.getByRole('button', { name: '2026-06-30', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(calendarDay(page, '2026-06-30')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.post-content')).toContainText('目标完整正文');
     await expect(page.locator('.post-retweet-content')).toHaveText('转发正文');
     const picture = page.locator('.post-pic').nth(1);
@@ -892,10 +889,7 @@ for (const viewport of [
     const progress = page.locator('.blogger-tools').getByRole('status');
     await expect(progress).toContainText('@新增博主');
     await expect(progress).toContainText('同步成功');
-    await expect(page.getByRole('button', { name: '2026-05-12', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(calendarDay(page, '2026-05-12')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.post-content')).toHaveText('新增博主本地正文');
     expect(
       requests.filter(
@@ -1008,8 +1002,8 @@ test('sync_history_restores_progress_after_reload_and_shows_partial_failure', as
   const progress = page.locator('.blogger-tools').getByRole('status');
   await expect(progress).toContainText('正在处理 2026-07-10');
   const meter = progress.getByRole('progressbar', { name: '已完成日期' });
-  await expect(meter).toHaveAttribute('max', '3');
-  await expect(meter).toHaveAttribute('value', '0');
+  await expect(meter).toHaveAttribute('aria-valuemax', '3');
+  await expect(meter).toHaveAttribute('aria-valuenow', '0');
   await expect(progress).toContainText('2026-07-10 至 2026-07-12');
   await expect(entry).toBeDisabled();
   await page.reload();
@@ -1019,7 +1013,7 @@ test('sync_history_restores_progress_after_reload_and_shows_partial_failure', as
   await expect(page.locator('.post-content')).toContainText('第一行');
   task.currentDate = '2026-07-11';
   await expect(progress).toContainText('正在处理 2026-07-11');
-  await expect(meter).toHaveAttribute('value', '1');
+  await expect(meter).toHaveAttribute('aria-valuenow', '1');
   expect(await progress.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
     true,
   );
@@ -1121,16 +1115,10 @@ test('sync_history_submits_shanghai_snapshot_and_does_not_refresh_reading', asyn
   await dialog.getByRole('button', { name: '开始同步' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.sync-history-status')).toContainText('拉取 0 条，新增 0 条');
-  await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveAttribute(
-    'aria-disabled',
-    'false',
-  );
+  await expect(page.getByRole('button', { name: '同步历史', exact: true })).toBeEnabled();
   await expect(page.locator('.dates-heading')).not.toContainText('同步完成');
-  await expect(page.getByRole('button', { name: '2026-08-06', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(calendarDay(page, '2026-08-06')).toBeDisabled();
+  await expect(calendarDay(page, '2026-08-05')).toHaveAttribute('aria-selected', 'true');
   await page.screenshot({ path: testInfo.outputPath('history-submitted.png') });
   await page.clock.fastForward(610000);
   await expect(page.locator('.sync-history-status')).toContainText('同步成功');
@@ -1215,7 +1203,7 @@ test('sync_history_pending_request_keeps_snapshot_and_does_not_refresh_a_new_sco
   await expect(page.locator('.post-content')).toContainText('第一行');
   const secondCalendar = requests.filter((value) => value === 'GET /post/calendar?uid=2').length;
   finish();
-  await expect(entry).toHaveAttribute('aria-disabled', 'false');
+  await expect(entry).toBeEnabled();
   await expect(page.locator('.sync-history-status')).toContainText('同步成功');
   expect(requests.filter((value) => value === 'GET /post/calendar?uid=2')).toHaveLength(
     secondCalendar,
@@ -1252,10 +1240,7 @@ for (const responseStatus of [500, 401]) {
       await page.clock.runFor(6100);
       await expect(page.locator('.global-tip')).toHaveCount(0);
     }
-    await expect(page.getByRole('button', { name: '同步历史', exact: true })).toHaveAttribute(
-      'aria-disabled',
-      'false',
-    );
+    await expect(page.getByRole('button', { name: '同步历史', exact: true })).toBeEnabled();
     expect(writeRequests).toHaveLength(1);
     writeRequests = [];
   });
@@ -1302,10 +1287,7 @@ test('sync_history_empty_scope_shows_captured_data_only_after_manual_refresh', a
   await expect(page.locator('.sync-history-status')).toContainText('同步成功');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
-  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(calendarDay(page, '2026-08-05')).toHaveAttribute('aria-selected', 'true');
   expect(writeRequests).toHaveLength(1);
   writeRequests = [];
 });
@@ -1329,7 +1311,7 @@ test('sync_history_submission_timeout_releases_form_without_auto_retry', async (
   await expect(entry).toHaveAttribute('aria-disabled', 'true');
   const reads = [...requests];
   await page.clock.runFor(16000);
-  await expect(entry).toHaveAttribute('aria-disabled', 'false');
+  await expect(entry).toBeEnabled();
   await expect(page.locator('.global-tip')).toContainText('无法确认历史同步是否已提交：请求超时');
   await expect(page.locator('.sync-notice')).toHaveCount(0);
   await page.clock.runFor(6100);
@@ -1349,7 +1331,7 @@ test('sync_history_dark_dialog_and_long_name_fit_minimum_window', async ({ page 
   await page.getByRole('button', { name: bloggers[0].screenName, exact: true }).click();
   await page.getByRole('button', { name: '同步历史', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '同步历史微博' });
-  await expect(dialog).toHaveCSS('background-color', 'rgb(3, 27, 40)');
+  await expect(dialog).toHaveCSS('background-color', 'oklch(1 0 0)');
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await dialog.getByRole('button', { name: '开始同步' }).scrollIntoViewIfNeeded();
   await expect(dialog.getByRole('button', { name: '开始同步' })).toBeInViewport();
@@ -1543,8 +1525,8 @@ test('add_blogger_dark_modal_fits_minimum_viewport', async ({ page }, testInfo) 
   await page.goto(`${baseUrl}post/index.html`);
   await page.getByRole('button', { name: '添加博主', exact: true }).click();
   await expect(page.locator('.management-dialog')).toHaveCSS('width', '420px');
-  await expect(page.locator('.management-dialog')).toHaveCSS('background-color', 'rgb(3, 27, 40)');
-  await expect(page.locator('.management-dialog')).toHaveCSS('border-radius', '3px');
+  await expect(page.locator('.management-dialog')).toHaveCSS('background-color', 'oklch(1 0 0)');
+  await expect(page.locator('.management-dialog')).toHaveCSS('border-radius', '12px');
   await page.setViewportSize({ width: 900, height: 560 });
   await expect(page.getByRole('button', { name: '添加', exact: true })).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('add-blogger.png') });
@@ -1597,26 +1579,19 @@ for (const navigation of ['date', 'search']) {
     await page.getByRole('button', { name: '添加', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect.poll(() => Boolean(releaseResponse)).toBe(true);
-    if (navigation === 'date')
-      await page.getByRole('button', { name: '2026-08-04', exact: true }).click();
+    if (navigation === 'date') await calendarDay(page, '2026-08-04').click();
     else {
       await page.getByRole('button', { name: '高级搜索', exact: true }).click();
       await page.getByLabel('关键词', { exact: true }).fill('第一');
       await page.getByRole('button', { name: '搜索', exact: true }).click();
       await page.locator('.search-result').click();
     }
-    await expect(page.getByRole('button', { name: '2026-08-04', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(calendarDay(page, '2026-08-04')).toHaveAttribute('aria-selected', 'true');
     holdResponse = false;
     releaseResponse!();
     await expect(page.getByRole('button', { name: '添加后博主', exact: true })).toBeVisible();
     await expect(page.locator('.feed-header h2')).toHaveText('全部微博');
-    await expect(page.getByRole('button', { name: '2026-08-04', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(calendarDay(page, '2026-08-04')).toHaveAttribute('aria-selected', 'true');
     expect(writeRequests).toHaveLength(1);
     writeRequests = [];
   });
@@ -1975,7 +1950,7 @@ test('search_location_switches_shanghai_day_reveals_month_and_centers_exact_card
   };
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.post-content')).toContainText('第一行');
-  await page.getByLabel('选择月份', { exact: true }).selectOption('07');
+  await selectCalendarOption(page, '选择月份', '7 月');
   await page.getByRole('searchbox', { name: '搜索博主' }).fill('第一');
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '高级搜索' });
@@ -1987,12 +1962,9 @@ test('search_location_switches_shanghai_day_reveals_month_and_centers_exact_card
   await result.click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: '高级搜索', exact: true })).toBeFocused();
-  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2025');
-  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('12');
-  await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveText('2025 年');
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveText('12 月');
+  await expect(calendarDay(page, '2025-12-31')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
   const card = page.locator('.post-card').filter({ hasText: '目标完整正文' });
   await expect(card).toHaveClass(/flash-highlight/);
@@ -2020,8 +1992,8 @@ test('search_location_switches_shanghai_day_reveals_month_and_centers_exact_card
     end: '2025-12-31 23:59:59',
   });
   await expect(card).not.toHaveClass(/flash-highlight/);
-  await page.getByLabel('选择月份', { exact: true }).selectOption('11');
-  await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeHidden();
+  await selectCalendarOption(page, '选择月份', '11 月');
+  await expect(calendarDay(page, '2025-12-31')).toBeHidden();
 });
 
 for (const scenario of [
@@ -2172,7 +2144,7 @@ test('search_location_keeps_scope_and_filter_reloads_same_day_with_enter_and_spa
     await expect(page.getByRole('searchbox', { name: '搜索博主' })).toHaveValue('第一');
     await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
   }
-  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await calendarDay(page, '2026-08-05').click();
   await expect(page.locator('.post-content')).toHaveText('完整同日正文');
   await expect(page.locator('.flash-highlight')).toHaveCount(0);
 });
@@ -2190,7 +2162,7 @@ test('search_location_preempts_pending_day_and_ignores_its_late_response', async
   await expect(page.locator('.post-content')).toContainText('第一行');
   holdResponse = true;
   holdPath = '/post/list';
-  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await calendarDay(page, '2026-08-05').click();
   await expect.poll(() => Boolean(releaseResponse)).toBe(true);
   const releaseOld = releaseResponse!;
   await page.getByRole('button', { name: '高级搜索', exact: true }).click();
@@ -2202,7 +2174,7 @@ test('search_location_preempts_pending_day_and_ignores_its_late_response', async
   await expect(page.locator('.post-card.flash-highlight')).toContainText('新的七月正文');
   releaseOld();
   await expect(page.locator('.post-content')).toHaveText('新的七月正文');
-  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute(
+  await expect(page.locator('.date-item[aria-selected="true"]')).toHaveAttribute(
     'aria-label',
     '2026-07-10',
   );
@@ -2298,7 +2270,7 @@ test('search_location_reduced_motion_uses_static_starry_highlight_then_clears', 
   const card = page.locator('.post-card');
   await expect(card).toHaveClass(/flash-highlight/);
   await expect(card).toHaveCSS('animation-name', 'none');
-  await expect(card).toHaveCSS('background-color', 'rgb(11, 56, 83)');
+  await expect(card).toHaveCSS('background-color', 'oklch(0.945 0.036 258)');
   const feed = await page.locator('.posts').evaluate((element) => ({
     left: element.getBoundingClientRect().left + element.clientLeft,
     width: element.clientWidth,
@@ -2602,9 +2574,12 @@ test('advanced_search_dark_form_and_result_keep_readable_controls', async ({ pag
   await expect(page.locator('.search-overlay-window')).toHaveCSS('width', '520px');
   await expect(page.locator('.search-overlay-window')).toHaveCSS(
     'background-color',
-    'rgb(3, 27, 40)',
+    'oklch(1 0 0)',
   );
-  await expect(page.locator('.search-result-snippet')).toHaveCSS('color', 'rgb(228, 238, 245)');
+  await expect(page.locator('.search-result-snippet')).toHaveCSS(
+    'color',
+    'oklch(0.147 0.004 49.3)',
+  );
   await expect(page.locator('.search-result')).toHaveCSS('cursor', 'pointer');
   await expect(page.locator('.search-result-meta')).toHaveCSS(
     'font-variant-numeric',
@@ -2663,7 +2638,7 @@ test('blogger_name_filter_hides_selected_row_without_changing_reading_or_selecti
   await search.fill('第一');
   await expect(page.getByRole('button', { name: '第二位', exact: true })).toHaveCount(0);
   await expect(page.locator('.feed-header h2')).toHaveText('第二位的微博');
-  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute(
+  await expect(page.locator('.date-item[aria-selected="true"]')).toHaveAttribute(
     'aria-label',
     '2026-07-10',
   );
@@ -2677,7 +2652,7 @@ test('blogger_name_filter_hides_selected_row_without_changing_reading_or_selecti
   await search.fill('第一');
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.locator('.post-content')).toContainText('第一行');
-  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute(
+  await expect(page.locator('.date-item[aria-selected="true"]')).toHaveAttribute(
     'aria-label',
     '2026-08-05',
   );
@@ -2730,7 +2705,7 @@ test('blogger_name_filter_keyboard_skips_hidden_rows_and_keeps_failed_avatar_sta
   expect(mediaRequests).toHaveLength(1);
   const search = page.getByRole('searchbox', { name: '搜索博主' });
   await search.fill('第二');
-  await expect(search).toHaveCSS('outline-width', '3px');
+  await expect(search).toHaveCSS('outline-width', '2px');
   await expect(search).toHaveCSS('outline-offset', '2px');
   await search.press('Tab');
   await expect(page.getByRole('button', { name: '添加博主', exact: true })).toBeFocused();
@@ -2858,7 +2833,7 @@ test('post_links_open_homepage_and_original_with_keyboard_and_preserve_reading_s
     await link.focus();
     await expect(link).toBeFocused();
     await expect(link).toHaveCSS('outline-style', 'solid');
-    await expect(link).toHaveCSS('outline-width', '3px');
+    await expect(link).toHaveCSS('outline-width', '2px');
     const scrollTop = await page.locator('.posts').evaluate((element) => element.scrollTop);
     if (index) expect(scrollTop).toBeGreaterThan(0);
     const opened = page.waitForEvent('popup');
@@ -2871,7 +2846,7 @@ test('post_links_open_homepage_and_original_with_keyboard_and_preserve_reading_s
     await popup.close();
     await expect(page).toHaveURL(`${baseUrl}post/index.html`);
     expect(await page.locator('.posts').evaluate((element) => element.scrollTop)).toBe(scrollTop);
-    await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute(
+    await expect(page.locator('.date-item[aria-selected="true"]')).toHaveAttribute(
       'aria-label',
       '2026-08-05',
     );
@@ -3027,7 +3002,7 @@ test('video_card_plays_in_place_with_native_controls', async ({ page, context })
     .toBeGreaterThan(0);
   expect(context.pages()).toEqual([page]);
   await expect(page).toHaveURL(`${baseUrl}post/index.html`);
-  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute(
+  await expect(page.locator('.date-item[aria-selected="true"]')).toHaveAttribute(
     'aria-label',
     '2026-08-05',
   );
@@ -3189,7 +3164,7 @@ test('long_video_feed_loads_covers_on_demand_without_prefetching_video_pages', a
     .poll(() => first.evaluate((element) => (element as HTMLImageElement).naturalWidth))
     .toBe(300);
   expect(requests.some((value) => value.includes('mblogId=video-39'))).toBe(false);
-  const date = page.getByRole('button', { name: '2026-08-05', exact: true });
+  const date = calendarDay(page, '2026-08-05');
   const dateTop = (await date.boundingBox())!.y;
   await last.scrollIntoViewIfNeeded();
   await expect
@@ -3462,10 +3437,7 @@ test('image_viewer_opens_original_on_demand_and_escape_restores_the_picture_focu
   await expect(viewer).toHaveCount(0);
   await expect(picture).toBeFocused();
   await expect(page).toHaveURL(`${baseUrl}post/index.html`);
-  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(calendarDay(page, '2026-08-05')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('image_viewer_cycles_with_buttons_and_arrows_and_keeps_retweet_groups_separate', async ({
@@ -3491,7 +3463,8 @@ test('image_viewer_cycles_with_buttons_and_arrows_and_keeps_retweet_groups_separ
   expect(requests.filter((value) => value.includes('variant=original'))).toEqual([
     'GET ' + imageFixture('p2').originalUrl,
   ]);
-  expect(await viewer.evaluate((element) => element.matches(':modal'))).toBe(true);
+  await expect(viewer).toHaveAttribute('aria-modal', 'true');
+  expect(await viewer.evaluate((element) => element.matches(':popover-open'))).toBe(true);
   await page.locator('.all-bloggers').evaluate((element) => (element as HTMLElement).focus());
   await expect
     .poll(() => viewer.evaluate((element) => element.contains(document.activeElement)))
@@ -3677,30 +3650,31 @@ for (const viewport of [
             };
           }),
         );
-    const { legacy } = approvedGeometry[`viewer-${viewport.width}`];
     await page.goto(`${baseUrl}post/index.html`);
     await page.getByRole('button', { name: '查看微博图片 2', exact: true }).click();
     await expect(page.locator('.image-viewer img')).toBeVisible();
-    const actual = await measure();
-    expect(
-      actual.map(({ x, y, width, height, objectFit }) => ({ x, y, width, height, objectFit })),
-    ).toEqual(
-      legacy.map(
-        ({
-          x,
-          y,
-          width,
-          height,
-          objectFit,
-        }: {
-          x: number;
-          y: number;
-          width: number;
-          height: number;
-          objectFit: string;
-        }) => ({ x, y, width, height, objectFit }),
-      ),
-    );
+    const [viewer, image, prev, next, counter] = await measure();
+    expect({ x: viewer.x, y: viewer.y, width: viewer.width, height: viewer.height }).toEqual({
+      x: 0,
+      y: 0,
+      width: viewport.width,
+      height: viewport.height,
+    });
+    expect(image.objectFit).toBe('contain');
+    expect(image.width).toBeCloseTo(300, 0);
+    expect(image.height).toBeCloseTo(180, 0);
+    expect(image.x + image.width / 2).toBeCloseTo(viewport.width / 2, 1);
+    expect(image.y + image.height / 2).toBeCloseTo(viewport.height / 2, 1);
+    expect(prev.x).toBeCloseTo(16, 0);
+    expect(prev.width).toBeCloseTo(48, 0);
+    expect(prev.height).toBeCloseTo(48, 0);
+    expect(prev.y + prev.height / 2).toBeCloseTo(viewport.height / 2, 1);
+    expect(next.x + next.width).toBeCloseTo(viewport.width - 16, 0);
+    expect(next.width).toBeCloseTo(48, 0);
+    expect(next.height).toBeCloseTo(48, 0);
+    expect(next.y + next.height / 2).toBeCloseTo(viewport.height / 2, 1);
+    expect(counter.x + counter.width / 2).toBeCloseTo(viewport.width / 2, 1);
+    expect(counter.y + counter.height).toBeCloseTo(viewport.height - 16, 1);
     expect(
       await page
         .locator('.posts')
@@ -3755,7 +3729,7 @@ test('retweet_images_follow_original_text_and_keep_the_small_grid_for_pure_retwe
   await expect(page.locator('.post-retweet-pics')).toHaveCSS('gap', '4px');
   await expect(page.locator('.post-retweet-pic').first()).toHaveCSS(
     'background-color',
-    'rgb(7, 43, 66)',
+    'oklch(1 0 0)',
   );
   await expect(images.first()).not.toHaveAttribute('width');
   await expect(page.locator('.post-card.pure-retweet')).toBeVisible();
@@ -3846,7 +3820,7 @@ test('long_image_feed_loads_thumbnails_as_it_scrolls_without_moving_navigation',
     .poll(() => first.evaluate((element) => (element as HTMLImageElement).naturalWidth))
     .toBe(300);
   expect(requests.some((value) => value.includes('pid=lazy-39'))).toBe(false);
-  const date = page.getByRole('button', { name: '2026-08-05', exact: true });
+  const date = calendarDay(page, '2026-08-05');
   const dateTop = (await date.boundingBox())!.y;
   await last.scrollIntoViewIfNeeded();
   await expect
@@ -3953,7 +3927,7 @@ test('inline_picture_links_open_the_viewer_on_the_same_page_through_the_proxy', 
     await expect(link).toBeFocused();
     expect(await pane.evaluate((el) => el.scrollTop)).toBe(before);
     await expect(page).toHaveURL(`${baseUrl}post/index.html`);
-    await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveAttribute(
+    await expect(page.locator('.date-item[aria-selected="true"]')).toHaveAttribute(
       'aria-label',
       '2026-08-05',
     );
@@ -4027,10 +4001,10 @@ test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', asyn
   await expect(page.locator('.post-author').getByRole('img', { name: '已认证' })).toBeVisible();
   await expect(page.locator('.blogger-name').getByRole('img', { name: '已认证' })).toBeVisible();
   await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveText('第');
-  await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveCSS('font-size', '18px');
+  await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveCSS('font-size', '14px');
   await expect(page.locator('.blogger-list .blogger-avatar').last()).toHaveCSS(
     'line-height',
-    '18px',
+    '14px',
   );
   for (const avatar of [
     'https://avatar.test/broken.svg',
@@ -4050,6 +4024,46 @@ test('avatars_and_verified_names_use_existing_fields_and_fall_back_safely', asyn
   await page.reload();
   await expect(page.locator('.post-avatar')).toHaveText('?');
   await expect(page.locator('.post-author')).toHaveText('未知博主');
+});
+
+test('lazy_avatars_load_when_scrolled_into_view', async ({ page }) => {
+  bloggers = Array.from({ length: 40 }, (_, index) => ({
+    uid: index + 1,
+    screenName: `博主 ${index + 1}`,
+    avatar: `https://avatar.test/valid.svg?sidebar=${index}`,
+  }));
+  posts.items = Array.from({ length: 20 }, (_, index) => ({
+    ...posts.items[0],
+    mblogId: `avatar-scroll-${index}`,
+    content: `长正文 ${index}\n${'占位行\n'.repeat(12)}`,
+    blogger: {
+      uid: 1,
+      screenName: '小大饼',
+      avatar: `https://avatar.test/valid.svg?card=${index}`,
+    },
+  }));
+  posts.total = 20;
+  await page.goto(`${baseUrl}post/index.html`);
+  const lastCardAvatar = page.locator('article').last().locator('.post-avatar');
+  await lastCardAvatar.scrollIntoViewIfNeeded();
+  await expect(lastCardAvatar).toHaveAttribute('data-loading-status', 'loaded');
+  await expect
+    .poll(() =>
+      lastCardAvatar
+        .locator('img')
+        .evaluate((element) => (element as HTMLImageElement).naturalWidth),
+    )
+    .toBe(48);
+  const lastBloggerAvatar = page.locator('.blogger-list .blogger-avatar').last();
+  await lastBloggerAvatar.scrollIntoViewIfNeeded();
+  await expect(lastBloggerAvatar).toHaveAttribute('data-loading-status', 'loaded');
+  await expect
+    .poll(() =>
+      lastBloggerAvatar
+        .locator('img')
+        .evaluate((element) => (element as HTMLImageElement).naturalWidth),
+    )
+    .toBe(48);
 });
 
 test('pure_retweet_layout_waits_for_absence_of_outer_media', async ({ page }) => {
@@ -4096,7 +4110,7 @@ test('minimum_desktop_keeps_feed_header_fixed_and_sidebar_navigation_reachable',
   await expect(page.getByRole('button', { name: '博主 40', exact: true })).toBeInViewport();
   const year = page.getByLabel('选择年份', { exact: true });
   await year.focus();
-  await expect(year).toHaveCSS('outline-width', '3px');
+  await expect(year).toHaveCSS('outline-width', '2px');
   await expect(year).toHaveCSS('outline-offset', '2px');
   await expect(year).toBeInViewport();
   expect(await page.evaluate(() => document.scrollingElement!.scrollTop)).toBe(0);
@@ -4119,7 +4133,7 @@ test('default_reading_uses_latest_valid_day_shanghai_bounds_and_backend_total', 
     'true',
   );
   await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByLabel('博文总数')).toHaveText('共 3 条');
@@ -4184,10 +4198,10 @@ test('retweet_text_keeps_outer_comment_and_reads_original_author_and_safe_links'
   await expect(original.locator('.post-retweet-content')).toHaveCSS('font-family', bodyFont);
   await expect(page.locator('.post-author')).toHaveCSS(
     'font-family',
-    '"Microsoft YaHei", sans-serif',
+    'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   );
   await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   expect(
@@ -4285,26 +4299,23 @@ test('date_navigation_selects_year_and_month_and_reads_the_clicked_day', async (
   ];
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toContainText('第一行');
-  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2026');
-  await expect(page.getByLabel('选择月份', { exact: true })).toHaveValue('08');
-  await expect(page.getByRole('button', { name: '2026-08-05', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveText('2026 年');
+  await expect(page.getByLabel('选择月份', { exact: true })).toHaveText('8 月');
+  await expect(calendarDay(page, '2026-08-05')).toHaveAttribute('aria-selected', 'true');
   const beforeToggle = requests.slice();
-  await page.getByLabel('选择年份', { exact: true }).selectOption('2025');
-  await page.getByLabel('选择月份', { exact: true }).selectOption('12');
-  await expect(page.getByRole('button', { name: '2025-12-31', exact: true })).toBeVisible();
+  await selectCalendarOption(page, '选择年份', '2025 年');
+  await selectCalendarOption(page, '选择月份', '12 月');
+  await expect(calendarDay(page, '2025-12-31')).toBeVisible();
   expect(requests).toEqual(beforeToggle);
   posts.items[0].content = '较早日期正文';
   posts.items[0].createdAt = Date.parse('2025-12-31T00:30:00Z');
-  await page.getByRole('button', { name: '2025-12-31', exact: true }).click();
+  await calendarDay(page, '2025-12-31').click();
   await expect(page.getByRole('article')).toContainText('较早日期正文');
   await expect(page.locator('.date-item[aria-label="2025-12-31"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
-  await expect(page.getByLabel('选择年份', { exact: true })).toHaveValue('2025');
+  await expect(page.getByLabel('选择年份', { exact: true })).toHaveText('2025 年');
   const query = new URL(requests.at(-1)!.slice(4), 'http://fixture').searchParams;
   expect(Object.fromEntries(query)).toEqual({
     page: '1',
@@ -4341,7 +4352,7 @@ test('blogger_selection_resets_to_latest_day_and_returning_to_all_reloads_its_sc
   );
   await expect(page.getByRole('heading', { name: '第一位的微博', exact: true })).toBeVisible();
   await expect(page.locator('.date-item[aria-label="2026-07-10"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByRole('article')).toContainText('单博主正文');
@@ -4358,16 +4369,16 @@ test('blogger_selection_resets_to_latest_day_and_returning_to_all_reloads_its_sc
     uids: '1',
   });
   expect(requests).toContain('GET /post/calendar?uid=1');
-  await page.getByRole('button', { name: '2026-07-09', exact: true }).click();
+  await calendarDay(page, '2026-07-09').click();
   await expect(page.locator('.date-item[aria-label="2026-07-09"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByRole('article')).toBeVisible();
   const beforeRepeat = requests.length;
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.locator('.date-item[aria-label="2026-07-10"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByRole('article')).toBeVisible();
@@ -4381,7 +4392,7 @@ test('blogger_selection_resets_to_latest_day_and_returning_to_all_reloads_its_sc
     'true',
   );
   await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByRole('article')).toContainText('第一行');
@@ -4397,28 +4408,25 @@ test('inflight_day_read_keeps_selection_and_same_day_click_reads_again', async (
   holdResponse = true;
   holdPath = '/post/list';
   posts.items[0].content = '重新读取的正文';
-  await page.getByRole('button', { name: '2026-08-05', exact: true }).click();
+  await calendarDay(page, '2026-08-05').click();
   try {
     await expect(page.getByRole('status')).toHaveText('正在加载博文……');
     await expect(page.getByRole('article')).toHaveCount(0);
-    await page.getByRole('button', { name: '2026-08-04', exact: true }).click();
+    await calendarDay(page, '2026-08-04').click();
     await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-      'aria-pressed',
+      'aria-selected',
       'true',
     );
-    await expect(page.getByRole('button', { name: '2026-08-04', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
+    await expect(calendarDay(page, '2026-08-04')).not.toHaveAttribute('aria-selected', 'true');
     expect(requests.slice(beforeReload)).toHaveLength(1);
   } finally {
     holdResponse = false;
     releaseResponse?.();
   }
   await expect(page.getByRole('article')).toContainText('重新读取的正文');
-  await page.getByRole('button', { name: '2026-08-04', exact: true }).click();
+  await calendarDay(page, '2026-08-04').click();
   await expect(page.locator('.date-item[aria-label="2026-08-04"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByRole('article')).toBeVisible();
@@ -4433,7 +4441,7 @@ test('long_feed_scrolls_independently_of_blogger_and_date_navigation', async ({ 
   posts.total = 24;
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.getByRole('article')).toHaveCount(24);
-  const dateButton = page.getByRole('button', { name: '2026-08-05', exact: true });
+  const dateButton = calendarDay(page, '2026-08-05');
   const dateTop = (await dateButton.boundingBox())!.y;
   const feed = page.locator('.posts');
   const feedHeight = (await feed.boundingBox())!.height;
@@ -4493,7 +4501,7 @@ test('switching_blogger_cancels_old_calendar_and_ignores_its_late_error', async 
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('正在加载日期……');
   await expect.poll(() => requests.includes('GET /post/calendar?uid=1')).toBe(true);
-  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('.date-item[aria-selected="true"]')).toHaveCount(0);
   await expect(page.getByRole('article')).toHaveCount(0);
   await expect(page.getByLabel('博文总数')).toHaveCount(0);
   calendarStatus = 200;
@@ -4517,7 +4525,7 @@ test('switching_blogger_cancels_old_calendar_and_ignores_its_late_error', async 
     'true',
   );
   await expect(page.locator('.date-item[aria-label="2025-12-31"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -4557,9 +4565,9 @@ test('old_list_error_cannot_release_the_new_scope_loading_guard', async ({ page 
     await expect(page.getByRole('status')).toHaveText('正在加载博文……');
     await expect(page.getByRole('alert')).toHaveCount(0);
     const beforeClick = requests.length;
-    await page.getByRole('button', { name: '2026-08-04', exact: true }).click();
+    await calendarDay(page, '2026-08-04').click();
     await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-      'aria-pressed',
+      'aria-selected',
       'true',
     );
     expect(requests).toHaveLength(beforeClick);
@@ -4588,7 +4596,7 @@ test('empty_scope_and_calendar_failure_clear_old_feed_then_retry_preserves_new_s
   await expect(page.getByRole('article')).toBeVisible();
   await page.getByRole('button', { name: '第一位', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('暂无有博文的日期。');
-  await expect(page.locator('.date-item[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('.date-item[aria-selected="true"]')).toHaveCount(0);
   await expect(page.getByLabel('博文总数')).toHaveCount(0);
   await expect(page.getByRole('article')).toHaveCount(0);
   expect(
@@ -4606,7 +4614,7 @@ test('empty_scope_and_calendar_failure_clear_old_feed_then_retry_preserves_new_s
   await page.getByRole('button', { name: '第二位', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('博文加载失败。（本地读取暂时不可用）');
   await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   const beforeRetry = requests.length;
@@ -4621,7 +4629,7 @@ test('zero_count_day_does_not_replace_latest_day_with_captured_content', async (
   calendar.months.unshift({ month: '2060-01', count: 0, days: [{ date: '2060-01-01', count: 0 }] });
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
 });
@@ -4701,7 +4709,7 @@ test('calendar_empty_and_day_empty_are_distinct_reading_states', async ({ page }
   await page.reload();
   await expect(page.getByRole('status')).toHaveText('该日无微博。');
   await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   await expect(page.getByLabel('博文总数')).toHaveText('共 0 条');
@@ -4726,7 +4734,7 @@ test('list_retry_only_recovers_list_and_keeps_blogger_and_date_regions', async (
   await expect(page.getByRole('alert')).toHaveText('博文加载失败。（本地读取暂时不可用）');
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.locator('.date-item[aria-label="2026-08-05"]')).toHaveAttribute(
-    'aria-pressed',
+    'aria-selected',
     'true',
   );
   const initial = requests.slice();
@@ -4852,12 +4860,13 @@ test('post_announces_query_failure', async ({ page }) => {
   ]);
 });
 
-test('post_entry_refreshes_with_starry_skin', async ({ page }) => {
+test('post_entry_refreshes_with_shadcn_skin', async ({ page }) => {
   await page.goto(`${baseUrl}post/index.html`);
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
-  await expect(page.locator('body')).toHaveCSS('color', 'rgb(228, 238, 245)');
-  await expect(page.locator('body')).toHaveCSS('background-image', /starry-sky/);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('body')).toHaveCSS('color', 'oklch(0.147 0.004 49.3)');
+  await expect(page.locator('body')).toHaveCSS('background-image', 'none');
   await page.reload();
   await expect(page.locator('.blogger-list .blogger-name')).toHaveText(['第一位', '第二位']);
   await expect(page.getByRole('article')).toBeVisible();
@@ -4873,6 +4882,83 @@ test('post_entry_refreshes_with_starry_skin', async ({ page }) => {
     'GET /post/calendar',
     'GET /post/list',
   ]);
+});
+
+test('post_theme_toggle_persists_dark_mode_and_meets_contrast', async ({ page }, testInfo) => {
+  posts.items[0].postUrl = 'https://weibo.com/1/local-1';
+  await page.goto(`${baseUrl}post/index.html`);
+  await expect(page.locator('.post-content')).toContainText('第一行');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  const measureContrast = () =>
+    page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+      const toRgb = (color: string): [number, number, number] => {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        return [r, g, b];
+      };
+      const luminance = ([r, g, b]: [number, number, number]) => {
+        const linear = [r, g, b].map((c) => {
+          const s = c / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+      };
+      const ratio = (fg: string, bg: string) => {
+        const l1 = luminance(toRgb(fg));
+        const l2 = luminance(toRgb(bg));
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      };
+      const surface = getComputedStyle(document.querySelector('.feed')!).backgroundColor;
+      const sidebar = getComputedStyle(
+        document.querySelector('.bloggers-sidebar')!,
+      ).backgroundColor;
+      const bodyText = getComputedStyle(document.querySelector('.post-content')!).color;
+      const mutedText = getComputedStyle(document.querySelector('.post-time')!).color;
+      const linkText = getComputedStyle(document.querySelector('.post-link')!).color;
+      const activeRow = getComputedStyle(
+        document.querySelector('.blogger-row[aria-pressed="true"]')!,
+      );
+      const selectedDay = getComputedStyle(
+        document.querySelector('.date-item[aria-selected="true"]')!,
+      );
+      return {
+        bodyOnSurface: ratio(bodyText, surface),
+        mutedOnSurface: ratio(mutedText, surface),
+        mutedOnSidebar: ratio(mutedText, sidebar),
+        linkOnSurface: ratio(linkText, surface),
+        activeRow: ratio(activeRow.color, activeRow.backgroundColor),
+        selectedDay: ratio(selectedDay.color, selectedDay.backgroundColor),
+      };
+    });
+
+  const lightContrast = await measureContrast();
+  for (const value of Object.values(lightContrast)) {
+    expect(value).toBeGreaterThanOrEqual(4.5);
+  }
+
+  await page.getByRole('button', { name: '切换到深色主题', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'oklch(0.147 0.004 49.3)');
+  expect(await page.evaluate(() => localStorage.getItem('weibo-post:theme'))).toBe('dark');
+  await page.screenshot({ path: testInfo.outputPath('dark-reading.png') });
+
+  const darkContrast = await measureContrast();
+  for (const value of Object.values(darkContrast)) {
+    expect(value).toBeGreaterThanOrEqual(4.5);
+  }
+
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: '切换到浅色主题', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  expect(await page.evaluate(() => localStorage.getItem('weibo-post:theme'))).toBe('light');
 });
 
 test('dev_proxy_preserves_html_modules_css_and_exact_api_paths', async ({ request }) => {
@@ -4960,7 +5046,10 @@ test('component_and_css_hot_updates_preserve_the_open_document', async ({ page }
     await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toBeVisible();
     await writeFile(
       stylesheet,
-      originalStylesheet.replace(/700 19px\s*\/\s*1\.3/, '700 17px / 1.3'),
+      originalStylesheet.replace(
+        /\.bloggers-heading h2,\s*\.dates-heading h2\s*\{[^}]*font-size:\s*16px;/,
+        (match) => match.replace('font-size: 16px;', 'font-size: 17px;'),
+      ),
     );
     await expect(page.getByRole('heading', { name: '本地微博热更新验证' })).toHaveCSS(
       'font-size',

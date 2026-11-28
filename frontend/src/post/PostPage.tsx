@@ -1,14 +1,25 @@
+import { Button } from '@ui-sdk/react/button';
+import { Input, InputClear, InputGroup } from '@ui-sdk/react/input';
+import {
+  ArrowDownIcon,
+  MessageSquareIcon,
+  MoonIcon,
+  SearchIcon,
+  SunIcon,
+  XIcon,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { isUnauthorized, useDefaultReading, type Blogger } from './queries';
-import { usePostLogin } from './usePostLogin';
-import PostLogin from './PostLogin';
-import AddBlogger from './AddBlogger';
-import SyncHistory from './SyncHistory';
-import PostFeed from './PostFeed';
-import DateCalendar from './DateCalendar';
-import PostSearch from './PostSearch';
-import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
 import weiboLogo from '../shared/assets/weibo-logo.svg';
+import AddBlogger from './AddBlogger';
+import BloggerAvatar, { VerifiedBadge } from './BloggerAvatar';
+import DateCalendar from './DateCalendar';
+import PostFeed from './PostFeed';
+import PostLogin from './PostLogin';
+import PostSearch from './PostSearch';
+import { type Blogger, isUnauthorized, useDefaultReading } from './queries';
+import SyncHistory from './SyncHistory';
+import { usePostLogin } from './usePostLogin';
+import { usePostTheme } from './usePostTheme';
 
 function BloggerList({
   bloggers,
@@ -26,7 +37,7 @@ function BloggerList({
     <ul className="blogger-list" aria-label="博主">
       {bloggers.map((blogger) => (
         <li key={blogger.uid} hidden={!blogger.screenName.toLowerCase().includes(filter)}>
-          <button
+          <Button
             type="button"
             className="blogger-row"
             aria-label={blogger.screenName}
@@ -38,7 +49,7 @@ function BloggerList({
               {blogger.screenName}
               {blogger.verified && <VerifiedBadge />}
             </span>
-          </button>
+          </Button>
         </li>
       ))}
     </ul>
@@ -46,6 +57,7 @@ function BloggerList({
 }
 
 export default function PostPage() {
+  const { theme, toggleTheme } = usePostTheme();
   const [bloggerSearch, setBloggerSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const {
@@ -70,7 +82,7 @@ export default function PostPage() {
     if (
       !scrollIntent.current ||
       searchOpen ||
-      element.querySelector('dialog[open]') ||
+      document.querySelector('[data-slot="dialog-content"][data-open]') ||
       posts.isFetching ||
       posts.isFetchNextPageError ||
       !posts.hasNextPage ||
@@ -110,13 +122,19 @@ export default function PostPage() {
               {bloggers.isSuccess && <span>{bloggers.data.length} 位博主</span>}
             </header>
             <div className="search-box">
-              <input
-                type="search"
-                aria-label="搜索博主"
-                placeholder="搜索博主"
-                value={bloggerSearch}
-                onChange={(event) => setBloggerSearch(event.target.value)}
-              />
+              <InputGroup className="search-box-group">
+                <SearchIcon aria-hidden="true" />
+                <Input
+                  type="search"
+                  aria-label="搜索博主"
+                  placeholder="搜索博主"
+                  value={bloggerSearch}
+                  onValueChange={setBloggerSearch}
+                />
+                <InputClear tabIndex={-1} aria-label="清空搜索">
+                  <XIcon aria-hidden="true" />
+                </InputClear>
+              </InputGroup>
             </div>
             <div className="blogger-tools">
               <AddBlogger onAdded={bloggerAdded} onUnauthorized={login.expire} />
@@ -127,7 +145,7 @@ export default function PostPage() {
               />
             </div>
             <div className="bloggers-list">
-              <button
+              <Button
                 type="button"
                 className="blogger-row all-bloggers"
                 aria-pressed={selection.uid === null}
@@ -137,7 +155,7 @@ export default function PostPage() {
                   <img src={weiboLogo} alt="" />
                 </span>
                 <span className="blogger-name">全部博主</span>
-              </button>
+              </Button>
               {bloggers.isPending && (
                 <p className="panel-feedback" role="status">
                   正在加载博主……
@@ -188,15 +206,15 @@ export default function PostPage() {
               </div>
             </div>
             <div className="feed-actions">
-              <button
-                type="button"
-                className="search-open"
-                aria-label="高级搜索"
-                onClick={() => setSearchOpen(true)}
-              >
-                高级搜索
-              </button>
-              <button
+              <PostSearch
+                open={searchOpen}
+                onOpenChange={setSearchOpen}
+                uid={selection.uid}
+                scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'}
+                onSelectPost={jumpToPost}
+                onUnauthorized={login.expire}
+              />
+              <Button
                 type="button"
                 className="window-control toggle"
                 aria-label="切换到微博群聊"
@@ -205,8 +223,9 @@ export default function PostPage() {
                   window.location.href = '/chat/index.html';
                 }}
               >
+                <MessageSquareIcon aria-hidden="true" />
                 微博群聊
-              </button>
+              </Button>
             </div>
           </header>
           <div
@@ -234,9 +253,9 @@ export default function PostPage() {
             {posts.isError && !posts.isFetchNextPageError && !isUnauthorized(posts.error) && (
               <>
                 <p role="alert">博文加载失败。（{posts.error.message}）</p>
-                <button type="button" onClick={() => void posts.refetch()}>
+                <Button type="button" className="retry-posts" onClick={() => void posts.refetch()}>
                   重试博文
-                </button>
+                </Button>
               </>
             )}
             {posts.data?.pages.map((page, index) => (
@@ -268,7 +287,7 @@ export default function PostPage() {
                   <p role="alert">更早微博加载失败。（{posts.error.message}）</p>
                 )}
                 {posts.hasNextPage ? (
-                  <button
+                  <Button
                     type="button"
                     className="search-open load-earlier"
                     disabled={posts.isFetching}
@@ -277,8 +296,9 @@ export default function PostPage() {
                       void posts.fetchNextPage({ cancelRefetch: false });
                     }}
                   >
+                    <ArrowDownIcon aria-hidden="true" />
                     {posts.isFetchNextPageError ? '重试加载更早微博' : '加载更早微博'}
-                  </button>
+                  </Button>
                 ) : (
                   <p>已读到最早的微博。</p>
                 )}
@@ -290,6 +310,19 @@ export default function PostPage() {
           <section className="dates-panel" aria-label="日期区域">
             <header className="dates-heading">
               <h2>日期选择</h2>
+              <Button
+                type="button"
+                className="theme-toggle"
+                aria-label={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
+                title={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
+                onClick={toggleTheme}
+              >
+                {theme === 'dark' ? (
+                  <SunIcon aria-hidden="true" />
+                ) : (
+                  <MoonIcon aria-hidden="true" />
+                )}
+              </Button>
             </header>
             <div className="dates-list">
               {calendar.isFetching && (
@@ -323,15 +356,6 @@ export default function PostPage() {
       <div className="reading-announcement" aria-live="polite" aria-atomic="true">
         {posts.data && !posts.isFetching && loadedCount > 0 ? `已加载 ${loadedCount} 条微博` : ''}
       </div>
-      {searchOpen && (
-        <PostSearch
-          uid={selection.uid}
-          scopeLabel={selectedBlogger ? `@${selectedBlogger.screenName}` : '全部博主'}
-          onClose={() => setSearchOpen(false)}
-          onSelectPost={jumpToPost}
-          onUnauthorized={login.expire}
-        />
-      )}
     </div>
   );
 }

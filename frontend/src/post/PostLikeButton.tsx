@@ -1,3 +1,6 @@
+import { Button } from '@ui-sdk/react/button';
+import { Toggle, ToggleIcon } from '@ui-sdk/react/toggle';
+import { ThumbsUpIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   useIsMutating,
@@ -106,28 +109,46 @@ export default function PostLikeButton({
         : '点赞';
   return (
     <div className="post-like">
-      <button
-        ref={buttonRef}
-        type="button"
-        className="post-like-button"
-        aria-label={name}
-        aria-pressed={confirmed?.liked}
-        disabled={!enabled || !confirmed}
-        aria-disabled={processing || state.isFetching}
-        onClick={click}
-        title={confirmed?.liked ? '取消点赞' : undefined}
-      >
-        <span aria-hidden="true">👍</span>
-        {label}
-      </button>
+      {confirmed ? (
+        <Toggle
+          ref={buttonRef}
+          className="post-like-button"
+          pressed={confirmed.liked}
+          onPressedChange={click}
+          aria-label={name}
+          disabled={!enabled || processing}
+          focusableWhenDisabled={enabled && processing}
+          title={confirmed.liked ? '取消点赞' : undefined}
+        >
+          <ToggleIcon>
+            <ThumbsUpIcon aria-hidden="true" />
+          </ToggleIcon>
+          {label}
+        </Toggle>
+      ) : (
+        <Button
+          ref={buttonRef}
+          type="button"
+          className="post-like-button"
+          aria-label={name}
+          disabled
+        >
+          <ThumbsUpIcon aria-hidden="true" />
+          {label}
+        </Button>
+      )}
       {confirmed && (
         <span className="post-like-count" aria-label={`当前点赞数：${confirmed.count}`}>
           {confirmed.count}
         </span>
       )}
       {(message || state.isError) && (
-        <span className="post-like-error" role="status">
-          {message || `点赞状态查询失败：${state.error?.message}`}
+        <span
+          className="post-like-error"
+          role="status"
+          title={!message && state.error?.message ? state.error.message : undefined}
+        >
+          {message || '点赞查询失败'}
         </span>
       )}
     </div>

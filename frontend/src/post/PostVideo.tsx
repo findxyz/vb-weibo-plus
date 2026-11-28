@@ -1,3 +1,4 @@
+import { PlayIcon } from 'lucide-react';
 import { useState } from 'react';
 import type { VideoSource } from './video';
 
@@ -51,7 +52,9 @@ export default function PostVideo({
           onError={() => setFailedSrc(video.coverUrl)}
         />
         <span className="post-video-play" aria-hidden="true">
-          <span />
+          <span>
+            <PlayIcon aria-hidden="true" />
+          </span>
         </span>
       </button>
       {playFailed && (

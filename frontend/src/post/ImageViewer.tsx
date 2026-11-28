@@ -1,3 +1,6 @@
+import { Button } from '@ui-sdk/react/button';
+import { Dialog, DialogBackdrop, DialogContent } from '@ui-sdk/react/dialog';
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useImageZoom } from '../shared/useImageZoom';
 
@@ -56,50 +59,76 @@ export default function ImageViewer({
   initialIndex: number;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const openerRef = useRef<HTMLElement | null>(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
   const [index, setIndex] = useState(initialIndex);
+
   useEffect(() => {
-    const dialog = ref.current!;
-    dialog.showModal();
-    return () => dialog.close();
+    const opener = openerRef.current;
+    return () => {
+      queueMicrotask(() => {
+        if (
+          opener?.isConnected &&
+          (document.activeElement === document.body || document.activeElement === null)
+        ) {
+          opener.focus();
+        }
+      });
+    };
   }, []);
+
   function move(offset: number) {
     setIndex((previous) => (previous + offset + images.length) % images.length);
   }
 
   return (
-    <dialog
-      ref={ref}
-      className="image-viewer"
-      aria-label="查看原图"
-      onClose={onClose}
-      onKeyDown={(event) => {
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-          event.preventDefault();
-          move(event.key === 'ArrowLeft' ? -1 : 1);
-        }
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) event.currentTarget.close();
+    <Dialog
+      open
+      container={document.body}
+      onOpenChange={(next) => {
+        if (!next) onClose();
       }}
     >
-      <ViewerImage key={index} {...images[index]} />
-      {images.length > 1 && (
-        <>
-          <button
-            type="button"
-            className="viewer-prev"
-            aria-label="上一张"
-            onClick={() => move(-1)}
-          >
-            ‹
-          </button>
-          <button type="button" className="viewer-next" aria-label="下一张" onClick={() => move(1)}>
-            ›
-          </button>
-          <span className="viewer-counter">{`${index + 1} / ${images.length}`}</span>
-        </>
-      )}
-    </dialog>
+      <DialogBackdrop className="image-viewer-backdrop" />
+      <DialogContent
+        render={<dialog />}
+        className="image-viewer"
+        aria-label="查看原图"
+        initialFocus="content"
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            event.preventDefault();
+            move(event.key === 'ArrowLeft' ? -1 : 1);
+          }
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
+      >
+        <ViewerImage key={index} {...images[index]} />
+        {images.length > 1 && (
+          <>
+            <Button
+              type="button"
+              className="viewer-prev"
+              aria-label="上一张"
+              onClick={() => move(-1)}
+            >
+              <ChevronLeftIcon aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              className="viewer-next"
+              aria-label="下一张"
+              onClick={() => move(1)}
+            >
+              <ChevronRightIcon aria-hidden="true" />
+            </Button>
+            <span className="viewer-counter">{`${index + 1} / ${images.length}`}</span>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

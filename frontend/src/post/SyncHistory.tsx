@@ -1,6 +1,20 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@ui-sdk/react/button';
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from '@ui-sdk/react/dialog';
+import { Field, FieldLabel } from '@ui-sdk/react/field';
+import { Input } from '@ui-sdk/react/input';
+import { Progress, ProgressIndicator, ProgressTrack } from '@ui-sdk/react/progress';
+import { RefreshCwIcon, XIcon } from 'lucide-react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   calendarMonthsAgo,
   isDateRangeValid,
@@ -9,7 +23,7 @@ import {
   toQueryDateTime,
   toQueryEndTime,
 } from '../shared/date';
-import { getJson, isConflict, isUnauthorized, type Blogger } from './queries';
+import { type Blogger, getJson, isConflict, isUnauthorized } from './queries';
 
 const historyStatusKey = ['post', 'history-status'] as const;
 const millisecondsPerDay = 86_400_000;
@@ -68,7 +82,6 @@ export default function SyncHistory({
   const [end, setEnd] = useState('');
   const [validation, setValidation] = useState('');
   const [tip, setTip] = useState<string>();
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const controller = useRef<AbortController>(null);
   const pending = useRef(false);
   const alive = useRef(true);
@@ -119,16 +132,13 @@ export default function SyncHistory({
     [],
   );
   useEffect(() => {
+    if (!blogger) setOpen(false);
+  }, [blogger]);
+  useEffect(() => {
     if (!tip) return;
     const timer = setTimeout(() => setTip(undefined), 6000);
     return () => clearTimeout(timer);
   }, [tip]);
-  useEffect(() => {
-    if (!open) return;
-    const dialog = dialogRef.current!;
-    dialog.showModal();
-    return () => dialog.close();
-  }, [open]);
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!blogger || pending.current || running) return;
@@ -142,31 +152,83 @@ export default function SyncHistory({
     }
     pending.current = true;
     setTip(undefined);
-    dialogRef.current!.close();
     setOpen(false);
     sync.mutate({ uid: blogger.uid, start, end });
   }
   const submitting = sync.isPending && !sync.error;
   return (
     <>
-      <button
-        type="button"
-        className="search-open sync-history-open"
-        aria-label="同步历史"
-        disabled={!blogger || running}
-        aria-disabled={!blogger || running || sync.isPending}
-        title={!blogger ? '请先选择一位博主' : '同步历史微博'}
-        onClick={() => {
-          if (!blogger || pending.current || running) return;
-          const today = shanghaiToday();
-          setStart(localDateValue(calendarMonthsAgo(new Date(`${today}T12:00:00`), 24)));
-          setEnd(today);
-          setValidation('');
-          setOpen(true);
+      <Dialog
+        open={open && Boolean(blogger)}
+        container={document.body}
+        closeOnOutsidePress={false}
+        onOpenChange={(next, details) => {
+          if (next) {
+            if (!blogger) {
+              details.cancel();
+              return;
+            }
+            const today = shanghaiToday();
+            setStart(localDateValue(calendarMonthsAgo(new Date(`${today}T12:00:00`), 24)));
+            setEnd(today);
+            setValidation('');
+          }
+          setOpen(next);
         }}
       >
-        同步历史
-      </button>
+        <DialogTrigger
+          className="search-open sync-history-open"
+          aria-label="同步历史"
+          disabled={!blogger || running || sync.isPending}
+          focusableWhenDisabled={Boolean(blogger && !running && sync.isPending)}
+          title={!blogger ? '请先选择一位博主' : '同步历史微博'}
+        >
+          <RefreshCwIcon aria-hidden="true" />
+          同步历史
+        </DialogTrigger>
+        {blogger && (
+          <>
+            <DialogBackdrop className="management-backdrop" />
+            <DialogContent className="management-dialog">
+              <div className="management-window">
+                <header className="search-overlay-titlebar">
+                  <DialogTitle>同步历史微博</DialogTitle>
+                  <DialogClose aria-label="关闭同步历史微博">
+                    <XIcon aria-hidden="true" />
+                  </DialogClose>
+                </header>
+                <form className="search-overlay-body" onSubmit={submit}>
+                  <DialogDescription className="search-overlay-tip">
+                    按天拉取 <b>@{blogger.screenName}</b>{' '}
+                    在选定范围内的微博，已存在的会自动跳过。同步在后台执行，可在工具栏查看进度和结果。刷新页面可查看已保存的微博。
+                  </DialogDescription>
+                  <Field className="search-field">
+                    <FieldLabel>开始日期</FieldLabel>
+                    <Input type="date" value={start} onValueChange={setStart} />
+                  </Field>
+                  <Field className="search-field">
+                    <FieldLabel>结束日期</FieldLabel>
+                    <Input type="date" value={end} onValueChange={setEnd} />
+                  </Field>
+                  <p className="management-status" role="alert">
+                    {validation}
+                  </p>
+                  <div className="search-actions">
+                    <Button
+                      type="submit"
+                      className="sync-submit"
+                      aria-label="开始同步"
+                      disabled={running}
+                    >
+                      开始同步
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </DialogContent>
+          </>
+        )}
+      </Dialog>
       {(task || submitting || history.isError) && (
         <div className="sync-history-status" data-phase={task?.phase} role="status">
           {task ? (
@@ -176,13 +238,20 @@ export default function SyncHistory({
                 <span title={account ?? undefined}>{account}</span>
               </div>
               {task.phase === 'RUNNING' && task.currentDate && (
-                <progress
+                <Progress
+                  className="sync-progress"
                   aria-label="已完成日期"
+                  min={0}
                   max={1 + (Date.parse(task.end) - Date.parse(task.start)) / millisecondsPerDay}
-                  value={
-                    (Date.parse(task.currentDate) - Date.parse(task.start)) / millisecondsPerDay
-                  }
-                />
+                  value={Math.max(
+                    0,
+                    (Date.parse(task.currentDate) - Date.parse(task.start)) / millisecondsPerDay,
+                  )}
+                >
+                  <ProgressTrack>
+                    <ProgressIndicator />
+                  </ProgressTrack>
+                </Progress>
               )}
               {detail && <div className="sync-history-status-detail">{detail}</div>}
               <div>
@@ -195,59 +264,6 @@ export default function SyncHistory({
           {history.isError && <div>暂时无法读取同步状态，稍后重试。</div>}
         </div>
       )}
-      {open &&
-        blogger &&
-        createPortal(
-          <dialog
-            ref={dialogRef}
-            className="management-dialog"
-            aria-labelledby="sync-history-title"
-            onClose={() => setOpen(false)}
-          >
-            <div className="management-window">
-              <header className="search-overlay-titlebar">
-                <h2 id="sync-history-title">同步历史微博</h2>
-                <button
-                  type="button"
-                  aria-label="关闭同步历史微博"
-                  onClick={() => dialogRef.current!.close()}
-                />
-              </header>
-              <form className="search-overlay-body" onSubmit={submit}>
-                <p className="search-overlay-tip">
-                  按天拉取 <b>@{blogger.screenName}</b>{' '}
-                  在选定范围内的微博，已存在的会自动跳过。同步在后台执行，可在工具栏查看进度和结果。刷新页面可查看已保存的微博。
-                </p>
-                <label className="search-field">
-                  开始日期
-                  <input
-                    type="date"
-                    value={start}
-                    onChange={(event) => setStart(event.target.value)}
-                  />
-                </label>
-                <label className="search-field">
-                  结束日期
-                  <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
-                </label>
-                <p className="management-status" role="alert">
-                  {validation}
-                </p>
-                <div className="search-actions">
-                  <button
-                    type="submit"
-                    className="sync-submit"
-                    aria-label="开始同步"
-                    disabled={running}
-                  >
-                    开始同步
-                  </button>
-                </div>
-              </form>
-            </div>
-          </dialog>,
-          document.body,
-        )}
       {tip &&
         createPortal(
           <div className="global-tip" role="alert">

@@ -1,3 +1,5 @@
+import { Button } from '@ui-sdk/react/button';
+import { QrCodeIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function PostLogin({
@@ -53,14 +55,16 @@ export default function PostLogin({
       )}
       {image && <img src={image} alt="扫码登录二维码" />}
       <span className="panel-state">{message}</span>
-      <button
+      <Button
         type="button"
+        className="login-action"
         aria-label={pending ? '扫码中…' : '扫码登录'}
         disabled={pending}
         onClick={onStart}
       >
+        <QrCodeIcon aria-hidden="true" />
         {pending ? '扫码中…' : '扫码登录'}
-      </button>
+      </Button>
     </div>
   );
 }

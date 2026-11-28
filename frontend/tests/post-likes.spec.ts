@@ -101,7 +101,7 @@ test('selecting_the_same_date_reads_current_like_state_again', async ({ page }) 
   await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
   liked = true;
   count = 45;
-  await page.getByRole('button', { name: '2026-10-31', exact: true }).click();
+  await page.getByRole('gridcell', { name: '2026-10-31', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消点赞', exact: true })).toBeEnabled();
   await expect(page.getByLabel('当前点赞数：45', { exact: true })).toBeVisible();
   expect(reads).toEqual(['outer-repost', 'outer-repost']);
@@ -153,7 +153,11 @@ test('like_updates_immediately_ignores_write_response_state_and_can_be_cancelled
   expect(reads).toEqual(['outer-repost', 'outer-repost']);
 });
 
-test('unknown_state_is_retried_on_page_reload_without_sending_a_like', async ({ page }) => {
+test('unknown_state_is_retried_on_page_reload_without_sending_a_like', async ({
+  page,
+}, testInfo) => {
+  posts.items[0].region = '发布于 广东';
+  posts.items[0].source = '微博会员中心';
   await page.route(
     (url) => url.pathname === '/post/like',
     async (route) => {
@@ -166,12 +170,22 @@ test('unknown_state_is_retried_on_page_reload_without_sending_a_like', async ({ 
   const unknown = page.getByRole('button', { name: '点赞状态未知' });
   await expect(unknown).toBeDisabled();
   await expect(unknown).not.toHaveAttribute('aria-pressed');
-  await expect(page.locator('.post-like-error')).toContainText('微博状态暂时不可用');
+  await expect(page.locator('.post-like-error')).toHaveText('点赞查询失败');
+  await expect(page.locator('.post-like-error')).toHaveAttribute('title', '微博状态暂时不可用');
   await expect(page.locator('.post-like-count')).toHaveCount(0);
+  const meta = (await page.locator('.post-meta').boundingBox())!;
+  const likeButton = (await unknown.boundingBox())!;
+  const link = (await page.locator('.post-link').boundingBox())!;
+  expect(Math.abs(likeButton.y + likeButton.height / 2 - (meta.y + meta.height / 2))).toBeLessThan(
+    6,
+  );
+  expect(Math.abs(link.y + link.height / 2 - (likeButton.y + likeButton.height / 2))).toBeLessThan(
+    4,
+  );
+  await page.screenshot({ path: testInfo.outputPath('post-like-lookup-failed.png') });
   await page.reload();
   await expect(page.getByRole('button', { name: '点赞', exact: true })).toBeEnabled();
   expect(reads).toEqual(['outer-repost', 'outer-repost']);
-  expect(writes).toEqual([]);
   expect(writes).toEqual([]);
 });
 
@@ -306,7 +320,7 @@ test('scrolling up past a post with a failed like lookup keeps moving up', async
   await expect(first).not.toBeInViewport();
   await page.mouse.wheel(0, -14);
   await expect(first).toBeInViewport();
-  await expect(first.locator('.post-like-error')).toContainText('微博状态暂时不可用');
+  await expect(first.locator('.post-like-error')).toHaveText('点赞查询失败');
   await expect.poll(() => feed.evaluate((element) => element.scrollTop)).toBeLessThan(edge - 5);
   expect(lookups).toBe(1);
 });
